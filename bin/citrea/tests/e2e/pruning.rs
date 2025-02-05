@@ -30,7 +30,6 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     wait_for_l1_block(&da_service, 3, None).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
-    let mut block_hashes = BTreeMap::new();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
@@ -49,14 +48,7 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        seq_test_client.send_publish_batch_request().await;
-        // Get the hash of the latest block
-        let block_hash = seq_test_client
-            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(i)))
-            .await
-            .header
-            .hash;
-        block_hashes.insert(i, block_hash);
+        seq_test_client.spam_publish_batch_request().await.unwrap();
 
         if i % 5 == 0 {
             wait_for_l2_block(&seq_test_client, i, None).await;
@@ -66,29 +58,25 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     }
 
     // Old blocks balance information should have been pruned
-    let block_hash = block_hashes.get(&2).unwrap();
     let get_balance_result = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(2))))
         .await;
     assert!(get_balance_result.is_err());
 
-    let block_hash = block_hashes.get(&20).unwrap();
     let get_balance_result = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(20))))
         .await;
     assert!(get_balance_result.is_err());
 
     // Non pruned block balances should be available
-    let block_hash = block_hashes.get(&21).unwrap();
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(21))))
         .await
         .unwrap();
     assert_eq!(balance, U256::from(21000000000000000000u128));
 
-    let block_hash = block_hashes.get(&50).unwrap();
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
         .await
         .unwrap();
     assert_eq!(balance, U256::from(50000000000000000000u128));
@@ -101,14 +89,7 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        seq_test_client.send_publish_batch_request().await;
-        // Get the hash of the latest block
-        let block_hash = seq_test_client
-            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(i)))
-            .await
-            .header
-            .hash;
-        block_hashes.insert(i, block_hash);
+        seq_test_client.spam_publish_batch_request().await.unwrap();
 
         if i % 5 == 0 {
             wait_for_l2_block(&seq_test_client, i, None).await;
@@ -118,29 +99,25 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     }
 
     // Old blocks balance information should have been pruned
-    let block_hash = block_hashes.get(&42).unwrap();
     let get_balance_result = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(42))))
         .await;
     assert!(get_balance_result.is_err());
 
-    let block_hash = block_hashes.get(&60).unwrap();
     let get_balance_result = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(60))))
         .await;
     assert!(get_balance_result.is_err());
 
     // Non pruned block balances should be available
-    let block_hash = block_hashes.get(&61).unwrap();
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(61))))
         .await
         .unwrap();
     assert_eq!(balance, U256::from(61000000000000000000u128));
 
-    let block_hash = block_hashes.get(&100).unwrap();
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(100))))
         .await
         .unwrap();
     assert_eq!(balance, U256::from(100000000000000000000u128));
