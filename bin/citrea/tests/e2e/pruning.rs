@@ -2,20 +2,172 @@ use std::collections::BTreeMap;
 use std::panic::AssertUnwindSafe;
 use std::str::FromStr;
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 /// Testing if the sequencer and full node can handle system transactions correctly (the full node should have the same system transactions as the sequencer)
 use citrea_storage_ops::pruning::PruningConfig;
 use futures::FutureExt;
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService};
 
 use crate::e2e::{initialize_test, TestConfig};
 use crate::test_helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_block};
 
+/// Trigger pruning state DB data.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
+    citrea::initialize_logging(tracing::Level::DEBUG);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
+
+    // start rollup on da block 3
+    for _ in 0..3 {
+        da_service.publish_test_block().await.unwrap();
+    }
+    wait_for_l1_block(&da_service, 3, None).await;
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
+    let mut block_hashes = BTreeMap::new();
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
+        initialize_test(TestConfig {
+            da_path: da_db_dir,
+            sequencer_path: sequencer_db_dir,
+            fullnode_path: fullnode_db_dir,
+            pruning_config: Some(PruningConfig { distance: 20 }),
+            ..Default::default()
+        })
+        .await;
+
+    for i in 1..=50 {
+        // send one ether to some address
+        let _pending = seq_test_client
+            .send_eth(addr, None, None, None, 1e18 as u128)
+            .await
+            .unwrap();
+
+        seq_test_client.send_publish_batch_request().await;
+        // Get the hash of the latest block
+        let block_hash = seq_test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(i)))
+            .await
+            .header
+            .hash;
+        block_hashes.insert(i, block_hash);
+
+        if i % 5 == 0 {
+            wait_for_l2_block(&seq_test_client, i, None).await;
+            da_service.publish_test_block().await.unwrap();
+            wait_for_l1_block(&da_service, 3 + (i / 5), None).await;
+        }
+    }
+
+    // Old blocks balance information should have been pruned
+    let block_hash = block_hashes.get(&2).unwrap();
+    let get_balance_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
+    )
+    .catch_unwind()
+    .await
+    .unwrap();
+    assert!(get_balance_result.is_err());
+
+    let block_hash = block_hashes.get(&20).unwrap();
+    let get_balance_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
+    )
+    .catch_unwind()
+    .await
+    .unwrap();
+    assert!(get_balance_result.is_err());
+
+    // Non pruned block balances should be available
+    let block_hash = block_hashes.get(&21).unwrap();
+    let balance = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await
+        .unwrap();
+    assert_eq!(balance, U256::from(21000000000000000000u128));
+
+    let block_hash = block_hashes.get(&50).unwrap();
+    let balance = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await
+        .unwrap();
+    assert_eq!(balance, U256::from(50000000000000000000u128));
+
+    // Continnue block production
+    for i in 51..=100 {
+        // send one ether to some address
+        let _pending = seq_test_client
+            .send_eth(addr, None, None, None, 1e18 as u128)
+            .await
+            .unwrap();
+
+        seq_test_client.send_publish_batch_request().await;
+        // Get the hash of the latest block
+        let block_hash = seq_test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(i)))
+            .await
+            .header
+            .hash;
+        block_hashes.insert(i, block_hash);
+
+        if i % 5 == 0 {
+            wait_for_l2_block(&seq_test_client, i, None).await;
+            da_service.publish_test_block().await.unwrap();
+            wait_for_l1_block(&da_service, 3 + (i / 5), None).await;
+        }
+    }
+
+    // Old blocks balance information should have been pruned
+    let block_hash = block_hashes.get(&42).unwrap();
+    let get_balance_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
+    )
+    .catch_unwind()
+    .await
+    .unwrap();
+    assert!(get_balance_result.is_err());
+
+    let block_hash = block_hashes.get(&60).unwrap();
+    let get_balance_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
+    )
+    .catch_unwind()
+    .await
+    .unwrap();
+    assert!(get_balance_result.is_err());
+
+    // Non pruned block balances should be available
+    let block_hash = block_hashes.get(&61).unwrap();
+    let balance = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await
+        .unwrap();
+    assert_eq!(balance, U256::from(61000000000000000000u128));
+
+    let block_hash = block_hashes.get(&100).unwrap();
+    let balance = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await
+        .unwrap();
+    assert_eq!(balance, U256::from(100000000000000000000u128));
+
+    seq_task.abort();
+    full_node_task.abort();
+
+    Ok(())
+}
+
 /// Trigger pruning native DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
