@@ -12,7 +12,6 @@ use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
-use crate::evm::DbAccount;
 use crate::smart_contracts::{
     BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract, SelfDestructorContract,
     SelfdestructingConstructorContract, SimpleStorageContract, TransientStorageContract,
@@ -341,10 +340,8 @@ fn test_cancun_mcopy_activation() {
 
     // Last tx should have failed because cancun is not activated
     assert!(receipts.last().unwrap().receipt.success);
-    let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
     assert_eq!(storage_value, U256::from(80));
 }
@@ -549,10 +546,8 @@ fn test_blob_base_fee_should_return_1() {
     // Last tx should have passed
     assert!(receipts.last().unwrap().receipt.success);
 
-    let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
 
     assert_eq!(storage_value, U256::from(1));
@@ -656,10 +651,8 @@ fn test_kzg_point_eval_should_revert() {
         .iter(&mut working_set.accessory_state())
         .collect();
 
-    let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
     assert_ne!(
         storage_value,

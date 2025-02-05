@@ -47,7 +47,6 @@ use crate::conversions::{create_tx_env, sealed_block_to_block_env};
 use crate::evm::call::{create_txn_env, prepare_call_env};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::evm::DbAccount;
 use crate::handler::{diff_size_send_eth_eoa, TxInfo};
 use crate::rpc_helpers::*;
 use crate::{
@@ -326,11 +325,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
-        let storage_slot = if self.account_info(&address, working_set).is_some() {
-            let db_account = DbAccount::new(address);
-            db_account
-                .storage
-                .get(&index, working_set)
+        let storage_slot = if self.account_exists(&address, working_set) {
+            self.storage_get(&address, &index, working_set)
                 .unwrap_or_default()
         } else {
             Default::default()

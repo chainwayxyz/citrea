@@ -119,10 +119,8 @@ fn call_multiple_test() {
         .expect("Failed to serialize value")
         .len();
     assert_eq!(db_account_len, 42);
-    let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
@@ -264,10 +262,8 @@ fn call_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
@@ -585,9 +581,7 @@ fn self_destruct_test() {
 
     // Test if we managed to set the variable in the contract
     assert_eq!(
-        db_contract
-            .storage
-            .get(&U256::from(0), &mut working_set)
+        evm.storage_get(&contract_addr, &U256::from(0), &mut working_set)
             .unwrap(),
         U256::from(123)
     );
@@ -655,7 +649,7 @@ fn self_destruct_test() {
 
     // the storage should be empty
     assert_eq!(
-        db_account.storage.get(&U256::from(0), &mut working_set),
+        evm.storage_get(&contract_addr, &U256::from(0), &mut working_set),
         None
     );
 
@@ -787,11 +781,9 @@ fn self_destruct_test() {
     // the to address balance should be equal to double contract balance now that two selfdestructs have been called
     assert_eq!(die_to_contract.balance, U256::from(2 * contract_balance));
 
-    let db_account = DbAccount::new(new_contract_address);
-
     // the storage should not be empty
     assert_eq!(
-        db_account.storage.get(&U256::from(0), &mut working_set),
+        evm.storage_get(&new_contract_address, &U256::from(0), &mut working_set),
         Some(U256::from(123))
     );
 }

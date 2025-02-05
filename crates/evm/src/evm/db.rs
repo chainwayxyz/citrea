@@ -6,7 +6,7 @@ use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, SpecId, U256};
 use revm::Database;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 
-use super::{AccountInfo, DbAccount};
+use super::AccountInfo;
 use crate::Evm;
 
 // infallible
@@ -62,10 +62,10 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
         account: &Address,
         state_diff: HashMap<B256, B256, alloy_primitives::map::FbBuildHasher<32>>,
     ) {
-        let db_account = DbAccount::new(*account);
         for (slot, value) in state_diff {
-            db_account.storage.set(
-                &U256::from_be_bytes(slot.0),
+            self.evm.storage_set(
+                account,
+                &slot.into(),
                 &U256::from_be_bytes(value.0),
                 self.working_set,
             );
@@ -124,11 +124,9 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let storage_value: U256 = if self.evm.account_info(&address, self.working_set).is_some() {
-            let db_account = DbAccount::new(address);
-            db_account
-                .storage
-                .get(&index, self.working_set)
+        let storage_value: U256 = if self.evm.account_exists(&address, self.working_set) {
+            self.evm
+                .storage_get(&address, &index, self.working_set)
                 .unwrap_or_default()
         } else {
             U256::default()

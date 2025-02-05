@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use reth_primitives::SealedHeader;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet};
 
@@ -46,6 +46,50 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn account_delete(&self, address: &Address, working_set: &mut WorkingSet<C::Storage>) {
         if let Some(idx) = self.account_idxs.get(address, working_set) {
             self.accounts.delete(&idx, working_set)
+        }
+    }
+
+    /// Get the address of a storage key for the given account
+    fn get_storage_address(account: &Address, key: &U256) -> U256 {
+        let mut hasher: sha2::Sha256 = sha2::Digest::new_with_prefix(account.as_slice());
+        sha2::digest::Update::update(&mut hasher, key.as_le_slice());
+        let arr = sha2::Digest::finalize(hasher);
+        U256::from_le_slice(&arr)
+    }
+
+    /// Get the storage value for the given (account, key)
+    pub fn storage_get(
+        &self,
+        account: &Address,
+        key: &U256,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Option<U256> {
+        let kaddr = Self::get_storage_address(account, key);
+        self.storage.get(&kaddr, working_set)
+    }
+
+    /// Set the storage value for the given (account, key)
+    pub(crate) fn storage_set(
+        &self,
+        account: &Address,
+        key: &U256,
+        value: &U256,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) {
+        let kaddr = Self::get_storage_address(account, key);
+        self.storage.set(&kaddr, value, working_set)
+    }
+
+    /// Remove all storage values for given [(account, k) for k in keys]
+    pub(crate) fn storage_delete(
+        &self,
+        account: &Address,
+        keys: &[U256],
+        working_set: &mut WorkingSet<C::Storage>,
+    ) {
+        for key in keys {
+            let kaddr = Self::get_storage_address(account, key);
+            self.storage.delete(&kaddr, working_set);
         }
     }
 

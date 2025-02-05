@@ -72,6 +72,9 @@ impl PendingTransaction {
     }
 }
 
+/// A unique id of account inside our evm state. 64 bits is enough.
+type AccountId = u64;
+
 /// The citrea-evm module provides compatibility with the EVM.
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
@@ -80,13 +83,13 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[address]
     pub(crate) address: C::Address,
 
-    /// Mapping from account index to account state.
-    #[state(rename = "a")]
-    pub accounts: sov_modules_api::StateMap<u64, AccountInfo, BcsCodec>,
-
-    /// Mapping from account address to account index.
+    /// Mapping from account address to account id.
     #[state(rename = "i")]
-    pub(crate) account_idxs: sov_modules_api::StateMap<Address, u64, BcsCodec>,
+    pub(crate) account_idxs: sov_modules_api::StateMap<Address, AccountId, BcsCodec>,
+
+    /// Mapping from account id to account state.
+    #[state(rename = "a")]
+    pub accounts: sov_modules_api::StateMap<AccountId, AccountInfo, BcsCodec>,
 
     /// The total number of accounts.
     #[state(rename = "n")]
@@ -95,6 +98,10 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
     pub(crate) code: sov_modules_api::StateMap<B256, revm::primitives::Bytecode, BcsCodec>,
+
+    /// Mapping from storage hash ( sha256(address | key) ) to storage value.
+    #[state(rename = "s")]
+    pub storage: sov_modules_api::StateMap<U256, U256, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     /// This is the new offchain version which is not counted in the state diff.

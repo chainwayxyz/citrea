@@ -18,7 +18,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             }
             let mut new_account_flag = false;
 
-            let info = self
+            let prev_info = self
                 .evm
                 .account_info(&address, self.working_set)
                 .unwrap_or_else(|| {
@@ -36,9 +36,8 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 // clear storage
 
                 let keys_to_remove: Vec<U256> = db_account.keys.iter(self.working_set).collect();
-                for key in keys_to_remove {
-                    db_account.storage.delete(&key, self.working_set);
-                }
+                self.evm
+                    .storage_delete(&address, &keys_to_remove, self.working_set);
                 db_account.keys.clear(self.working_set);
 
                 // Do not clear account.code, because there
@@ -49,9 +48,9 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 continue;
             }
 
-            let account_info = account.info;
+            let new_info = account.info;
 
-            if let Some(ref code) = account_info.code {
+            if let Some(ref code) = new_info.code {
                 if !code.is_empty() {
                     if self.current_spec.is_enabled_in(SpecId::CANCUN) {
                         // If after Kumquat, just set the offchain code if doesn't already exist
@@ -63,14 +62,11 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                         if self
                             .evm
                             .offchain_code
-                            .get(
-                                &account_info.code_hash,
-                                &mut self.working_set.offchain_state(),
-                            )
+                            .get(&new_info.code_hash, &mut self.working_set.offchain_state())
                             .is_none()
                         {
                             self.evm.offchain_code.set(
-                                &account_info.code_hash,
+                                &new_info.code_hash,
                                 code,
                                 &mut self.working_set.offchain_state(),
                             );
@@ -78,13 +74,13 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                     } else if self
                         .evm
                         .code
-                        .get(&account_info.code_hash, self.working_set)
+                        .get(&new_info.code_hash, self.working_set)
                         .is_none()
                     {
                         // If before Kumquat, set the code in self.code only if it doesn't already exist
                         self.evm
                             .code
-                            .set(&account_info.code_hash, code, self.working_set);
+                            .set(&new_info.code_hash, code, self.working_set);
                     }
                 }
             }
@@ -95,15 +91,19 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 let value = value.present_value();
                 // If cancun is enabled there is no need to add the keys because they will not be deleted
                 if !self.current_spec.is_enabled_in(SpecId::CANCUN)
-                    && db_account.storage.get(&key, self.working_set).is_none()
+                    && self
+                        .evm
+                        .storage_get(&address, &key, self.working_set)
+                        .is_none()
                 {
                     db_account.keys.push(&key, self.working_set);
                 }
-                db_account.storage.set(&key, &value, self.working_set);
+                self.evm
+                    .storage_set(&address, &key, &value, self.working_set);
             }
 
-            if new_account_flag || check_account_info_changed(&info, &account_info) {
-                let info = account_info.into();
+            if new_account_flag || check_account_info_changed(&prev_info, &new_info) {
+                let info = new_info.into();
                 self.evm.account_set(&address, &info, self.working_set)
             }
         }

@@ -10,7 +10,7 @@ use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{DbAccount, Evm, Filter};
+use citrea_evm::{Evm, Filter};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -28,7 +28,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
@@ -304,16 +304,12 @@ where
             borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
         let account_proof = Bytes::from(account_proof);
 
-        let db_account = DbAccount::new(address);
         let mut storage_proof = vec![];
         for key in keys {
             let key: U256 = key.0.into();
-            let storage_key = StorageKey::new(
-                db_account.storage.prefix(),
-                &key,
-                db_account.storage.codec().key_codec(),
-            );
-            let value = db_account.storage.get(&key, &mut working_set);
+            let storage_key =
+                StorageKey::new(evm.storage.prefix(), &key, evm.storage.codec().key_codec());
+            let value = evm.storage_get(&address, &key, &mut working_set);
             let proof = working_set.get_with_proof(storage_key, version);
             let value_exists = if proof.value.is_some() {
                 Bytes::from("y")

@@ -5,7 +5,7 @@ use revm::primitives::{Address, Bytecode, SpecId, B256};
 use sov_modules_api::StateMapAccessor;
 
 use super::db::EvmDb;
-use super::{AccountInfo, DbAccount};
+use super::AccountInfo;
 
 /// Initializes database with a predefined account.
 pub(crate) trait InitEvmDb {
@@ -34,8 +34,8 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
             .evm
             .account_info(&address, self.working_set)
             .expect("Account should already be inserted");
-        let db_account = DbAccount::new(address);
-        db_account.storage.set(&index, &value, self.working_set);
+        self.evm
+            .storage_set(&address, &index, &value, self.working_set);
     }
 }
 
