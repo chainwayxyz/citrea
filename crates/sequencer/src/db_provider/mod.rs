@@ -77,7 +77,9 @@ impl<C: sov_modules_api::Context> AccountReader for DbProvider<C> {
     fn basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
         let account = {
             let mut working_set = WorkingSet::new(self.storage.clone());
-            self.evm.basic_account(&address, &mut working_set)
+            self.evm
+                .account_info(&address, &mut working_set)
+                .map(Into::into)
         };
         Ok(account)
     }

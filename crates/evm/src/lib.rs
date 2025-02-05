@@ -80,9 +80,17 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[address]
     pub(crate) address: C::Address,
 
-    /// Mapping from account address to account state.
+    /// Mapping from account index to account state.
     #[state(rename = "a")]
-    pub accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
+    pub accounts: sov_modules_api::StateMap<u64, AccountInfo, BcsCodec>,
+
+    /// Mapping from account address to account index.
+    #[state(rename = "i")]
+    pub(crate) account_idxs: sov_modules_api::StateMap<Address, u64, BcsCodec>,
+
+    /// The total number of accounts.
+    #[state(rename = "n")]
+    pub(crate) account_amount: sov_modules_api::StateValue<u64, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
@@ -200,18 +208,11 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
 impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
-        &self,
+        &'a self,
         working_set: &'a mut WorkingSet<C::Storage>,
         current_spec: EvmSpecId,
     ) -> EvmDb<'a, C> {
-        EvmDb::new(
-            self.accounts.clone(),
-            self.code.clone(),
-            self.offchain_code.clone(),
-            self.latest_block_hashes.clone(),
-            working_set,
-            current_spec,
-        )
+        EvmDb::new(self, working_set, current_spec)
     }
 }
 

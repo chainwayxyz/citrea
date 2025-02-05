@@ -19,8 +19,8 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             let mut new_account_flag = false;
 
             let info = self
-                .accounts
-                .get(&address, self.working_set)
+                .evm
+                .account_info(&address, self.working_set)
                 .unwrap_or_else(|| {
                     new_account_flag = true;
                     DbAccountInfo::default()
@@ -45,7 +45,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 // may exist duplicate contracts with the same code.
                 // self.code.delete(...) <- DONT DO THIS
 
-                self.accounts.delete(&address, self.working_set);
+                self.evm.account_delete(&address, self.working_set);
                 continue;
             }
 
@@ -61,6 +61,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                         // this if is not &&'ed with the above if, because if we are after Kumquat, we
                         // don't even want to check or set the code in self.code
                         if self
+                            .evm
                             .offchain_code
                             .get(
                                 &account_info.code_hash,
@@ -68,19 +69,21 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                             )
                             .is_none()
                         {
-                            self.offchain_code.set(
+                            self.evm.offchain_code.set(
                                 &account_info.code_hash,
                                 code,
                                 &mut self.working_set.offchain_state(),
                             );
                         }
                     } else if self
+                        .evm
                         .code
                         .get(&account_info.code_hash, self.working_set)
                         .is_none()
                     {
                         // If before Kumquat, set the code in self.code only if it doesn't already exist
-                        self.code
+                        self.evm
+                            .code
                             .set(&account_info.code_hash, code, self.working_set);
                     }
                 }
@@ -101,7 +104,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             if new_account_flag || check_account_info_changed(&info, &account_info) {
                 let info = account_info.into();
-                self.accounts.set(&address, &info, self.working_set)
+                self.evm.account_set(&address, &info, self.working_set)
             }
         }
     }

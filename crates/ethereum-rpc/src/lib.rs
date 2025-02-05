@@ -282,8 +282,7 @@ where
             .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
 
         let account = evm
-            .accounts
-            .get(&address, &mut working_set)
+            .account_info(&address, &mut working_set)
             .unwrap_or_default();
         let balance = account.balance;
         let nonce = account.nonce;

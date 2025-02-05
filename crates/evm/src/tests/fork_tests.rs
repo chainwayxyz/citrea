@@ -406,11 +406,11 @@ fn test_self_destructing_constructor() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let contract_info = evm.accounts.get(&contract_addr, &mut working_set);
+    let contract_info = evm.account_info(&contract_addr, &mut working_set);
     // Contract should not exist as it is created and selfdestructed in the same transaction
     assert!(contract_info.is_none());
 
-    let die_to_contract_info = evm.accounts.get(&die_to_address, &mut working_set);
+    let die_to_contract_info = evm.account_info(&die_to_address, &mut working_set);
 
     // die_to_address should have the contract balance
     assert!(die_to_contract_info.is_some());
@@ -728,7 +728,7 @@ fn test_offchain_contract_storage_evm() {
     sleep(std::time::Duration::from_secs(2));
 
     //try to get it from offchain storage and expect it to not exist
-    let contract_info = evm.accounts.get(&contract_addr, &mut working_set);
+    let contract_info = evm.account_info(&contract_addr, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let genesis_cont_evm_code = evm.code.get(&code_hash, &mut working_set).unwrap();
@@ -810,7 +810,7 @@ fn test_offchain_contract_storage_evm() {
 
     let new_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
 
-    let contract_info = evm.accounts.get(&new_contract_address, &mut working_set);
+    let contract_info = evm.account_info(&new_contract_address, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let offchain_code = evm
@@ -867,7 +867,7 @@ fn test_offchain_contract_storage_evm() {
     assert_eq!(code, *genesis_cont_evm_code.original_byte_slice());
 
     // Now I should be able to read the contract from offchain storage
-    let contract_info = evm.accounts.get(&contract_addr, &mut working_set);
+    let contract_info = evm.account_info(&contract_addr, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let offchain_code = evm

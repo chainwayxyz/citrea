@@ -44,27 +44,20 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(cfg, active_spec);
 
-        let l1_block_hash_exists = self
-            .accounts
-            .get(&BitcoinLightClient::address(), working_set)
-            .is_some();
+        let l1_block_hash_exists = self.account_exists(&BitcoinLightClient::address(), working_set);
         if !l1_block_hash_exists {
             native_error!("System contract not found: BitcoinLightClient");
             return;
         }
 
-        let bridge_contract_exists = self
-            .accounts
-            .get(&BridgeWrapper::address(), working_set)
-            .is_some();
+        let bridge_contract_exists = self.account_exists(&BridgeWrapper::address(), working_set);
         if !bridge_contract_exists {
             native_error!("System contract not found: Bridge");
             return;
         }
 
         let system_nonce = self
-            .accounts
-            .get(&SYSTEM_SIGNER, working_set)
+            .account_info(&SYSTEM_SIGNER, working_set)
             .map(|info| info.nonce)
             .unwrap_or(0);
 

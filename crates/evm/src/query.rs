@@ -306,8 +306,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         let balance = self
-            .accounts
-            .get(&address, working_set)
+            .account_info(&address, working_set)
             .map(|info| info.balance)
             .unwrap_or_default();
 
@@ -327,7 +326,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
-        let storage_slot = if self.accounts.get(&address, working_set).is_some() {
+        let storage_slot = if self.account_info(&address, working_set).is_some() {
             let db_account = DbAccount::new(address);
             db_account
                 .storage
@@ -352,8 +351,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let nonce = self
-            .accounts
-            .get(&address, working_set)
+            .account_info(&address, working_set)
             .map(|account| account.nonce)
             .unwrap_or_default();
 
@@ -400,7 +398,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
-        let account = self.accounts.get(&address, working_set).unwrap_or_default();
+        let account = self.account_info(&address, working_set).unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
             if current_spec.is_enabled_in(SpecId::CANCUN) {
                 self.offchain_code
@@ -983,8 +981,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_env_base_fee = U256::from(block_env.basefee);
 
         let account = self
-            .accounts
-            .get(&request.from.unwrap_or_default(), working_set)
+            .account_info(&request.from.unwrap_or_default(), working_set)
             .unwrap_or_default();
 
         // create tx env
@@ -993,7 +990,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.transact_to {
-                let to_account = self.accounts.get(&to, working_set).unwrap_or_default();
+                let to_account = self.account_info(&to, working_set).unwrap_or_default();
                 if to_account.code_hash.is_none() {
                     // If the tx is a simple transfer (call to an account with no code) we can
                     // shortcircuit But simply returning
