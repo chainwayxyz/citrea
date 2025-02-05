@@ -67,21 +67,15 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
 
     // Old blocks balance information should have been pruned
     let block_hash = block_hashes.get(&2).unwrap();
-    let get_balance_result = AssertUnwindSafe(
-        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
-    )
-    .catch_unwind()
-    .await
-    .unwrap();
+    let get_balance_result = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await;
     assert!(get_balance_result.is_err());
 
     let block_hash = block_hashes.get(&20).unwrap();
-    let get_balance_result = AssertUnwindSafe(
-        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
-    )
-    .catch_unwind()
-    .await
-    .unwrap();
+    let get_balance_result = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await;
     assert!(get_balance_result.is_err());
 
     // Non pruned block balances should be available
@@ -125,21 +119,15 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
 
     // Old blocks balance information should have been pruned
     let block_hash = block_hashes.get(&42).unwrap();
-    let get_balance_result = AssertUnwindSafe(
-        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
-    )
-    .catch_unwind()
-    .await
-    .unwrap();
+    let get_balance_result = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await;
     assert!(get_balance_result.is_err());
 
     let block_hash = block_hashes.get(&60).unwrap();
-    let get_balance_result = AssertUnwindSafe(
-        full_node_test_client.eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into()))),
-    )
-    .catch_unwind()
-    .await
-    .unwrap();
+    let get_balance_result = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Hash((*block_hash).into())))
+        .await;
     assert!(get_balance_result.is_err());
 
     // Non pruned block balances should be available
