@@ -25,7 +25,7 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
-use sov_rollup_interface::zk::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -599,18 +599,18 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(0),
-                    [
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(0),
+                    method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
                     ]
                     .into()
-                ),
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(100),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
-                )
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(100),
+                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                }
             ],
         );
 
@@ -652,18 +652,18 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(0),
-                    [
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(0),
+                    method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
                     ]
-                    .into(),
-                ),
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(100),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
-                ),
+                    .into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(100),
+                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                }
             ]
         );
 
@@ -678,22 +678,22 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(0),
-                    [
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(0),
+                    method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
                     ]
-                    .into(),
-                ),
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(100),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
-                ),
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(200),
-                    new_batch_proof_method_id.into()
-                )
+                    .into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(100),
+                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(200),
+                    method_id: new_batch_proof_method_id.into()
+                }
             ]
         );
 
@@ -716,22 +716,22 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(0),
-                    [
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(0),
+                    method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
                     ]
-                    .into(),
-                ),
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(100),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
-                ),
-                BatchProofMethodIdRpcResponse::new(
-                    U64::from(200),
-                    new_batch_proof_method_id.into()
-                )
+                    .into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(100),
+                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(200),
+                    method_id: new_batch_proof_method_id.into()
+                }
             ]
         );
 
@@ -1122,7 +1122,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             .await
             .unwrap();
 
-        // In total 4 chunks 1 aggregate with all of them having reveal and commit txs we should have 8 txs in mempool
+        // In total 4 chunks 1 aggregate with all of them having reveal and commit txs we should have 10 txs in mempool
         da.wait_mempool_len(10, Some(TEN_MINS)).await?;
 
         // Get txs from mempool
@@ -1328,7 +1328,7 @@ fn create_serialized_fake_receipt_batch_proof(
         32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214,
         80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
     ];
-    let batch_proof_output = BatchProofCircuitOutput::<BitcoinSpec, [u8; 32]> {
+    let batch_proof_output = BatchProofCircuitOutputV2::<BitcoinSpec, [u8; 32]> {
         initial_state_root,
         final_state_root,
         last_l2_height,

@@ -187,7 +187,13 @@ where
         da_service,
         mut task_manager,
         soft_confirmation_channel,
-    } = rollup_blueprint.setup_dependencies(&rollup_config).await?;
+    } = rollup_blueprint
+        .setup_dependencies(
+            &rollup_config,
+            matches!(node_type, NodeType::Sequencer(_))
+                || matches!(node_type, NodeType::BatchProver(_)),
+        )
+        .await?;
 
     let sequencer_client_url = rollup_config
         .runner
@@ -319,18 +325,19 @@ where
             });
         }
         _ => {
-            let (mut full_node, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
-                &rollup_blueprint,
-                genesis_config,
-                rollup_config.clone(),
-                da_service,
-                ledger_db.clone(),
-                storage_manager,
-                prover_storage,
-                soft_confirmation_channel.0,
-            )
-            .await
-            .expect("Could not start full-node");
+            let (mut full_node, l1_block_handler, pruner) =
+                CitreaRollupBlueprint::create_full_node(
+                    &rollup_blueprint,
+                    genesis_config,
+                    rollup_config.clone(),
+                    da_service,
+                    ledger_db.clone(),
+                    storage_manager,
+                    prover_storage,
+                    soft_confirmation_channel.0,
+                )
+                .await
+                .expect("Could not start full-node");
 
             start_rpc_server(
                 rollup_config.rpc.clone(),
@@ -349,6 +356,13 @@ where
                     .run(start_l1_height, cancellation_token)
                     .await
             });
+
+            // Spawn pruner if configs are set
+            if let Some(pruner) = pruner {
+                task_manager.spawn(|cancellation_token| async move {
+                    pruner.run(cancellation_token).await
+                });
+            }
 
             task_manager.spawn(|cancellation_token| async move {
                 if let Err(e) = full_node.run(cancellation_token).await {

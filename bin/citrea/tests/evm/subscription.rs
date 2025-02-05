@@ -29,8 +29,13 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment:
             TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

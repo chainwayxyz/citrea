@@ -13,6 +13,7 @@ publish = true
 
 [dependencies]
 # Common dependencies
+faster-hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true }
 serde = "1"
 sov-rollup-interface = { path = "../../rollup-interface", features = [
@@ -35,5 +36,5 @@ tokio = { workspace = true, features = ["full"] }
 
 [features]
 default = ["client", "server"]
-server = ["anyhow", "futures", "jsonrpsee/server", "sov-modules-api"]
+server = ["anyhow", "futures", "jsonrpsee/server", "sov-modules-api", "faster-hex"]
 client = ["jsonrpsee/client", "jsonrpsee/macros"]

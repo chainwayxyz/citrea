@@ -1,11 +1,3 @@
-mod proving;
-mod reopen;
-mod sequencer_behaviour;
-mod sequencer_replacement;
-mod soft_confirmation_status;
-mod syncing;
-mod system_transactions;
-
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -14,6 +6,7 @@ use alloy_primitives::{Address, U256};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_pruning::PruningConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
@@ -32,12 +25,22 @@ use crate::{
     TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
 };
 
+mod proving;
+mod pruning;
+mod reopen;
+mod sequencer_behaviour;
+mod sequencer_replacement;
+mod soft_confirmation_status;
+mod syncing;
+mod system_transactions;
+
 struct TestConfig {
     seq_min_soft_confirmations: u64,
     deposit_mempool_fetch_limit: usize,
     sequencer_path: PathBuf,
     fullnode_path: PathBuf,
     da_path: PathBuf,
+    pruning_config: Option<PruningConfig>,
 }
 
 impl Default for TestConfig {
@@ -49,6 +52,7 @@ impl Default for TestConfig {
             sequencer_path: PathBuf::new(),
             fullnode_path: PathBuf::new(),
             da_path: PathBuf::new(),
+            pruning_config: None,
         }
     }
 }
@@ -66,8 +70,13 @@ async fn test_all_flow() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let sequencer_config = SequencerConfig::default();
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
@@ -86,8 +95,13 @@ async fn test_all_flow() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
     let prover_node_task = tokio::spawn(async {
         start_rollup(
             prover_node_port_tx,
@@ -115,6 +129,7 @@ async fn test_all_flow() {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        Some(PruningConfig { distance: 20 }),
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -176,10 +191,10 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number, 1);
-    assert_eq!(commitments[0].l2_end_block_number, 4);
+    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
+    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].found_in_l1, 3);
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
@@ -212,7 +227,7 @@ async fn test_all_flow() {
 
     let LastVerifiedBatchProofResponse {
         proof: last_proof,
-        height: proof_l1_height,
+        l1_height: proof_l1_height,
     } = full_node_test_client
         .ledger_get_last_verified_batch_proof()
         .await
@@ -220,7 +235,7 @@ async fn test_all_flow() {
 
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
-    assert_eq!(proof_l1_height, 4);
+    assert_eq!(proof_l1_height.to::<u64>(), 4);
     assert_eq!(last_proof.proof, full_node_proof[0].proof);
     assert_eq!(last_proof.proof_output, full_node_proof[0].proof_output);
 
@@ -297,12 +312,12 @@ async fn test_all_flow() {
 
     let LastVerifiedBatchProofResponse {
         proof: last_proof,
-        height: proof_l1_height,
+        l1_height: proof_l1_height,
     } = full_node_test_client
         .ledger_get_last_verified_batch_proof()
         .await
         .unwrap();
-    assert_eq!(proof_l1_height, 6);
+    assert_eq!(proof_l1_height.to::<u64>(), 6);
     assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
     assert_eq!(
         last_proof.proof_output,
@@ -367,8 +382,13 @@ async fn test_ledger_get_head_soft_confirmation() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
@@ -441,6 +461,7 @@ async fn initialize_test(
         &config.sequencer_path,
         &config.da_path,
         NodeMode::SequencerNode,
+        config.pruning_config.clone(),
     );
     let seq_task = tokio::spawn(async {
         start_rollup(
@@ -464,6 +485,7 @@ async fn initialize_test(
         &fullnode_path,
         &config.da_path,
         NodeMode::FullNode(seq_port),
+        config.pruning_config,
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -575,6 +597,7 @@ async fn execute_blocks(
     Ok(())
 }
 
+// TODO: this is not testing pre-fork now
 /// Deploy pre-fork contract, activate a fork and then check fetching the contract's code
 /// through RPC to make sure that the actual code is fetched properly pre and post fork.
 #[tokio::test(flavor = "multi_thread")]
@@ -588,8 +611,13 @@ async fn test_offchain_contract_storage() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let sequencer_config = SequencerConfig::default();
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
@@ -655,8 +683,8 @@ async fn test_offchain_contract_storage() {
 
     let seq_fork = fork_from_block_number(seq_height);
 
-    // Assert we are at fork1
-    assert_eq!(seq_fork.spec_id, SpecId::Kumquat);
+    // Assert we are at fork2
+    assert_eq!(seq_fork.spec_id, SpecId::Fork2);
 
     // This should access the `code` and copy code over to `offchain_code` in EVM
     let code = sequencer_client

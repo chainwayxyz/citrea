@@ -36,8 +36,13 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: 1000,
         da_update_interval_ms: 500,
@@ -144,8 +149,13 @@ async fn test_sequencer_commitment_threshold() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
@@ -334,8 +344,13 @@ async fn test_gas_limit_too_high() {
     let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
 
     // Increase max account slots to not stuck as spammer
     let sequencer_config = SequencerConfig {
@@ -371,6 +386,7 @@ async fn test_gas_limit_too_high() {
         &full_node_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        None,
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -468,8 +484,13 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: 1000,
         mempool_conf: SequencerMempoolConfig {

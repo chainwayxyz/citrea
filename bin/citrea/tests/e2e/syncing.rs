@@ -37,8 +37,13 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let seq_task = tokio::spawn(async {
@@ -75,6 +80,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        None,
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -268,8 +274,13 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let seq_task = tokio::spawn(async {
@@ -289,8 +300,13 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
     let prover_node_task = tokio::spawn(async {
         start_rollup(
             prover_node_port_tx,
@@ -402,8 +418,13 @@ async fn test_full_node_sync_status() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment:
             TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -443,6 +464,7 @@ async fn test_full_node_sync_status() {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        None,
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -464,8 +486,11 @@ async fn test_full_node_sync_status() {
     let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
     match l2_status {
         LayerStatus::Syncing(syncing) => {
-            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
-            assert_eq!(syncing.head_block_number, 300);
+            assert!(
+                syncing.synced_block_number.to::<u64>() > 0
+                    && syncing.synced_block_number.to::<u64>() < 300
+            );
+            assert_eq!(syncing.head_block_number.to::<u64>(), 300);
         }
         _ => panic!("Expected syncing status"),
     }
@@ -474,7 +499,7 @@ async fn test_full_node_sync_status() {
 
     let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
     match l2_status {
-        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
+        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to.to::<u64>(), 300),
         _ => panic!("Expected synced status"),
     }
 
@@ -489,8 +514,11 @@ async fn test_full_node_sync_status() {
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
         LayerStatus::Syncing(syncing) => {
-            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 20);
-            assert_eq!(syncing.head_block_number, 20);
+            assert!(
+                syncing.synced_block_number.to::<u64>() > 0
+                    && syncing.synced_block_number.to::<u64>() < 20
+            );
+            assert_eq!(syncing.head_block_number.to::<u64>(), 20);
         }
         _ => panic!("Expected syncing status"),
     }
@@ -499,7 +527,7 @@ async fn test_full_node_sync_status() {
         .unwrap();
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
-        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 20),
+        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to.to::<u64>(), 20),
         _ => panic!("Expected synced status"),
     }
 
@@ -518,8 +546,13 @@ async fn test_healthcheck() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig {
         test_mode: false,
         ..Default::default()
@@ -544,6 +577,7 @@ async fn test_healthcheck() {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_addr),
+        None,
     );
     let full_node_task_manager = start_rollup(
         full_node_port_tx,

@@ -4,10 +4,13 @@ use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::mmr::{MMRChunk, MMRGuest, Wtxid};
-use sov_rollup_interface::zk::{
-    BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
-    OldBatchProofCircuitOutput, ZkvmGuest,
+use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
+use sov_rollup_interface::zk::light_client_proof::output::{
+    BatchProofInfo, LightClientCircuitOutput,
 };
+use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
@@ -68,10 +71,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         .map_err(|err| LightClientVerificationError::HeaderChainVerificationFailed(err))?;
 
     // Verify data from da
-    da_verifier
+    let da_txs = da_verifier
         .verify_transactions(
             &input.da_block_header,
-            input.da_data.as_slice(),
             input.inclusion_proof,
             input.completeness_proof,
             DaNamespace::ToLightClientProver,
@@ -118,8 +120,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut current_proof_index = 0u32;
     let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
-    'blob_loop: for blob in input.da_data {
-        let Ok(data) = DaDataLightClient::try_from_slice(blob.verified_data()) else {
+    'blob_loop: for blob in da_txs {
+        let Ok(data) = DaDataLightClient::try_from_slice(blob.full_data()) else {
             println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
             continue;
         };
@@ -313,7 +315,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
         batch_proof_output_final_state_root,
         batch_proof_output_last_l2_height,
     ) = if let Ok(output) =
-        G::deserialize_output::<BatchProofCircuitOutput<DaV::Spec, [u8; 32]>>(&journal)
+        G::deserialize_output::<BatchProofCircuitOutputV2<DaV::Spec, [u8; 32]>>(&journal)
     {
         (
             output.initial_state_root,
@@ -321,7 +323,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
             output.last_l2_height,
         )
     } else if let Ok(output) =
-        G::deserialize_output::<OldBatchProofCircuitOutput<DaV::Spec, [u8; 32]>>(&journal)
+        G::deserialize_output::<BatchProofCircuitOutputV1<DaV::Spec, [u8; 32]>>(&journal)
     {
         (output.initial_state_root, output.final_state_root, 0)
     } else {

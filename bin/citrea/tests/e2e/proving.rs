@@ -30,8 +30,13 @@ async fn full_node_verify_proof_and_store() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let seq_task = tokio::spawn(async {
@@ -53,8 +58,13 @@ async fn full_node_verify_proof_and_store() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
 
     let prover_node_task = tokio::spawn(async {
         start_rollup(
@@ -83,6 +93,7 @@ async fn full_node_verify_proof_and_store() {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        None,
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -127,10 +138,10 @@ async fn full_node_verify_proof_and_store() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number, 1);
-    assert_eq!(commitments[0].l2_end_block_number, 4);
+    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
+    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].found_in_l1, 3);
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
@@ -171,7 +182,7 @@ async fn full_node_verify_proof_and_store() {
 
     let proof_height = full_node_proof[0].proof_output.last_l2_height;
     let soft_confirmation = full_node_test_client
-        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(proof_height)
+        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(proof_height.to())
         .await
         .expect("should get soft confirmation");
 
@@ -211,8 +222,13 @@ async fn test_batch_prover_prove_rpc() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let seq_task = tokio::spawn(async {
@@ -234,8 +250,13 @@ async fn test_batch_prover_prove_rpc() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
 
     let prover_node_task = tokio::spawn(async {
         start_rollup(
@@ -265,6 +286,7 @@ async fn test_batch_prover_prove_rpc() {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        None,
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -314,10 +336,10 @@ async fn test_batch_prover_prove_rpc() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number, 1);
-    assert_eq!(commitments[0].l2_end_block_number, 4);
+    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
+    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].found_in_l1, 3);
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 

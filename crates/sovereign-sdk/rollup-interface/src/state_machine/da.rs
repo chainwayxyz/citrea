@@ -195,15 +195,14 @@ pub trait DaVerifier: Send + Sync {
     /// Create a new da verifier with the given chain parameters
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self;
 
-    /// Verify a claimed set of transactions of the given namespace against a block header.
+    /// Extract the relevant transactions from a block, using provided proofs to verify the data.
     fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error>;
 
     /// Verify that the block header is valid for the given previous light client proof output
     fn verify_header_chain(
@@ -300,39 +299,17 @@ pub trait BlobReaderTrait:
     /// Returns the witness transaction ID of the blob as it appears on the DA layer
     fn wtxid(&self) -> Option<[u8; 32]>;
 
-    /// Returns a slice containing all the data accessible to the rollup at this point in time.
-    /// When running in native mode, the rollup can extend this slice by calling `advance`. In zk-mode,
-    /// the rollup is limited to only the verified data.
-    ///
-    /// Rollups should use this method in conjunction with `advance` to read only the minimum amount
-    /// of data required for execution
-    fn verified_data(&self) -> &[u8];
+    /// Returns the full data of the blob
+    fn full_data(&self) -> &[u8];
 
     /// Returns the total number of bytes in the blob. Note that this may be unequal to `verified_data.len()`.
     fn total_len(&self) -> usize;
 
-    /// Extends the `partial_data` accumulator with the next `num_bytes` of  data from the blob
-    /// and returns a reference to the entire contents of the blob up to this point.
-    ///
-    /// If `num_bytes` is greater than the length of the remaining unverified data,
-    /// then all remaining unverified data is added to the accumulator.
-    ///
-    /// ### Note:
-    /// This method is only available when the `native` feature is enabled because it is unsafe to access
-    /// unverified data during execution
-    #[cfg(feature = "native")]
-    fn advance(&mut self, num_bytes: usize) -> &[u8];
-
-    /// Verifies all remaining unverified data in the blob and returns a reference to the entire contents of the blob.
-    /// For efficiency, rollups should prefer use of `verified_data` and `advance` unless they know that all of the
-    /// blob data will be required for execution.
-    #[cfg(feature = "native")]
-    fn full_data(&mut self) -> &[u8] {
-        self.advance(self.total_len())
-    }
-
     /// Weird method to serialize blob as v1. Should be removed when a better way is introduced in the future.
     fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>>;
+
+    /// Serialize the blob as v2 (pre Fork 2)
+    fn serialize_v2(&self) -> borsh::io::Result<Vec<u8>>;
 }
 
 /// Trait with collection of trait bounds for a block hash.

@@ -261,7 +261,7 @@ impl MockDaService {
     pub fn extract_relevant_blobs(&self, block: &MockBlock) -> Vec<MockBlob> {
         let mut res = vec![];
         for b in block.blobs.clone() {
-            let mut clone_for_full_data = b.clone();
+            let clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
             if DaDataBatchProof::try_from_slice(full_data).is_ok() {
                 res.push(b)
@@ -426,7 +426,7 @@ impl DaService for MockDaService {
         _prover_da_pub_key: &[u8],
     ) -> anyhow::Result<Vec<Proof>> {
         let mut res = vec![];
-        for mut b in block.blobs.clone() {
+        for b in block.blobs.clone() {
             if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
                 if let DaDataLightClient::Complete(proof) = r {
                     res.push(proof);
@@ -444,7 +444,7 @@ impl DaService for MockDaService {
         _sequencer_da_pub_key: &[u8],
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let mut res = vec![];
-        for mut b in block.blobs.clone() {
+        for b in block.blobs.clone() {
             if let Ok(r) = DaDataBatchProof::try_from_slice(b.full_data()) {
                 let DaDataBatchProof::SequencerCommitment(seq_com) = r;
                 res.push(seq_com);
@@ -464,7 +464,7 @@ impl DaService for MockDaService {
     ) {
         let mut txs = vec![];
         for b in block.blobs.clone() {
-            let mut clone_for_full_data = b.clone();
+            let clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
             match namespace {
                 DaNamespace::ToBatchProver => {
@@ -479,7 +479,7 @@ impl DaService for MockDaService {
                 }
             };
         }
-        (txs, [0u8; 32], ())
+        (txs.clone(), [0u8; 32], txs)
     }
 
     #[tracing::instrument(name = "MockDA", level = "debug", skip_all)]
@@ -727,7 +727,7 @@ mod tests {
         for (i, blob) in blobs.into_iter().enumerate() {
             let i = (i + 1) as u64;
 
-            let mut fetched_block = da.get_block_at(i).await.unwrap();
+            let fetched_block = da.get_block_at(i).await.unwrap();
             assert_eq!(i, fetched_block.header().height());
 
             let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();

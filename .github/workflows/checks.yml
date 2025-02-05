@@ -486,32 +486,6 @@ jobs:
         run: ./.github/scripts/check_genesis.sh
         shell: bash
 
-  validate_and_check_DA_ID:
-    runs-on: ubicloud-standard-2
-    needs: build
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate EXPECTED_BITCOIN_DA_ID format
-        uses: ./.github/actions/validate-bitcoin-da
-        with:
-          expected_da_id: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
-          action: validate_format
-
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: citrea-build
-          path: target/release
-
-      - name: Check BATCH_PROOF_BITCOIN_ID
-        id: check-id
-        uses: ./.github/actions/validate-bitcoin-da
-        with:
-          expected_da_id: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
-          action: check_binary
-
   docker-setup:
     runs-on: ubicloud-standard-2
     steps:

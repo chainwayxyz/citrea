@@ -15,7 +15,7 @@ use crate::snapshot_manager::DataLocation::Snapshot;
 /// down to DB level
 /// Managed externally by [`crate::ProverStorageManager`]
 pub struct SnapshotManager {
-    db: sov_schema_db::DB,
+    db: Arc<sov_schema_db::DB>,
     snapshots: HashMap<SnapshotId, ReadOnlyDbSnapshot>,
     /// Hierarchical
     to_parent: Arc<RwLock<HashMap<SnapshotId, SnapshotId>>>,
@@ -27,7 +27,7 @@ impl SnapshotManager {
         to_parent: Arc<RwLock<HashMap<SnapshotId, SnapshotId>>>,
     ) -> Self {
         Self {
-            db,
+            db: Arc::new(db),
             snapshots: HashMap::new(),
             to_parent,
         }
@@ -37,7 +37,7 @@ impl SnapshotManager {
     /// So it only reads from database.
     pub fn orphan(db: sov_schema_db::DB) -> Self {
         Self {
-            db,
+            db: Arc::new(db),
             snapshots: HashMap::new(),
             to_parent: Arc::new(RwLock::new(Default::default())),
         }
@@ -118,6 +118,10 @@ impl SnapshotManager {
         db_iter.seek(upper_bound)?;
 
         Ok(SnapshotManagerIter::new(db_iter, snapshot_iterators))
+    }
+
+    pub fn get_db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.db.clone()
     }
 }
 

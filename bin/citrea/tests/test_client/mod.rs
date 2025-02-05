@@ -394,6 +394,13 @@ impl TestClient {
             .unwrap()
     }
 
+    pub(crate) async fn eth_get_block_by_hash(&self, block_hash: B256) -> Block {
+        self.http_client
+            .request("eth_getBlockByHash", rpc_params![block_hash, false])
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_get_block_by_number_with_detail(
         &self,
         block_number: Option<BlockNumberOrTag>,
@@ -518,7 +525,11 @@ impl TestClient {
     }
 
     pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {
-        self.http_client.get_last_scanned_l1_height().await.unwrap()
+        self.http_client
+            .get_last_scanned_l1_height()
+            .await
+            .unwrap()
+            .to()
     }
 
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_number(
@@ -585,6 +596,7 @@ impl TestClient {
         self.http_client
             .get_head_soft_confirmation_height()
             .await
+            .map(|v| v.to())
             .map_err(|e| e.into())
     }
 

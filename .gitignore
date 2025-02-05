@@ -31,3 +31,5 @@ reveal_*.tx
 *.txs
 
 elf/
+*input.bin
+*transactions.txt

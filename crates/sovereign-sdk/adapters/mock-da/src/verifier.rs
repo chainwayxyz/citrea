@@ -21,7 +21,7 @@ impl BlobReaderTrait for MockBlob {
         self.wtxid
     }
 
-    fn verified_data(&self) -> &[u8] {
+    fn full_data(&self) -> &[u8] {
         self.data.accumulator()
     }
 
@@ -29,13 +29,11 @@ impl BlobReaderTrait for MockBlob {
         self.data.total_len()
     }
 
-    #[cfg(feature = "native")]
-    fn advance(&mut self, num_bytes: usize) -> &[u8] {
-        self.data.advance(num_bytes);
-        self.verified_data()
+    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
+        borsh::to_vec(self)
     }
 
-    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
+    fn serialize_v2(&self) -> borsh::io::Result<Vec<u8>> {
         borsh::to_vec(self)
     }
 }
@@ -50,7 +48,7 @@ impl DaSpec for MockDaSpec {
     type BlobTransaction = MockBlob;
     type Address = MockAddress;
     type InclusionMultiProof = [u8; 32];
-    type CompletenessProof = ();
+    type CompletenessProof = Vec<MockBlob>;
     type ChainParams = ();
 }
 
@@ -70,12 +68,11 @@ impl DaVerifier for MockDaVerifier {
     fn verify_transactions(
         &self,
         _block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         _namespace: DaNamespace,
-    ) -> Result<(), Self::Error> {
-        Ok(())
+    ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error> {
+        Ok(completeness_proof)
     }
 
     fn verify_header_chain(

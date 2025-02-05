@@ -6,6 +6,7 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{RollupPublicKeys, RunnerConfig};
+use citrea_pruning::Pruner;
 use da_block_handler::L1BlockHandler;
 pub use runner::*;
 use serde::de::DeserializeOwned;
@@ -41,6 +42,7 @@ pub fn build_services<Da, C, DB, RT, Vm, StateRoot>(
 ) -> Result<(
     CitreaFullnode<Da, C, DB, RT>,
     L1BlockHandler<C, Vm, Da, StateRoot, DB>,
+    Option<Pruner<DB>>,
 )>
 where
     Da: DaService<Error = anyhow::Error>,
@@ -56,6 +58,17 @@ where
         + AsRef<[u8]>
         + Debug,
 {
+    let last_pruned_block = ledger_db.get_last_pruned_l2_height()?.unwrap_or(0);
+    let pruner = runner_config.pruning_config.as_ref().map(|pruning_config| {
+        Pruner::<DB>::new(
+            pruning_config.clone(),
+            last_pruned_block,
+            soft_confirmation_tx.subscribe(),
+            ledger_db.clone(),
+            storage_manager.get_native_db_handle(),
+        )
+    });
+
     let runner = CitreaFullnode::new(
         runner_config,
         init_params,
@@ -78,5 +91,5 @@ where
         Arc::new(Mutex::new(L1BlockCache::new())),
     );
 
-    Ok((runner, l1_block_handler))
+    Ok((runner, l1_block_handler, pruner))
 }

@@ -12,13 +12,15 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput};
-use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, SlotData, SpecId, Zkvm};
+use sov_modules_api::{SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{
-    BatchProofCircuitInput, BatchProofCircuitInputV1, OldBatchProofCircuitOutput, Proof, ZkvmHost,
-};
+use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
+use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
+use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -65,13 +67,8 @@ where
 {
     let l1_height = l1_block.header().height();
 
-    let (mut da_data, inclusion_proof, completeness_proof) =
+    let (da_data, inclusion_proof, completeness_proof) =
         da_service.extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToBatchProver);
-
-    // if we don't do this, the zk circuit can't read the sequencer commitments
-    da_data.iter_mut().for_each(|blob| {
-        blob.full_data();
-    });
 
     let sequencer_commitments: Vec<SequencerCommitment> =
         extract_sequencer_commitments::<Da>(da_service.clone(), l1_block, &sequencer_da_pub_key);
@@ -263,7 +260,9 @@ where
 
             let input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
-                _ => borsh::to_vec(&input.into_v2_parts())?,
+                // TODO: activate this once we freeze Kumquat ELFs
+                // SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
+                _ => borsh::to_vec(&input.into_v3_parts())?,
             };
 
             prover_service
@@ -347,7 +346,7 @@ where
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
         let (last_active_spec_id, circuit_output) = match Vm::extract_output::<
-            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
         {
             Ok(output) => (
@@ -357,10 +356,10 @@ where
             Err(e) => {
                 info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
                 let output = Vm::extract_output::<
-                    OldBatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, StateRoot>,
                 >(&proof)
                 .expect("Should be able to extract either pre or post fork 1 output");
-                let batch_proof_output = BatchProofCircuitOutput::<Da::Spec, StateRoot> {
+                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec, StateRoot> {
                     initial_state_root: output.initial_state_root,
                     final_state_root: output.final_state_root,
                     state_diff: output.state_diff,

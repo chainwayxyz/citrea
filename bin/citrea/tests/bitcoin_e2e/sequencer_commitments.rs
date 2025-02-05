@@ -10,8 +10,7 @@ use borsh::BorshDeserialize;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::full_node::FullNode;
-use citrea_e2e::sequencer::Sequencer;
+use citrea_e2e::node::{FullNode, Sequencer};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::TO_BATCH_PROOF_PREFIX;
@@ -101,13 +100,13 @@ impl TestCase for LedgerGetCommitmentsProverTest {
 
         assert_eq!(commitments.len(), 1);
 
-        assert_eq!(commitments[0].l2_start_block_number, 1);
+        assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
         assert_eq!(
-            commitments[0].l2_end_block_number,
+            commitments[0].l2_end_block_number.to::<u64>(),
             min_soft_confirmations_per_commitment
         );
 
-        assert_eq!(commitments[0].found_in_l1, finalized_height);
+        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 
@@ -174,13 +173,13 @@ impl TestCase for LedgerGetCommitmentsTest {
 
         assert_eq!(commitments.len(), 1);
 
-        assert_eq!(commitments[0].l2_start_block_number, 1);
+        assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
         assert_eq!(
-            commitments[0].l2_end_block_number,
+            commitments[0].l2_end_block_number.to::<u64>(),
             min_soft_confirmations_per_commitment
         );
 
-        assert_eq!(commitments[0].found_in_l1, finalized_height);
+        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 
@@ -242,8 +241,8 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
             let mut blobs = get_relevant_blobs_from_txs(block.txdata, TO_BATCH_PROOF_PREFIX);
 
-            for mut blob in blobs.drain(0..) {
-                let data = BlobReaderTrait::full_data(&mut blob);
+            for blob in blobs.drain(0..) {
+                let data = blob.full_data();
 
                 assert_eq!(data, &[] as &[u8]);
             }
@@ -305,9 +304,9 @@ impl SequencerSendCommitmentsToDaTest {
 
         assert_eq!(blobs.len(), 1);
 
-        let mut blob = blobs.pop().unwrap();
+        let blob = blobs.pop().unwrap();
 
-        let data = BlobReaderTrait::full_data(&mut blob);
+        let data = blob.full_data();
 
         let commitment = DaTxRequest::try_from_slice(data).unwrap();
 
