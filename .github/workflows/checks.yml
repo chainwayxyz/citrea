@@ -217,8 +217,8 @@ jobs:
 
   coverage:
     needs:
-      docker-setup
-      build-test
+      - docker-setup
+      - build-test
     runs-on: ubicloud-standard-16
     if: github.event.pull_request.draft == false
     steps:
@@ -404,8 +404,8 @@ jobs:
 
   nextest:
     needs:
-      docker-setup
-      build-test
+      - docker-setup
+      - build-test
     name: nextest
     runs-on: ubicloud-standard-16
     timeout-minutes: 60
