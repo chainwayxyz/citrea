@@ -82,9 +82,7 @@ impl HeaderWrapper {
         self.header
             .consensus_encode(&mut enc)
             .expect("engines don't error");
-        BlockHash::from_raw_hash(
-            Hash::from_byte_array(calculate_double_sha256(&enc))
-        )
+        BlockHash::from_raw_hash(Hash::from_byte_array(calculate_double_sha256(&enc)))
     }
 
     pub fn merkle_root(&self) -> [u8; 32] {
@@ -172,9 +170,10 @@ mod tests {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
-            let inner_header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+            let inner_header =
+                BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
             let header = HeaderWrapper::new(*inner_header.deref(), 0, height, [0; 32]);
-            
+
             let mut enc = vec![];
             header
                 .header
