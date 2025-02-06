@@ -4,8 +4,9 @@ use std::str::FromStr;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::Address;
-use client::TestClient;
-pub use constants::*;
+
+use crate::common::client::TestClient;
+pub use crate::common::constants::*;
 
 pub mod client;
 pub mod constants;
