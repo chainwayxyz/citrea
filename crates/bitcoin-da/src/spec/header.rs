@@ -142,3 +142,32 @@ impl From<BitcoinHeader> for BitcoinHeaderWrapper {
         Self(header)
     }
 }
+
+#[cfg(test)]
+mod tests{
+    use crate::{helpers::calculate_double_sha256, spec::block_hash::BlockHashWrapper};
+    use super::BitcoinHeaderWrapper;
+    
+    use borsh::BorshDeserialize;
+    use bitcoin::consensus::Encodable;
+    use std::{fs::File, io::{BufRead, BufReader}};
+
+    #[test]  
+    fn calculate_block_hash(){
+        let file = File::open("test_data/testnet4/headers-40310-42346.txt").unwrap();
+        let reader = BufReader::new(file);
+        for (line, _) in reader.lines().zip(40310..=42346) {
+            let header_hex = line.unwrap();
+            let header_bytes = hex::decode(&header_hex).unwrap();
+
+            let header =
+                BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+
+            let mut enc = vec![];
+            header.consensus_encode(&mut enc).expect("engines don't error");
+            let calculated = calculate_double_sha256(&enc);
+
+            assert_eq!(BlockHashWrapper(header.block_hash()), BlockHashWrapper::from(calculated));
+        }
+    }
+}
