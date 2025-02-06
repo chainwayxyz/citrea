@@ -27,6 +27,7 @@ impl RollbackService {
                     info!("Received signal to rollback {num_blocks} blocks");
                     if let Err(e) = self.rollback.execute(num_blocks) {
                         error!("Could not rollback blocks: {:?}", e);
+                        break;
                     }
                 }
             }
