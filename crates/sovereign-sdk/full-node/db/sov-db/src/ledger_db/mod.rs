@@ -6,7 +6,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
@@ -304,10 +304,7 @@ impl SharedLedgerOps for LedgerDB {
 
     /// Set the genesis state root
     #[instrument(level = "trace", skip_all, err, ret)]
-    fn set_l2_genesis_state_root<StateRoot: Serialize>(
-        &self,
-        state_root: &StateRoot,
-    ) -> anyhow::Result<()> {
+    fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()> {
         let buf = bincode::serialize(state_root)?;
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
@@ -319,10 +316,7 @@ impl SharedLedgerOps for LedgerDB {
 
     /// Get the state root by L2 height
     #[instrument(level = "trace", skip_all, err)]
-    fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>> {
+    fn get_l2_state_root(&self, l2_height: u64) -> anyhow::Result<Option<StorageRootHash>> {
         if l2_height == 0 {
             self.db
                 .get::<L2GenesisStateRoot>(&())?

@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaBatch;
 
 use crate::schema::types::{
@@ -69,16 +69,10 @@ pub trait SharedLedgerOps {
     ) -> Result<()>;
 
     /// Set the genesis state root
-    fn set_l2_genesis_state_root<StateRoot: Serialize>(
-        &self,
-        state_root: &StateRoot,
-    ) -> anyhow::Result<()>;
+    fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()>;
 
     /// Gets the L2 genesis state root
-    fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>>;
+    fn get_l2_state_root(&self, l2_height: u64) -> anyhow::Result<Option<StorageRootHash>>;
 
     /// Get the most recent committed soft confirmation, if any
     fn get_head_soft_confirmation(
