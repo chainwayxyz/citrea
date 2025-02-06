@@ -18,7 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
-use sov_modules_api::{Context, DaSpec, StateDiff, Zkvm};
+use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, SignedSoftConfirmationV2};
@@ -392,13 +392,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 let signed_soft_confirmation: SignedSoftConfirmationV2<TxOld> = soft_confirmation
                     .try_into()
                     .context("Failed to parse transactions")?;
-                signed_soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?
+                signed_soft_confirmation.into()
             };
-            // let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
-            //     .try_into()
-            //     .context("Failed to parse transactions")?;
+
             commitment_soft_confirmations.push(signed_soft_confirmation);
         }
         soft_confirmations.push_back(commitment_soft_confirmations);

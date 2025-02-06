@@ -87,7 +87,7 @@ where
             .map(|confirmations| {
                 confirmations
                     .into_iter()
-                    .map(|confirmation| SignedSoftConfirmationV2::from(confirmation))
+                    .map(SignedSoftConfirmationV2::from)
                     .collect::<Vec<_>>()
             })
             .collect::<VecDeque<_>>();
