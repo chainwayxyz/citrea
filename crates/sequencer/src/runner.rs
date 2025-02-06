@@ -473,7 +473,7 @@ where
 
                 // TODO: this will only work for mock da
                 // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
-                // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+                // is merged, rpc will access up to date storage then we won't need to finalize right away.
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
