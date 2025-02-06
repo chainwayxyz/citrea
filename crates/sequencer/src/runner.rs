@@ -81,7 +81,7 @@ where
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: ProverStorageManager<Da::Spec>,
     state_root: StateRoot<C, Da::Spec, RT>,
-    batch_hash: SoftConfirmationHash,
+    soft_confirmation_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     fork_manager: ForkManager<'static>,
@@ -130,7 +130,7 @@ where
             deposit_mempool,
             storage_manager,
             state_root: init_params.state_root,
-            batch_hash: init_params.batch_hash,
+            soft_confirmation_hash: init_params.batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
@@ -435,9 +435,12 @@ where
                 let mut signed_soft_confirmation = if active_fork_spec
                     >= sov_modules_api::SpecId::Kumquat
                 {
-                    self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                    self.sign_soft_confirmation_batch(&unsigned_batch, self.soft_confirmation_hash)?
                 } else {
-                    self.pre_fork1_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                    self.pre_fork1_sign_soft_confirmation_batch(
+                        &unsigned_batch,
+                        self.soft_confirmation_hash,
+                    )?
                 };
 
                 self.stf.end_soft_confirmation(
@@ -502,7 +505,7 @@ where
                 );
 
                 self.state_root = next_state_root;
-                self.batch_hash = soft_confirmation_hash;
+                self.soft_confirmation_hash = soft_confirmation_hash;
 
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
@@ -597,7 +600,7 @@ where
             self.config.min_soft_confirmations_per_commitment,
             da_commitment_rx,
         );
-        if self.batch_hash != [0; 32] {
+        if self.soft_confirmation_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
             commitment_service.resubmit_pending_commitments().await?;
         }
