@@ -29,7 +29,7 @@ use sov_rollup_interface::Network;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
-use crate::evm::make_test_client;
+use crate::common::make_test_client;
 
 pub async fn wait_for_zkproofs(
     full_node: &FullNode,

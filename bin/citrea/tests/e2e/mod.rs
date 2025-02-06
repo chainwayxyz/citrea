@@ -15,15 +15,16 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use tokio::task::JoinHandle;
 
-use crate::evm::{init_test_rollup, make_test_client};
-use crate::test_client::TestClient;
-use crate::test_helpers::{
+use crate::common::client::TestClient;
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode,
 };
-use crate::{
-    TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+use crate::common::{
+    make_test_client, TEST_DATA_GENESIS_PATH,
+    TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
 };
+use crate::evm::init_test_rollup;
 
 mod proving;
 mod pruning;
