@@ -158,6 +158,33 @@ pub trait DaSpec:
     /// The parameters of the rollup which are baked into the state-transition function.
     /// For example, this could include the namespace of the rollup on Celestia.
     type ChainParams: Send + Sync;
+
+    /// A verifiable proof that upon verification, returns the hash of the heaeder,
+    /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
+    type ShortHeaderProof: VerifableShortHeaderProof + BorshDeserialize + BorshSerialize;
+}
+
+/// A trait for a verifiable short header proof
+pub trait VerifableShortHeaderProof {
+    /// Verify the proof and return the header hash, transaction commitment and coinbase transaction txid merkle proof
+    /// height.
+    fn verify(&self) -> Result<([u8; 32], [u8; 32], u8), ShortHeaderProofVerificationError>;
+}
+
+#[derive(Debug)]
+/// Error that can arise from short form header proof
+pub enum ShortHeaderProofVerificationError {
+    /// Wrong coinbase was supplied
+    InvalidCoinbaseMerkleProof,
+    /// Tx commitment in `DaSpec::BlockHeader` was wrong
+    WrongTxCommitment {
+        /// The expected commitment
+        expected: [u8; 32],
+        /// The actual commitment
+        actual: [u8; 32],
+    },
+    /// Provided precomputed hash was incorrect
+    InvalidHeaderHash,
 }
 
 /// Latest da state to verify and apply da block changes
