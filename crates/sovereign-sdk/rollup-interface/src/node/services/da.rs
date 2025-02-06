@@ -133,6 +133,11 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         sequencer_da_pub_key: &[u8],
     ) -> Vec<SequencerCommitment>;
+
+    /// Convert a DA layer block to short form header proof.
+    fn block_to_short_header_proof(
+        block: Self::FilteredBlock,
+    ) -> <Self::Spec as DaSpec>::ShortHeaderProof;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

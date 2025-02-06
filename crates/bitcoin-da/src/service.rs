@@ -55,6 +55,7 @@ use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
+use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
@@ -1132,6 +1133,37 @@ impl DaService for BitcoinService {
             header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
             txdata: txs,
         })
+    }
+
+    fn block_to_short_header_proof(
+        block: Self::FilteredBlock,
+    ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
+        let header = block.header;
+        // Build txid merkle tree
+
+        let txids = block
+            .txdata
+            .iter()
+            .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
+            .collect::<Vec<_>>();
+
+        let txid_merkle_tree = BitcoinMerkleTree::new(txids);
+
+        let txid_merkle_proof = txid_merkle_tree.get_idx_path(0);
+
+        let coinbase_tx = block.txdata[0].clone();
+
+        // sanity check
+        assert_eq!(
+            merkle_tree::BitcoinMerkleTree::calculate_root_with_merkle_proof(
+                coinbase_tx.compute_txid().as_raw_hash().to_byte_array(),
+                0,
+                &txid_merkle_proof
+            ),
+            header.merkle_root()
+        );
+
+        BitcoinHeaderShortProof::new(header, coinbase_tx, txid_merkle_proof)
     }
 
     async fn get_pending_sequencer_commitments(
