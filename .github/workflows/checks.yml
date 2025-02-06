@@ -254,6 +254,8 @@ jobs:
         with:
           name: citrea-test-build
           path: target/debug
+      - name: Make citrea executable
+        run: chmod +x target/debug/citrea
       - name: Run coverage
         run: make coverage-ci
         env:
