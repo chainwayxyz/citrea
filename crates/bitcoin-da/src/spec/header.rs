@@ -1,11 +1,14 @@
 use core::ops::Deref;
 
 use bitcoin::block::{Header as BitcoinHeader, Version};
+use bitcoin::consensus::Encodable;
 use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, TxMerkleNode};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
+
+use crate::helpers::calculate_double_sha256;
 
 use super::block_hash::BlockHashWrapper;
 
@@ -33,7 +36,11 @@ impl BlockHeaderTrait for HeaderWrapper {
     }
 
     fn verify_hash(&self) -> bool {
-        self.hash() == BlockHashWrapper::from(self.header.block_hash().to_byte_array())
+        let mut enc = vec![];
+        self.header.consensus_encode(&mut enc).expect("engines don't error");
+        let calculated = calculate_double_sha256(&enc);
+
+        self.hash() == BlockHashWrapper::from(calculated)
     }
 
     fn txs_commitment(&self) -> Self::Hash {
