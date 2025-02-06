@@ -144,10 +144,11 @@ impl From<BitcoinHeader> for BitcoinHeaderWrapper {
 
 #[cfg(test)]
 mod tests {
-    use borsh::BorshDeserialize;
     use std::fs::File;
     use std::io::{BufRead, BufReader};
     use std::ops::Deref;
+
+    use borsh::BorshDeserialize;
 
     use super::BitcoinHeaderWrapper;
     use crate::spec::header::HeaderWrapper;
