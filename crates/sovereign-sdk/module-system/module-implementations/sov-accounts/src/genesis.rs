@@ -105,14 +105,12 @@ impl<C: sov_modules_api::Context> Accounts<C> {
             if self.public_keys.get(address, working_set).is_some() {
                 return Err(SoftConfirmationHookError::SovTxAccountAlreadyExists);
             }
-        } else {
-            if self
-                .public_keys_pre_fork2
-                .get(address, working_set)
-                .is_some()
-            {
-                return Err(SoftConfirmationHookError::SovTxAccountAlreadyExists);
-            }
+        } else if self
+            .public_keys_pre_fork2
+            .get(address, working_set)
+            .is_some()
+        {
+            return Err(SoftConfirmationHookError::SovTxAccountAlreadyExists);
         }
 
         Ok(())
