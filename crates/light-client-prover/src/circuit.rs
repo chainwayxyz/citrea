@@ -314,8 +314,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
         batch_proof_output_initial_state_root,
         batch_proof_output_final_state_root,
         batch_proof_output_last_l2_height,
-    ) = if let Ok(output) =
-        G::deserialize_output::<BatchProofCircuitOutputV2<DaV::Spec, [u8; 32]>>(&journal)
+    ) = if let Ok(output) = G::deserialize_output::<BatchProofCircuitOutputV2<DaV::Spec>>(&journal)
     {
         (
             output.initial_state_root,
@@ -323,7 +322,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
             output.last_l2_height,
         )
     } else if let Ok(output) =
-        G::deserialize_output::<BatchProofCircuitOutputV1<DaV::Spec, [u8; 32]>>(&journal)
+        G::deserialize_output::<BatchProofCircuitOutputV1<DaV::Spec>>(&journal)
     {
         (output.initial_state_root, output.final_state_root, 0)
     } else {
@@ -362,8 +361,8 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
         recursive_match_state_roots(
             initial_to_final,
             &BatchProofInfo::new(
-                batch_proof_output_initial_state_root,
-                batch_proof_output_final_state_root,
+                batch_proof_output_initial_state_root.into(),
+                batch_proof_output_final_state_root.into(),
                 batch_proof_output_last_l2_height,
             ),
         );

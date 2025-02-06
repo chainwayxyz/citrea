@@ -104,7 +104,7 @@ where
     pub fn new(
         da_service: Arc<Da>,
         config: SequencerConfig,
-        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        init_params: InitParams,
         stf: StfBlueprint<C, Da::Spec, RT>,
         storage_manager: ProverStorageManager<Da::Spec>,
         public_keys: RollupPublicKeys,

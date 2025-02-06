@@ -197,13 +197,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<(
         CitreaFullnode<Self::DaService, Self::NativeContext, LedgerDB, Self::NativeRuntime>,
-        FullNodeL1BlockHandler<
-            Self::NativeContext,
-            Self::Vm,
-            Self::DaService,
-            StorageRootHash,
-            LedgerDB,
-        >,
+        FullNodeL1BlockHandler<Self::NativeContext, Self::Vm, Self::DaService, LedgerDB>,
         Option<Pruner<LedgerDB>>,
     )>
     where
@@ -266,7 +260,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::DaService,
             Self::ProverService,
             LedgerDB,
-            StorageRootHash,
             ArrayWitness,
             Transaction<<Self as RollupBlueprint>::NativeContext>,
         >,
@@ -408,12 +401,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         ledger_db: &LedgerDB,
         storage_manager: &mut ProverStorageManager<Self::DaSpec>,
         prover_storage: &ProverStorage<SnapshotManager>,
-    ) -> anyhow::Result<
-        InitParams<
-            StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
-            Self::DaSpec,
-        >,
-    > {
+    ) -> anyhow::Result<InitParams> {
         if let Some((number, soft_confirmation)) = ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
             info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
