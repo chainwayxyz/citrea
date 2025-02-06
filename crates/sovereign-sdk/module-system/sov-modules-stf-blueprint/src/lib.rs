@@ -567,6 +567,12 @@ where
                 let spec_id = fork_manager.active_fork().spec_id;
                 let (mut soft_confirmation, state_witness, offchain_witness) =
                     if spec_id >= SpecId::Kumquat {
+                        guest.read_from_host::<(
+                            SignedSoftConfirmation<Self::Transaction>,
+                            <C::Storage as Storage>::Witness,
+                            <C::Storage as Storage>::Witness,
+                        )>()
+                    } else {
                         let (soft_confirmation, state_witness, offchain_witness) = guest
                             .read_from_host::<(
                                 SignedSoftConfirmation<PreFork2Transaction<C>>,
@@ -597,12 +603,6 @@ where
                             soft_confirmation.timestamp(),
                         );
                         (sc, state_witness, offchain_witness)
-                    } else {
-                        guest.read_from_host::<(
-                            SignedSoftConfirmation<Self::Transaction>,
-                            <C::Storage as Storage>::Witness,
-                            <C::Storage as Storage>::Witness,
-                        )>()
                     };
 
                 if let Some(hash) = previous_batch_hash {

@@ -954,7 +954,7 @@ where
         };
 
         match accounts
-            .get_account(pub_key, working_set)
+            .get_account(pub_key, spec_id, working_set)
             .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),

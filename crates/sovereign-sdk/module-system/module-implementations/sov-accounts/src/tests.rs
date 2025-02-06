@@ -1,7 +1,7 @@
 use borsh::BorshSerialize;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::{AddressBech32, PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{AddressBech32, PrivateKey, PublicKey, Spec, SpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::query::{self, Response};
@@ -28,7 +28,9 @@ fn test_config_account() {
 
     accounts.init_module(&account_config, working_set);
 
-    let query_response = accounts.get_account(init_pub_key_vec, working_set).unwrap();
+    let query_response = accounts
+        .get_account(init_pub_key_vec, SpecId::Genesis, working_set)
+        .unwrap();
 
     assert_eq!(
         query_response,
