@@ -124,13 +124,10 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let storage_value: U256 = if self.evm.account_exists(&address, self.working_set) {
-            self.evm
-                .storage_get(&address, &index, self.working_set)
-                .unwrap_or_default()
-        } else {
-            U256::default()
-        };
+        let storage_value = self
+            .evm
+            .storage_get(&address, &index, self.working_set)
+            .unwrap_or_default();
 
         Ok(storage_value)
     }
