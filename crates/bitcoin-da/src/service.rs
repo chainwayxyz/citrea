@@ -595,6 +595,8 @@ impl BitcoinService {
         for tx in raw_txs {
             let txid = self.client.send_raw_transaction(tx.as_slice()).await?;
             txids.push(txid);
+
+            histogram!("da_transaction_size").record(tx.len());
         }
         Ok(txids)
     }
@@ -659,6 +661,7 @@ impl BitcoinService {
         }
 
         let new_txid = self.client.send_raw_transaction(&raw_hex).await?;
+        histogram!("da_transaction_size").record(raw_hex.len());
 
         match method {
             BumpFeeMethod::Cpfp => {
