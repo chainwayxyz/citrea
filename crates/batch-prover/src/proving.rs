@@ -44,7 +44,7 @@ pub enum GroupCommitments {
     OneByOne,
 }
 
-pub(crate) async fn data_to_prove<'txs, Da, DB, StateRoot, Witness, Tx, TxOld, C>(
+pub(crate) async fn data_to_prove<'txs, Da, DB, StateRoot, Witness, Tx, TxOld>(
     da_service: Arc<Da>,
     ledger: DB,
     sequencer_pub_key: Vec<u8>,
@@ -66,7 +66,6 @@ where
     Witness: DeserializeOwned,
     Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
     TxOld: Clone + BorshDeserialize + 'txs,
-    C: Context,
 {
     let l1_height = l1_block.header().height();
 
@@ -146,7 +145,7 @@ where
             state_transition_witnesses,
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
-        ) = get_batch_proof_circuit_input_from_commitments::<_, _, _, Tx, TxOld, C>(
+        ) = get_batch_proof_circuit_input_from_commitments::<_, _, _, Tx, TxOld>(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
             &ledger,

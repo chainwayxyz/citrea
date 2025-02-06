@@ -239,7 +239,7 @@ where
             })?;
 
         let (sequencer_commitments, inputs) =
-            data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld, C>(
+            data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld>(
                 self.context.da_service.clone(),
                 self.context.ledger.clone(),
                 self.context.sequencer_pub_key.clone(),
@@ -311,7 +311,7 @@ where
             })?;
 
         let (sequencer_commitments, inputs) =
-            data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld, C>(
+            data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld>(
                 self.context.da_service.clone(),
                 self.context.ledger.clone(),
                 self.context.sequencer_pub_key.clone(),

@@ -270,7 +270,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ArrayWitness,
             Transaction,
             PreFork2Transaction<Self::NativeContext>,
-            Self::NativeContext,
         >,
         RpcModule<()>,
     )>

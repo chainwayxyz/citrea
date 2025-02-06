@@ -41,7 +41,7 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>
+pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -55,7 +55,6 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
-    C: sov_modules_api::Context,
 {
     prover_config: BatchProverConfig,
     prover_service: Arc<Ps>,
@@ -72,11 +71,10 @@ where
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
     _tx_old: PhantomData<TxOld>,
-    _context: PhantomData<C>,
 }
 
-impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>
-    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>
+impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld>
+    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -92,7 +90,6 @@ where
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
     Tx: From<TxOld> + Clone + BorshDeserialize + BorshSerialize,
     TxOld: Clone + BorshDeserialize + BorshSerialize,
-    C: sov_modules_api::Context,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -123,7 +120,6 @@ where
             _witness: PhantomData,
             _tx: PhantomData,
             _tx_old: PhantomData,
-            _context: PhantomData,
         }
     }
 
@@ -205,7 +201,7 @@ where
                 continue;
             }
 
-            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld, C>(
+            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
                 self.sequencer_pub_key.clone(),
@@ -333,7 +329,6 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Witness: DeserializeOwned,
     Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
     TxOld: Clone + BorshDeserialize + 'txs,
-    C: Context,
 >(
     sequencer_commitments: &[SequencerCommitment],
     da_service: &Arc<Da>,

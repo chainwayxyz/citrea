@@ -48,7 +48,7 @@ pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx, TxOld
     rpc_module: RpcModule<()>,
 ) -> Result<(
     CitreaBatchProver<C, Da, DB, RT>,
-    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>,
+    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld>,
     RpcModule<()>,
 )>
 where
