@@ -419,7 +419,7 @@ where
                     da_block.header().txs_commitment().into(),
                     &txs,
                     &txs_new,
-                    deposit_data.clone(),
+                    deposit_data,
                     l1_fee_rate,
                     timestamp,
                 );
