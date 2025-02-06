@@ -135,9 +135,8 @@ where
         // TODO: Fix this before introducing snapshots!
         if jmt.get_root_hash_option(latest_version)?.is_none() {
             assert_eq!(latest_version, 0);
-            let empty_batch = Vec::default().into_iter();
             let (_, tree_update) = jmt
-                .put_value_set(empty_batch, latest_version)
+                .put_value_set([], latest_version)
                 .expect("JMT update must succeed");
 
             self.db
@@ -162,7 +161,7 @@ where
 
         let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
 
-        let mut diff = vec![];
+        let mut diff = Vec::with_capacity(state_accesses.ordered_writes.len());
 
         // Compute the jmt update from the write batch
         let batch = state_accesses

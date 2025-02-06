@@ -94,12 +94,11 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &txs,
                     inclusion_proof,
                     completeness_proof,
                     DaNamespace::ToBatchProver
                 ),
-                Ok(())
+                Ok(txs)
             );
         }
 
@@ -127,12 +126,11 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &txs,
                     inclusion_proof,
                     completeness_proof,
                     DaNamespace::ToLightClientProver
                 ),
-                Ok(())
+                Ok(txs)
             );
         }
 

@@ -133,7 +133,10 @@ pub async fn start_rollup(
         mut task_manager,
         soft_confirmation_channel,
     } = mock_demo_rollup
-        .setup_dependencies(&rollup_config)
+        .setup_dependencies(
+            &rollup_config,
+            sequencer_config.is_some() || rollup_prover_config.is_some(),
+        )
         .await
         .expect("Dependencies setup should work");
 
@@ -558,7 +561,7 @@ fn extract_da_data(
     da_service
         .extract_relevant_blobs(&block)
         .into_iter()
-        .for_each(|mut tx| {
+        .for_each(|tx| {
             let data = DaTxRequest::try_from_slice(tx.full_data());
             if let Ok(DaTxRequest::SequencerCommitment(seq_com)) = data {
                 sequencer_commitments.push(seq_com);

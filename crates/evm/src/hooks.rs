@@ -33,29 +33,35 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let current_spec = soft_confirmation_info.current_spec;
 
-        let mut parent_block = if current_spec >= CitreaSpecId::Kumquat {
-            match self.head_rlp.get(working_set) {
-                Some(block) => block.clone().into(),
+        let parent_block = if current_spec >= CitreaSpecId::Kumquat {
+            let mut parent_block = match self.head_rlp.get(working_set) {
+                Some(block) => block,
                 None => self
                     .head
                     .get(working_set)
                     .expect("Head block should always be set")
-                    .clone(),
-            }
+                    .into(),
+            };
+
+            parent_block.header.state_root =
+                B256::from_slice(&soft_confirmation_info.pre_state_root);
+
+            self.head_rlp.set(&parent_block, working_set);
+
+            parent_block
         } else {
-            self.head
+            let mut parent_block = self
+                .head
                 .get(working_set)
-                .expect("Head block should always be set")
-                .clone()
-        };
+                .expect("Head block should always be set");
 
-        parent_block.header.state_root = B256::from_slice(&soft_confirmation_info.pre_state_root);
+            parent_block.header.state_root =
+                B256::from_slice(&soft_confirmation_info.pre_state_root);
 
-        if current_spec >= CitreaSpecId::Kumquat {
-            self.head_rlp.set(&parent_block.clone().into(), working_set);
-        } else {
             self.head.set(&parent_block, working_set);
-        }
+
+            parent_block.into()
+        };
 
         let sealed_parent_block = parent_block.clone().seal();
         let last_block_hash = sealed_parent_block.header.hash();

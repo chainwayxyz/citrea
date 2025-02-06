@@ -158,6 +158,47 @@ pub trait DaSpec:
     /// The parameters of the rollup which are baked into the state-transition function.
     /// For example, this could include the namespace of the rollup on Celestia.
     type ChainParams: Send + Sync;
+
+    /// A verifiable proof that upon verification, returns the hash of the header,
+    /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
+    type ShortHeaderProof: VerifableShortHeaderProof + BorshDeserialize + BorshSerialize;
+}
+
+/// Information needed to update L1 light client system contract
+///
+/// (header hash, tx commitment (wtxid commitment in Bitcoin), hashes needed for the merkle inclusion proof)
+pub type L1UpdateSystemTransactionInfo = ([u8; 32], [u8; 32], u8);
+
+/// A trait for a verifiable short header proof
+pub trait VerifableShortHeaderProof {
+    /// Verifies the proof and returns the header hash, transaction commitment and coinbase transaction txid merkle proof
+    /// height.
+    ///
+    /// The proof only shows that for a claimed header hash, wtxid merkle root and coinbase txid merkle proof height,
+    /// are valid.
+    ///
+    /// These proofs will be used inside the batch proofs, and the hash is going to be committed to the output of the
+    /// proof. It will be upto the verifier to check if the hash is correct.
+    ///
+    /// In the light client proof, the circuit will extract the `l1_hashes` output and will check that the hashes are
+    /// included in the header chain.
+    fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError>;
+}
+
+#[derive(Debug, PartialEq, Eq)]
+/// Error that can arise from short form header proof
+pub enum ShortHeaderProofVerificationError {
+    /// Wrong coinbase was supplied
+    InvalidCoinbaseMerkleProof,
+    /// Tx commitment in `DaSpec::BlockHeader` was wrong
+    WrongTxCommitment {
+        /// The expected commitment
+        expected: [u8; 32],
+        /// The actual commitment
+        actual: [u8; 32],
+    },
+    /// Provided precomputed hash was incorrect
+    InvalidHeaderHash,
 }
 
 /// Latest da state to verify and apply da block changes
@@ -195,15 +236,14 @@ pub trait DaVerifier: Send + Sync {
     /// Create a new da verifier with the given chain parameters
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self;
 
-    /// Verify a claimed set of transactions of the given namespace against a block header.
+    /// Extract the relevant transactions from a block, using provided proofs to verify the data.
     fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error>;
 
     /// Verify that the block header is valid for the given previous light client proof output
     fn verify_header_chain(
@@ -300,39 +340,17 @@ pub trait BlobReaderTrait:
     /// Returns the witness transaction ID of the blob as it appears on the DA layer
     fn wtxid(&self) -> Option<[u8; 32]>;
 
-    /// Returns a slice containing all the data accessible to the rollup at this point in time.
-    /// When running in native mode, the rollup can extend this slice by calling `advance`. In zk-mode,
-    /// the rollup is limited to only the verified data.
-    ///
-    /// Rollups should use this method in conjunction with `advance` to read only the minimum amount
-    /// of data required for execution
-    fn verified_data(&self) -> &[u8];
+    /// Returns the full data of the blob
+    fn full_data(&self) -> &[u8];
 
     /// Returns the total number of bytes in the blob. Note that this may be unequal to `verified_data.len()`.
     fn total_len(&self) -> usize;
 
-    /// Extends the `partial_data` accumulator with the next `num_bytes` of  data from the blob
-    /// and returns a reference to the entire contents of the blob up to this point.
-    ///
-    /// If `num_bytes` is greater than the length of the remaining unverified data,
-    /// then all remaining unverified data is added to the accumulator.
-    ///
-    /// ### Note:
-    /// This method is only available when the `native` feature is enabled because it is unsafe to access
-    /// unverified data during execution
-    #[cfg(feature = "native")]
-    fn advance(&mut self, num_bytes: usize) -> &[u8];
-
-    /// Verifies all remaining unverified data in the blob and returns a reference to the entire contents of the blob.
-    /// For efficiency, rollups should prefer use of `verified_data` and `advance` unless they know that all of the
-    /// blob data will be required for execution.
-    #[cfg(feature = "native")]
-    fn full_data(&mut self) -> &[u8] {
-        self.advance(self.total_len())
-    }
-
     /// Weird method to serialize blob as v1. Should be removed when a better way is introduced in the future.
     fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>>;
+
+    /// Serialize the blob as v2 (pre Fork 2)
+    fn serialize_v2(&self) -> borsh::io::Result<Vec<u8>>;
 }
 
 /// Trait with collection of trait bounds for a block hash.

@@ -22,6 +22,7 @@ use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcErr
 use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
+use metrics::histogram;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
     DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, DaTxRequest, SequencerCommitment,
@@ -54,6 +55,7 @@ use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
+use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
@@ -528,6 +530,10 @@ impl BitcoinService {
 
         self.test_mempool_accept(&raw_txs).await?;
 
+        // Track the sum of all chunked transactions sizes
+        let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
+        histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
+
         let txids = self.send_raw_transactions(&raw_txs).await?;
 
         for txid in txids[1..].iter().step_by(2) {
@@ -552,6 +558,10 @@ impl BitcoinService {
             .await?;
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         let raw_txs = [signed_raw_commit_tx.hex, serialized_reveal_tx];
+
+        // Track the sum of both commit and reveal transaction sizes
+        let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
+        histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
 
         self.test_mempool_accept(&raw_txs).await?;
 
@@ -659,6 +669,7 @@ impl BitcoinService {
         }
 
         let new_txid = self.client.send_raw_transaction(&raw_hex).await?;
+        histogram!("da_transaction_size").record(raw_hex.len() as f64);
 
         match method {
             BumpFeeMethod::Cpfp => {
@@ -999,7 +1010,7 @@ impl DaService for BitcoinService {
                                         seq_comm.body,
                                         seq_comm.public_key,
                                         hash,
-                                        None,
+                                        Some(wtxid.to_byte_array()),
                                     );
 
                                     relevant_txs.push(relevant_tx);
@@ -1037,7 +1048,7 @@ impl DaService for BitcoinService {
                             ParsedLightClientTransaction::Chunk(chunk) => {
                                 let relevant_tx = BlobWithSender::new(
                                     chunk.body,
-                                    vec![0],
+                                    vec![],
                                     [0; 32],
                                     Some(wtxid.to_byte_array()),
                                 );
@@ -1122,6 +1133,37 @@ impl DaService for BitcoinService {
             header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
             txdata: txs,
         })
+    }
+
+    fn block_to_short_header_proof(
+        block: Self::FilteredBlock,
+    ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
+        let header = block.header;
+        // Build txid merkle tree
+
+        let txids = block
+            .txdata
+            .iter()
+            .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
+            .collect::<Vec<_>>();
+
+        let txid_merkle_tree = BitcoinMerkleTree::new(txids);
+
+        let txid_merkle_proof = txid_merkle_tree.get_idx_path(0);
+
+        let coinbase_tx = block.txdata[0].clone();
+
+        // sanity check
+        assert_eq!(
+            merkle_tree::BitcoinMerkleTree::calculate_root_with_merkle_proof(
+                coinbase_tx.compute_txid().as_raw_hash().to_byte_array(),
+                0,
+                &txid_merkle_proof
+            ),
+            header.merkle_root()
+        );
+
+        BitcoinHeaderShortProof::new(header, coinbase_tx, txid_merkle_proof)
     }
 
     async fn get_pending_sequencer_commitments(

@@ -6,7 +6,8 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient, LatestDaState};
 use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRNative, MMRNodeHash};
-use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput};
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
+use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::Network;
 use test_utils::{
     create_mmr_hints, create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
@@ -32,9 +33,9 @@ fn test_light_client_circuit_valid_da_valid_data() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_1, blob_2],
+        da_data: vec![],
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -70,10 +71,10 @@ fn test_light_client_circuit_valid_da_valid_data() {
     let input_2 = LightClientCircuitInput {
         previous_light_client_proof_journal: Some(mock_output_1_serialized),
         da_block_header: block_header_2,
-        da_data: vec![blob_3, blob_4],
+        da_data: vec![],
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_3, blob_4],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -109,9 +110,9 @@ fn test_wrong_order_da_blocks_should_still_work() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_2, blob_1],
+        da_data: vec![],
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_2, blob_1],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -151,9 +152,9 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_2, blob_1],
+        da_data: vec![],
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_2, blob_1],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -201,9 +202,9 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         previous_light_client_proof_journal: Some(mock_output_1_ser),
         light_client_proof_method_id,
         da_block_header: block_header_2,
-        da_data: vec![blob_1],
+        da_data: vec![],
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -240,9 +241,9 @@ fn test_header_chain_proof_height_and_hash() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_1, blob_2],
+        da_data: vec![],
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -278,10 +279,10 @@ fn test_header_chain_proof_height_and_hash() {
     let input_2 = LightClientCircuitInput {
         previous_light_client_proof_journal: Some(prev_lcp_out),
         da_block_header: block_header_2,
-        da_data: vec![blob_3, blob_4],
+        da_data: vec![],
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_3, blob_4],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -318,9 +319,9 @@ fn test_unverifiable_batch_proofs() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_1, blob_2],
+        da_data: vec![],
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![1],
     };
@@ -362,9 +363,9 @@ fn test_unverifiable_prev_light_client_proof() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_1, blob_2],
+        da_data: vec![],
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![1],
     };
@@ -401,7 +402,7 @@ fn test_unverifiable_prev_light_client_proof() {
         da_data: vec![],
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -439,9 +440,9 @@ fn test_new_method_id_txs() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_1, blob_2],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -472,9 +473,9 @@ fn test_new_method_id_txs() {
         previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_1, true)),
         light_client_proof_method_id,
         da_block_header: block_header_2,
-        da_data: vec![blob_2],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -507,9 +508,9 @@ fn test_new_method_id_txs() {
         previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_2, true)),
         light_client_proof_method_id,
         da_block_header: block_header_3,
-        da_data: vec![blob_1, blob_2],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -552,9 +553,9 @@ fn test_expect_to_fail_on_correct_proof() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_1, blob_2],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![1],
     };
@@ -590,9 +591,9 @@ fn test_expected_to_fail_proof_not_hinted() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob_1, blob_2],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -632,7 +633,7 @@ fn test_light_client_circuit_verify_chunks() {
     let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
-    let mut blob1 = MockBlob::new(
+    let blob1 = MockBlob::new(
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -644,7 +645,7 @@ fn test_light_client_circuit_verify_chunks() {
     let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
-    let mut blob2 = MockBlob::new(
+    let blob2 = MockBlob::new(
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -657,7 +658,7 @@ fn test_light_client_circuit_verify_chunks() {
     let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
-    let mut blob3 = MockBlob::new(
+    let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -680,7 +681,7 @@ fn test_light_client_circuit_verify_chunks() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -693,9 +694,9 @@ fn test_light_client_circuit_verify_chunks() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1,
-        da_data: vec![blob1, blob2, blob3, blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob1, blob2, blob3, blob4],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -737,7 +738,7 @@ fn test_missing_chunk() {
     let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
-    let mut blob1 = MockBlob::new(
+    let blob1 = MockBlob::new(
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -749,7 +750,7 @@ fn test_missing_chunk() {
     let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
-    let mut blob2 = MockBlob::new(
+    let blob2 = MockBlob::new(
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -762,7 +763,7 @@ fn test_missing_chunk() {
     let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
-    let mut blob3 = MockBlob::new(
+    let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -785,7 +786,7 @@ fn test_missing_chunk() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -799,9 +800,9 @@ fn test_missing_chunk() {
         light_client_proof_method_id,
         da_block_header: block_header_1,
         // Blob2 is not present
-        da_data: vec![blob1, blob3, blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob1, blob3, blob4],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -853,7 +854,7 @@ fn test_mmr_hints() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -913,9 +914,9 @@ fn test_mmr_hints() {
         light_client_proof_method_id,
         da_block_header: block_header_1,
         // Only aggregate is present others are in mmr hints
-        da_data: vec![blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob4],
         mmr_hints,
         expected_to_fail_hint: vec![],
     };
@@ -968,7 +969,7 @@ fn test_malformed_mmr_proof_internal_index() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1013,9 +1014,9 @@ fn test_malformed_mmr_proof_internal_index() {
         light_client_proof_method_id,
         da_block_header: block_header_1,
         // Only aggregate is present others are in mmr hints
-        da_data: vec![blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob4],
         mmr_hints,
         expected_to_fail_hint: vec![],
     };
@@ -1065,7 +1066,7 @@ fn test_malformed_mmr_proof_subroot_index() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1107,9 +1108,9 @@ fn test_malformed_mmr_proof_subroot_index() {
         light_client_proof_method_id,
         da_block_header: block_header_1,
         // Only aggregate is present others are in mmr hints
-        da_data: vec![blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob4],
         mmr_hints,
         expected_to_fail_hint: vec![],
     };
@@ -1159,7 +1160,7 @@ fn test_malformed_mmr_chunk_body() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1201,9 +1202,9 @@ fn test_malformed_mmr_chunk_body() {
         light_client_proof_method_id,
         da_block_header: block_header_1,
         // Only aggregate is present others are in mmr hints
-        da_data: vec![blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob4],
         mmr_hints,
         expected_to_fail_hint: vec![],
     };
@@ -1252,7 +1253,7 @@ fn test_malformed_mmr_chunk_wtxid() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1294,9 +1295,9 @@ fn test_malformed_mmr_chunk_wtxid() {
         light_client_proof_method_id,
         da_block_header: block_header_1,
         // Only aggregate is present others are in mmr hints
-        da_data: vec![blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob4],
         mmr_hints,
         expected_to_fail_hint: vec![],
     };
@@ -1351,7 +1352,7 @@ fn test_malformed_mmr_inclusion_proof() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1393,9 +1394,9 @@ fn test_malformed_mmr_inclusion_proof() {
         light_client_proof_method_id,
         da_block_header: block_header_1,
         // Only aggregate is present others are in mmr hints
-        da_data: vec![blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob4],
         mmr_hints,
         expected_to_fail_hint: vec![],
     };
@@ -1436,7 +1437,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
-    let mut blob1 = MockBlob::new(
+    let blob1 = MockBlob::new(
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1448,7 +1449,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
-    let mut blob2 = MockBlob::new(
+    let blob2 = MockBlob::new(
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1470,9 +1471,9 @@ fn test_malicious_aggregate_should_not_work() {
         previous_light_client_proof_journal: None,
         light_client_proof_method_id,
         da_block_header: block_header_1.clone(),
-        da_data: vec![blob1.clone(), blob2.clone()],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob1.clone(), blob2.clone()],
         mmr_hints: Default::default(),
         expected_to_fail_hint: vec![],
     };
@@ -1501,7 +1502,7 @@ fn test_malicious_aggregate_should_not_work() {
         borsh::to_vec(&malicious_aggregate_da_data).expect("should serialize");
 
     // Malicious blob sent, takes 2/3 of the chunks and tries to break the circuit
-    let mut malicious_blob = MockBlob::new(
+    let malicious_blob = MockBlob::new(
         malicious_aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1515,9 +1516,9 @@ fn test_malicious_aggregate_should_not_work() {
         previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
         light_client_proof_method_id,
         da_block_header: block_header_2,
-        da_data: vec![malicious_blob],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![malicious_blob],
         mmr_hints: mmr_hints.clone().into(),
         expected_to_fail_hint: vec![],
     };
@@ -1544,7 +1545,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
     // Last chhunk
-    let mut blob3 = MockBlob::new(
+    let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1567,7 +1568,7 @@ fn test_malicious_aggregate_should_not_work() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1580,9 +1581,9 @@ fn test_malicious_aggregate_should_not_work() {
         previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
         light_client_proof_method_id,
         da_block_header: block_header_3,
-        da_data: vec![blob3, blob4],
+        da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
-        completeness_proof: (),
+        completeness_proof: vec![blob3, blob4],
         mmr_hints: mmr_hints.into(),
         expected_to_fail_hint: vec![],
     };

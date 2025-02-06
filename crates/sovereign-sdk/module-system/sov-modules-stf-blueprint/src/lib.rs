@@ -23,7 +23,8 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
     StateTransitionError, StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{CumulativeStateDiff, StorageRootHash, ZkvmGuest};
+use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::Storage;
 
 mod stf_blueprint;
@@ -440,7 +441,7 @@ where
             .into_iter()
             .filter_map(|blob| {
                 if blob.sender().as_ref() == sequencer_da_public_key {
-                    let da_data = DaDataBatchProof::try_from_slice(blob.verified_data());
+                    let da_data = DaDataBatchProof::try_from_slice(blob.full_data());
 
                     if let Ok(DaDataBatchProof::SequencerCommitment(commitment)) = da_data {
                         return Some(commitment);
