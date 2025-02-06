@@ -1,4 +1,3 @@
-use bitcoin::hashes::Hash;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, ShortHeaderProofVerificationError, VerifableShortHeaderProof,
 };
@@ -8,11 +7,11 @@ use super::transaction::TransactionWrapper;
 use crate::helpers::{calculate_txid, merkle_tree};
 use crate::verifier::WITNESS_COMMITMENT_PREFIX;
 
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Eq, PartialEq, Debug)]
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Eq, PartialEq, Debug, Clone)]
 pub struct BitcoinHeaderShortProof {
-    header: HeaderWrapper,
-    coinbase_tx: TransactionWrapper,
-    coinbase_tx_txid_merkle_proof: Vec<[u8; 32]>,
+    pub(crate) header: HeaderWrapper,
+    pub(crate) coinbase_tx: TransactionWrapper,
+    pub(crate) coinbase_tx_txid_merkle_proof: Vec<[u8; 32]>,
 }
 
 impl BitcoinHeaderShortProof {
@@ -89,37 +88,41 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
         }
 
         // Finally return hash, wtxid root and txid proof count
-        return Ok((
+        Ok((
             // block_hash calculates the hash of the header
             self.header.hash().into(),
             self.header.txs_commitment().into(),
             self.coinbase_tx_txid_merkle_proof.len() as u8,
-        ));
+        ))
     }
 }
 
 #[cfg(test)]
 mod test {
     use std::fs;
+    use std::ops::Deref;
 
     use bitcoin::hashes::Hash;
+    use bitcoin::BlockHash;
     use hex::FromHex;
-    use sov_rollup_interface::da::VerifableShortHeaderProof;
+    use sov_rollup_interface::da::{ShortHeaderProofVerificationError, VerifableShortHeaderProof};
     use sov_rollup_interface::services::da::DaService;
 
+    use super::BitcoinHeaderShortProof;
+    use crate::helpers::parsers::parse_hex_transaction;
     use crate::service::BitcoinService;
     use crate::spec::block::BitcoinBlock;
-    use crate::spec::header::{BitcoinHeaderWrapper, HeaderWrapper};
+    use crate::spec::block_hash::BlockHashWrapper;
+    use crate::spec::header::HeaderWrapper;
 
-    #[test]
-    fn test_correct_short_proof() {
+    fn get_proof() -> BitcoinHeaderShortProof {
         let block = fs::read("test_data/mainnet/block-882547.bin").unwrap();
 
         let block: bitcoin::Block = bitcoin::consensus::deserialize(block.as_slice()).unwrap();
 
         let block = BitcoinBlock {
             header: HeaderWrapper::new(
-                block.header.into(),
+                block.header,
                 block.txdata.len() as u32,
                 882547,
                 <[u8; 32]>::from_hex(
@@ -130,7 +133,12 @@ mod test {
             txdata: block.txdata.into_iter().map(Into::into).collect(),
         };
 
-        let proof = BitcoinService::block_to_short_header_proof(block);
+        BitcoinService::block_to_short_header_proof(block)
+    }
+
+    #[test]
+    fn test_correct_short_proof() {
+        let proof = get_proof();
 
         let (block_hash, tx_commitment, tx_proof_count) =
             proof.verify().expect("Proof verification failed");
@@ -152,5 +160,81 @@ mod test {
         );
 
         assert_eq!(tx_proof_count, 11);
+    }
+
+    #[test]
+    fn test_incorrect_short_proofs() {
+        let proof = get_proof();
+
+        // malform the merkle proof
+        {
+            let mut proof = proof.clone();
+            proof.coinbase_tx_txid_merkle_proof[3] = [8; 32];
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::InvalidCoinbaseMerkleProof
+            );
+        }
+
+        // put a different coinbase tx to the proof
+        {
+            let mut proof = proof.clone();
+            proof.coinbase_tx = parse_hex_transaction("010000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff640374770d2cfabe6d6d7534b66e1756195a543deea74059ce5ecc0ccae15a07faf980a62039cd4ef0ed10000000f09f909f092f4632506f6f6c2f640000000000000000000000000000000000000000000000000000000000000000000000050013172f24000000000722020000000000001976a914c6740a12d0a7d556f89782bf5faf0e12cf25a63988acc7b1c412000000001976a914c85526a428126c00ad071b56341a5a553a5e96a388ac0000000000000000266a24aa21a9ed7d0f77a6a13e7308be6b923d7f6f4b9251f7c47a3d383b8698f3f417e947ed0500000000000000002f6a2d434f52450142fdeae88682a965939fee9b7b2bd5b99694ff64e7ec323813c943336c579e238228a8ebd096a7e50000000000000000126a10455853415401051b0f0e0e0b1f1200130000000000000000266a24486174686e30ea617a55d932e1a85798907987dd308b5ccc6bb92e23587f0e9acba77e8800000000000000002c6a4c2952534b424c4f434b3ae3cf1c4319b02fd3b18d21cf129590786c12e5faf3f481c5e6aac512006e119f0120000000000000000000000000000000000000000000000000000000000000000075609341").unwrap().into();
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::InvalidCoinbaseMerkleProof
+            );
+        }
+
+        // try to change the wtxid merkle root
+        {
+            let mut proof = proof.clone();
+            let mut tx = proof.coinbase_tx.deref().clone();
+            // originally df
+            tx.output[2].script_pubkey.as_mut_bytes()[37] = 0x00;
+
+            proof.coinbase_tx = tx.into();
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::InvalidCoinbaseMerkleProof,
+            );
+        }
+
+        // try to supply wrong wtxid
+        {
+            let mut proof = proof.clone();
+            proof.header.txs_commitment = <[u8; 32]>::from_hex(
+                "a4d7206595b921ee04f46e76fda0175dea5ad8d227af75110490d05b6a90009c",
+            )
+            .unwrap();
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::WrongTxCommitment {
+                    expected: <[u8; 32]>::from_hex(
+                        "a4d7206595b921ee04f46e76fda0175dea5ad8d227af75110490d05b6a90df9c"
+                    )
+                    .unwrap(),
+                    actual: <[u8; 32]>::from_hex(
+                        "a4d7206595b921ee04f46e76fda0175dea5ad8d227af75110490d05b6a90009c"
+                    )
+                    .unwrap()
+                }
+            )
+        }
+
+        // try to input wrong `precomputed_hash`
+        {
+            let mut proof = proof.clone();
+            proof.header.precomputed_hash = BlockHashWrapper(BlockHash::from_byte_array([1u8; 32]));
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::InvalidHeaderHash
+            )
+        }
     }
 }

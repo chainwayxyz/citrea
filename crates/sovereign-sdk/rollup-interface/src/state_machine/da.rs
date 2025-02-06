@@ -166,12 +166,21 @@ pub trait DaSpec:
 
 /// A trait for a verifiable short header proof
 pub trait VerifableShortHeaderProof {
-    /// Verify the proof and return the header hash, transaction commitment and coinbase transaction txid merkle proof
+    /// Verifies the proof and returns the header hash, transaction commitment and coinbase transaction txid merkle proof
     /// height.
+    ///
+    /// The proof only shows that for a claimed header hash, wtxid merkle root and coinbase txid merkle proof height,
+    /// are valid.
+    ///
+    /// These proofs will be used inside the batch proofs, and the hash is going to be committed to the output of the
+    /// proof. It will be upto the verifier to check if the hash is correct.
+    ///
+    /// In the light client proof, the circuit will extract the `l1_hashes` output and will check that the hashes are
+    /// included in the header chain.
     fn verify(&self) -> Result<([u8; 32], [u8; 32], u8), ShortHeaderProofVerificationError>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 /// Error that can arise from short form header proof
 pub enum ShortHeaderProofVerificationError {
     /// Wrong coinbase was supplied
