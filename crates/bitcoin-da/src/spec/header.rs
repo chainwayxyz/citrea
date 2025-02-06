@@ -14,7 +14,7 @@ use super::block_hash::BlockHashWrapper;
     Clone, Debug, PartialEq, Eq, Hash, BorshDeserialize, BorshSerialize, Serialize, Deserialize,
 )]
 pub struct HeaderWrapper {
-    pub(crate) header: BitcoinHeaderWrapper, // not pub to prevent uses like block.header.header.merkle_root
+    pub(crate) header: BitcoinHeaderWrapper,
     pub tx_count: u32,
     pub height: u64,
     pub(crate) txs_commitment: [u8; 32],

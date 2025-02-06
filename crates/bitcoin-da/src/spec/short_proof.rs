@@ -71,10 +71,10 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
                     });
                 }
             }
-            Some(mut idx) => {
+            Some(idx) => {
                 // If post-segwit block, extract the commitment from the coinbase tx
                 // and compare with header.txs_commitment().
-                idx = self.coinbase_tx.output.len() - idx - 1; // The index is reversed
+                let idx = self.coinbase_tx.output.len() - idx - 1; // The index is reversed
                 let script_pubkey = self.coinbase_tx.output[idx].script_pubkey.as_bytes();
                 if script_pubkey[6..38] != Into::<[u8; 32]>::into(self.header.txs_commitment()) {
                     return Err(ShortHeaderProofVerificationError::WrongTxCommitment {
