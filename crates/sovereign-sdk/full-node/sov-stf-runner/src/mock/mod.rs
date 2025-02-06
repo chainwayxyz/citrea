@@ -52,6 +52,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         &mut self,
         _guest: &impl ZkvmGuest,
         _sequencer_public_key: &[u8],
+        _sequencer_k256_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,

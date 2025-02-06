@@ -45,6 +45,25 @@ const SEQUENCER_PUBLIC_KEY: [u8; 32] = {
     }
 };
 
+const SEQUENCER_K256_PUBLIC_KEY: [u8; 33] = {
+    let hex_pub_key = match NETWORK {
+        Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "034682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1", // TODO: Completely wrong, update
+        Network::Devnet => "0352f41a5076498d1ae8bdfa57d19e91e3c2c94b6de21985d099cd48cfa7aef174", // TODO: Completely wrong, update
+        Network::Nightly | Network::TestNetworkWithForks => {
+            match option_env!("SEQUENCER_K256_PUBLIC_KEY") {
+                Some(hex_pub_key) => hex_pub_key,
+                None => "036360e856310ce5d294e8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f7",
+            }
+        }
+    };
+
+    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("SEQUENCER_K256_PUBLIC_KEY must be valid 33-byte hex string"),
+    }
+};
+
 const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "030000000000000000000000000000000000000000000000000000000000000000",
@@ -102,6 +121,7 @@ pub fn main() {
             &guest,
             storage,
             &SEQUENCER_PUBLIC_KEY,
+            &SEQUENCER_K256_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
             get_forks(),
         )

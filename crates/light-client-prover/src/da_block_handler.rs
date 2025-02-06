@@ -9,12 +9,13 @@ use citrea_primitives::forks::fork_from_block_number;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
-use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, DaSpec, Zkvm};
+use sov_modules_api::{BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
@@ -390,20 +391,31 @@ where
         light_client_l2_height: u64,
     ) -> anyhow::Result<bool> {
         let batch_proof_last_l2_height = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec, [u8; 32]>,
+            BatchProofCircuitOutputV3<<Da as DaService>::Spec, [u8; 32]>,
         >(proof)
         {
             Ok(output) => output.last_l2_height,
             Err(e) => {
-                warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                if Vm::extract_output::<
-                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, [u8; 32]>,
+                warn!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<
+                    BatchProofCircuitOutputV3<<Da as DaService>::Spec, [u8; 32]>,
                 >(proof)
-                .is_err()
                 {
-                    return Err(anyhow::anyhow!("Failed to extract both pre-fork1 and fork1 output from proof"));
+                    Ok(output) => output.last_l2_height,
+                    Err(e) => {
+                        warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                        if Vm::extract_output::<
+                            BatchProofCircuitOutputV1<<Da as DaService>::Spec, [u8; 32]>,
+                        >(proof)
+                        .is_err()
+                        {
+                            return Err(anyhow::anyhow!(
+                                "Failed to extract both pre-fork1 and fork1 output from proof"
+                            ));
+                        }
+                        0
+                    }
                 }
-                0
             }
         };
 

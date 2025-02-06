@@ -225,6 +225,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         &mut self,
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
+        sequencer_k256_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,

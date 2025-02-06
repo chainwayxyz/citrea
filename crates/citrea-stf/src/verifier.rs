@@ -2,7 +2,7 @@ use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::ZkvmGuest;
 
 /// Verifies a state transition
@@ -31,9 +31,10 @@ where
         guest: &impl ZkvmGuest,
         pre_state: Stf::PreState,
         sequencer_public_key: &[u8],
+        sequencer_k256_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         forks: &[Fork],
-    ) -> Result<BatchProofCircuitOutputV2<Da::Spec, Stf::StateRoot>, Da::Error> {
+    ) -> Result<BatchProofCircuitOutputV3<Da::Spec, Stf::StateRoot>, Da::Error> {
         println!("Running sequencer commitments in DA slot");
 
         let data: BatchProofCircuitInputV3Part1<Stf::StateRoot, Da::Spec> = guest.read_from_host();
@@ -60,6 +61,7 @@ where
             .apply_soft_confirmations_from_sequencer_commitments(
                 guest,
                 sequencer_public_key,
+                sequencer_k256_public_key,
                 sequencer_da_public_key,
                 &data.initial_state_root,
                 pre_state,
@@ -72,7 +74,7 @@ where
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");
 
-        let out = BatchProofCircuitOutputV2 {
+        let out = BatchProofCircuitOutputV3 {
             initial_state_root: data.initial_state_root,
             final_state_root,
             final_soft_confirmation_hash,
@@ -80,6 +82,7 @@ where
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
             sequencer_public_key: sequencer_public_key.to_vec(),
+            sequencer_k256_public_key: sequencer_k256_public_key.to_vec(),
             sequencer_da_public_key: sequencer_da_public_key.to_vec(),
             sequencer_commitments_range: data.sequencer_commitments_range,
             preproven_commitments: data.preproven_commitments,
