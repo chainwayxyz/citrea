@@ -55,8 +55,18 @@ clean-all: clean clean-node clean-txs
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test: ## Runs test suite using next test
+test-ci:
 	RISC0_DEV_MODE=1 cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+
+coverage-ci:
+	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
+
+test: build-test test-ci ## Runs test suite using next test
+
+coverage: build-test coverage-ci ## Coverage in lcov format
+
+coverage-html: ## Coverage in HTML format
+	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install --locked dprint
@@ -104,12 +114,6 @@ find-unused-deps: ## Prints unused dependencies for project. Note: requires nigh
 
 find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
-
-coverage: ## Coverage in lcov format
-	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
-
-coverage-html: ## Coverage in HTML format
-	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
 
 docs:  ## Generates documentation locally
 	cargo doc --open

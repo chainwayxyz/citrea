@@ -255,7 +255,7 @@ jobs:
           name: citrea-test-build
           path: target/debug
       - name: Run coverage
-        run: make coverage
+        run: make coverage-ci
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
@@ -451,7 +451,7 @@ jobs:
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
       - name: Run nextest
-        run: make test
+        run: make test-ci
         env:
           RUST_BACKTRACE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
