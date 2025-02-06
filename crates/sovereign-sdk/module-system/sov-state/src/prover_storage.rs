@@ -118,14 +118,7 @@ where
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
-    ) -> Result<
-        (
-            StateRootTransition<StorageRootHash>,
-            Self::StateUpdate,
-            StateDiff,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let latest_version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 

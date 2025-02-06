@@ -30,7 +30,7 @@ mod runner;
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Da, C, DB, RT, Vm, StateRoot>(
     runner_config: RunnerConfig,
-    init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    init_params: InitParams,
     native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,

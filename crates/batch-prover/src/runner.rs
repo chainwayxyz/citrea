@@ -79,7 +79,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
-        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        init_params: InitParams,
         stf: StfBlueprint<C, Da::Spec, RT>,
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,

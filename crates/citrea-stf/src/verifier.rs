@@ -1,5 +1,5 @@
 use sov_modules_api::fork::Fork;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;

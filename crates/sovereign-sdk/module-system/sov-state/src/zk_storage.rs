@@ -72,14 +72,7 @@ where
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
-    ) -> Result<
-        (
-            StateRootTransition<StorageRootHash>,
-            Self::StateUpdate,
-            StateDiff,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided jmt proof

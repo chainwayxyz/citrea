@@ -34,7 +34,7 @@ mod runner;
 pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
-    init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    init_params: InitParams,
     native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
