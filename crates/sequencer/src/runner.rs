@@ -28,8 +28,8 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateCheckpoint,
-    StateDiff, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateDiff,
+    UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Runtime as RuntimeT, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
@@ -155,12 +155,7 @@ where
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
-            let checkpoint = StateCheckpoint::with_witness(
-                prestate.clone(),
-                Default::default(),
-                Default::default(),
-            );
-            let mut working_set_to_discard = checkpoint.to_revertable();
+            let mut working_set_to_discard = WorkingSet::new(prestate.clone());
 
             match self.stf.begin_soft_confirmation(
                 pub_key,
