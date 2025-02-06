@@ -1,5 +1,6 @@
 use alloy_primitives::{Address, U256};
 use reth_primitives::SealedHeader;
+use sha2::Digest;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet};
 
 use crate::{AccountInfo, Evm};
@@ -52,8 +53,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Get the address of a storage key for the given account
     fn get_storage_address(account: &Address, key: &U256) -> U256 {
         let mut hasher: sha2::Sha256 = sha2::Digest::new_with_prefix(account.as_slice());
-        sha2::digest::Update::update(&mut hasher, key.as_le_slice());
-        let arr = sha2::Digest::finalize(hasher);
+        hasher.update(key.as_le_slice());
+        let arr = hasher.finalize();
         U256::from_le_slice(&arr)
     }
 
