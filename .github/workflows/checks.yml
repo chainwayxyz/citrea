@@ -107,7 +107,7 @@ jobs:
           retention-days: 1
 
   build-test:
-    name: build
+    name: build-tests
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
