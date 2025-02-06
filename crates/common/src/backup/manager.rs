@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -345,6 +345,7 @@ impl BackupManager {
             bail!("Backup directory does not exist: {:?}", backup_path);
         }
 
+        let mut sizes = HashSet::new();
         for dir in &self.config.backup_dirs {
             let path = backup_path.join(dir);
             if !path.exists() {
@@ -355,7 +356,12 @@ impl BackupManager {
                 bail!("Directory '{}' is empty ", dir);
             }
 
-            validate_backup(&path)?;
+            let backup_size = validate_backup(&path)?;
+            sizes.insert(backup_size);
+        }
+
+        if sizes.len() != 1 {
+            bail!("Backup is corrupted. Each sub-dir should have the same number of incremental backups")
         }
 
         Ok(())

@@ -32,7 +32,7 @@ pub(super) fn restore_from_backup(
     Ok(())
 }
 
-pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<usize> {
     let backup_path = backup_path.as_ref();
     if !backup_path.exists() {
         bail!("Backup directory does not exist at {:?}", backup_path);
@@ -75,7 +75,7 @@ pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<(
 
         backup_engine.verify_backup(backup_id)?;
     }
-    Ok(())
+    Ok(backups.len())
 }
 
 pub(super) fn get_backup_engine(backup_path: impl AsRef<Path>) -> anyhow::Result<BackupEngine> {
