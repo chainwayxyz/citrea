@@ -78,7 +78,13 @@ impl HeaderWrapper {
     }
 
     pub fn block_hash(&self) -> BlockHash {
-        self.header.block_hash()
+        let mut enc = vec![];
+        self.header
+            .consensus_encode(&mut enc)
+            .expect("engines don't error");
+        BlockHash::from_raw_hash(
+            Hash::from_byte_array(calculate_double_sha256(&enc))
+        )
     }
 
     pub fn merkle_root(&self) -> [u8; 32] {
@@ -148,6 +154,7 @@ impl From<BitcoinHeader> for BitcoinHeaderWrapper {
 mod tests {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
+    use std::ops::Deref;
 
     use bitcoin::consensus::Encodable;
     use borsh::BorshDeserialize;
@@ -155,27 +162,31 @@ mod tests {
     use super::BitcoinHeaderWrapper;
     use crate::helpers::calculate_double_sha256;
     use crate::spec::block_hash::BlockHashWrapper;
+    use crate::spec::header::HeaderWrapper;
 
     #[test]
     fn calculate_block_hash() {
         let file = File::open("test_data/testnet4/headers-40310-42346.txt").unwrap();
         let reader = BufReader::new(file);
-        for (line, _) in reader.lines().zip(40310..=42346) {
+        for (line, height) in reader.lines().zip(40310..=42346) {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
-            let header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
-
+            let inner_header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+            let header = HeaderWrapper::new(*inner_header.deref(), 0, height, [0; 32]);
+            
             let mut enc = vec![];
             header
+                .header
                 .consensus_encode(&mut enc)
                 .expect("engines don't error");
             let calculated = calculate_double_sha256(&enc);
 
             assert_eq!(
-                BlockHashWrapper(header.block_hash()),
+                BlockHashWrapper(inner_header.block_hash()), // bitcoin impl
                 BlockHashWrapper::from(calculated)
             );
+            assert_eq!(inner_header.block_hash(), header.block_hash())
         }
     }
 }
