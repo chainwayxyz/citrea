@@ -159,7 +159,7 @@ pub trait DaSpec:
     /// For example, this could include the namespace of the rollup on Celestia.
     type ChainParams: Send + Sync;
 
-    /// A verifiable proof that upon verification, returns the hash of the heaeder,
+    /// A verifiable proof that upon verification, returns the hash of the header,
     /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
     type ShortHeaderProof: VerifableShortHeaderProof + BorshDeserialize + BorshSerialize;
 }

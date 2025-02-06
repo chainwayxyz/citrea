@@ -185,7 +185,7 @@ impl DaVerifier for BitcoinVerifier {
         match commitment_idx {
             // If commitment does not exist
             None => {
-                // TODO: add this here?
+                // TODO: add this here? PR #1822
                 // if block_header.merkle_root() != block_header.txs_commitment() {
                 //     return Err()
                 // }

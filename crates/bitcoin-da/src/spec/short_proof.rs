@@ -30,7 +30,7 @@ impl BitcoinHeaderShortProof {
 
 impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
     fn verify(&self) -> Result<([u8; 32], [u8; 32], u8), ShortHeaderProofVerificationError> {
-        // First verify that the precomputed (inputted) hash actually matches
+        // First verify that the precomputed (from circuit input) hash actually matches
         // the hash of the header
         if !self.header.verify_hash() {
             return Err(ShortHeaderProofVerificationError::InvalidHeaderHash);

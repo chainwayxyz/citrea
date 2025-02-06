@@ -549,7 +549,7 @@ impl DaService for MockDaService {
     fn block_to_short_header_proof(
         _block: Self::FilteredBlock,
     ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
-        todo!()
+        unimplemented!()
     }
 }
 
