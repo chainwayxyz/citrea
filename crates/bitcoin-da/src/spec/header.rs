@@ -8,9 +8,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
 
-use crate::helpers::calculate_double_sha256;
-
 use super::block_hash::BlockHashWrapper;
+use crate::helpers::calculate_double_sha256;
 
 // HeaderWrapper is a wrapper around BlockHash to implement BlockHeaderTrait
 #[derive(
@@ -37,7 +36,9 @@ impl BlockHeaderTrait for HeaderWrapper {
 
     fn verify_hash(&self) -> bool {
         let mut enc = vec![];
-        self.header.consensus_encode(&mut enc).expect("engines don't error");
+        self.header
+            .consensus_encode(&mut enc)
+            .expect("engines don't error");
         let calculated = calculate_double_sha256(&enc);
 
         self.hash() == BlockHashWrapper::from(calculated)
@@ -144,30 +145,37 @@ impl From<BitcoinHeader> for BitcoinHeaderWrapper {
 }
 
 #[cfg(test)]
-mod tests{
-    use crate::{helpers::calculate_double_sha256, spec::block_hash::BlockHashWrapper};
-    use super::BitcoinHeaderWrapper;
-    
-    use borsh::BorshDeserialize;
-    use bitcoin::consensus::Encodable;
-    use std::{fs::File, io::{BufRead, BufReader}};
+mod tests {
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
 
-    #[test]  
-    fn calculate_block_hash(){
+    use bitcoin::consensus::Encodable;
+    use borsh::BorshDeserialize;
+
+    use super::BitcoinHeaderWrapper;
+    use crate::helpers::calculate_double_sha256;
+    use crate::spec::block_hash::BlockHashWrapper;
+
+    #[test]
+    fn calculate_block_hash() {
         let file = File::open("test_data/testnet4/headers-40310-42346.txt").unwrap();
         let reader = BufReader::new(file);
         for (line, _) in reader.lines().zip(40310..=42346) {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
-            let header =
-                BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+            let header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
 
             let mut enc = vec![];
-            header.consensus_encode(&mut enc).expect("engines don't error");
+            header
+                .consensus_encode(&mut enc)
+                .expect("engines don't error");
             let calculated = calculate_double_sha256(&enc);
 
-            assert_eq!(BlockHashWrapper(header.block_hash()), BlockHashWrapper::from(calculated));
+            assert_eq!(
+                BlockHashWrapper(header.block_hash()),
+                BlockHashWrapper::from(calculated)
+            );
         }
     }
 }
