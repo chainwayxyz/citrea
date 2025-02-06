@@ -150,7 +150,12 @@ where
                 .into_iter()
                 .zip(witnesses)
                 .map(|(confirmation, (state_witness, offchain_witness))| {
-                    (confirmation, state_witness, offchain_witness)
+                    (
+                        confirmation.l2_height(),
+                        confirmation,
+                        state_witness,
+                        offchain_witness,
+                    )
                 })
                 .collect();
 

@@ -149,6 +149,7 @@ where
         let current_spec = self.fork_manager.active_fork().spec_id;
 
         let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
+            // TODO: Should this be >= Fork2?
             if current_spec >= SpecId::Kumquat {
                 let signed_soft_confirmation: SignedSoftConfirmation<
                     StfTransaction<C, Da::Spec, RT>,

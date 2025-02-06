@@ -13,7 +13,7 @@ use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
     native_debug, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature,
     Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
@@ -559,12 +559,51 @@ where
             let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
 
             for _ in 0..state_change_count {
-                let (mut soft_confirmation, state_witness, offchain_witness) = guest
-                    .read_from_host::<(
-                        SignedSoftConfirmation<Self::Transaction>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
-                    )>();
+                let soft_confirmation_l2_height = guest.read_from_host::<u64>();
+                fork_manager
+                    .register_block(soft_confirmation_l2_height)
+                    .unwrap();
+
+                let spec_id = fork_manager.active_fork().spec_id;
+                let (mut soft_confirmation, state_witness, offchain_witness) =
+                    if spec_id >= SpecId::Kumquat {
+                        let (soft_confirmation, state_witness, offchain_witness) = guest
+                            .read_from_host::<(
+                                SignedSoftConfirmation<PreFork2Transaction<C>>,
+                                <C::Storage as Storage>::Witness,
+                                <C::Storage as Storage>::Witness,
+                            )>();
+                        let parsed_txs = soft_confirmation
+                            .txs()
+                            .iter()
+                            .map(|tx| {
+                                let tx: Self::Transaction = tx.clone().into();
+                                tx
+                            })
+                            .collect::<Vec<_>>();
+                        let sc = SignedSoftConfirmation::new(
+                            soft_confirmation.l2_height(),
+                            soft_confirmation.hash(),
+                            soft_confirmation.prev_hash(),
+                            soft_confirmation.da_slot_height(),
+                            soft_confirmation.da_slot_hash(),
+                            soft_confirmation.da_slot_txs_commitment(),
+                            soft_confirmation.l1_fee_rate(),
+                            soft_confirmation.blobs().to_vec().into(),
+                            parsed_txs.into(),
+                            soft_confirmation.deposit_data().to_vec(),
+                            soft_confirmation.signature().to_vec(),
+                            soft_confirmation.pub_key().to_vec(),
+                            soft_confirmation.timestamp(),
+                        );
+                        (sc, state_witness, offchain_witness)
+                    } else {
+                        guest.read_from_host::<(
+                            SignedSoftConfirmation<Self::Transaction>,
+                            <C::Storage as Storage>::Witness,
+                            <C::Storage as Storage>::Witness,
+                        )>()
+                    };
 
                 if let Some(hash) = previous_batch_hash {
                     assert_eq!(
@@ -628,11 +667,11 @@ where
                     "Soft confirmation heights not sequential"
                 );
 
-                // Notify fork manager about the block so that the next spec / fork
-                // is transitioned into if criteria is met.
-                fork_manager
-                    .register_block(l2_height)
-                    .expect("Fork transition failed");
+                // // Notify fork manager about the block so that the next spec / fork
+                // // is transitioned into if criteria is met.
+                // fork_manager
+                //     .register_block(l2_height)
+                //     .expect("Fork transition failed");
 
                 let result = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
                     self.apply_soft_confirmation(
