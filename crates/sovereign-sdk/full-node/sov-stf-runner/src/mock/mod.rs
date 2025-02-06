@@ -1,7 +1,7 @@
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::transaction::Transaction;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationResult, StateTransitionError,
@@ -53,14 +53,10 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         &mut self,
         _guest: &impl ZkvmGuest,
         _sequencer_public_key: &[u8],
-        _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
-        _da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        _sequencer_commitments_range: (u32, u32),
+        _sequencer_commitments: Vec<SequencerCommitment>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-
-        _preproven_commitment_indicies: Vec<usize>,
         _forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         todo!()

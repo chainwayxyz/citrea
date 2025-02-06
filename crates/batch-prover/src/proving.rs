@@ -94,10 +94,12 @@ where
         });
     }
 
-    let (sequencer_commitments, preproven_commitments) =
+    let (mut sequencer_commitments, preproven_commitments) =
         filter_out_proven_commitments(&ledger, &sequencer_commitments).map_err(|e| {
             L1ProcessingError::Other(format!("Error filtering out proven commitments: {}", e))
         })?;
+
+    sequencer_commitments.sort();
 
     if sequencer_commitments.is_empty() {
         return Err(L1ProcessingError::DuplicateCommitments { l1_height });
@@ -200,6 +202,8 @@ where
                 sequencer_da_public_key: sequencer_da_pub_key.clone(),
                 final_state_root,
                 prev_soft_confirmation_hash: initial_batch_hash,
+                sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
+                    .to_vec(),
             };
 
         batch_proof_circuit_inputs.push(input);

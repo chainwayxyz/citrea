@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use v2::{BatchProofCircuitInputV2Part1, BatchProofCircuitInputV2Part2};
 use v3::{BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2};
 
-use crate::da::DaSpec;
+use crate::da::{DaSpec, SequencerCommitment};
 use crate::soft_confirmation::SignedSoftConfirmation;
 
 /// Genesis input module
@@ -58,6 +58,9 @@ pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec, Tx: Clon
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
+    /// Sequencer commitments that will be proven.
+    /// Only applies to V3
+    pub sequencer_commitments: Vec<SequencerCommitment>,
 }
 
 impl<'txs, StateRoot, Witness, Da, Tx> BatchProofCircuitInput<'txs, StateRoot, Witness, Da, Tx>
@@ -151,12 +154,8 @@ where
                 initial_state_root: self.initial_state_root,
                 final_state_root: self.final_state_root,
                 prev_soft_confirmation_hash: self.prev_soft_confirmation_hash,
-                da_block_header_of_commitments: self.da_block_header_of_commitments,
-                inclusion_proof: self.inclusion_proof,
-                completeness_proof: self.completeness_proof,
-                preproven_commitments: self.preproven_commitments,
                 da_block_headers_of_soft_confirmations: self.da_block_headers_of_soft_confirmations,
-                sequencer_commitments_range: self.sequencer_commitments_range,
+                sequencer_commitments: self.sequencer_commitments,
             },
             BatchProofCircuitInputV3Part2(x),
         )
