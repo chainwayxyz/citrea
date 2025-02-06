@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState,
+    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, L1UpdateSystemTransactionInfo, LatestDaState,
     ShortHeaderProofVerificationError, VerifableShortHeaderProof,
 };
 use sov_rollup_interface::Network;
@@ -61,7 +61,7 @@ impl DaSpec for MockDaSpec {
 pub struct MockShortHeaderProof;
 
 impl VerifableShortHeaderProof for MockShortHeaderProof {
-    fn verify(&self) -> Result<([u8; 32], [u8; 32], u8), ShortHeaderProofVerificationError> {
+    fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
         todo!()
     }
 }

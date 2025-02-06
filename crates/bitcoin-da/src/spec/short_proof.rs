@@ -1,5 +1,6 @@
 use sov_rollup_interface::da::{
-    BlockHeaderTrait, ShortHeaderProofVerificationError, VerifableShortHeaderProof,
+    BlockHeaderTrait, L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError,
+    VerifableShortHeaderProof,
 };
 
 use super::header::HeaderWrapper;
@@ -29,7 +30,7 @@ impl BitcoinHeaderShortProof {
 }
 
 impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
-    fn verify(&self) -> Result<([u8; 32], [u8; 32], u8), ShortHeaderProofVerificationError> {
+    fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
         // First verify that the precomputed (from circuit input) hash actually matches
         // the hash of the header
         if !self.header.verify_hash() {

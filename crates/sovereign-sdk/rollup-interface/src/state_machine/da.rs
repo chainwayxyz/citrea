@@ -164,6 +164,11 @@ pub trait DaSpec:
     type ShortHeaderProof: VerifableShortHeaderProof + BorshDeserialize + BorshSerialize;
 }
 
+/// Information needed to update L1 light client system contract
+///
+/// (header hash, tx commitment (wtxid commitment in Bitcoin), hashes needed for the merkle inclusion proof)
+pub type L1UpdateSystemTransactionInfo = ([u8; 32], [u8; 32], u8);
+
 /// A trait for a verifiable short header proof
 pub trait VerifableShortHeaderProof {
     /// Verifies the proof and returns the header hash, transaction commitment and coinbase transaction txid merkle proof
@@ -177,7 +182,7 @@ pub trait VerifableShortHeaderProof {
     ///
     /// In the light client proof, the circuit will extract the `l1_hashes` output and will check that the hashes are
     /// included in the header chain.
-    fn verify(&self) -> Result<([u8; 32], [u8; 32], u8), ShortHeaderProofVerificationError>;
+    fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError>;
 }
 
 #[derive(Debug, PartialEq, Eq)]
