@@ -35,13 +35,7 @@ impl BlockHeaderTrait for HeaderWrapper {
     }
 
     fn verify_hash(&self) -> bool {
-        let mut enc = vec![];
-        self.header
-            .consensus_encode(&mut enc)
-            .expect("engines don't error");
-        let calculated = calculate_double_sha256(&enc);
-
-        self.hash() == BlockHashWrapper::from(calculated)
+        self.hash() == BlockHashWrapper(self.block_hash())
     }
 
     fn txs_commitment(&self) -> Self::Hash {
@@ -150,16 +144,12 @@ impl From<BitcoinHeader> for BitcoinHeaderWrapper {
 
 #[cfg(test)]
 mod tests {
+    use borsh::BorshDeserialize;
     use std::fs::File;
     use std::io::{BufRead, BufReader};
     use std::ops::Deref;
 
-    use bitcoin::consensus::Encodable;
-    use borsh::BorshDeserialize;
-
     use super::BitcoinHeaderWrapper;
-    use crate::helpers::calculate_double_sha256;
-    use crate::spec::block_hash::BlockHashWrapper;
     use crate::spec::header::HeaderWrapper;
 
     #[test]
@@ -174,17 +164,6 @@ mod tests {
                 BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
             let header = HeaderWrapper::new(*inner_header.deref(), 0, height, [0; 32]);
 
-            let mut enc = vec![];
-            header
-                .header
-                .consensus_encode(&mut enc)
-                .expect("engines don't error");
-            let calculated = calculate_double_sha256(&enc);
-
-            assert_eq!(
-                BlockHashWrapper(inner_header.block_hash()), // bitcoin impl
-                BlockHashWrapper::from(calculated)
-            );
             assert_eq!(inner_header.block_hash(), header.block_hash())
         }
     }
