@@ -22,6 +22,7 @@ use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcErr
 use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
+use metrics::histogram;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
     DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, DaTxRequest, SequencerCommitment,
@@ -528,6 +529,10 @@ impl BitcoinService {
 
         self.test_mempool_accept(&raw_txs).await?;
 
+        // Track the sum of all chunked transactions sizes
+        let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
+        histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
+
         let txids = self.send_raw_transactions(&raw_txs).await?;
 
         for txid in txids[1..].iter().step_by(2) {
@@ -552,6 +557,10 @@ impl BitcoinService {
             .await?;
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         let raw_txs = [signed_raw_commit_tx.hex, serialized_reveal_tx];
+
+        // Track the sum of both commit and reveal transaction sizes
+        let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
+        histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
 
         self.test_mempool_accept(&raw_txs).await?;
 
@@ -595,8 +604,6 @@ impl BitcoinService {
         for tx in raw_txs {
             let txid = self.client.send_raw_transaction(tx.as_slice()).await?;
             txids.push(txid);
-
-            histogram!("da_transaction_size").record(tx.len());
         }
         Ok(txids)
     }
@@ -661,7 +668,7 @@ impl BitcoinService {
         }
 
         let new_txid = self.client.send_raw_transaction(&raw_hex).await?;
-        histogram!("da_transaction_size").record(raw_hex.len());
+        histogram!("da_transaction_size").record(raw_hex.len() as f64);
 
         match method {
             BumpFeeMethod::Cpfp => {
