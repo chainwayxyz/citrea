@@ -1,4 +1,5 @@
 //! Defines rpc queries exposed by the accounts module, along with the relevant types
+use borsh::BorshDeserialize;
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{AddressBech32, StateMapAccessor, WorkingSet};
@@ -33,7 +34,19 @@ impl<C: sov_modules_api::Context> Accounts<C> {
                 addr: addr.into(),
                 nonce,
             },
-            None => Response::AccountEmpty,
+            None => {
+                match self.accounts_pre_fork2.get(
+                    &C::PublicKey::try_from_slice(pub_key.as_slice())
+                        .expect("Pub key is not a valid dalek pub key"),
+                    working_set,
+                ) {
+                    Some(Account { addr, nonce }) => Response::AccountExists {
+                        addr: addr.into(),
+                        nonce,
+                    },
+                    None => Response::AccountEmpty,
+                }
+            }
         };
 
         Ok(response)

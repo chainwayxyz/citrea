@@ -1,3 +1,4 @@
+use borsh::BorshDeserialize;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet};
@@ -17,10 +18,22 @@ impl<C: Context> Accounts<C> {
         working_set: &mut WorkingSet<C::Storage>,
         spec_id: SpecId,
     ) -> Result<Account<C>, SoftConfirmationHookError> {
-        self.accounts.get(pubkey, working_set).map_or_else(
-            || self.create_default_account(pubkey, working_set, spec_id),
-            Ok,
-        )
+        if spec_id >= SpecId::Fork2 {
+            self.accounts.get(pubkey, working_set).map_or_else(
+                || self.create_default_account(pubkey, working_set, spec_id),
+                Ok,
+            )
+        } else {
+            self.accounts_pre_fork2
+                .get(
+                    &C::PublicKey::try_from_slice(pubkey).expect("Should be a valid pub key"),
+                    working_set,
+                )
+                .map_or_else(
+                    || self.create_default_account(pubkey, working_set, spec_id),
+                    Ok,
+                )
+        }
     }
 }
 
@@ -53,13 +66,26 @@ impl<C: Context> TxHooks for Accounts<C> {
         tx: &Transaction,
         _ctx: &C,
         working_set: &mut WorkingSet<C::Storage>,
+        spec_id: SpecId,
     ) -> Result<(), SoftConfirmationHookError> {
-        let mut account = self
-            .accounts
-            .get_or_err(tx.pub_key(), working_set)
-            .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
-        account.nonce += 1;
-        self.accounts.set(tx.pub_key(), &account, working_set);
+        if spec_id >= SpecId::Fork2 {
+            let mut account = self
+                .accounts
+                .get_or_err(tx.pub_key(), working_set)
+                .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
+            account.nonce += 1;
+            self.accounts.set(tx.pub_key(), &account, working_set);
+        } else {
+            let pub_key =
+                C::PublicKey::try_from_slice(tx.pub_key()).expect("Should be a valid pub key");
+            let mut account = self
+                .accounts_pre_fork2
+                .get_or_err(&pub_key, working_set)
+                .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
+            account.nonce += 1;
+            self.accounts_pre_fork2.set(&pub_key, &account, working_set);
+        }
+
         Ok(())
     }
 }

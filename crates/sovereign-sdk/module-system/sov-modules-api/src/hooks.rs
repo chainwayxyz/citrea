@@ -36,6 +36,7 @@ pub trait TxHooks {
         tx: &Transaction,
         ctx: &Self::Context,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+        spec_id: SpecId,
     ) -> Result<(), SoftConfirmationHookError>;
 }
 

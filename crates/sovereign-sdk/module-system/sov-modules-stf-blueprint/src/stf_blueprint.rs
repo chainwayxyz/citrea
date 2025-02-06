@@ -122,7 +122,7 @@ where
             .map_err(StateTransitionError::ModuleCallError)?;
 
         self.runtime
-            .post_dispatch_tx_hook(tx, &ctx, sc_workspace)
+            .post_dispatch_tx_hook(tx, &ctx, sc_workspace, current_spec)
             .map_err(StateTransitionError::HookError)?;
 
         Ok(())

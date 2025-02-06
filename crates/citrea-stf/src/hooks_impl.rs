@@ -46,8 +46,10 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         tx: &Transaction,
         ctx: &C,
         working_set: &mut WorkingSet<C::Storage>,
+        spec_id: SpecId,
     ) -> Result<(), SoftConfirmationHookError> {
-        self.accounts.post_dispatch_tx_hook(tx, ctx, working_set)?;
+        self.accounts
+            .post_dispatch_tx_hook(tx, ctx, working_set, spec_id)?;
 
         Ok(())
     }
