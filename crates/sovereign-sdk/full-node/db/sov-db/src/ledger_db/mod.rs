@@ -163,21 +163,27 @@ impl SharedLedgerOps for LedgerDB {
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
-        let tx_bodies = if let Some(tx_bodies) = tx_bodies {
-            tx_bodies.into_iter().map(Some).collect()
-        } else {
-            vec![None; soft_confirmation_receipt.tx_hashes.len()]
+        let tx_hashes = soft_confirmation_receipt.tx_hashes.into_iter();
+        let txs = match tx_bodies {
+            Some(tx_bodies) => {
+                assert_eq!(
+                    tx_bodies.len(),
+                    tx_hashes.len(),
+                    "Tx body count does not match tx hash count"
+                );
+                tx_hashes
+                    .zip(tx_bodies)
+                    .map(|(hash, body)| StoredTransaction {
+                        hash,
+                        body: Some(body),
+                    })
+                    .collect::<Vec<_>>()
+            }
+            None => tx_hashes
+                .map(|hash| StoredTransaction { hash, body: None })
+                .collect::<Vec<_>>(),
         };
 
-        let tx_hashes = soft_confirmation_receipt.tx_hashes.into_iter();
-
-        let txs = tx_hashes
-            .zip(tx_bodies)
-            .map(|(tx_hash, tx_body)| StoredTransaction {
-                hash: tx_hash,
-                body: tx_body,
-            })
-            .collect();
         let l2_height = soft_confirmation_receipt.l2_height;
 
         // Insert soft confirmation
