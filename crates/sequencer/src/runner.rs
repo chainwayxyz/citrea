@@ -322,8 +322,7 @@ where
         );
 
         let timestamp = chrono::Local::now().timestamp() as u64;
-        let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())
-            .map_err(Into::<anyhow::Error>::into)?;
+        let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())?;
 
         let deposit_data = self
             .deposit_mempool
@@ -351,8 +350,7 @@ where
 
         let prestate = self
             .storage_manager
-            .create_storage_on_l2_height(l2_height)
-            .map_err(Into::<anyhow::Error>::into)?;
+            .create_storage_on_l2_height(l2_height)?;
         debug!(
             "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
@@ -376,8 +374,7 @@ where
 
         let prestate = self
             .storage_manager
-            .create_storage_on_l2_height(l2_height)
-            .map_err(Into::<anyhow::Error>::into)?;
+            .create_storage_on_l2_height(l2_height)?;
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
