@@ -99,6 +99,7 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
             wait_for_l1_block(&da_service, 3 + (i / 5), None).await;
         }
     }
+    wait_for_l2_block(&seq_test_client, 101, None).await;
 
     // Old blocks balance information should have been pruned
     let get_balance_result = full_node_test_client
@@ -115,10 +116,10 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
 
     // Non pruned block balances should be available
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(61))))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(81))))
         .await
         .unwrap();
-    assert_eq!(balance, U256::from(61000000000000000000u128));
+    assert_eq!(balance, U256::from(81000000000000000000u128));
 
     let balance = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(100))))
