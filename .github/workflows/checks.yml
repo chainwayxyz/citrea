@@ -97,7 +97,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
         run: make build-release
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -105,6 +104,38 @@ jobs:
           path: |
             target/release/citrea
             target/release/**/methods.rs
+          retention-days: 1
+
+  build-test:
+    name: build
+    runs-on: ubicloud-standard-30
+    timeout-minutes: 60
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Rust Cache
+        uses: ubicloud/rust-cache@v2
+      - name: Install risc0
+        uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build citrea
+        run: make build-test
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrea-test-build
+          path: |
+            target/debug/citrea
+            target/debug/**/methods.rs
           retention-days: 1
 
   check:
@@ -185,7 +216,9 @@ jobs:
           command: check
 
   coverage:
-    needs: docker-setup
+    needs:
+      docker-setup
+      build-test
     runs-on: ubicloud-standard-16
     if: github.event.pull_request.draft == false
     steps:
@@ -195,7 +228,6 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
-
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -210,16 +242,18 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
-
       - name: Load Docker image
         run: docker load < /tmp/docker/bitcoin.tar
-
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-test-build
+          path: target/debug
       - name: Run coverage
         run: make coverage
         env:
@@ -229,14 +263,12 @@ jobs:
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
-
       - name: Upload e2e test dir
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-dir-coverage
           path: ${{ runner.temp }}/coverage
-
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -371,7 +403,9 @@ jobs:
         run: make check-no-std
 
   nextest:
-    needs: docker-setup
+    needs:
+      docker-setup
+      build-test
     name: nextest
     runs-on: ubicloud-standard-16
     timeout-minutes: 60
@@ -402,16 +436,20 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
-
       - name: Load Docker image
         run: docker load < /tmp/docker/bitcoin.tar
-
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-test-build
+          path: target/debug
+      - name: Make citrea executable
+        run: chmod +x target/debug/citrea
       - name: Run nextest
         run: make test
         env:
@@ -421,7 +459,6 @@ jobs:
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test
-
       - name: Upload e2e test dir
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
