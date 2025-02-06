@@ -20,12 +20,12 @@ use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{StorageRootHash, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 
 use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
-use crate::{StfStateRoot, StfTransaction, StfWitness};
+use crate::{StfTransaction, StfWitness};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,7 +108,7 @@ where
         Ps,
         Vm,
         DB,
-        StfStateRoot<C, Da::Spec, RT>,
+        StorageRootHash,
         StfWitness<C, Da::Spec, RT>,
         StfTransaction<C, Da::Spec, RT>,
     >(rpc_context);
