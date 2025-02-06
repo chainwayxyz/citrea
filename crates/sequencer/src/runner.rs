@@ -416,7 +416,6 @@ where
                             &txs_new,
                             &mut working_set,
                         )
-                        // TODO: handle this error
                         .expect("dry_run_transactions should have already checked this");
                 }
 
