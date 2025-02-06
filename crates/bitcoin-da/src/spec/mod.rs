@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use short_proof::BitcoinHeaderShortProof;
 use sov_rollup_interface::da::DaSpec;
 
 use self::address::AddressWrapper;
@@ -17,6 +18,7 @@ pub mod header;
 #[cfg(feature = "native")]
 pub mod header_stream;
 pub mod proof;
+pub mod short_proof;
 pub mod transaction;
 pub mod utxo;
 
@@ -42,4 +44,6 @@ impl DaSpec for BitcoinSpec {
     type InclusionMultiProof = InclusionMultiProof;
 
     type CompletenessProof = Vec<TransactionWrapper>;
+
+    type ShortHeaderProof = BitcoinHeaderShortProof;
 }

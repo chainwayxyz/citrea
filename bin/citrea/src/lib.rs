@@ -55,6 +55,9 @@ pub fn initialize_logging(level: Level) {
             "jsonrpsee-server=info".to_owned(),
             "sov_schema_db=info".to_owned(),
             "sov_prover_storage_manager=info".to_owned(),
+            "bitcoincore_rpc=info".to_owned(),
+            "h2=info".to_owned(),
+            "rustls=info".to_owned(),
         ];
         debug_components.join(",")
     }))
