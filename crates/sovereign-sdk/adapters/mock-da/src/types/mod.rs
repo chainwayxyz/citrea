@@ -192,9 +192,15 @@ impl MockBlob {
         hash: [u8; 32],
         wtxid: Option<[u8; 32]>,
     ) -> Self {
+        // to make less changes after we got rid of BlobReaderTrait::verified_data and advance stuff
+        // let's keep MockDa as is but advance directly here.
+        let len = data.len();
+        let mut counted_buf = CountedBufReader::new(Bytes::from(data));
+        counted_buf.advance(len);
+
         Self {
             address,
-            data: CountedBufReader::new(Bytes::from(data)),
+            data: counted_buf,
             zk_proofs_data: Default::default(),
             hash,
             wtxid,
@@ -209,10 +215,16 @@ impl MockBlob {
         hash: [u8; 32],
         wtxid: Option<[u8; 32]>,
     ) -> Self {
+        // to make less changes after we got rid of BlobReaderTrait::verified_data and advance stuff
+        // let's keep MockDa as is but advance directly here.
+        let len = data.len();
+        let mut counted_buf = CountedBufReader::new(Bytes::from(data));
+        counted_buf.advance(len);
+
         Self {
             address,
             hash,
-            data: CountedBufReader::new(Bytes::from(data)),
+            data: counted_buf,
             zk_proofs_data,
             wtxid,
         }

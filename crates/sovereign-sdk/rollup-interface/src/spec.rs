@@ -33,7 +33,6 @@ pub enum SpecId {
     ///    of the smart contracts to state
     Kumquat = 1,
     /// Fork2 spec
-    #[cfg(feature = "testing")]
     Fork2 = 2,
     /// Fork3 spec
     #[cfg(feature = "testing")]

@@ -322,11 +322,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`].
     pub fn new(inner: S) -> Self {
-        Self {
-            delta: Delta::new(inner.clone(), None),
-            accessory_delta: AccessoryDelta::new(inner.clone(), None),
-            offchain_delta: OffchainDelta::new(inner, None),
-        }
+        Self::with_witness(inner, Default::default(), Default::default())
     }
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
@@ -407,6 +403,12 @@ impl<S: Storage> WorkingSet<S> {
         StateCheckpoint::new(inner).to_revertable()
     }
 
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
+    /// and a custom witness value.
+    pub fn with_witness(inner: S, state_witness: S::Witness, offchain_witness: S::Witness) -> Self {
+        StateCheckpoint::with_witness(inner, state_witness, offchain_witness).to_revertable()
+    }
+
     /// Returns a handler for the accessory state (non-JMT state).
     ///
     /// You can use this method when calling getters and setters on accessory
@@ -450,12 +452,6 @@ impl<S: Storage> WorkingSet<S> {
         self.archival_working_set = None;
         self.archival_offchain_working_set = None;
         self.archival_accessory_working_set = None;
-    }
-
-    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
-    /// and a custom witness value.
-    pub fn with_witness(inner: S, state_witness: S::Witness, offchain_witness: S::Witness) -> Self {
-        StateCheckpoint::with_witness(inner, state_witness, offchain_witness).to_revertable()
     }
 
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for

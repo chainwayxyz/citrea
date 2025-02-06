@@ -1,4 +1,4 @@
-use sov_rollup_interface::zk::BatchProofInfo;
+use sov_rollup_interface::zk::light_client_proof::output::BatchProofInfo;
 
 pub(crate) fn recursive_match_state_roots(
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,

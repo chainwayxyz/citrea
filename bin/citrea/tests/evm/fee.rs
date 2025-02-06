@@ -19,8 +19,13 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
     let seq_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable

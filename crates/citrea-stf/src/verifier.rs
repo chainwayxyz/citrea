@@ -1,7 +1,9 @@
 use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
-use sov_rollup_interface::zk::{BatchProofCircuitInputV2Part1, BatchProofCircuitOutput, ZkvmGuest};
+use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::ZkvmGuest;
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da>
@@ -31,18 +33,17 @@ where
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         forks: &[Fork],
-    ) -> Result<BatchProofCircuitOutput<Da::Spec, Stf::StateRoot>, Da::Error> {
+    ) -> Result<BatchProofCircuitOutputV2<Da::Spec, Stf::StateRoot>, Da::Error> {
         println!("Running sequencer commitments in DA slot");
 
-        let data: BatchProofCircuitInputV2Part1<Stf::StateRoot, Da::Spec> = guest.read_from_host();
+        let data: BatchProofCircuitInputV3Part1<Stf::StateRoot, Da::Spec> = guest.read_from_host();
 
         if !data.da_block_header_of_commitments.verify_hash() {
             panic!("Invalid hash of DA block header of commitments");
         }
 
-        self.da_verifier.verify_transactions(
+        let da_txs = self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
-            &data.da_data,
             data.inclusion_proof,
             data.completeness_proof,
             DaNamespace::ToBatchProver,
@@ -62,7 +63,7 @@ where
                 sequencer_da_public_key,
                 &data.initial_state_root,
                 pre_state,
-                data.da_data,
+                da_txs,
                 data.sequencer_commitments_range,
                 data.da_block_headers_of_soft_confirmations,
                 data.preproven_commitments.clone(),
@@ -71,7 +72,7 @@ where
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");
 
-        let out = BatchProofCircuitOutput {
+        let out = BatchProofCircuitOutputV2 {
             initial_state_root: data.initial_state_root,
             final_state_root,
             final_soft_confirmation_hash,

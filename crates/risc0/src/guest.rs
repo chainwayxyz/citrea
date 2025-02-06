@@ -2,10 +2,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::guest::env;
 use risc0_zkvm::guest::env::Write;
-use risc0_zkvm::Receipt;
 use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
 
-use crate::Risc0MethodId;
+use crate::{receipt_from_proof, Risc0MethodId};
 
 /// A guest for the RISC0 VM. Implements the `ZkvmGuest` trait
 ///  in terms of Risc0's env::read and env::commit functions.
@@ -55,7 +54,7 @@ impl Zkvm for Risc0Guest {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<(), Self::Error> {
-        let receipt: Receipt = bincode::deserialize(serialized_proof)
+        let receipt = receipt_from_proof(serialized_proof)
             .map_err(|_| Risc0GuestError::FailedToDeserialize)?;
 
         #[allow(clippy::clone_on_copy)]
@@ -65,7 +64,7 @@ impl Zkvm for Risc0Guest {
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        let receipt: Receipt = bincode::deserialize(serialized_proof)
+        let receipt = receipt_from_proof(serialized_proof)
             .map_err(|_| Risc0GuestError::FailedToDeserialize)?;
         Ok(receipt.journal.bytes)
     }

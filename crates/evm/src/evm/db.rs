@@ -92,7 +92,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
         code: &Bytecode,
         code_hash: &B256,
     ) -> Result<(), DBError> {
-        if *code_hash != keccak256(code.original_bytes()) {
+        if *code_hash != keccak256(code.original_byte_slice()) {
             return Err(DBError::CodeHashMismatch);
         }
         Ok(())

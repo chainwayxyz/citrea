@@ -19,7 +19,8 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{BatchProofCircuitInputV1, ZkvmHost};
+use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
+use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 
@@ -264,7 +265,9 @@ where
 
             let serialized_circuit_input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input)),
-                _ => borsh::to_vec(&input),
+                // TODO: activate this once we freeze Kumquat ELFs
+                // SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts()),
+                _ => borsh::to_vec(&input.into_v3_parts()),
             }
             .expect("Risc0 hint serialization is infallible");
 

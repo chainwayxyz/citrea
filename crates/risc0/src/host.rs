@@ -5,7 +5,7 @@ use risc0_zkp::verify::VerificationError;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProveInfo, ProverOpts,
-    Receipt, VerifierContext,
+    VerifierContext,
 };
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
@@ -13,6 +13,7 @@ use sov_rollup_interface::Network;
 use tracing::{debug, info};
 
 use crate::guest::Risc0Guest;
+use crate::receipt_from_proof;
 
 type StarkSessionId = String;
 type SnarkSessionId = String;
@@ -106,7 +107,7 @@ impl ZkvmHost for Risc0BonsaiHost {
     }
 
     fn add_assumption(&mut self, receipt_buf: Vec<u8>) {
-        let receipt: Receipt = bincode::deserialize(&receipt_buf).expect("Receipt should be valid");
+        let receipt = receipt_from_proof(&receipt_buf).expect("Receipt should be valid");
         self.assumptions.push(receipt.into());
     }
 
@@ -177,7 +178,8 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         tracing::info!("Verified the receipt");
 
-        let serialized_receipt = bincode::serialize(&receipt)?;
+        // Instead of serializing full Receipt (as in PreFork2) we serialize only InnerReceipt:
+        let serialized_receipt = bincode::serialize(&receipt.inner)?;
 
         // Cleanup env
         self.env.clear();
@@ -189,7 +191,7 @@ impl ZkvmHost for Risc0BonsaiHost {
     }
 
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
-        let receipt: Receipt = bincode::deserialize(proof)?;
+        let receipt = receipt_from_proof(proof)?;
         let journal = receipt.journal;
 
         Ok(T::try_from_slice(&journal.bytes)?)
@@ -235,7 +237,7 @@ impl Zkvm for Risc0BonsaiHost {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<(), Self::Error> {
-        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        let receipt = receipt_from_proof(serialized_proof)?;
 
         let res = receipt.verify(*code_commitment);
 
@@ -255,7 +257,7 @@ impl Zkvm for Risc0BonsaiHost {
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        let receipt = receipt_from_proof(serialized_proof)?;
         Ok(receipt.journal.bytes)
     }
 
@@ -267,12 +269,12 @@ impl Zkvm for Risc0BonsaiHost {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
-        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        let receipt = receipt_from_proof(serialized_proof)?;
 
         #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
 
-        Ok(T::deserialize(&mut receipt.journal.bytes.as_slice())?)
+        Ok(T::deserialize(&mut receipt.journal.as_ref())?)
     }
 
     fn verify_expected_to_fail(

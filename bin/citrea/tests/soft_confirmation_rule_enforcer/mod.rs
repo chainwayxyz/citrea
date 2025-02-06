@@ -31,6 +31,7 @@ async fn too_many_l2_block_per_l1_block() {
         &sequencer_db_dir,
         &da_db_dir_cloned,
         NodeMode::SequencerNode,
+        None,
     );
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment:

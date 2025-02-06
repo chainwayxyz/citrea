@@ -185,6 +185,17 @@ impl DB {
         tokio::task::block_in_place(|| self._delete(key))
     }
 
+    /// Delete a batch of keys
+    pub fn delete_batch<S: Schema>(&self, keys: Vec<impl KeyCodec<S>>) -> anyhow::Result<()> {
+        // Not necessary to use a batch, but we'd like a central place to bump counters.
+        // Used in tests only anyway.
+        let mut batch = SchemaBatch::new();
+        for key in keys {
+            batch.delete::<S>(&key)?;
+        }
+        self.write_schemas(batch)
+    }
+
     fn _delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
         // Not necessary to use a batch, but we'd like a central place to bump counters.
         // Used in tests only anyway.

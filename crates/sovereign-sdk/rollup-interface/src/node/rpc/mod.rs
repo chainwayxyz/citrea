@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
 use crate::soft_confirmation::SignedSoftConfirmation;
-use crate::zk::{BatchProofInfo, CumulativeStateDiff};
+use crate::zk::batch_proof::output::CumulativeStateDiff;
+use crate::zk::light_client_proof::output::BatchProofInfo;
 
 /// A struct containing enough information to uniquely specify single batch.
 
