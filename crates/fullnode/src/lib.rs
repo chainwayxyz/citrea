@@ -1,16 +1,12 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use anyhow::Result;
-use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{RollupPublicKeys, RunnerConfig};
 use citrea_pruning::Pruner;
 use da_block_handler::L1BlockHandler;
 pub use runner::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{Context, Spec, SpecId, Zkvm};

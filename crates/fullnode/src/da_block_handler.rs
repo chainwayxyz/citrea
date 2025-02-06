@@ -1,10 +1,8 @@
 use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
@@ -12,8 +10,6 @@ use citrea_common::utils::check_l2_range_exists;
 use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{
     SlotNumber, SoftConfirmationNumber, StoredBatchProofOutput, StoredSoftConfirmation,
@@ -408,8 +404,8 @@ where
         {
             return Err(anyhow!(
                     "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(&prior_soft_confirmation_post_state_root),
-                    hex::encode(&batch_proof_output.initial_state_root)
+                    hex::encode(prior_soft_confirmation_post_state_root),
+                    hex::encode(batch_proof_output.initial_state_root)
                 ).into());
         }
 

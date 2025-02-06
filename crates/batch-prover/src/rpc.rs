@@ -20,7 +20,7 @@ use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
-use sov_rollup_interface::zk::{StorageRootHash, ZkvmHost};
+use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 

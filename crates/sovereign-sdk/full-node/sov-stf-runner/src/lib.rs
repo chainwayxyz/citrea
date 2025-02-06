@@ -14,6 +14,7 @@ use std::path::Path;
 use anyhow::Context;
 #[cfg(feature = "native")]
 pub use prover_service::*;
+#[cfg(feature = "native")]
 use sov_rollup_interface::zk::StorageRootHash;
 
 #[cfg(feature = "native")]

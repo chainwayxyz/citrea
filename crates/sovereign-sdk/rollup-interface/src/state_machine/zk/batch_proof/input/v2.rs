@@ -2,7 +2,6 @@ use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
