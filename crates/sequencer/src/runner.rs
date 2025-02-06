@@ -384,9 +384,7 @@ where
             .create_storage_on_l2_height(l2_height)
             .map_err(Into::<anyhow::Error>::into)?;
 
-        let checkpoint =
-            StateCheckpoint::with_witness(prestate.clone(), Default::default(), Default::default());
-        let mut working_set = checkpoint.to_revertable();
+        let mut working_set = WorkingSet::new(prestate.clone());
 
         // Execute the selected transactions
         match self.stf.begin_soft_confirmation(
