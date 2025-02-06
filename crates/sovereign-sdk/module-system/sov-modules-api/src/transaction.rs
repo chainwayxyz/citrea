@@ -37,6 +37,37 @@ pub struct PreFork2Transaction<C: Context> {
     nonce: u64,
 }
 
+#[cfg(feature = "native")]
+impl<C: Context> PreFork2Transaction<C> {
+    pub fn new_signed_tx(priv_key: &[u8], mut message: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
+        // Since we own the message already, try to add the serialized nonce in-place.
+        // This lets us avoid a copy if the message vec has at least 8 bytes of extra capacity.
+        let len = message.len();
+
+        // resizes once to avoid potential multiple realloc
+        message.resize(len + EXTEND_MESSAGE_LEN, 0);
+
+        message[len..len + 8].copy_from_slice(&chain_id.to_le_bytes());
+        message[len + 8..len + 16].copy_from_slice(&nonce.to_le_bytes());
+
+        // For other forks we should be using the ed25519 signatures
+        let priv_key = C::PrivateKey::try_from(priv_key).unwrap();
+        let pub_key = priv_key.pub_key();
+        let signature = priv_key.sign(&message);
+
+        // Don't forget to truncate the message back to its original length!
+        message.truncate(len);
+
+        Self {
+            signature,
+            runtime_msg: message,
+            pub_key,
+            chain_id,
+            nonce,
+        }
+    }
+}
+
 impl<C: Context> From<PreFork2Transaction<C>> for Transaction {
     fn from(value: PreFork2Transaction<C>) -> Self {
         let signature = borsh::to_vec(&value.signature).unwrap();

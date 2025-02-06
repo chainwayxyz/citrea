@@ -161,8 +161,6 @@ where
     ) -> Result<(), SoftConfirmationHookError> {
         let hook_soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, pre_state_root, current_spec);
-        #[cfg(feature = "native")]
-        tracing::error!("i");
 
         if let Err(e) = self
             .runtime
@@ -172,8 +170,6 @@ where
             native_error!("Failed on `end_soft_confirmation_hook`: {:?}", e);
             return Err(e);
         };
-        #[cfg(feature = "native")]
-        tracing::error!("j");
 
         Ok(())
     }

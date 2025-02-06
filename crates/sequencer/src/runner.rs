@@ -794,15 +794,25 @@ where
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let transaction: PreFork2Transaction<C> = Transaction::new_signed_tx(
-            &self.sov_tx_signer_priv_key,
-            raw_message,
-            0,
-            nonce,
-            spec_id,
-        )
-        .into();
-        borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
+        // TODO: Should this be >= Fork2?
+        if spec_id >= SpecId::Kumquat {
+            let transaction: Transaction = Transaction::new_signed_tx(
+                &self.sov_tx_signer_priv_key,
+                raw_message,
+                0,
+                nonce,
+                spec_id,
+            );
+            borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
+        } else {
+            let transaction: PreFork2Transaction<C> = PreFork2Transaction::<C>::new_signed_tx(
+                &self.sov_tx_signer_priv_key,
+                raw_message,
+                0,
+                nonce,
+            );
+            borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
+        }
     }
 
     fn sign_tx(
