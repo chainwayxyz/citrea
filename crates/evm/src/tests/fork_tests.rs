@@ -84,7 +84,7 @@ fn test_cancun_transient_storage_activation() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -240,7 +240,7 @@ fn test_cancun_mcopy_activation() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -341,7 +341,7 @@ fn test_cancun_mcopy_activation() {
     // Last tx should have failed because cancun is not activated
     assert!(receipts.last().unwrap().receipt.success);
     let storage_value = evm
-        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
         .unwrap();
     assert_eq!(storage_value, U256::from(80));
 }
@@ -358,7 +358,7 @@ fn test_self_destructing_constructor() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -403,11 +403,11 @@ fn test_self_destructing_constructor() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let contract_info = evm.account_info(&contract_addr, &mut working_set);
+    let contract_info = evm.account_info(&contract_addr, spec_id, &mut working_set);
     // Contract should not exist as it is created and selfdestructed in the same transaction
     assert!(contract_info.is_none());
 
-    let die_to_contract_info = evm.account_info(&die_to_address, &mut working_set);
+    let die_to_contract_info = evm.account_info(&die_to_address, spec_id, &mut working_set);
 
     // die_to_address should have the contract balance
     assert!(die_to_contract_info.is_some());
@@ -439,7 +439,7 @@ fn test_blob_base_fee_should_return_1() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -547,7 +547,7 @@ fn test_blob_base_fee_should_return_1() {
     assert!(receipts.last().unwrap().receipt.success);
 
     let storage_value = evm
-        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
         .unwrap();
 
     assert_eq!(storage_value, U256::from(1));
@@ -558,7 +558,7 @@ fn test_kzg_point_eval_should_revert() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -652,7 +652,7 @@ fn test_kzg_point_eval_should_revert() {
         .collect();
 
     let storage_value = evm
-        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
         .unwrap();
     assert_ne!(
         storage_value,
@@ -678,7 +678,7 @@ fn test_offchain_contract_storage_evm() {
         }
     };
 
-    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -721,7 +721,7 @@ fn test_offchain_contract_storage_evm() {
     sleep(std::time::Duration::from_secs(2));
 
     //try to get it from offchain storage and expect it to not exist
-    let contract_info = evm.account_info(&contract_addr, &mut working_set);
+    let contract_info = evm.account_info(&contract_addr, spec_id, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let genesis_cont_evm_code = evm.code.get(&code_hash, &mut working_set).unwrap();
@@ -803,7 +803,7 @@ fn test_offchain_contract_storage_evm() {
 
     let new_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
 
-    let contract_info = evm.account_info(&new_contract_address, &mut working_set);
+    let contract_info = evm.account_info(&new_contract_address, spec_id, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let offchain_code = evm
@@ -860,7 +860,7 @@ fn test_offchain_contract_storage_evm() {
     assert_eq!(code, *genesis_cont_evm_code.original_byte_slice());
 
     // Now I should be able to read the contract from offchain storage
-    let contract_info = evm.account_info(&contract_addr, &mut working_set);
+    let contract_info = evm.account_info(&contract_addr, spec_id, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let offchain_code = evm

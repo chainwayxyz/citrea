@@ -11,6 +11,7 @@ use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_evm::{Evm, Filter};
+use citrea_primitives::forks::fork_from_block_number;
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -270,7 +271,11 @@ where
             }
             None => BlockNumberOrTag::Latest,
         };
+
         let block_id_internal = evm.block_number_for_id(&block_number, &mut working_set)?;
+
+        let citrea_spec = fork_from_block_number(block_id_internal).spec_id;
+
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 
         let version = block_id_internal
@@ -282,16 +287,16 @@ where
             .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
 
         let account = evm
-            .account_info(&address, &mut working_set)
+            .account_info(&address, citrea_spec, &mut working_set)
             .unwrap_or_default();
         let balance = account.balance;
         let nonce = account.nonce;
         let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
 
         let account_key = StorageKey::new(
-            evm.accounts.prefix(),
+            evm.accounts_postfork2.prefix(),
             &address,
-            evm.accounts.codec().key_codec(),
+            evm.accounts_postfork2.codec().key_codec(),
         );
 
         let account_proof = working_set.get_with_proof(account_key, version);
@@ -309,7 +314,7 @@ where
             let key: U256 = key.0.into();
             let storage_key =
                 StorageKey::new(evm.storage.prefix(), &key, evm.storage.codec().key_codec());
-            let value = evm.storage_get(&address, &key, &mut working_set);
+            let value = evm.storage_get(&address, &key, citrea_spec, &mut working_set);
             let proof = working_set.get_with_proof(storage_key, version);
             let value_exists = if proof.value.is_some() {
                 Bytes::from("y")

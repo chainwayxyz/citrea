@@ -6,7 +6,7 @@ use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, Output, SpecId, U256,
 };
 use revm::{Database, DatabaseCommit};
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use self::executor::CitreaEvm;
@@ -30,7 +30,7 @@ fn simple_contract_execution_sov_state() {
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let evm = Evm::<C>::default();
-    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set, SpecId::SHANGHAI);
+    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set, CitreaSpecId::Genesis);
 
     simple_contract_execution(evm_db);
 }

@@ -2,12 +2,12 @@
 use std::collections::HashMap;
 
 use alloy_primitives::{keccak256, Address, B256};
-use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, SpecId, U256};
+use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, SpecId as EvmSpecId, U256};
 use revm::Database;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, WorkingSet};
 
 use super::AccountInfo;
-use crate::Evm;
+use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
 // infallible
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -28,19 +28,21 @@ impl std::fmt::Display for DBError {
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) evm: &'a Evm<C>,
     pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
-    pub(crate) current_spec: SpecId,
+    pub(crate) citrea_spec: CitreaSpecId,
+    pub(crate) evm_spec: EvmSpecId,
 }
 
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     pub(crate) fn new(
         evm: &'a Evm<C>,
         working_set: &'a mut WorkingSet<C::Storage>,
-        current_spec: SpecId,
+        citrea_spec: CitreaSpecId,
     ) -> Self {
         Self {
             evm,
             working_set,
-            current_spec,
+            citrea_spec,
+            evm_spec: citrea_spec_id_to_evm_spec_id(citrea_spec),
         }
     }
 
@@ -53,7 +55,8 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
 
     #[cfg(feature = "native")]
     pub(crate) fn override_account(&mut self, account: &Address, info: AccountInfo) {
-        self.evm.account_set(account, &info, self.working_set);
+        self.evm
+            .account_set(account, &info, self.citrea_spec, self.working_set);
     }
 
     #[cfg(feature = "native")]
@@ -67,6 +70,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
                 account,
                 &slot.into(),
                 &U256::from_be_bytes(value.0),
+                self.citrea_spec,
                 self.working_set,
             );
         }
@@ -88,7 +92,9 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     type Error = DBError;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
-        let db_account = self.evm.account_info(&address, self.working_set);
+        let db_account = self
+            .evm
+            .account_info(&address, self.citrea_spec, self.working_set);
         Ok(db_account.map(Into::into))
     }
 
@@ -97,7 +103,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 
         // If CANCUN or later forks are activated, try to fetch code from offchain storage
         // first. This is to prevent slower lookups in `code`.
-        if self.current_spec.is_enabled_in(SpecId::CANCUN) {
+        if self.evm_spec.is_enabled_in(EvmSpecId::CANCUN) {
             if let Some(code) = self
                 .evm
                 .offchain_code
@@ -110,7 +116,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         let code = self.evm.code.get(&code_hash, self.working_set);
         if let Some(code) = code {
             // Gradually migrate contract codes into the offchain code state map.
-            if self.current_spec.is_enabled_in(SpecId::CANCUN) {
+            if self.evm_spec.is_enabled_in(EvmSpecId::CANCUN) {
                 self.evm.offchain_code.set(
                     &code_hash,
                     &code,
@@ -126,7 +132,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let storage_value = self
             .evm
-            .storage_get(&address, &index, self.working_set)
+            .storage_get(&address, &index, self.citrea_spec, self.working_set)
             .unwrap_or_default();
 
         Ok(storage_value)

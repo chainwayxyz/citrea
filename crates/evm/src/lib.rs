@@ -38,8 +38,7 @@ mod tests;
 use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
-pub use revm::primitives::SpecId as EvmSpecId;
-use revm::primitives::{BlockEnv, U256};
+use revm::primitives::{BlockEnv, SpecId as EvmSpecId, U256};
 use sov_modules_api::{
     ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };
@@ -87,9 +86,13 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state(rename = "i")]
     pub(crate) account_idxs: sov_modules_api::StateMap<Address, AccountId, BcsCodec>,
 
-    /// Mapping from account id to account state.
+    /// Mapping from account address to account state.
     #[state(rename = "a")]
-    pub accounts: sov_modules_api::StateMap<AccountId, AccountInfo, BcsCodec>,
+    pub accounts_prefork2: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
+
+    /// Mapping from account id to account state.
+    #[state(rename = "an")]
+    pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BcsCodec>,
 
     /// The total number of accounts.
     #[state(rename = "n")]
@@ -217,9 +220,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
         &'a self,
         working_set: &'a mut WorkingSet<C::Storage>,
-        current_spec: EvmSpecId,
+        citrea_spec: CitreaSpecId,
     ) -> EvmDb<'a, C> {
-        EvmDb::new(self, working_set, current_spec)
+        EvmDb::new(self, working_set, citrea_spec)
     }
 }
 

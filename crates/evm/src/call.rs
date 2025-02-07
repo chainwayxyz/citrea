@@ -3,7 +3,9 @@ use core::panic;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{native_error, CallResponse, SoftConfirmationModuleCallError, WorkingSet};
+use sov_modules_api::{
+    native_error, CallResponse, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
+};
 
 use crate::conversions::ConversionError;
 use crate::evm::db::EvmDb;
@@ -36,32 +38,35 @@ impl<C: sov_modules_api::Context> Evm<C> {
         l1_fee_rate: u128,
         cfg: EvmChainConfig,
         block_env: BlockEnv,
-        active_spec: SpecId,
+        citrea_spec: CitreaSpecId,
         working_set: &mut WorkingSet<C::Storage>,
     ) {
         // don't use self.block_env here
         // function is expected to use block_env passed as argument
 
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(cfg, active_spec);
+        let active_evm_spec = citrea_spec_id_to_evm_spec_id(citrea_spec);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(cfg, active_evm_spec);
 
-        let l1_block_hash_exists = self.account_exists(&BitcoinLightClient::address(), working_set);
+        let l1_block_hash_exists =
+            self.account_exists(&BitcoinLightClient::address(), citrea_spec, working_set);
         if !l1_block_hash_exists {
             native_error!("System contract not found: BitcoinLightClient");
             return;
         }
 
-        let bridge_contract_exists = self.account_exists(&BridgeWrapper::address(), working_set);
+        let bridge_contract_exists =
+            self.account_exists(&BridgeWrapper::address(), citrea_spec, working_set);
         if !bridge_contract_exists {
             native_error!("System contract not found: Bridge");
             return;
         }
 
         let system_nonce = self
-            .account_info(&SYSTEM_SIGNER, working_set)
+            .account_info(&SYSTEM_SIGNER, citrea_spec, working_set)
             .map(|info| info.nonce)
             .unwrap_or(0);
 
-        let db: EvmDb<'_, C> = self.get_db(working_set, cfg_env.handler_cfg.spec_id);
+        let db: EvmDb<'_, C> = self.get_db(working_set, citrea_spec);
         let system_txs = create_system_transactions(system_events, system_nonce, cfg_env.chain_id);
 
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
@@ -147,7 +152,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
 
-        let evm_db: EvmDb<'_, C> = self.get_db(working_set, cfg_env.handler_cfg.spec_id);
+        let evm_db: EvmDb<'_, C> = self.get_db(working_set, context.active_spec());
 
         let results = executor::execute_multiple_tx(
             evm_db,
