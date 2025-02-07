@@ -12,6 +12,8 @@ use sov_rollup_interface::da::{DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
 
+use super::evm::init_test_rollup;
+use super::{execute_blocks, initialize_test, TestConfig};
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, wait_for_prover_l1_height, NodeMode,
@@ -20,8 +22,6 @@ use crate::common::{
     make_test_client, TEST_DATA_GENESIS_PATH,
     TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
 };
-use crate::e2e::{execute_blocks, initialize_test, TestConfig};
-use crate::evm::init_test_rollup;
 
 /// Run the sequencer.
 /// Publish blocks.
