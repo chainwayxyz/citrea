@@ -38,8 +38,6 @@ pub use stf_blueprint::StfBlueprint;
 pub struct RuntimeTxHook {
     /// Height to initialize the context
     pub height: u64,
-    /// Sequencer public key
-    pub sequencer: Vec<u8>,
     /// Current spec
     pub current_spec: SpecId,
     /// L1 fee rate

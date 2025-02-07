@@ -107,7 +107,6 @@ where
         // Pre dispatch hook
         let hook = RuntimeTxHook {
             height: soft_confirmation_info.l2_height(),
-            sequencer: tx.pub_key().to_vec(),
             current_spec: soft_confirmation_info.current_spec(),
             l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
         };

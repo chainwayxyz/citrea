@@ -31,7 +31,6 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
             height,
             current_spec,
             l1_fee_rate,
-            ..
         } = arg;
         let AccountsTxHook { sender } =
             self.accounts
