@@ -6,6 +6,7 @@ use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, SpecId as EvmSp
 use revm::Database;
 use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, WorkingSet};
 
+#[cfg(feature = "native")]
 use super::AccountInfo;
 use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 

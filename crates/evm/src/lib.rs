@@ -4,7 +4,6 @@ mod call;
 mod evm;
 mod genesis;
 mod hooks;
-#[cfg(feature = "native")]
 mod provider_functions;
 
 use alloy_rlp::{RlpDecodable, RlpEncodable};

@@ -1,9 +1,10 @@
 use alloy_primitives::{Address, U256};
+#[cfg(feature = "native")]
 use reth_primitives::SealedHeader;
 use sha2::Digest;
-use sov_modules_api::{
-    SpecId as CitreaSpecId, StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet,
-};
+#[cfg(feature = "native")]
+use sov_modules_api::StateVecAccessor;
+use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, StateValueAccessor, WorkingSet};
 
 use crate::{AccountInfo, DbAccount, Evm};
 
@@ -240,6 +241,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
     }
 
+    #[cfg(feature = "native")]
     /// Returns the sealed head block.
     pub fn last_sealed_header(&self, working_set: &mut WorkingSet<C::Storage>) -> SealedHeader {
         self.blocks_rlp
