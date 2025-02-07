@@ -3,7 +3,6 @@
 //! DA layers and be proven with different zkVMS, all while retaining compatibility
 //! with the same basic full node implementation.
 
-#![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 
 extern crate alloc;
