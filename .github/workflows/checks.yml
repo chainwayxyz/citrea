@@ -295,7 +295,7 @@ jobs:
       - name: Make citrea executable
         run: chmod +x target/release/citrea
       - name: Install node dependencies
-        working-directory: ./bin/citrea/tests/evm/uniswap
+        working-directory: ./bin/citrea/tests/mock/evm/uniswap
         run: npm install
       - name: Run uniswap tests
         run: |
@@ -303,7 +303,7 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          cd ./bin/citrea/tests/evm/uniswap
+          cd ./bin/citrea/tests/mock/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
           seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
@@ -338,7 +338,7 @@ jobs:
       - name: Make citrea executable
         run: chmod +x target/release/citrea
       - name: Install dependencies
-        working-directory: ./bin/citrea/tests/evm/web3_py
+        working-directory: ./bin/citrea/tests/mock/evm/web3_py
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
@@ -346,7 +346,7 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          cd ./bin/citrea/tests/evm/web3_py
+          cd ./bin/citrea/tests/mock/evm/web3_py
           python test.py
 
   ethers_js:
@@ -366,7 +366,7 @@ jobs:
       - name: Make citrea executable
         run: chmod +x target/release/citrea
       - name: Install node dependencies
-        working-directory: ./bin/citrea/tests/evm/ethers_js
+        working-directory: ./bin/citrea/tests/mock/evm/ethers_js
         run: npm install
       - name: Run ethers_js tests
         run: |
@@ -374,7 +374,7 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          cd ./bin/citrea/tests/evm/ethers_js
+          cd ./bin/citrea/tests/mock/evm/ethers_js
           npm install
           npx mocha test.js
           cd ../../../../..
