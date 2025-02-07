@@ -127,6 +127,11 @@ jobs:
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Cache ethereum-tests
+        uses: actions/cache@v4
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
       - name: Build citrea
         run: make build-test
       - name: Upload artifact
