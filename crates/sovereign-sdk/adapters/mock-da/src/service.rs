@@ -545,6 +545,12 @@ impl DaService for MockDaService {
     ) -> Vec<SequencerCommitment> {
         vec![]
     }
+
+    fn block_to_short_header_proof(
+        _block: Self::FilteredBlock,
+    ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
+        unimplemented!()
+    }
 }
 
 fn hash_to_array(bytes: &[u8]) -> [u8; 32] {

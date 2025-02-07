@@ -1,7 +1,10 @@
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState};
+use sov_rollup_interface::da::{
+    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, L1UpdateSystemTransactionInfo, LatestDaState,
+    ShortHeaderProofVerificationError, VerifableShortHeaderProof,
+};
 use sov_rollup_interface::Network;
 
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash};
@@ -50,8 +53,18 @@ impl DaSpec for MockDaSpec {
     type InclusionMultiProof = [u8; 32];
     type CompletenessProof = Vec<MockBlob>;
     type ChainParams = ();
+    type ShortHeaderProof = MockShortHeaderProof;
 }
 
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
+/// Short form header proof for mock da
+pub struct MockShortHeaderProof;
+
+impl VerifableShortHeaderProof for MockShortHeaderProof {
+    fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
+        todo!()
+    }
+}
 impl DaVerifier for MockDaVerifier {
     type Spec = MockDaSpec;
 

@@ -28,8 +28,8 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateCheckpoint,
-    StateDiff, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateDiff,
+    UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Runtime as RuntimeT, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
@@ -81,7 +81,7 @@ where
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: ProverStorageManager<Da::Spec>,
     state_root: StateRoot<C, Da::Spec, RT>,
-    batch_hash: SoftConfirmationHash,
+    soft_confirmation_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     fork_manager: ForkManager<'static>,
@@ -130,7 +130,7 @@ where
             deposit_mempool,
             storage_manager,
             state_root: init_params.state_root,
-            batch_hash: init_params.batch_hash,
+            soft_confirmation_hash: init_params.batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
@@ -155,12 +155,7 @@ where
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
-            let checkpoint = StateCheckpoint::with_witness(
-                prestate.clone(),
-                Default::default(),
-                Default::default(),
-            );
-            let mut working_set_to_discard = checkpoint.to_revertable();
+            let mut working_set_to_discard = WorkingSet::new(prestate.clone());
 
             match self.stf.begin_soft_confirmation(
                 pub_key,
@@ -327,8 +322,7 @@ where
         );
 
         let timestamp = chrono::Local::now().timestamp() as u64;
-        let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())
-            .map_err(Into::<anyhow::Error>::into)?;
+        let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())?;
 
         let deposit_data = self
             .deposit_mempool
@@ -356,8 +350,7 @@ where
 
         let prestate = self
             .storage_manager
-            .create_storage_on_l2_height(l2_height)
-            .map_err(Into::<anyhow::Error>::into)?;
+            .create_storage_on_l2_height(l2_height)?;
         debug!(
             "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
@@ -381,12 +374,9 @@ where
 
         let prestate = self
             .storage_manager
-            .create_storage_on_l2_height(l2_height)
-            .map_err(Into::<anyhow::Error>::into)?;
+            .create_storage_on_l2_height(l2_height)?;
 
-        let checkpoint =
-            StateCheckpoint::with_witness(prestate.clone(), Default::default(), Default::default());
-        let mut working_set = checkpoint.to_revertable();
+        let mut working_set = WorkingSet::new(prestate.clone());
 
         // Execute the selected transactions
         match self.stf.begin_soft_confirmation(
@@ -418,7 +408,6 @@ where
                             &txs_new,
                             &mut working_set,
                         )
-                        // TODO: handle this error
                         .expect("dry_run_transactions should have already checked this");
                 }
 
@@ -430,7 +419,7 @@ where
                     da_block.header().txs_commitment().into(),
                     &txs,
                     &txs_new,
-                    deposit_data.clone(),
+                    deposit_data,
                     l1_fee_rate,
                     timestamp,
                 );
@@ -438,9 +427,12 @@ where
                 let mut signed_soft_confirmation = if active_fork_spec
                     >= sov_modules_api::SpecId::Kumquat
                 {
-                    self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                    self.sign_soft_confirmation_batch(&unsigned_batch, self.soft_confirmation_hash)?
                 } else {
-                    self.pre_fork1_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                    self.pre_fork1_sign_soft_confirmation_batch(
+                        &unsigned_batch,
+                        self.soft_confirmation_hash,
+                    )?
                 };
 
                 self.stf.end_soft_confirmation(
@@ -476,7 +468,7 @@ where
 
                 // TODO: this will only work for mock da
                 // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
-                // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+                // is merged, rpc will access up to date storage then we won't need to finalize right away.
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
@@ -505,7 +497,7 @@ where
                 );
 
                 self.state_root = next_state_root;
-                self.batch_hash = soft_confirmation_hash;
+                self.soft_confirmation_hash = soft_confirmation_hash;
 
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
@@ -600,7 +592,7 @@ where
             self.config.min_soft_confirmations_per_commitment,
             da_commitment_rx,
         );
-        if self.batch_hash != [0; 32] {
+        if self.soft_confirmation_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
             commitment_service.resubmit_pending_commitments().await?;
         }
