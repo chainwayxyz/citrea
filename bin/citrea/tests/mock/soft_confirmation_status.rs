@@ -1,8 +1,8 @@
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 
-use crate::e2e::{initialize_test, TestConfig};
-use crate::test_helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_block};
+use super::{initialize_test, TestConfig};
+use crate::common::helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_block};
 
 /// Run the sequencer and full node.
 /// Trigger sequencer commitments.

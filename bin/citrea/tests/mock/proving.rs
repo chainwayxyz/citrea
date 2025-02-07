@@ -8,12 +8,11 @@ use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 
-use crate::evm::make_test_client;
-use crate::test_helpers::{
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode,
 };
-use crate::TEST_DATA_GENESIS_PATH;
+use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
 /// Run the sequencer, prover and full node.
 /// Trigger proof production.

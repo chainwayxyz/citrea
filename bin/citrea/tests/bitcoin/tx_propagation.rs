@@ -11,7 +11,7 @@ use citrea_e2e::Result;
 use reth_primitives::BlockNumberOrTag;
 
 use super::get_citrea_path;
-use crate::evm::make_test_client;
+use crate::common::make_test_client;
 
 /// Full node receives transaction from RPC.
 /// Sends it to the sequencer.

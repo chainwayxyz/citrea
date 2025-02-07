@@ -13,11 +13,10 @@ use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use serde_json::{self, json};
 
-use crate::evm::make_test_client;
-use crate::test_helpers::{
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, NodeMode,
 };
-use crate::TEST_DATA_GENESIS_PATH;
+use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
