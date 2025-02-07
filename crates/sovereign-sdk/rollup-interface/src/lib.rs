@@ -5,8 +5,6 @@
 
 #![deny(missing_docs)]
 
-extern crate alloc;
-
 /// The current version of Citrea.
 ///
 /// Mostly used for web3_clientVersion RPC calls and might be used for other purposes.
@@ -22,10 +20,10 @@ mod node;
 pub mod spec;
 mod state_machine;
 
-#[cfg(not(target_has_atomic = "ptr"))]
-pub use alloc::rc::Rc as RefCount;
-#[cfg(target_has_atomic = "ptr")]
-pub use alloc::sync::Arc as RefCount;
+#[cfg(not(feature = "native"))]
+pub use std::rc::Rc as RefCount;
+#[cfg(feature = "native")]
+pub use std::sync::Arc as RefCount;
 
 pub use network::*;
 pub use node::*;

@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use jmt::KeyHash;
 use sov_modules_core::{
@@ -7,6 +6,7 @@ use sov_modules_core::{
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_rollup_interface::RefCount;
 
 use crate::DefaultHasher;
 
@@ -99,9 +99,9 @@ where
             .map(|(key, value)| {
                 let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-                let key_bytes = Arc::try_unwrap(key.key).unwrap_or_else(|arc| (*arc).clone());
-                let value_bytes =
-                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
+                let key_bytes = RefCount::try_unwrap(key.key).unwrap_or_else(|arc| (*arc).clone());
+                let value_bytes = value
+                    .map(|v| RefCount::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
 
                 diff.push((key_bytes, value_bytes.clone()));
 

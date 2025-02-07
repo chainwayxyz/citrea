@@ -4,12 +4,7 @@
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
 
-extern crate alloc;
-
-use alloc::collections::VecDeque;
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::fmt::Debug;
+use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;

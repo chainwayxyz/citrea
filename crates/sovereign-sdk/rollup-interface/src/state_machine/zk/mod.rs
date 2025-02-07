@@ -7,11 +7,7 @@
 //! [risc0 adapter](https://github.com/Sovereign-Labs/sovereign-sdk/tree/main/adapters/risc0)
 //! maintained by the Sovereign Labs team.
 
-extern crate alloc;
-
-use alloc::vec::Vec;
-use core::convert::Into;
-use core::fmt::Debug;
+use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
