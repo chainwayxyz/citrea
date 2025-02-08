@@ -75,7 +75,7 @@ impl HeaderWrapper {
         let mut enc = [0; BitcoinHeader::SIZE];
         self.header
             .consensus_encode(&mut enc.as_mut_slice())
-            .expect("engines don't error");
+            .expect("consensus encode cannot fail");
         BlockHash::from_raw_hash(Hash::from_byte_array(calculate_double_sha256(&enc)))
     }
 
