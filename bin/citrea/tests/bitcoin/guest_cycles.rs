@@ -28,7 +28,7 @@ impl TestCase for GenerateProofInput {
         TestCaseConfig {
             with_batch_prover: true,
             genesis_dir: Some(format!(
-                "{}/tests/bitcoin_e2e/test-data/gen-proof-input-genesis",
+                "{}/tests/bitcoin/test-data/gen-proof-input-genesis",
                 env!("CARGO_MANIFEST_DIR")
             )),
             ..Default::default()
@@ -106,7 +106,7 @@ impl TestCase for GenerateProofInput {
 async fn generate_proof_input() -> Result<()> {
     // Specify the path to your transactions file here
     let transactions_file_path =
-        PathBuf::from("tests/bitcoin_e2e/test-data/signed-transactions.txt");
+        PathBuf::from("tests/bitcoin/test-data/signed-transactions.txt");
 
     TestCaseRunner::new(GenerateProofInput {
         transactions_file_path,
@@ -120,7 +120,7 @@ async fn generate_proof_input() -> Result<()> {
 #[ignore]
 async fn guest_cycles() {
     let input =
-        fs::read("tests/bitcoin_e2e/test-data/kumquat-2seqcomms-100blocks-input.bin").unwrap();
+        fs::read("tests/bitcoin/test-data/kumquat-input.bin").unwrap();
     println!("Input size: {}", input.len());
 
     // Convert tmpdir to path so it's not deleted after the run for debugging purposes
