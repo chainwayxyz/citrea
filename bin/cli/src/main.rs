@@ -49,7 +49,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Prune { db_path, distance } => {
             commands::prune(db_path.clone(), *distance).await?;
         }
-        Commands::Rollback { db_path, blocks } => {
+        Commands::Rollback {
+            db_path: _db_path,
+            blocks,
+        } => {
             commands::rollback(*blocks).await?;
         }
     }

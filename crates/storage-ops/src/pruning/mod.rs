@@ -34,6 +34,8 @@ where
     ledger_db: DB,
     /// Access to native DB.
     native_db: Arc<sov_schema_db::DB>,
+    /// Access to state DB.
+    state_db: Arc<sov_schema_db::DB>,
     /// Criteria to decide pruning
     criteria: Box<dyn Criteria + Send + Sync>,
 }
@@ -42,7 +44,12 @@ impl<DB> Pruner<DB>
 where
     DB: SharedLedgerOps + Send + Sync + Clone + 'static,
 {
-    pub fn new(config: PruningConfig, ledger_db: DB, native_db: Arc<sov_schema_db::DB>) -> Self {
+    pub fn new(
+        config: PruningConfig,
+        ledger_db: DB,
+        state_db: Arc<sov_schema_db::DB>,
+        native_db: Arc<sov_schema_db::DB>,
+    ) -> Self {
         // distance is the only criteria implemented at the moment.
         let criteria = Box::new(DistanceCriteria {
             distance: config.distance,
@@ -50,6 +57,7 @@ where
         Self {
             ledger_db,
             native_db,
+            state_db,
             criteria,
         }
     }
@@ -73,15 +81,20 @@ where
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
         let native_db = self.native_db.clone();
+        let state_db = self.state_db.clone();
+
         let ledger_pruning_handle =
             tokio::task::spawn_blocking(move || prune_ledger(ledger_db, up_to_block));
-        let evm_pruning_handle = tokio::task::spawn_blocking(move || prune_evm(up_to_block));
+
+        let state_db_pruning_handle =
+            tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
+
         let native_db_pruning_handle =
             tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
 
         future::join_all([
             ledger_pruning_handle,
-            evm_pruning_handle,
+            state_db_pruning_handle,
             native_db_pruning_handle,
         ])
         .await;
