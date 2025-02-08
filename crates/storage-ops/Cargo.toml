@@ -1,5 +1,5 @@
 [package]
-name = "citrea-pruning"
+name = "citrea-storage-ops"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -10,12 +10,9 @@ repository.workspace = true
 
 [dependencies]
 # Citrea dependencies
-citrea-evm = { path = "../evm", features = ["native"] }
-citrea-primitives = { path = "../primitives" }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 
 # 3rd-party dependencies

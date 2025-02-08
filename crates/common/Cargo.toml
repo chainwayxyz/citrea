@@ -41,7 +41,7 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features 
 
 # Citrea
 citrea-primitives = { path = "../primitives/" }
-citrea-pruning = { path = "../pruning" }
+citrea-storage-ops = { path = "../storage-ops" }
 
 [dev-dependencies]
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }

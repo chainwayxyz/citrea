@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use citrea_pruning::PruningConfig;
+use citrea_storage_ops::pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_stf_runner::ProverGuestRunConfig;

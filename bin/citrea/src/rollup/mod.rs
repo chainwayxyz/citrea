@@ -11,8 +11,8 @@ use citrea_fullnode::CitreaFullnode;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
-use citrea_pruning::Pruner;
 use citrea_sequencer::CitreaSequencer;
+use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -197,7 +197,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> Result<(
         CitreaFullnode<Self::DaService, Self::NativeContext, LedgerDB, Self::NativeRuntime>,
         FullNodeL1BlockHandler<Self::NativeContext, Self::Vm, Self::DaService, LedgerDB>,
-        Option<Pruner<LedgerDB>>,
+        Option<PrunerService<LedgerDB>>,
     )>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
