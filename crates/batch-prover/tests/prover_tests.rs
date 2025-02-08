@@ -344,7 +344,7 @@ fn make_transition_data(
     header_hash: MockHash,
 ) -> BatchProofCircuitInput<'static, Vec<u8>, MockDaSpec, ()> {
     BatchProofCircuitInput {
-        initial_state_root: [0; 32].into(),
+        initial_state_root: [0; 32],
         inclusion_proof: [0; 32],
         prev_soft_confirmation_hash: [0; 32],
         completeness_proof: Vec::new(),
@@ -364,7 +364,7 @@ fn make_transition_data(
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
         preproven_commitments: vec![],
-        final_state_root: [0u8; 32].into(),
+        final_state_root: [0u8; 32],
     }
 }
 

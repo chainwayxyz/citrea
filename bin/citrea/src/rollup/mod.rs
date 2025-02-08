@@ -403,7 +403,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> anyhow::Result<InitParams> {
         if let Some((number, soft_confirmation)) = ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
-            info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+            info!("Initialize node at L2 height #{}. State root: 0x{}. Last soft confirmation hash: 0x{}.", number.0, hex::encode(prover_storage.get_root_hash(number.0 + 1)?), hex::encode(soft_confirmation.hash));
 
             return Ok(InitParams {
                 state_root: prover_storage.get_root_hash(number.0 + 1)?,
@@ -429,7 +429,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         ledger_db.set_l2_genesis_state_root(&genesis_root)?;
         info!(
             "Chain initialization is done. Genesis root: 0x{}",
-            hex::encode(genesis_root.as_ref()),
+            hex::encode(genesis_root),
         );
         Ok(InitParams {
             state_root: genesis_root,

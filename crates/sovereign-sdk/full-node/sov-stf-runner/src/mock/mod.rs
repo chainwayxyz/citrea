@@ -28,7 +28,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
     ) -> (StorageRootHash, ()) {
-        ([0u8; 32].into(), ())
+        ([0u8; 32], ())
     }
 
     fn apply_soft_confirmation(

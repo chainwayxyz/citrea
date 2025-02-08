@@ -361,8 +361,8 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
         recursive_match_state_roots(
             initial_to_final,
             &BatchProofInfo::new(
-                batch_proof_output_initial_state_root.into(),
-                batch_proof_output_final_state_root.into(),
+                batch_proof_output_initial_state_root,
+                batch_proof_output_final_state_root,
                 batch_proof_output_last_l2_height,
             ),
         );

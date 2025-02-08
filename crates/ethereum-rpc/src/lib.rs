@@ -335,7 +335,7 @@ where
             balance,
             nonce,
             code_hash,
-            storage_hash: root_hash.0.into(),
+            storage_hash: root_hash.into(),
             account_proof: vec![account_proof, account_exists],
             storage_proof,
         })

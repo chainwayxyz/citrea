@@ -293,10 +293,7 @@ where
             ),
             Err(e) => {
                 info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output =
-                    Vm::extract_output::<BatchProofCircuitOutputV1<<Da as DaService>::Spec>>(
-                        &proof,
-                    )
+                let output = Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(&proof)
                     .expect("Should be able to extract either pre or post fork 1 output");
                 let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec> {
                     initial_state_root: output.initial_state_root,

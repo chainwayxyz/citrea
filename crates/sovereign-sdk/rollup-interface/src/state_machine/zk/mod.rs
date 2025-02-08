@@ -124,7 +124,7 @@ pub trait Matches<T> {
 }
 
 /// A cryptographic commitment to the contents of this storage
-pub type StorageRootHash = jmt::RootHash;
+pub type StorageRootHash = [u8; 32];
 
 /// Alias to jmt::proof::SparseMerkleProof.
 pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;

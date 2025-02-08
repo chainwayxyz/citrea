@@ -377,7 +377,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 expected_block_number, block.header.number
             );
 
-            block.header.state_root = root_hash.0.into();
+            block.header.state_root = root_hash.into();
 
             let sealed_block = block.seal();
 

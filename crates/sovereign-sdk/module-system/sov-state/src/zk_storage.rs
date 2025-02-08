@@ -121,8 +121,8 @@ where
 
         Ok((
             StateRootTransition {
-                init_root: jmt::RootHash(prev_state_root),
-                final_root: jmt::RootHash(new_root),
+                init_root: prev_state_root,
+                final_root: new_root,
             },
             (),
             diff,
@@ -144,7 +144,11 @@ where
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
 
-        proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
+        proof.verify(
+            jmt::RootHash(state_root),
+            key_hash,
+            value.as_ref().map(|v| v.value()),
+        )?;
         Ok((key, value))
     }
 

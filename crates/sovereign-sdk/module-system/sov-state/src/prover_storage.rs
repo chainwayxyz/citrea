@@ -191,8 +191,8 @@ where
         // And constructing the tree from the diff.
         Ok((
             StateRootTransition {
-                init_root: prev_root,
-                final_root: new_root,
+                init_root: prev_root.into(),
+                final_root: new_root.into(),
             },
             state_update,
             diff,
@@ -253,7 +253,11 @@ where
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
 
-        proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
+        proof.verify(
+            jmt::RootHash(state_root),
+            key_hash,
+            value.as_ref().map(|v| v.value()),
+        )?;
         Ok((key, value))
     }
 
@@ -285,6 +289,6 @@ where
     fn get_root_hash(&self, version: Version) -> anyhow::Result<StorageRootHash> {
         let temp_merkle: JellyfishMerkleTree<'_, StateDB<Q>, DefaultHasher> =
             JellyfishMerkleTree::new(&self.db);
-        temp_merkle.get_root_hash(version)
+        temp_merkle.get_root_hash(version).map(Into::into)
     }
 }
