@@ -17,11 +17,12 @@ bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
 metrics = { workspace = true, optional = true }
-risc0-zkp = { workspace = true, optional = true }
+risc0-zkp = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [features]
@@ -32,7 +33,6 @@ native = [
   "dep:metrics",
   "risc0-zkvm/bonsai",
   "risc0-zkvm/client",
-  "risc0-zkp",
   "sov-rollup-interface/native",
 ]
 bench = ["native"]

@@ -551,9 +551,11 @@ dependencies = [
  "bincode",
  "borsh",
  "hex",
+ "risc0-zkp",
  "risc0-zkvm",
  "serde",
  "sov-rollup-interface",
+ "thiserror",
  "tracing",
 ]
 
