@@ -121,7 +121,7 @@ fn test_cancun_transient_storage_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -140,7 +140,7 @@ fn test_cancun_transient_storage_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -159,7 +159,7 @@ fn test_cancun_transient_storage_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -199,7 +199,7 @@ fn test_cancun_transient_storage_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -225,7 +225,7 @@ fn test_cancun_transient_storage_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts: Vec<_> = evm
         .receipts_rlp
@@ -275,7 +275,7 @@ fn test_cancun_mcopy_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -293,7 +293,7 @@ fn test_cancun_mcopy_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -332,7 +332,7 @@ fn test_cancun_mcopy_activation() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts: Vec<_> = evm
         .receipts_rlp
@@ -404,7 +404,7 @@ fn test_self_destructing_constructor() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let contract_info = evm.accounts.get(&contract_addr, &mut working_set);
     // Contract should not exist as it is created and selfdestructed in the same transaction
@@ -477,14 +477,14 @@ fn test_blob_base_fee_should_return_1() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
     for _ in 0..10 {
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
         l2_height += 1;
     }
 
@@ -501,7 +501,7 @@ fn test_blob_base_fee_should_return_1() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
     l2_height += 1;
 
     let receipts: Vec<_> = evm
@@ -539,7 +539,7 @@ fn test_blob_base_fee_should_return_1() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts: Vec<_> = evm
         .receipts_rlp
@@ -598,7 +598,7 @@ fn test_kzg_point_eval_should_revert() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -648,7 +648,7 @@ fn test_kzg_point_eval_should_revert() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     // expect this call to fail because we do not have the kzg feature of revm enabled on fork1
     let receipts: Vec<_> = evm
@@ -721,7 +721,7 @@ fn test_offchain_contract_storage_evm() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -762,7 +762,7 @@ fn test_offchain_contract_storage_evm() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
     sleep(std::time::Duration::from_secs(2));
     l2_height += 1;
 
@@ -805,7 +805,7 @@ fn test_offchain_contract_storage_evm() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
     l2_height += 1;
 
     let new_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
@@ -852,7 +852,7 @@ fn test_offchain_contract_storage_evm() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     // Try to get the code from genesis fork and expect it to not exist because it is stored in offchain storage
     let code = evm

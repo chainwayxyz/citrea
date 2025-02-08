@@ -293,17 +293,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
-name = "async-trait"
-version = "0.1.83"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.87",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -391,7 +380,6 @@ name = "bitcoin-da"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "bitcoin",
  "borsh",
  "citrea-primitives",
@@ -2164,15 +2152,12 @@ name = "sov-rollup-interface"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "borsh",
  "bytes",
  "digest",
- "hex",
  "jmt",
  "serde",
  "sha2",
- "thiserror",
 ]
 
 [[package]]

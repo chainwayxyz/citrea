@@ -1,11 +1,7 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
 
-extern crate alloc;
-
-use alloc::collections::BTreeMap;
-use alloc::string::String;
-use alloc::vec::Vec;
+use std::collections::BTreeMap;
 
 use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -530,12 +526,8 @@ pub trait LedgerRpcProvider {
 pub mod utils {
     /// Serialization and deserialization logic for `0x`-prefixed hex strings.
     pub mod rpc_hex {
-        extern crate alloc;
-
-        use alloc::format;
-        use alloc::string::String;
-        use core::fmt;
-        use core::marker::PhantomData;
+        use std::fmt;
+        use std::marker::PhantomData;
 
         use hex::{FromHex, ToHex};
         use serde::de::{Error, Visitor};
@@ -603,9 +595,6 @@ pub mod utils {
 
 #[cfg(test)]
 mod rpc_hex_tests {
-    use alloc::vec;
-    use alloc::vec::Vec;
-
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]

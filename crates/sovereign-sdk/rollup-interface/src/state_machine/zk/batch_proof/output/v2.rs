@@ -1,11 +1,9 @@
-use alloc::vec::Vec;
-use core::fmt::Debug;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use super::CumulativeStateDiff;
 use crate::da::DaSpec;
+use crate::zk::StorageRootHash;
 
 /// The public output of a SNARK batch proof in Sovereign, this struct makes a claim that
 /// the state of the rollup has transitioned from `initial_state_root` to `final_state_root`
@@ -16,11 +14,11 @@ use crate::da::DaSpec;
 /// Will be 0 for pre fork 1 proofs because this is a new output format and those fields
 /// did not exist pre fork 1
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub struct BatchProofCircuitOutputV2<Da: DaSpec, Root> {
+pub struct BatchProofCircuitOutputV2<Da: DaSpec> {
     /// The state of the rollup before the transition
-    pub initial_state_root: Root,
+    pub initial_state_root: StorageRootHash,
     /// The state of the rollup after the transition
-    pub final_state_root: Root,
+    pub final_state_root: StorageRootHash,
     /// The hash of the last soft confirmation before the state transition
     /// This will be [0; 32] for pre fork 1 proofs
     pub prev_soft_confirmation_hash: [u8; 32],

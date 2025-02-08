@@ -289,7 +289,7 @@ fn finalize_hook_creates_final_block() {
     let root_hash = [99u8; 32];
 
     let mut accessory_state = working_set.accessory_state();
-    evm.finalize_hook(&root_hash.into(), &mut accessory_state);
+    evm.finalize_hook(&root_hash, &mut accessory_state);
     assert_eq!(evm.blocks_rlp.len(&mut accessory_state), 3);
 
     l2_height += 1;
@@ -420,7 +420,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let mut random_32_bytes: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
-    evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&random_32_bytes, &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -444,7 +444,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
         random_32_bytes = rand::thread_rng().gen::<[u8; 32]>();
-        evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&random_32_bytes, &mut working_set.accessory_state());
 
         l2_height += 1;
     }

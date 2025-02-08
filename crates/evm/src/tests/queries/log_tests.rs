@@ -112,7 +112,7 @@ fn log_filter_test_at_block_hash() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     // `AnotherLog` topics
     // [0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9, event signature => (kecccak256("AnotherLog(address)")
@@ -324,7 +324,7 @@ fn log_filter_test_with_range() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -381,7 +381,7 @@ fn log_filter_test_with_range() {
         // the last topic will be Keccak256("message")
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[100u8; 32], &mut working_set.accessory_state());
     let filter = Filter {
         block_option: crate::FilterBlockOption::Range {
             from_block: Some(BlockNumberOrTag::Latest),
@@ -473,7 +473,7 @@ fn test_log_limits() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -527,7 +527,7 @@ fn test_log_limits() {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;
     }

@@ -892,7 +892,7 @@ fn test_queries_with_forks() {
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let no_access_list_post_fork = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),

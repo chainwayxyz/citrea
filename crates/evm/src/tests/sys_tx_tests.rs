@@ -191,7 +191,7 @@ fn test_sys_bitcoin_light_client() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
@@ -328,7 +328,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let mut working_set = working_set.checkpoint().to_revertable();
     l2_height += 1;
@@ -477,7 +477,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
         .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
@@ -566,7 +566,7 @@ fn test_bridge() {
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let recipient_address = address!("0101010101010101010101010101010101010101");
     let recipient_account = evm
@@ -664,7 +664,7 @@ fn test_upgrade_light_client() {
     .unwrap();
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let hash = evm
         .get_call_inner(
@@ -788,7 +788,7 @@ fn test_change_upgrade_owner() {
     .unwrap();
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
     let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
@@ -832,7 +832,7 @@ fn test_change_upgrade_owner() {
     .unwrap();
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let provided_new_owner = evm
         .get_call_inner(

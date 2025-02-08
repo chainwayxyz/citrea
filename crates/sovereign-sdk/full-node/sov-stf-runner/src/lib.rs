@@ -15,9 +15,7 @@ use anyhow::Context;
 #[cfg(feature = "native")]
 pub use prover_service::*;
 #[cfg(feature = "native")]
-use sov_modules_api::DaSpec;
-#[cfg(feature = "native")]
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::zk::StorageRootHash;
 
 #[cfg(feature = "native")]
 type SoftConfirmationHash = [u8; 32];
@@ -39,9 +37,9 @@ pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(
 
 #[cfg(feature = "native")]
 /// How [`StateTransitionRunner`] is initialized
-pub struct InitParams<Stf: StateTransitionFunction<Da>, Da: DaSpec> {
+pub struct InitParams {
     /// The last known state root
-    pub state_root: Stf::StateRoot,
+    pub state_root: StorageRootHash,
     /// The last known batch hash
     pub batch_hash: SoftConfirmationHash,
 }

@@ -1,6 +1,4 @@
 #![allow(missing_docs)]
-use alloc::vec::Vec;
-
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};

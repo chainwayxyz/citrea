@@ -226,7 +226,7 @@ pub trait Storage: Clone {
         witness: &mut Self::Witness,
     ) -> Result<
         (
-            StateRootTransition<StorageRootHash>,
+            StateRootTransition,
             Self::StateUpdate,
             StateDiff, // computed in Zk mode
         ),

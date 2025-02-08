@@ -16,7 +16,7 @@ pub(crate) fn create_mock_batch_proof(
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2::<MockDaSpec, [u8; 32]> {
+    let bp = BatchProofCircuitOutputV2::<MockDaSpec> {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],
@@ -63,7 +63,7 @@ pub(crate) fn create_serialized_mock_proof(
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2::<MockDaSpec, [u8; 32]> {
+    let bp = BatchProofCircuitOutputV2::<MockDaSpec> {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],

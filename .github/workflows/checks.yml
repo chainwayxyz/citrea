@@ -384,31 +384,6 @@ jobs:
           npx mocha test.js
           cd ../../../../..
 
-  check_no_std:
-    runs-on: ubicloud-standard-4
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust Bare Metal
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.81.0
-          target: thumbv6m-none-eabi
-          override: true
-      - name: Install Rust WASM
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.81.0
-          target: wasm32-unknown-unknown
-          override: true
-      - name: cargo install cargo-hack
-        uses: taiki-e/install-action@cargo-hack
-      - uses: ubicloud/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - name: Run check
-        run: make check-no-std
-
   nextest:
     needs:
       - docker-setup

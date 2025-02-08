@@ -43,7 +43,7 @@ pub enum GroupCommitments {
     OneByOne,
 }
 
-pub(crate) async fn data_to_prove<'txs, Da, DB, StateRoot, Witness, Tx>(
+pub(crate) async fn data_to_prove<'txs, Da, DB, Witness, Tx>(
     da_service: Arc<Da>,
     ledger: DB,
     sequencer_pub_key: Vec<u8>,
@@ -54,14 +54,13 @@ pub(crate) async fn data_to_prove<'txs, Da, DB, StateRoot, Witness, Tx>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<'txs, StateRoot, Witness, Da::Spec, Tx>>,
+        Vec<BatchProofCircuitInput<'txs, Witness, Da::Spec, Tx>>,
     ),
     L1ProcessingError,
 >
 where
     Da: DaService,
     DB: BatchProverLedgerOps,
-    StateRoot: DeserializeOwned,
     Witness: DeserializeOwned,
     Tx: Clone + BorshDeserialize + 'txs,
 {
@@ -157,14 +156,14 @@ where
             ))
         })?;
         let initial_state_root = ledger
-            .get_l2_state_root::<StateRoot>(first_l2_height_of_l1 - 1)
+            .get_l2_state_root(first_l2_height_of_l1 - 1)
             .map_err(|e| {
                 L1ProcessingError::Other(format!("Error getting initial state root: {:?}", e))
             })?
             .expect("There should be a state root");
 
         let final_state_root = ledger
-            .get_l2_state_root::<StateRoot>(last_l2_height_of_l1)
+            .get_l2_state_root(last_l2_height_of_l1)
             .map_err(|e| {
                 L1ProcessingError::Other(format!("Error getting final state root: {:?}", e))
             })?
@@ -181,26 +180,25 @@ where
             )))?
             .prev_hash;
 
-        let input: BatchProofCircuitInput<StateRoot, Witness, Da::Spec, Tx> =
-            BatchProofCircuitInput {
-                initial_state_root,
-                da_data: da_data.clone(),
-                da_block_header_of_commitments: da_block_header_of_commitments.clone(),
-                inclusion_proof: inclusion_proof.clone(),
-                completeness_proof: completeness_proof.clone(),
-                soft_confirmations,
-                state_transition_witnesses,
-                da_block_headers_of_soft_confirmations,
-                preproven_commitments: preproven_commitments.to_vec(),
-                sequencer_commitments_range: (
-                    *sequencer_commitments_range.start() as u32,
-                    *sequencer_commitments_range.end() as u32,
-                ),
-                sequencer_public_key: sequencer_pub_key.clone(),
-                sequencer_da_public_key: sequencer_da_pub_key.clone(),
-                final_state_root,
-                prev_soft_confirmation_hash: initial_batch_hash,
-            };
+        let input: BatchProofCircuitInput<Witness, Da::Spec, Tx> = BatchProofCircuitInput {
+            initial_state_root,
+            da_data: da_data.clone(),
+            da_block_header_of_commitments: da_block_header_of_commitments.clone(),
+            inclusion_proof: inclusion_proof.clone(),
+            completeness_proof: completeness_proof.clone(),
+            soft_confirmations,
+            state_transition_witnesses,
+            da_block_headers_of_soft_confirmations,
+            preproven_commitments: preproven_commitments.to_vec(),
+            sequencer_commitments_range: (
+                *sequencer_commitments_range.start() as u32,
+                *sequencer_commitments_range.end() as u32,
+            ),
+            sequencer_public_key: sequencer_pub_key.clone(),
+            sequencer_da_public_key: sequencer_da_pub_key.clone(),
+            final_state_root,
+            prev_soft_confirmation_hash: initial_batch_hash,
+        };
 
         batch_proof_circuit_inputs.push(input);
     }
@@ -208,27 +206,20 @@ where
     Ok((sequencer_commitments, batch_proof_circuit_inputs))
 }
 
-pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
+pub(crate) async fn prove_l1<Da, Ps, Vm, DB, Witness, Tx>(
     prover_service: Arc<Ps>,
     ledger: DB,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block: &Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<'_, StateRoot, Witness, Da::Spec, Tx>>,
+    inputs: Vec<BatchProofCircuitInput<'_, Witness, Da::Spec, Tx>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
     Ps: ProverService<DaService = Da>,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
     Tx: Clone + BorshSerialize,
 {
@@ -238,8 +229,7 @@ where
 
     // Add each non-proven proof's data to ProverService
     for input in inputs {
-        if !state_transition_already_proven::<StateRoot, Witness, Da, Tx>(&input, &submitted_proofs)
-        {
+        if !state_transition_already_proven::<Witness, Da, Tx>(&input, &submitted_proofs) {
             let range_end = input.sequencer_commitments_range.1;
 
             let last_seq_com = sequencer_commitments
@@ -281,7 +271,7 @@ where
 
     let txs_and_proofs = prover_service.submit_proofs(proofs).await?;
 
-    extract_and_store_proof::<DB, Da, Vm, StateRoot>(
+    extract_and_store_proof::<DB, Da, Vm>(
         ledger.clone(),
         txs_and_proofs,
         code_commitments_by_spec.clone(),
@@ -297,19 +287,12 @@ where
     Ok(())
 }
 
-pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da, Tx>(
-    input: &BatchProofCircuitInput<StateRoot, Witness, Da::Spec, Tx>,
+pub(crate) fn state_transition_already_proven<Witness, Da, Tx>(
+    input: &BatchProofCircuitInput<Witness, Da::Spec, Tx>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool
 where
     Da: DaService,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
     Tx: Clone,
 {
@@ -323,7 +306,7 @@ where
     false
 }
 
-pub(crate) async fn extract_and_store_proof<DB, Da, Vm, StateRoot>(
+pub(crate) async fn extract_and_store_proof<DB, Da, Vm>(
     ledger_db: DB,
     txs_and_proofs: Vec<(<Da as DaService>::TransactionId, Proof)>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -332,13 +315,6 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps,
     Vm: ZkvmHost + Zkvm,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
 {
     for (tx_id, proof) in txs_and_proofs {
         let tx_id_u8 = tx_id.into();
@@ -346,7 +322,7 @@ where
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
         let (last_active_spec_id, circuit_output) = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec>,
         >(&proof)
         {
             Ok(output) => (
@@ -355,11 +331,9 @@ where
             ),
             Err(e) => {
                 info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output = Vm::extract_output::<
-                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, StateRoot>,
-                >(&proof)
-                .expect("Should be able to extract either pre or post fork 1 output");
-                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec, StateRoot> {
+                let output = Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(&proof)
+                    .expect("Should be able to extract either pre or post fork 1 output");
+                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec> {
                     initial_state_root: output.initial_state_root,
                     final_state_root: output.final_state_root,
                     state_diff: output.state_diff,

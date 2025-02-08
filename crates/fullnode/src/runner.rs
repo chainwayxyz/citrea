@@ -24,6 +24,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::zk::StorageRootHash;
 use sov_stf_runner::InitParams;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
@@ -33,7 +34,6 @@ use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 
-type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
 type StfTransaction<C, Da, RT> =
     <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
 
@@ -50,7 +50,7 @@ where
     stf: StfBlueprint<C, Da::Spec, RT>,
     storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
-    state_root: StateRoot<C, Da::Spec, RT>,
+    state_root: StorageRootHash,
     batch_hash: SoftConfirmationHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
@@ -77,7 +77,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
-        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        init_params: InitParams,
         stf: StfBlueprint<C, Da::Spec, RT>,
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
@@ -280,7 +280,7 @@ where
     }
 
     /// Allows to read current state root
-    pub fn get_state_root(&self) -> &StateRoot<C, Da::Spec, RT> {
+    pub fn get_state_root(&self) -> &StorageRootHash {
         &self.state_root
     }
 }
