@@ -19,29 +19,27 @@ serde = { workspace = true }
 hex = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, optional = true }
-tokio-util = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 tokio-stream = { version = "0.1.14", features = ["full"], optional = true }
 pin-project = { workspace = true, optional = true }
 rusqlite = { version = "0.31.0", features = ["bundled"], optional = true }
 serde_json = { workspace = true, optional = true }
-tracing = { workspace = true, features = ["attributes"]}
+tracing = { workspace = true, optional = true, features = ["attributes"]}
 
 sov-rollup-interface = { path = "../../rollup-interface" }
 
 [dev-dependencies]
-futures = { workspace = true }
 tempfile = { workspace = true }
 
 [features]
-default = ["native"]
+default = []
 native = [
     "dep:rusqlite",
     "dep:serde_json",
     "dep:tokio",
-    "dep:tokio-util",
     "dep:tokio-stream",
     "dep:futures",
     "dep:pin-project",
+    "dep:tracing",
     "sov-rollup-interface/native",
 ]

@@ -15,7 +15,6 @@ description = "An adapter allowing Citrea to use risc0 proving system"
 anyhow = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
-hex = { workspace = true }
 metrics = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
@@ -35,4 +34,3 @@ native = [
   "risc0-zkp",
   "sov-rollup-interface/native",
 ]
-bench = ["native"]

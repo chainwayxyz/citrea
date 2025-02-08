@@ -527,9 +527,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 name = "citrea-light-client-prover"
 version = "0.6.0"
 dependencies = [
- "bincode",
  "borsh",
- "hex",
  "sov-modules-api",
  "sov-rollup-interface",
 ]
@@ -550,7 +548,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
- "hex",
  "risc0-zkvm",
  "serde",
  "sov-rollup-interface",
@@ -1733,7 +1730,6 @@ dependencies = [
  "serde",
  "sha2",
  "sov-rollup-interface",
- "tracing",
 ]
 
 [[package]]

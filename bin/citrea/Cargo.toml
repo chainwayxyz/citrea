@@ -40,7 +40,6 @@ sov-modules-stf-blueprint = { path = "../../crates/sovereign-sdk/module-system/s
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["native"] }
 sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = ["native"] }
-sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
 # 3rd-party deps
 alloy-primitives = { workspace = true }
@@ -109,6 +108,7 @@ sp1-helper = { version = "3.0.0", default-features = false }
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 testing = [
+  "bitcoin-da/testing",
   "citrea-primitives/testing",
   "citrea-risc0-batch-proof/testing",
   "citrea-risc0-light-client/testing",

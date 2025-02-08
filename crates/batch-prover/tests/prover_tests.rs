@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
-use prover_services::{ParallelProverService, ProofGenMode};
+use prover_services::{ParallelProverService, ProofData, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
@@ -10,7 +10,6 @@ use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread")]

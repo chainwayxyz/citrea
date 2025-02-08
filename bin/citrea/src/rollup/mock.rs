@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::FullNodeConfig;
@@ -17,7 +18,6 @@ use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_stf_runner::ProverGuestRunConfig;
 use tokio::sync::broadcast;
 
 use crate::guests::{BATCH_PROOF_LATEST_MOCK_GUESTS, LIGHT_CLIENT_LATEST_MOCK_GUESTS};
@@ -41,7 +41,6 @@ impl RollupBlueprint for MockDemoRollup {
     type NativeContext = DefaultContext;
     type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
-    type ProverService = ParallelProverService<Self::DaService, Self::Vm>;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -134,7 +133,7 @@ impl RollupBlueprint for MockDemoRollup {
         ledger_db: LedgerDB,
         proof_sampling_number: usize,
         is_light_client_prover: bool,
-    ) -> Self::ProverService {
+    ) -> ParallelProverService<Self::DaService, Self::Vm> {
         let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
 
         let proof_mode = match proving_mode {

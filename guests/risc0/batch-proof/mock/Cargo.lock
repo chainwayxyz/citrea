@@ -910,7 +910,6 @@ dependencies = [
  "alloy-sol-types",
  "borsh",
  "citrea-primitives",
- "hex",
  "reth-primitives",
  "reth-primitives-traits",
  "revm",
@@ -938,7 +937,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
- "hex",
  "risc0-zkvm",
  "serde",
  "sov-rollup-interface",
@@ -949,19 +947,14 @@ dependencies = [
 name = "citrea-stf"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "borsh",
  "citrea-evm",
- "citrea-primitives",
- "hex",
  "serde",
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
- "sov-state",
- "sov-stf-runner",
 ]
 
 [[package]]
@@ -3084,7 +3077,6 @@ dependencies = [
  "serde",
  "sha2",
  "sov-rollup-interface",
- "tracing",
 ]
 
 [[package]]
@@ -3180,19 +3172,6 @@ dependencies = [
  "serde",
  "sha2",
  "sov-modules-core",
- "sov-rollup-interface",
-]
-
-[[package]]
-name = "sov-stf-runner"
-version = "0.6.0"
-dependencies = [
- "anyhow",
- "borsh",
- "hex",
- "serde",
- "serde_json",
- "sov-modules-api",
  "sov-rollup-interface",
 ]
 

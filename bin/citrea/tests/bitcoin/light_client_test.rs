@@ -95,7 +95,7 @@ impl TestCase for LightClientProvingTest {
         // Finalize the DA block which contains the commitment tx
         da.generate(FINALITY_DEPTH).await?;
 
-        let commitment_l1_height = da.get_finalized_height().await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for batch prover to generate proof for commitment
         batch_prover
@@ -119,7 +119,7 @@ impl TestCase for LightClientProvingTest {
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
 
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process batch proofs.
         light_client_prover
@@ -135,7 +135,7 @@ impl TestCase for LightClientProvingTest {
             .await?;
         assert!(lcp.is_some());
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
         let batch_proof =
             wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
@@ -234,7 +234,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         // Finalize the DA block which contains the commitment txs
         da.generate(FINALITY_DEPTH).await?;
 
-        let commitment_l1_height = da.get_finalized_height().await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for batch prover to generate proofs for commitments
         batch_prover
@@ -265,7 +265,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
         // Wait for the full node to see all process verify and store all batch proofs
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
@@ -306,7 +306,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         // Generate another da block so we generate another lcp
         da.generate(1).await?;
 
-        let last_finalized_height = da.get_finalized_height().await?;
+        let last_finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process batch proofs.
         light_client_prover
@@ -360,7 +360,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         // Finalize the DA block which contains the commitment txs
         da.generate(FINALITY_DEPTH).await?;
 
-        let commitment_l1_height = da.get_finalized_height().await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for batch prover to generate proofs for commitments
         batch_prover
@@ -390,7 +390,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
         // Wait for the full node to see all process verify and store all batch proofs
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
@@ -556,7 +556,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         // Finalize the DA block which contains the commitment tx
         da.generate(FINALITY_DEPTH).await?;
 
-        let commitment_l1_height = da.get_finalized_height().await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for batch prover to generate proof for commitment
         batch_prover
@@ -580,7 +580,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
 
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process batch proofs.
         light_client_prover
@@ -633,7 +633,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         // Finalize the DA block which contains the method id tx
         da.generate(FINALITY_DEPTH).await?;
 
-        let method_id_l1_height = da.get_finalized_height().await?;
+        let method_id_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process method id update
         light_client_prover
@@ -819,7 +819,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to create light client proof.
         light_client_prover
@@ -915,7 +915,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         // Finalize the DA block which contains the batch proof txs
         da.generate(FINALITY_DEPTH).await?;
 
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process unverifiable batch proof
         light_client_prover
@@ -1028,7 +1028,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to create light client proof.
         light_client_prover
@@ -1078,7 +1078,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // Make sure all of them are in the block
         da.wait_mempool_len(0, Some(TEN_MINS)).await?;
 
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process verifiable batch proof
         light_client_prover
@@ -1163,7 +1163,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // Finalize the DA block which contains the aggregate txs
         da.generate(FINALITY_DEPTH - 1).await?;
 
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process verifiable batch proof
         light_client_prover
@@ -1241,7 +1241,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // Make sure all of them are in the block
         da.wait_mempool_len(0, Some(TEN_MINS)).await?;
 
-        let batch_proof_l1_height = da.get_finalized_height().await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to process verifiable batch proof
         light_client_prover

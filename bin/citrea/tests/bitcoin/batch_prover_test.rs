@@ -89,7 +89,7 @@ impl TestCase for BasicProverTest {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
@@ -230,7 +230,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
         batch_prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await?;
@@ -295,7 +295,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(4, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
@@ -305,7 +305,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for the full node to see all process verify and store all batch proofs
         full_node.wait_for_l1_height(finalized_height, None).await?;
@@ -396,7 +396,7 @@ impl TestCase for LocalProvingTest {
         // Make commitment tx into a finalized block
         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
         // Wait for batch prover to process the proof
         batch_prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(7200)))
@@ -408,7 +408,7 @@ impl TestCase for LocalProvingTest {
         // Make batch proof tx into a finalized block
         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
         let proofs =
             wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
@@ -495,7 +495,7 @@ impl TestCase for ParallelProvingTest {
 
         // Write commitments to a finalized DA block
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait until batch prover processes the commitments
         batch_prover
@@ -507,7 +507,7 @@ impl TestCase for ParallelProvingTest {
 
         // Write 2 batch proofs to a finalized DA block
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         // Retrieve proofs from fullnode
         let proofs = wait_for_zkproofs(full_node, finalized_height, None)
@@ -619,7 +619,7 @@ impl TestCase for ForkElfSwitchingTest {
 
         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)

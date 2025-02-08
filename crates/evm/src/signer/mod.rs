@@ -43,9 +43,4 @@ impl DevSigner {
             signature,
         ))
     }
-
-    /// List of signers.
-    pub fn signers(&self) -> Vec<Address> {
-        self.signers.keys().copied().collect()
-    }
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::{RollupPublicKeys, RunnerConfig};
+use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
 pub use runner::*;
@@ -15,7 +15,6 @@ use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::ProverStorage;
-use sov_stf_runner::InitParams;
 use tokio::sync::{broadcast, Mutex};
 
 pub mod da_block_handler;

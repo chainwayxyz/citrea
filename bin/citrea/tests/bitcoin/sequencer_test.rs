@@ -81,7 +81,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
-        let initial_l1_height = da.get_finalized_height().await?;
+        let initial_l1_height = da.get_finalized_height(None).await?;
 
         // Create initial DA blocks
         da.generate(3).await?;
@@ -131,7 +131,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
             last_used_l1_height = soft_confirmation.da_slot_height;
         }
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
         assert_eq!(last_used_l1_height, finalized_height);
 
         Ok(())
