@@ -4,7 +4,6 @@ This folder incorporates and builds upon code from the open-source project Sover
 
 The following crates from the Sovereign SDK have been forked, modified, and updated by Chainway Labs:
 
-- sov-stf-runner
 - sov-db
 - sov-schema-db
 - sov-modules-api

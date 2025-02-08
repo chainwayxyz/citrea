@@ -2,6 +2,7 @@ use core::fmt::{Display, Formatter};
 use core::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use hex::FromHexError;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::BasicAddress;
 
@@ -14,7 +15,7 @@ pub struct AddressWrapper(pub Vec<u8>);
 impl BasicAddress for AddressWrapper {}
 
 impl FromStr for AddressWrapper {
-    type Err = anyhow::Error;
+    type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(hex::decode(s)?))

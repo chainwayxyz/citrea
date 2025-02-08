@@ -4,13 +4,9 @@ use std::sync::Arc;
 
 use bitcoin::block::{Header, Version};
 use bitcoin::hashes::Hash;
-use bitcoin::{BlockHash, CompactTarget, Transaction, TxMerkleNode, WitnessMerkleNode};
-use bitcoin_da::helpers::parsers::{
-    parse_batch_proof_transaction, parse_hex_transaction, parse_light_client_transaction,
-    ParsedBatchProofTransaction, ParsedLightClientTransaction, VerifyParsed,
-};
+use bitcoin::{BlockHash, CompactTarget, TxMerkleNode, WitnessMerkleNode};
+use bitcoin_da::helpers::parsers::parse_hex_transaction;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
-use bitcoin_da::spec::blob::BlobWithSender;
 use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::transaction::TransactionWrapper;
@@ -21,7 +17,6 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
-use citrea_primitives::compression::decompress_blob;
 use citrea_primitives::{MAX_TXBODY_SIZE, TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
@@ -402,51 +397,6 @@ fn get_workspace_root() -> PathBuf {
         .expect("Failed to find workspace root")
         .to_path_buf()
 }
-
-#[allow(unused)]
-pub enum MockData {
-    ToBatchProver,
-    ToLightClient,
-}
-
-#[allow(unused)]
-pub fn get_blob_with_sender(tx: &Transaction, ty: MockData) -> anyhow::Result<BlobWithSender> {
-    let (blob, public_key, hash) = match ty {
-        MockData::ToBatchProver => {
-            let parsed_tx = parse_batch_proof_transaction(tx)?;
-            match parsed_tx {
-                ParsedBatchProofTransaction::SequencerCommitment(seq_com) => {
-                    let hash = seq_com
-                        .get_sig_verified_hash()
-                        .expect("Invalid sighash on commitment");
-                    (seq_com.body, seq_com.public_key, hash)
-                }
-            }
-        }
-        MockData::ToLightClient => {
-            let parsed_tx = parse_light_client_transaction(tx)?;
-            match parsed_tx {
-                ParsedLightClientTransaction::Complete(complete) => {
-                    let hash = complete
-                        .get_sig_verified_hash()
-                        .expect("Invalid sighash on complete zk proof");
-                    let blob = decompress_blob(&complete.body);
-                    (blob, complete.public_key, hash)
-                }
-                ParsedLightClientTransaction::Aggregate(aggregate) => {
-                    let hash = aggregate
-                        .get_sig_verified_hash()
-                        .expect("Invalid sighash on aggregate zk proof");
-                    (aggregate.body, aggregate.public_key, hash)
-                }
-                _ => unimplemented!(),
-            }
-        }
-    };
-
-    Ok(BlobWithSender::new(blob.clone(), public_key, hash, None))
-}
-
 // For some reason, even though macro is used, it sees it as unused
 #[allow(unused)]
 pub mod macros {

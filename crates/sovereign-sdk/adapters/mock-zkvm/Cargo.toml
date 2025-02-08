@@ -20,4 +20,3 @@ sov-rollup-interface = { path = "../../rollup-interface" }
 
 [features]
 default = []
-native = []

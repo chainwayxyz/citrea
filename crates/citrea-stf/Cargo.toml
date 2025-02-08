@@ -11,12 +11,10 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow = { workspace = true, optional = true }
 borsh = { workspace = true }
-clap = { workspace = true, optional = true }
 # will be needed after we update the storage system
 # tokio = { workspace = true, features = ["sync"], optional = true }
-hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -26,43 +24,25 @@ sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/s
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state", optional = true }
 
 citrea-evm = { path = "../evm" }
-citrea-primitives = { path = "../primitives" }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
-
-[dev-dependencies]
-# citrea-stf = { path = ".", features = ["native"] }
-# tempfile = { workspace = true }
-# rand = { workspace = true }
-# sov-data-generators = { path = "../sovereign-sdk/module-system/utils/sov-data-generators" }
-# sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
-# sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
-#     "test-utils",
-# ] }
-citrea-primitives = { path = "../primitives", features = ["testing"] }
 
 [features]
 default = []
 native = [
-  "sov-stf-runner/native",
   "sov-accounts/native",
   "sov-modules-api/native",
   "sov-rollup-interface/native",
   "sov-modules-stf-blueprint/native",
   "soft-confirmation-rule-enforcer/native",
+  "sov-state",
   "citrea-evm/native",
-  "clap",
-  "serde",
-  "serde_json",
-  "jsonrpsee",
-  "tracing",
-  # "tokio",
-]
-serde = [
+  "dep:jsonrpsee",
+  "dep:tracing",
+  "dep:anyhow",
+  "dep:serde_json",
   "sov-accounts/serde",
-  "citrea-evm/serde",
-  "soft-confirmation-rule-enforcer/serde",
+  "soft-confirmation-rule-enforcer/native",
 ]

@@ -6,6 +6,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
+use prover_services::{ParallelProverService, ProofData};
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
@@ -18,7 +19,6 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::{ProofData, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
@@ -32,15 +32,14 @@ pub enum StartVariant {
     FromBlock(u64),
 }
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB>
+pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
-    Vm: ZkvmHost + Zkvm,
+    Vm: ZkvmHost + Zkvm + 'static,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
-    Ps: ProverService,
 {
     _prover_config: LightClientProverConfig,
-    prover_service: Arc<Ps>,
+    prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger_db: DB,
     da_service: Arc<Da>,
     batch_prover_da_pub_key: Vec<u8>,
@@ -52,17 +51,16 @@ where
     mmr_native: MMRNative<MmrDB>,
 }
 
-impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
+impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<DaService = Da>,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: LightClientProverConfig,
-        prover_service: Arc<Ps>,
+        prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
         da_service: Arc<Da>,
         batch_prover_da_pub_key: Vec<u8>,

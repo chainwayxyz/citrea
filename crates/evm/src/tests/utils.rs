@@ -14,7 +14,6 @@ use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{ProverStorage, Storage};
-use sov_stf_runner::read_json_file;
 
 use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use crate::tests::test_signer::TestSigner;
@@ -124,8 +123,7 @@ pub(crate) fn commit(
 pub(crate) fn config_push_contracts(config: &mut EvmConfig, path: Option<&str>) {
     let mut genesis_config: EvmConfig = read_json_file(Path::new(
         path.unwrap_or("../../resources/test-data/integration-tests/evm.json"),
-    ))
-    .expect("Failed to read genesis configuration");
+    ));
     config.data.append(&mut genesis_config.data);
 }
 
@@ -327,4 +325,13 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
 
 pub(crate) fn get_fork_fn_only_fork1() -> impl Fn(u64) -> Fork {
     |_: u64| Fork::new(SovSpecId::Kumquat, 0)
+}
+
+/// Read genesis file
+pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(path: P) -> T {
+    let data = std::fs::read_to_string(&path).unwrap();
+
+    let config: T = serde_json::from_str(&data).unwrap();
+
+    config
 }

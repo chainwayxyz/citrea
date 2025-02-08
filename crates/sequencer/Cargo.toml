@@ -14,17 +14,13 @@ resolver = "2"
 [dependencies]
 # 3rd-party deps
 alloy-rlp = { workspace = true }
-alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
-bincode = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
 digest = { workspace = true }
-futures = { workspace = true }
 hex = { workspace = true }
-hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 metrics = { workspace = true }
 metrics-derive = { workspace = true }
@@ -32,12 +28,8 @@ once_cell = { workspace = true }
 parking_lot = { workspace = true }
 rs_merkle = { workspace = true }
 schnellru = "0.2.1"
-serde = { workspace = true }
-serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-tower = { workspace = true }
-tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
@@ -59,10 +51,8 @@ reth-rpc-types-compat = { workspace = true }
 reth-tasks = { workspace = true }
 reth-transaction-pool = { workspace = true }
 reth-trie = { workspace = true }
-revm = { workspace = true }
 
 # Sovereign SDK deps
-soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer", features = ["native"] }
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
@@ -70,7 +60,6 @@ sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["native"] }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 # Citrea Deps
 citrea-common = { path = "../common" }
@@ -78,10 +67,5 @@ citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 
-[dev-dependencies]
-tempfile = { workspace = true }
-tokio = { workspace = true }
-
 [features]
 default = []
-local = []

@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use bitcoin::{Amount, Transaction};
 use bitcoin_da::rpc::DaRpcClient;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoin_da::REVEAL_OUTPUT_AMOUNT;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::{BitcoinNode, FINALITY_DEPTH};
+use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::Sequencer;
@@ -484,7 +485,7 @@ impl TestCase for TestProverTransactionChaining {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
@@ -527,7 +528,7 @@ impl TestCase for TestProverTransactionChaining {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
@@ -572,7 +573,7 @@ impl TestCase for TestProverTransactionChaining {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)

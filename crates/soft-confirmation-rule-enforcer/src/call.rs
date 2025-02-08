@@ -7,12 +7,16 @@ use sov_modules_api::{
 
 use crate::SoftConfirmationRuleEnforcer;
 
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[derive(
+    Debug,
+    Clone,
+    BorshDeserialize,
+    BorshSerialize,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
 )]
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, Eq, PartialEq)]
 pub enum CallMessage<C: Context> {
     /// Change the authority of soft confirmation rule enforcing.
     ChangeAuthority {
