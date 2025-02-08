@@ -558,17 +558,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
-name = "async-trait"
-version = "0.1.83"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.87",
-]
-
-[[package]]
 name = "aurora-engine-modexp"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -722,7 +711,6 @@ name = "bitcoin-da"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "bitcoin",
  "borsh",
  "citrea-primitives",
@@ -3374,15 +3362,12 @@ name = "sov-rollup-interface"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "borsh",
  "bytes",
  "digest 0.10.7",
- "hex",
  "jmt",
  "serde",
  "sha2",
- "thiserror",
 ]
 
 [[package]]

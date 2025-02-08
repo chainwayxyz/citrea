@@ -1795,15 +1795,12 @@ name = "sov-rollup-interface"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "borsh",
  "bytes",
  "digest",
- "hex",
  "jmt",
  "serde",
  "sha2",
- "thiserror",
 ]
 
 [[package]]
