@@ -889,8 +889,9 @@ where
     ) -> anyhow::Result<()> {
         debug!("We have {} missed DA blocks", missed_da_blocks_count);
         let exponential_backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_millis(50))
-            .with_max_elapsed_time(Some(Duration::from_secs(1)))
+            .with_initial_interval(Duration::from_millis(200))
+            .with_max_elapsed_time(Some(Duration::from_secs(30)))
+            .with_multiplier(1.5)
             .build();
         for i in 1..=missed_da_blocks_count {
             let needed_da_block_height = last_used_l1_height + i;
