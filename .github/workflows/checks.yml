@@ -74,38 +74,6 @@ concurrency:
   cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/devnet-freeze') && (github.ref != 'refs/heads/main') }}
 
 jobs:
-  build:
-    name: build
-    runs-on: ubicloud-standard-30
-    timeout-minutes: 60
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Toolchain
-        uses: dtolnay/rust-toolchain@nightly
-      - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build citrea
-        run: make build-release
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: citrea-build
-          path: |
-            target/release/citrea
-            target/release/**/methods.rs
-          retention-days: 1
-
   build-test:
     name: build-tests
     runs-on: ubicloud-standard-30
@@ -285,7 +253,7 @@ jobs:
 
   uniswap:
     runs-on: ubicloud-standard-16
-    needs: build
+    needs: build-test
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -295,18 +263,18 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-build
-          path: target/release
+          name: citrea-test-build
+          path: target/debug
       - name: Make citrea executable
-        run: chmod +x target/release/citrea
+        run: chmod +x target/debug/citrea
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/mock/evm/uniswap
         run: npm install
       - name: Run uniswap tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
           cd ./bin/citrea/tests/mock/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
@@ -327,7 +295,7 @@ jobs:
 
   web3_py:
     runs-on: ubicloud-standard-16
-    needs: build
+    needs: build-test
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -338,25 +306,25 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-build
-          path: target/release
+          name: citrea-test-build
+          path: target/debug
       - name: Make citrea executable
-        run: chmod +x target/release/citrea
+        run: chmod +x target/debug/citrea
       - name: Install dependencies
         working-directory: ./bin/citrea/tests/mock/evm/web3_py
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
           cd ./bin/citrea/tests/mock/evm/web3_py
           python test.py
 
   ethers_js:
     runs-on: ubicloud-standard-16
-    needs: build
+    needs: build-test
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -366,18 +334,18 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-build
-          path: target/release
+          name: citrea-test-build
+          path: target/debug
       - name: Make citrea executable
-        run: chmod +x target/release/citrea
+        run: chmod +x target/debug/citrea
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/mock/evm/ethers_js
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
           cd ./bin/citrea/tests/mock/evm/ethers_js
           npm install

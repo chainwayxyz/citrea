@@ -290,11 +290,10 @@ fn build_witness(
         .expect("Cannot create hash for signature");
 
     // sign reveal tx data
-    let signature = secp256k1.sign_schnorr_with_rng(
+    let signature = secp256k1.sign_schnorr(
         &Message::from_digest_slice(signature_hash.as_byte_array())
             .expect("should be cryptographically secure hash"),
         key_pair,
-        &mut rand::thread_rng(),
     );
 
     // add signature to witness and finalize reveal tx
@@ -326,11 +325,10 @@ fn update_witness(
         .expect("Cannot create hash for signature");
 
     // sign reveal tx data
-    let signature = secp256k1.sign_schnorr_with_rng(
+    let signature = secp256k1.sign_schnorr(
         &Message::from_digest_slice(signature_hash.as_byte_array())
             .expect("should be cryptographically secure hash"),
         key_pair,
-        &mut rand::thread_rng(),
     );
 
     // add signature to witness and finalize reveal tx

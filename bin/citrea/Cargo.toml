@@ -19,13 +19,13 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-pruning = { path = "../../crates/pruning" }
 citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
 citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
 citrea-risc0-light-client = { path = "../../guests/risc0/light-client-proof" }
 citrea-sequencer = { path = "../../crates/sequencer" }
 # citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
+citrea-storage-ops = { path = "../../crates/storage-ops" }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 prover-services = { path = "../../crates/prover-services" }
 

@@ -61,7 +61,8 @@ test-ci:
 coverage-ci:
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
-test: build-test test-ci ## Runs test suite using next test
+test: build-test ## Runs test suite using next test
+	$(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: build-test coverage-ci ## Coverage in lcov format
 

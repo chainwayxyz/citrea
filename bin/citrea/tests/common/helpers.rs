@@ -14,8 +14,8 @@ use citrea_common::{
 };
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
-use citrea_pruning::PruningConfig;
 use citrea_stf::genesis_config::GenesisPaths;
+use citrea_storage_ops::pruning::PruningConfig;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
