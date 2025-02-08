@@ -66,3 +66,4 @@ native = [
   "dep:jsonrpsee",
   "dep:secp256k1",
 ]
+testing = []

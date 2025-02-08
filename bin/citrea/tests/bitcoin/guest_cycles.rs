@@ -89,7 +89,8 @@ impl TestCase for GenerateProofInput {
         da.wait_mempool_len(4, None).await?;
         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height().await.unwrap();
+        // passing in finality depth as this test should be run without testing feature
+        let finalized_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await.unwrap();
 
         println!("Waiting batch prover l1 height: {finalized_height}");
         batch_prover

@@ -109,6 +109,7 @@ sp1-helper = { version = "3.0.0", default-features = false }
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 testing = [
+  "bitcoin-da/testing",
   "citrea-primitives/testing",
   "citrea-risc0-batch-proof/testing",
   "citrea-risc0-light-client/testing",
