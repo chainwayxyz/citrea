@@ -47,10 +47,7 @@ pub(crate) fn get_evm_with_storage(
     let mut genesis_state_root = [0u8; 32];
     genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
-    evm.finalize_hook(
-        &genesis_state_root.into(),
-        &mut working_set.accessory_state(),
-    );
+    evm.finalize_hook(&genesis_state_root, &mut working_set.accessory_state());
     (evm, working_set, prover_storage)
 }
 
@@ -71,7 +68,7 @@ pub(crate) fn get_evm_with_spec(
     let root = commit(working_set, storage.clone());
 
     let mut working_set = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&root, &mut working_set.accessory_state());
 
     let hook_info = HookSoftConfirmationInfo {
         l2_height: 1,
@@ -92,7 +89,7 @@ pub(crate) fn get_evm_with_spec(
 
     let root = commit(working_set, storage.clone());
     let mut working_set: WorkingSet<<C as Spec>::Storage> = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&root, &mut working_set.accessory_state());
 
     // let mut genesis_state_root = [0u8; 32];
     // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -120,7 +117,7 @@ pub(crate) fn commit(
 
     storage.commit(&authenticated_node_batch, &accessory_log, &offchain_log);
 
-    state_root_transition.final_root.0
+    state_root_transition.final_root
 }
 
 /// Loads the genesis configuration from the given path and pushes the accounts to the evm config

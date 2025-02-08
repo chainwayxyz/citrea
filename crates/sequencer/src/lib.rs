@@ -34,7 +34,7 @@ mod utils;
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<C, Da, DB, RT>(
     sequencer_config: SequencerConfig,
-    init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    init_params: InitParams,
     native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,

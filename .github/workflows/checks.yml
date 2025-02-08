@@ -74,8 +74,8 @@ concurrency:
   cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/devnet-freeze') && (github.ref != 'refs/heads/main') }}
 
 jobs:
-  build:
-    name: build
+  build-test:
+    name: build-tests
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
@@ -95,16 +95,20 @@ jobs:
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Cache ethereum-tests
+        uses: actions/cache@v4
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
       - name: Build citrea
-        run: make build-release
-
+        run: make build-test
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: citrea-build
+          name: citrea-test-build
           path: |
-            target/release/citrea
-            target/release/**/methods.rs
+            target/debug/citrea
+            target/debug/**/methods.rs
           retention-days: 1
 
   check:
@@ -185,7 +189,9 @@ jobs:
           command: check
 
   coverage:
-    needs: docker-setup
+    needs:
+      - docker-setup
+      - build-test
     runs-on: ubicloud-standard-16
     if: github.event.pull_request.draft == false
     steps:
@@ -195,7 +201,6 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
-
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -210,18 +215,22 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
-
       - name: Load Docker image
         run: docker load < /tmp/docker/bitcoin.tar
-
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-test-build
+          path: target/debug
+      - name: Make citrea executable
+        run: chmod +x target/debug/citrea
       - name: Run coverage
-        run: make coverage
+        run: make coverage-ci
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
@@ -229,14 +238,12 @@ jobs:
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
-
       - name: Upload e2e test dir
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-dir-coverage
           path: ${{ runner.temp }}/coverage
-
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -246,7 +253,7 @@ jobs:
 
   uniswap:
     runs-on: ubicloud-standard-16
-    needs: build
+    needs: build-test
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -256,20 +263,20 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-build
-          path: target/release
+          name: citrea-test-build
+          path: target/debug
       - name: Make citrea executable
-        run: chmod +x target/release/citrea
+        run: chmod +x target/debug/citrea
       - name: Install node dependencies
-        working-directory: ./bin/citrea/tests/evm/uniswap
+        working-directory: ./bin/citrea/tests/mock/evm/uniswap
         run: npm install
       - name: Run uniswap tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          cd ./bin/citrea/tests/evm/uniswap
+          cd ./bin/citrea/tests/mock/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
           seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
@@ -288,7 +295,7 @@ jobs:
 
   web3_py:
     runs-on: ubicloud-standard-16
-    needs: build
+    needs: build-test
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -299,25 +306,25 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-build
-          path: target/release
+          name: citrea-test-build
+          path: target/debug
       - name: Make citrea executable
-        run: chmod +x target/release/citrea
+        run: chmod +x target/debug/citrea
       - name: Install dependencies
-        working-directory: ./bin/citrea/tests/evm/web3_py
+        working-directory: ./bin/citrea/tests/mock/evm/web3_py
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          cd ./bin/citrea/tests/evm/web3_py
+          cd ./bin/citrea/tests/mock/evm/web3_py
           python test.py
 
   ethers_js:
     runs-on: ubicloud-standard-16
-    needs: build
+    needs: build-test
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -327,51 +334,28 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-build
-          path: target/release
+          name: citrea-test-build
+          path: target/debug
       - name: Make citrea executable
-        run: chmod +x target/release/citrea
+        run: chmod +x target/debug/citrea
       - name: Install node dependencies
-        working-directory: ./bin/citrea/tests/evm/ethers_js
+        working-directory: ./bin/citrea/tests/mock/evm/ethers_js
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
-          cd ./bin/citrea/tests/evm/ethers_js
+          cd ./bin/citrea/tests/mock/evm/ethers_js
           npm install
           npx mocha test.js
           cd ../../../../..
 
-  check_no_std:
-    runs-on: ubicloud-standard-4
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust Bare Metal
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.81.0
-          target: thumbv6m-none-eabi
-          override: true
-      - name: Install Rust WASM
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.81.0
-          target: wasm32-unknown-unknown
-          override: true
-      - name: cargo install cargo-hack
-        uses: taiki-e/install-action@cargo-hack
-      - uses: ubicloud/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - name: Run check
-        run: make check-no-std
-
   nextest:
-    needs: docker-setup
+    needs:
+      - docker-setup
+      - build-test
     name: nextest
     runs-on: ubicloud-standard-16
     timeout-minutes: 60
@@ -402,18 +386,22 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
-
       - name: Load Docker image
         run: docker load < /tmp/docker/bitcoin.tar
-
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-test-build
+          path: target/debug
+      - name: Make citrea executable
+        run: chmod +x target/debug/citrea
       - name: Run nextest
-        run: make test
+        run: make test-ci
         env:
           RUST_BACKTRACE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
@@ -421,7 +409,6 @@ jobs:
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test
-
       - name: Upload e2e test dir
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4

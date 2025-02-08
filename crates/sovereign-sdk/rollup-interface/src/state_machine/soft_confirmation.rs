@@ -1,11 +1,7 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! soft confirmation
 
-extern crate alloc;
-
-use alloc::borrow::Cow;
-use alloc::vec::Vec;
-use core::fmt::Debug;
+use std::borrow::Cow;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::{Digest, Output};

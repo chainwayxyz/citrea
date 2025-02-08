@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use jmt::KeyHash;
 use sov_modules_core::{
@@ -7,6 +6,7 @@ use sov_modules_core::{
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_rollup_interface::RefCount;
 
 use crate::DefaultHasher;
 
@@ -72,14 +72,7 @@ where
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
-    ) -> Result<
-        (
-            StateRootTransition<StorageRootHash>,
-            Self::StateUpdate,
-            StateDiff,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided jmt proof
@@ -106,9 +99,9 @@ where
             .map(|(key, value)| {
                 let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-                let key_bytes = Arc::try_unwrap(key.key).unwrap_or_else(|arc| (*arc).clone());
-                let value_bytes =
-                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
+                let key_bytes = RefCount::try_unwrap(key.key).unwrap_or_else(|arc| (*arc).clone());
+                let value_bytes = value
+                    .map(|v| RefCount::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
 
                 diff.push((key_bytes, value_bytes.clone()));
 
@@ -128,8 +121,8 @@ where
 
         Ok((
             StateRootTransition {
-                init_root: jmt::RootHash(prev_state_root),
-                final_root: jmt::RootHash(new_root),
+                init_root: prev_state_root,
+                final_root: new_root,
             },
             (),
             diff,
@@ -151,7 +144,11 @@ where
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
 
-        proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
+        proof.verify(
+            jmt::RootHash(state_root),
+            key_hash,
+            value.as_ref().map(|v| v.value()),
+        )?;
         Ok((key, value))
     }
 

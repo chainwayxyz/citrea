@@ -1786,12 +1786,12 @@ dependencies = [
  "citrea-fullnode",
  "citrea-light-client-prover",
  "citrea-primitives",
- "citrea-pruning",
  "citrea-risc0-adapter",
  "citrea-risc0-batch-proof",
  "citrea-risc0-light-client",
  "citrea-sequencer",
  "citrea-stf",
+ "citrea-storage-ops",
  "clap",
  "ethereum-rpc",
  "futures",
@@ -1882,6 +1882,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-cli"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "citrea-storage-ops",
+ "clap",
+ "sov-db",
+ "sov-prover-storage-manager",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.19",
+]
+
+[[package]]
 name = "citrea-common"
 version = "0.6.0"
 dependencies = [
@@ -1890,7 +1904,7 @@ dependencies = [
  "backoff",
  "borsh",
  "citrea-primitives",
- "citrea-pruning",
+ "citrea-storage-ops",
  "futures",
  "hex",
  "hyper",
@@ -2007,7 +2021,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
- "citrea-pruning",
+ "citrea-storage-ops",
  "futures",
  "hex",
  "jsonrpsee",
@@ -2073,25 +2087,6 @@ dependencies = [
  "alloy-eips",
  "brotli",
  "sov-rollup-interface",
-]
-
-[[package]]
-name = "citrea-pruning"
-version = "0.6.0"
-dependencies = [
- "anyhow",
- "citrea-evm",
- "citrea-primitives",
- "futures",
- "serde",
- "sov-db",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-schema-db",
- "tempfile",
- "tokio",
- "tokio-util",
- "tracing",
 ]
 
 [[package]]
@@ -2211,6 +2206,22 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
+ "tracing",
+]
+
+[[package]]
+name = "citrea-storage-ops"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "serde",
+ "sov-db",
+ "sov-prover-storage-manager",
+ "sov-schema-db",
+ "tempfile",
+ "tokio",
+ "tokio-util",
  "tracing",
 ]
 

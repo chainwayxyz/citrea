@@ -5,8 +5,6 @@ mod migration;
 #[cfg(test)]
 mod tests;
 
-use alloc::vec::Vec;
-
 pub use manager::*;
 pub use migration::*;
 

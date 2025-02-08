@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   # Citrea
   "bin/citrea",
+  "bin/cli",
   "crates/batch-prover",
   "crates/bitcoin-da",
   "crates/citrea-stf",
@@ -13,7 +14,7 @@ members = [
   "crates/light-client-prover",
   "crates/primitives",
   "crates/prover-services",
-  "crates/pruning",
+  "crates/storage-ops",
   "crates/risc0",
   "crates/sequencer",
   "crates/soft-confirmation-rule-enforcer",

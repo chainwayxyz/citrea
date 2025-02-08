@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -41,19 +40,12 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld>
+pub struct L1BlockHandler<Vm, Da, Ps, DB, Witness, Tx, TxOld>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: BatchProverLedgerOps,
     Ps: ProverService,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: BatchProverConfig,
@@ -67,26 +59,17 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
-    _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
     _tx_old: PhantomData<TxOld>,
 }
 
-impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld>
-    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld>
+impl<Vm, Da, Ps, DB, Witness, Tx, TxOld> L1BlockHandler<Vm, Da, Ps, DB, Witness, Tx, TxOld>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     Ps: ProverService<DaService = Da>,
     DB: BatchProverLedgerOps + Clone + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
     Tx: From<TxOld> + Clone + BorshDeserialize + BorshSerialize,
     TxOld: Clone + BorshDeserialize + BorshSerialize,
@@ -116,7 +99,6 @@ where
             skip_submission_until_l1,
             l1_block_cache,
             pending_l1_blocks: VecDeque::new(),
-            _state_root: PhantomData,
             _witness: PhantomData,
             _tx: PhantomData,
             _tx_old: PhantomData,
@@ -201,7 +183,7 @@ where
                 continue;
             }
 
-            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld>(
+            let data_to_prove = data_to_prove::<Da, DB, Witness, Tx, TxOld>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
                 self.sequencer_pub_key.clone(),
@@ -279,7 +261,7 @@ where
             };
 
             if should_prove {
-                prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
+                prove_l1::<Da, Ps, Vm, DB, Witness, Tx>(
                     self.prover_service.clone(),
                     self.ledger_db.clone(),
                     self.code_commitments_by_spec.clone(),
@@ -311,7 +293,7 @@ where
         let prover_service = self.prover_service.as_ref();
         let txs_and_proofs = prover_service.recover_and_submit_proving_sessions().await?;
 
-        extract_and_store_proof::<DB, Da, Vm, StateRoot>(
+        extract_and_store_proof::<DB, Da, Vm>(
             self.ledger_db.clone(),
             txs_and_proofs,
             self.code_commitments_by_spec.clone(),

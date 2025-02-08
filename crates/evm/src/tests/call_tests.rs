@@ -101,7 +101,7 @@ fn call_multiple_test() {
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let account_info = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
 
@@ -263,7 +263,7 @@ fn call_test() {
         evm.call(call_message, &context, &mut working_set).unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
@@ -571,7 +571,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -631,7 +631,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -695,7 +695,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -747,7 +747,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts = evm
         .receipts_rlp
@@ -841,7 +841,7 @@ fn test_block_hash_in_evm() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -862,7 +862,7 @@ fn test_block_hash_in_evm() {
         };
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;
     }
@@ -1079,7 +1079,7 @@ fn test_block_gas_limit() {
         assert!(result.is_ok());
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
         .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
@@ -1226,7 +1226,7 @@ fn test_l1_fee_success() {
             .unwrap();
         }
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         let db_account = evm
             .accounts
@@ -1481,7 +1481,7 @@ fn test_l1_fee_not_enough_funds() {
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
         .accounts
@@ -1555,7 +1555,7 @@ fn test_l1_fee_halt() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     assert_eq!(evm.receipts_rlp
         .iter(&mut working_set.accessory_state())
@@ -1731,7 +1731,7 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
         .accounts
@@ -1804,7 +1804,7 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[98u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[98u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
         .accounts
@@ -1887,7 +1887,7 @@ fn test_call_with_block_overrides() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
     l2_height += 1;
 
     // Create empty EVM blocks
@@ -1907,7 +1907,7 @@ fn test_call_with_block_overrides() {
         };
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;
     }

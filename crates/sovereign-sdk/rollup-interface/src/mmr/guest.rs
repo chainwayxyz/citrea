@@ -1,5 +1,3 @@
-use alloc::vec::Vec;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
