@@ -264,7 +264,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: citrea-test-build
-          path: target/release
+          path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
       - name: Install node dependencies
