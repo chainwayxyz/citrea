@@ -72,9 +72,9 @@ impl HeaderWrapper {
     }
 
     pub fn block_hash(&self) -> BlockHash {
-        let mut enc = vec![];
+        let mut enc = [0; BitcoinHeader::SIZE];
         self.header
-            .consensus_encode(&mut enc)
+            .consensus_encode(&mut enc.as_mut_slice())
             .expect("engines don't error");
         BlockHash::from_raw_hash(Hash::from_byte_array(calculate_double_sha256(&enc)))
     }
