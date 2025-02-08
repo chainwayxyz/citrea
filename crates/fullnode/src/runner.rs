@@ -297,10 +297,11 @@ async fn sync_l2(
         let exponential_backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_secs(1))
             .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+            .with_multiplier(1.5)
             .build();
 
         let inner_client = &sequencer_client;
-        let soft_confirmations = match retry_backoff(exponential_backoff.clone(), || async move {
+        let soft_confirmations = match retry_backoff(exponential_backoff, || async move {
             match inner_client
                 .get_soft_confirmation_range(
                     U64::from(l2_height),

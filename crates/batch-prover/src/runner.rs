@@ -308,7 +308,7 @@ async fn sync_l2(
         let exponential_backoff = ExponentialBackoffBuilder::<backoff::SystemClock>::new()
             .with_initial_interval(Duration::from_secs(1))
             .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-            .with_multiplier(1.0)
+            .with_multiplier(1.5)
             .build();
 
         let inner_client = &sequencer_client;
