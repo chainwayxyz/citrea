@@ -20,7 +20,7 @@ tokio-util = { workspace = true, optional = true }
 
 alloy-primitives = { workspace = true, optional = true }
 anyhow = { workspace = true }
-async-trait = { workspace = true }
+async-trait = { workspace = true, optional = true }
 backoff = { workspace = true, optional = true }
 borsh = { workspace = true }
 crypto-bigint = { workspace = true }
@@ -52,6 +52,7 @@ citrea-e2e = { workspace = true }
 default = []
 native = [
   "dep:alloy-primitives",
+  "dep:async-trait",
   "dep:backoff",
   "dep:tokio",
   "dep:tokio-util",

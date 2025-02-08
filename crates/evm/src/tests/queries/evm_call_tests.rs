@@ -112,7 +112,7 @@ fn test_state_change() {
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
     assert_eq!(balance_1, balance_2);

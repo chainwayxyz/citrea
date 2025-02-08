@@ -1,12 +1,11 @@
-use alloc::collections::VecDeque;
-use alloc::vec::Vec;
+use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmation;
+use crate::zk::StorageRootHash;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 /// Second part of the Kumquat elf input
@@ -19,13 +18,12 @@ pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone>(
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
-#[serde(bound = "StateRoot: Serialize + DeserializeOwned")]
 /// First part of the Kumquat elf input
-pub struct BatchProofCircuitInputV2Part1<StateRoot, Da: DaSpec> {
+pub struct BatchProofCircuitInputV2Part1<Da: DaSpec> {
     /// The state root before the state transition
-    pub initial_state_root: StateRoot,
+    pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
-    pub final_state_root: StateRoot,
+    pub final_state_root: StorageRootHash,
     /// The hash before the state transition
     pub prev_soft_confirmation_hash: [u8; 32],
     /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.

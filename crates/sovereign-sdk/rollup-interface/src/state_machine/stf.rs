@@ -4,18 +4,13 @@
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
 
-extern crate alloc;
-
-use alloc::collections::VecDeque;
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::fmt::Debug;
+use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use super::zk::ZkvmGuest;
+use super::zk::{StorageRootHash, ZkvmGuest};
 use crate::da::DaSpec;
 use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
@@ -48,9 +43,9 @@ mod sealed {
 }
 
 /// The output of the function that applies sequencer commitments to the state in the verifier
-pub struct ApplySequencerCommitmentsOutput<StateRoot> {
+pub struct ApplySequencerCommitmentsOutput {
     /// Final state root after all sequencer commitments were applied
-    pub final_state_root: StateRoot,
+    pub final_state_root: StorageRootHash,
     /// State diff generated after applying
     pub state_diff: CumulativeStateDiff,
     /// Last processed L2 block height
@@ -92,11 +87,11 @@ pub struct SoftConfirmationReceipt<DS: DaSpec> {
 pub type StateDiff = Vec<(Vec<u8>, Option<Vec<u8>>)>;
 
 /// Helper struct which contains initial and final state roots.
-pub struct StateRootTransition<Root> {
+pub struct StateRootTransition {
     /// Initial state root
-    pub init_root: Root,
+    pub init_root: StorageRootHash,
     /// Final state root
-    pub final_root: Root,
+    pub final_root: StorageRootHash,
 }
 
 /// Result of applying a soft confirmation to current state
@@ -106,9 +101,9 @@ pub struct StateRootTransition<Root> {
 /// - T - generic for transaction receipt contents
 /// - W - generic for witness
 /// - Da - generic for DA layer
-pub struct SoftConfirmationResult<S, Cs, W> {
+pub struct SoftConfirmationResult<Cs, W> {
     /// Contains state root before and after applying txs
-    pub state_root_transition: StateRootTransition<S>,
+    pub state_root_transition: StateRootTransition,
     /// Container for all state alterations that happened during soft confirmation execution
     pub change_set: Cs,
     /// Witness after applying the whole block
@@ -140,17 +135,6 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         + BorshSerialize
         + Send
         + Sync
-        + 'static;
-    /// Root hash of state merkle tree
-    type StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug
-        + Sync
-        + Send
         + 'static;
 
     /// The initial params of the rollup.
@@ -186,7 +170,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         &self,
         genesis_state: Self::PreState,
         params: Self::GenesisParams,
-    ) -> (Self::StateRoot, Self::ChangeSet);
+    ) -> (StorageRootHash, Self::ChangeSet);
 
     /// Called at each **Soft confirmation block**
     /// If slot is started in Full Node mode, default witness should be provided.
@@ -205,16 +189,13 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         &mut self,
         current_spec: SpecId,
         sequencer_public_key: &[u8],
-        pre_state_root: &Self::StateRoot,
+        pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-    ) -> Result<
-        SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>,
-        StateTransitionError,
-    >;
+    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness>, StateTransitionError>;
 
     /// Runs a vector of Soft Confirmations
     /// Used for proving the L2 block state transitions
@@ -226,14 +207,14 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        initial_state_root: &Self::StateRoot,
+        initial_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         preproven_commitment_indicies: Vec<usize>,
         forks: &[Fork],
-    ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
+    ) -> ApplySequencerCommitmentsOutput;
 }
 
 #[derive(Debug, PartialEq)]

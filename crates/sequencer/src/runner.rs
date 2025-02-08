@@ -37,6 +37,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::ProverStorage;
 use sov_stf_runner::InitParams;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
@@ -54,7 +55,6 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
 
-type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
 type StfTransaction<C, Da, RT> =
     <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
 
@@ -80,7 +80,7 @@ where
     stf: StfBlueprint<C, Da::Spec, RT>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: ProverStorageManager<Da::Spec>,
-    state_root: StateRoot<C, Da::Spec, RT>,
+    state_root: StorageRootHash,
     soft_confirmation_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
@@ -104,7 +104,7 @@ where
     pub fn new(
         da_service: Arc<Da>,
         config: SequencerConfig,
-        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        init_params: InitParams,
         stf: StfBlueprint<C, Da::Spec, RT>,
         storage_manager: ProverStorageManager<Da::Spec>,
         public_keys: RollupPublicKeys,

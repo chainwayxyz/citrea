@@ -5,7 +5,6 @@ pub mod soft_confirmation;
 pub mod stf;
 pub mod zk;
 
-#[cfg(feature = "std")]
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::de::DeserializeOwned;
 use serde::Serialize;

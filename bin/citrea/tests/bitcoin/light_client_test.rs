@@ -1328,7 +1328,7 @@ fn create_serialized_fake_receipt_batch_proof(
         32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214,
         80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
     ];
-    let batch_proof_output = BatchProofCircuitOutputV2::<BitcoinSpec, [u8; 32]> {
+    let batch_proof_output = BatchProofCircuitOutputV2::<BitcoinSpec> {
         initial_state_root,
         final_state_root,
         last_l2_height,

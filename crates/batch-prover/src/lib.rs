@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -31,10 +30,10 @@ pub mod rpc;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx>(
+pub async fn build_services<C, Da, DB, RT, Vm, Ps, Witness, Tx>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
-    init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    init_params: InitParams,
     native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
@@ -48,7 +47,7 @@ pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx>(
     rpc_module: RpcModule<()>,
 ) -> Result<(
     CitreaBatchProver<C, Da, DB, RT>,
-    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>,
+    L1BlockHandler<Vm, Da, Ps, DB, Witness, Tx>,
     RpcModule<()>,
 )>
 where
@@ -58,13 +57,6 @@ where
     RT: Runtime<C, Da::Spec>,
     Vm: ZkvmHost + Zkvm + 'static,
     Ps: ProverService<DaService = Da> + Send + Sync + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
     Tx: Clone + BorshSerialize + BorshDeserialize,
 {

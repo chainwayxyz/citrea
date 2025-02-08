@@ -390,18 +390,16 @@ where
         light_client_l2_height: u64,
     ) -> anyhow::Result<bool> {
         let batch_proof_last_l2_height = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec, [u8; 32]>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec>,
         >(proof)
         {
             Ok(output) => output.last_l2_height,
             Err(e) => {
                 warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                if Vm::extract_output::<
-                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, [u8; 32]>,
-                >(proof)
-                .is_err()
-                {
-                    return Err(anyhow::anyhow!("Failed to extract both pre-fork1 and fork1 output from proof"));
+                if Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(proof).is_err() {
+                    return Err(anyhow::anyhow!(
+                        "Failed to extract both pre-fork1 and fork1 output from proof"
+                    ));
                 }
                 0
             }

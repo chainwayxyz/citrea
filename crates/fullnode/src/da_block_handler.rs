@@ -1,10 +1,8 @@
 use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
@@ -12,8 +10,6 @@ use citrea_common::utils::check_l2_range_exists;
 use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{
     SlotNumber, SoftConfirmationNumber, StoredBatchProofOutput, StoredSoftConfirmation,
@@ -34,19 +30,12 @@ use tracing::{error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
 
-pub struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
+pub struct L1BlockHandler<C, Vm, Da, DB>
 where
     C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
 {
     ledger_db: DB,
     da_service: Arc<Da>,
@@ -57,22 +46,14 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     _context: PhantomData<C>,
-    _state_root: PhantomData<StateRoot>,
 }
 
-impl<C, Vm, Da, StateRoot, DB> L1BlockHandler<C, Vm, Da, StateRoot, DB>
+impl<C, Vm, Da, DB> L1BlockHandler<C, Vm, Da, DB>
 where
     C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps + Clone,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -94,7 +75,6 @@ where
             l1_block_cache,
             pending_l1_blocks: VecDeque::new(),
             _context: PhantomData,
-            _state_root: PhantomData,
         }
     }
 
@@ -304,7 +284,7 @@ where
         tracing::trace!("ZK proof: {:?}", proof);
 
         let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec>,
         >(&proof)
         {
             Ok(output) => (
@@ -313,11 +293,9 @@ where
             ),
             Err(e) => {
                 info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output = Vm::extract_output::<
-                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, StateRoot>,
-                >(&proof)
-                .expect("Should be able to extract either pre or post fork 1 output");
-                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec, StateRoot> {
+                let output = Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(&proof)
+                    .expect("Should be able to extract either pre or post fork 1 output");
+                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec> {
                     initial_state_root: output.initial_state_root,
                     final_state_root: output.final_state_root,
                     state_diff: output.state_diff,
@@ -410,7 +388,7 @@ where
 
         let prior_soft_confirmation_post_state_root = self
             .ledger_db
-            .get_l2_state_root::<StateRoot>(l2_height - 1)?
+            .get_l2_state_root(l2_height - 1)?
             .ok_or_else(|| {
                 anyhow!(
                 "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
@@ -423,8 +401,8 @@ where
         {
             return Err(anyhow!(
                     "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(&prior_soft_confirmation_post_state_root),
-                    hex::encode(&batch_proof_output.initial_state_root)
+                    hex::encode(prior_soft_confirmation_post_state_root),
+                    hex::encode(batch_proof_output.initial_state_root)
                 ).into());
         }
 

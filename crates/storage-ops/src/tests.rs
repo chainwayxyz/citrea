@@ -23,6 +23,7 @@ async fn test_pruner_simple_run() {
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
     let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config).unwrap();
     let state_db = StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config).unwrap();
+
     let pruner = Pruner::new(
         PruningConfig { distance: 5 },
         ledger_db,

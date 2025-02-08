@@ -105,10 +105,6 @@ lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code s
 check-features: ## Checks that project compiles with all combinations of features.
 	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets
 
-check-no-std: ## Checks that project compiles without std
-	$(MAKE) -C crates/sovereign-sdk/rollup-interface $@
-	$(MAKE) -C crates/sovereign-sdk/module-system/sov-modules-core $@
-
 find-unused-deps: ## Prints unused dependencies for project. Note: requires nightly
 	cargo +nightly udeps --all-targets --all-features
 
