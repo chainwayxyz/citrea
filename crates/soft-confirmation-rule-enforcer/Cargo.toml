@@ -33,4 +33,3 @@ tempfile = { workspace = true }
 [features]
 default = []
 native = ["sov-modules-api/native", "dep:tracing", "jsonrpsee"]
-serde = []

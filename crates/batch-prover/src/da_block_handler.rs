@@ -8,10 +8,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{get_da_block_at_height, sync_l1};
 use citrea_common::utils::merge_state_diffs;
-use citrea_common::BatchProverConfig;
+use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
+use prover_services::ParallelProverService;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -23,7 +24,6 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
@@ -40,16 +40,15 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB, Witness, Tx>
+pub struct L1BlockHandler<Vm, Da, DB, Witness, Tx>
 where
     Da: DaService,
-    Vm: ZkvmHost + Zkvm,
+    Vm: ZkvmHost + Zkvm + 'static,
     DB: BatchProverLedgerOps,
-    Ps: ProverService,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: BatchProverConfig,
-    prover_service: Arc<Ps>,
+    prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger_db: DB,
     da_service: Arc<Da>,
     sequencer_pub_key: Vec<u8>,
@@ -63,11 +62,10 @@ where
     _tx: PhantomData<Tx>,
 }
 
-impl<Vm, Da, Ps, DB, Witness, Tx> L1BlockHandler<Vm, Da, Ps, DB, Witness, Tx>
+impl<Vm, Da, DB, Witness, Tx> L1BlockHandler<Vm, Da, DB, Witness, Tx>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<DaService = Da>,
     DB: BatchProverLedgerOps + Clone + 'static,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
     Tx: Clone + BorshDeserialize + BorshSerialize,
@@ -75,7 +73,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: BatchProverConfig,
-        prover_service: Arc<Ps>,
+        prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
         da_service: Arc<Da>,
         sequencer_pub_key: Vec<u8>,
@@ -258,7 +256,7 @@ where
             };
 
             if should_prove {
-                prove_l1::<Da, Ps, Vm, DB, Witness, Tx>(
+                prove_l1::<Da, Vm, DB, Witness, Tx>(
                     self.prover_service.clone(),
                     self.ledger_db.clone(),
                     self.code_commitments_by_spec.clone(),

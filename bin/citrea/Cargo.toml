@@ -40,7 +40,6 @@ sov-modules-stf-blueprint = { path = "../../crates/sovereign-sdk/module-system/s
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["native"] }
 sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = ["native"] }
-sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
 # 3rd-party deps
 alloy-primitives = { workspace = true }

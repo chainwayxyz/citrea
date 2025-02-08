@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use citrea_batch_prover::da_block_handler::L1BlockHandler as BatchProverL1BlockHandler;
 use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
+use citrea_common::{
+    BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, SequencerConfig,
+};
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::CitreaFullnode;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
@@ -29,7 +31,6 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::storage::NativeStorage;
 use sov_state::{ArrayWitness, ProverStorage};
-use sov_stf_runner::InitParams;
 use tokio::sync::broadcast;
 use tracing::{debug, info, instrument};
 
@@ -257,7 +258,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         BatchProverL1BlockHandler<
             Self::Vm,
             Self::DaService,
-            Self::ProverService,
             LedgerDB,
             ArrayWitness,
             Transaction<<Self as RollupBlueprint>::NativeContext>,
@@ -330,7 +330,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
     ) -> Result<(
         CitreaLightClientProver,
-        LightClientProverL1BlockHandler<Self::Vm, Self::DaService, Self::ProverService, LedgerDB>,
+        LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
     )>
     where

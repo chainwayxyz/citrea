@@ -12,45 +12,39 @@ repository.workspace = true
 # Citrea Deps
 citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives", optional = true }
+prover-services = { path = "../prover-services", optional = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
-sov-ledger-rpc = { path = "../sovereign-sdk/full-node/sov-ledger-rpc", features = ["client"], optional = true }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", optional = true }
 
 # 3rd-party deps
-alloy-primitives = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
-bincode = { workspace = true }
 borsh = { workspace = true }
-hex = { workspace = true }
+hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, optional = true, features = ["http-client", "server", "client"] }
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = true, optional = true }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
-tower = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 rand = { workspace = true }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
-tempfile = { workspace = true }
 
 [features]
 default = []
 native = [
-  "dep:alloy-primitives",
+  "dep:prover-services",
   "dep:citrea-primitives",
   "dep:citrea-common",
   "dep:sov-db",
-  "dep:sov-stf-runner",
-  "dep:sov-ledger-rpc",
+  "dep:hex",
   "dep:anyhow",
   "dep:async-trait",
   "dep:jsonrpsee",
@@ -59,6 +53,5 @@ native = [
   "dep:once_cell",
   "dep:tokio",
   "dep:tokio-util",
-  "dep:tower",
   "dep:tracing",
 ]
