@@ -14,7 +14,7 @@ use crate::runtime::Runtime;
 
 impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
     type Context = C;
-    type PreArg = RuntimeTxHook<C>;
+    type PreArg = RuntimeTxHook;
     type PreResult = C;
 
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err))]
@@ -22,13 +22,12 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         &self,
         tx: &Transaction<Self::Context>,
         working_set: &mut WorkingSet<C::Storage>,
-        arg: &RuntimeTxHook<C>,
+        arg: &RuntimeTxHook,
     ) -> Result<C, SoftConfirmationHookError> {
         let RuntimeTxHook {
             height,
             current_spec,
             l1_fee_rate,
-            ..
         } = arg;
         let AccountsTxHook { sender } =
             self.accounts.pre_dispatch_tx_hook(tx, working_set, &None)?;

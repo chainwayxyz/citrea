@@ -9,12 +9,12 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 
-use crate::evm::init_test_rollup;
-use crate::test_client::TestClient;
-use crate::test_helpers::{
+use super::init_test_rollup;
+use crate::common::client::TestClient;
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::TEST_DATA_GENESIS_PATH;
+use crate::common::TEST_DATA_GENESIS_PATH;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {

@@ -32,11 +32,9 @@ mod stf_blueprint;
 pub use stf_blueprint::StfBlueprint;
 
 /// The tx hook for a blueprint runtime
-pub struct RuntimeTxHook<C: Context> {
+pub struct RuntimeTxHook {
     /// Height to initialize the context
     pub height: u64,
-    /// Sequencer public key
-    pub sequencer: C::PublicKey,
     /// Current spec
     pub current_spec: SpecId,
     /// L1 fee rate
@@ -50,7 +48,7 @@ pub struct RuntimeTxHook<C: Context> {
 pub trait Runtime<C: Context, Da: DaSpec>:
     DispatchCall<Context = C>
     + Genesis<Context = C, Config = Self::GenesisConfig>
-    + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
+    + TxHooks<Context = C, PreArg = RuntimeTxHook, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
     + ApplySoftConfirmationHooks<

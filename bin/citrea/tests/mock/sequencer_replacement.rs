@@ -17,13 +17,13 @@ use sov_db::schema::tables::SEQUENCER_LEDGER_TABLES;
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;
 
-use crate::e2e::{execute_blocks, TestConfig};
-use crate::evm::{init_test_rollup, make_test_client};
-use crate::test_helpers::{
+use super::evm::init_test_rollup;
+use super::{execute_blocks, TestConfig};
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
     wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
-use crate::TEST_DATA_GENESIS_PATH;
+use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
 /// Run the sequencer and the full node.
 /// After publishing some blocks, the sequencer crashes.

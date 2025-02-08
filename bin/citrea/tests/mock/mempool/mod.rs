@@ -9,12 +9,11 @@ use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use tokio::task::JoinHandle;
 
-use crate::evm::make_test_client;
-use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
-use crate::test_helpers::{
+use crate::common::client::{TestClient, MAX_FEE_PER_GAS};
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::TEST_DATA_GENESIS_PATH;
+use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
 async fn initialize_test(
     sequencer_path: PathBuf,
