@@ -105,8 +105,7 @@ impl TestCase for GenerateProofInput {
 #[ignore]
 async fn generate_proof_input() -> Result<()> {
     // Specify the path to your transactions file here
-    let transactions_file_path =
-        PathBuf::from("tests/bitcoin/test-data/signed-transactions.txt");
+    let transactions_file_path = PathBuf::from("tests/bitcoin/test-data/signed-transactions.txt");
 
     TestCaseRunner::new(GenerateProofInput {
         transactions_file_path,
@@ -119,8 +118,7 @@ async fn generate_proof_input() -> Result<()> {
 #[tokio::test]
 #[ignore]
 async fn guest_cycles() {
-    let input =
-        fs::read("tests/bitcoin/test-data/kumquat-input.bin").unwrap();
+    let input = fs::read("tests/bitcoin/test-data/kumquat-input.bin").unwrap();
     println!("Input size: {}", input.len());
 
     // Convert tmpdir to path so it's not deleted after the run for debugging purposes
@@ -150,6 +148,7 @@ async fn guest_cycles() {
     env::set_var("RISC0_DEV_MODE", "1");
     env::set_var("RISC0_INFO", "1");
     env::set_var("RUST_LOG", "info");
+    env::set_var("RISC0_PPROF_OUT", "profile.pb");
     let prover = default_prover();
 
     let ProveInfo { stats, .. } = prover
