@@ -9,8 +9,8 @@ use futures::FutureExt;
 use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
 
-use crate::e2e::{initialize_test, TestConfig};
-use crate::test_helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_block};
+use super::{initialize_test, TestConfig};
+use crate::common::helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_block};
 
 /// Trigger pruning native DB data.
 #[tokio::test(flavor = "multi_thread")]

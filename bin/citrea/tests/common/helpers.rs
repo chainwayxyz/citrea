@@ -35,8 +35,8 @@ use tokio::sync::oneshot;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, warn, Instrument};
 
-use crate::test_client::TestClient;
-use crate::DEFAULT_PROOF_WAIT_DURATION;
+use crate::common::client::TestClient;
+use crate::common::DEFAULT_PROOF_WAIT_DURATION;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {

@@ -13,12 +13,12 @@ use sov_mock_da::{MockAddress, MockDaService};
 use tokio::runtime::Runtime;
 use tokio::time::sleep;
 
-use crate::evm::{init_test_rollup, make_test_client};
-use crate::test_helpers::{
+use super::init_test_rollup;
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, wait_for_prover_l1_height, NodeMode,
 };
-use crate::TEST_DATA_GENESIS_PATH;
+use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_full_node() -> Result<(), anyhow::Error> {

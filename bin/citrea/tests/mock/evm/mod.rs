@@ -3,8 +3,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
-use alloy::signers::local::PrivateKeySigner;
-use alloy::signers::Signer;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
 use alloy_rpc_types::EIP1186AccountProofResponse;
@@ -18,12 +16,13 @@ use sov_state::KeyHash;
 use tokio::time::sleep;
 
 // use sov_demo_rollup::initialize_logging;
-use crate::test_client::TestClient;
-use crate::test_helpers::{
+use crate::common::client::TestClient;
+use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::{
-    TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+use crate::common::{
+    make_test_client, TEST_DATA_GENESIS_PATH,
+    TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
 };
 
 mod archival_state;
@@ -781,19 +780,4 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
     assert_eq!(latest_block, earliest_block);
     assert_eq!(latest_block.header.number, 0);
     test_client
-}
-
-#[allow(clippy::borrowed_box)]
-pub async fn make_test_client(rpc_address: SocketAddr) -> anyhow::Result<Box<TestClient>> {
-    let chain_id: u64 = 5655;
-    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        .parse::<PrivateKeySigner>()
-        .unwrap()
-        .with_chain_id(Some(chain_id));
-
-    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
-
-    Ok(Box::new(
-        TestClient::new(chain_id, key, from_addr, rpc_address).await?,
-    ))
 }
