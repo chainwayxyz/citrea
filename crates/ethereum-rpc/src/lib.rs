@@ -29,7 +29,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
@@ -250,6 +250,7 @@ where
             .map_err(to_eth_rpc_error)
     }
 
+    // Implemented for Genesis and Fork1 only. Not for Fork2 yet.
     fn eth_get_proof(
         &self,
         address: Address,
@@ -276,6 +277,12 @@ where
 
         let citrea_spec = fork_from_block_number(block_id_internal).spec_id;
 
+        if citrea_spec >= CitreaSpecId::Fork2 {
+            return Err(EthApiError::EvmCustom(
+                "Method not implemented yet for >= Fork2".into(),
+            ))?;
+        }
+
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 
         let version = block_id_internal
@@ -294,9 +301,9 @@ where
         let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
 
         let account_key = StorageKey::new(
-            evm.accounts_postfork2.prefix(),
+            evm.accounts_prefork2.prefix(),
             &address,
-            evm.accounts_postfork2.codec().key_codec(),
+            evm.accounts_prefork2.codec().key_codec(),
         );
 
         let account_proof = working_set.get_with_proof(account_key, version);
