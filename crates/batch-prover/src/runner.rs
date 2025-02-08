@@ -139,8 +139,8 @@ where
                     // However, when an L2 block fails to process for whatever reason, we want to block this process
                     // and make sure that we start processing L2 blocks in queue.
                     if pending_l2_blocks.is_empty() {
-                        for (index, (l2_height, l2_block)) in l2_blocks.iter().enumerate() {
-                            if let Err(e) = self.process_l2_block(*l2_height, l2_block).await {
+                        for (index, l2_block) in l2_blocks.iter().enumerate() {
+                            if let Err(e) = self.process_l2_block(l2_block).await {
                                 error!("Could not process L2 block: {}", e);
                                 // This block failed to process, add remaining L2 blocks to queue including this one.
                                 let remaining_l2s = l2_blocks[index..].to_vec();
@@ -157,8 +157,8 @@ where
                     if pending_l2_blocks.is_empty() {
                         continue;
                     }
-                    while let Some((l2_height, l2_block)) = pending_l2_blocks.front() {
-                        match self.process_l2_block(*l2_height, l2_block).await {
+                    while let Some(l2_block) = pending_l2_blocks.front() {
+                        match self.process_l2_block(l2_block).await {
                             Ok(_) => {
                                 pending_l2_blocks.pop_front();
                             },
@@ -181,10 +181,11 @@ where
 
     async fn process_l2_block(
         &mut self,
-        l2_height: u64,
         soft_confirmation: &SoftConfirmationResponse,
     ) -> anyhow::Result<()> {
         let start = Instant::now();
+
+        let l2_height = soft_confirmation.l2_height;
 
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
@@ -298,7 +299,7 @@ where
 async fn sync_l2(
     start_l2_height: u64,
     sequencer_client: HttpClient,
-    sender: mpsc::Sender<Vec<(u64, SoftConfirmationResponse)>>,
+    sender: mpsc::Sender<Vec<SoftConfirmationResponse>>,
     sync_blocks_count: u64,
 ) {
     let mut l2_height = start_l2_height;
@@ -359,11 +360,6 @@ async fn sync_l2(
             sleep(Duration::from_secs(1)).await;
             continue;
         }
-
-        let soft_confirmations: Vec<(u64, SoftConfirmationResponse)> = (l2_height
-            ..l2_height + soft_confirmations.len() as u64)
-            .zip(soft_confirmations)
-            .collect();
 
         l2_height += soft_confirmations.len() as u64;
 
