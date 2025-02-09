@@ -52,7 +52,7 @@ where
     storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
     state_root: StorageRootHash,
-    batch_hash: SoftConfirmationHash,
+    soft_confirmation_hash: SoftConfirmationHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
@@ -96,7 +96,7 @@ where
             storage_manager,
             ledger_db,
             state_root: init_params.state_root,
-            batch_hash: init_params.batch_hash,
+            soft_confirmation_hash: init_params.batch_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
@@ -200,7 +200,7 @@ where
             current_l1_block.header().height()
         );
 
-        if self.batch_hash != soft_confirmation.prev_hash {
+        if self.soft_confirmation_hash != soft_confirmation.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
@@ -272,7 +272,7 @@ where
         let _ = self.soft_confirmation_tx.send(l2_height);
 
         self.state_root = next_state_root;
-        self.batch_hash = soft_confirmation.hash;
+        self.soft_confirmation_hash = soft_confirmation.hash;
 
         info!(
             "New State Root after soft confirmation #{} is: {:?}",

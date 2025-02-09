@@ -493,7 +493,7 @@ where
 
         // Then verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
-        let mut previous_batch_hash: Option<[u8; 32]> = None;
+        let mut prev_soft_confirmation_hash: Option<[u8; 32]> = None;
         let mut last_commitment_end_height: Option<u64> = None;
 
         let group_count: u32 = guest.read_from_host();
@@ -535,7 +535,7 @@ where
                         <C::Storage as Storage>::Witness,
                     )>();
 
-                if let Some(hash) = previous_batch_hash {
+                if let Some(hash) = prev_soft_confirmation_hash {
                     assert_eq!(
                         soft_confirmation.prev_hash(),
                         hash,
@@ -625,7 +625,7 @@ where
 
                 l2_height += 1;
 
-                previous_batch_hash = Some(soft_confirmation.hash());
+                prev_soft_confirmation_hash = Some(soft_confirmation.hash());
 
                 soft_confirmation_hashes.push(soft_confirmation.hash());
             }
@@ -659,7 +659,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
-            final_soft_confirmation_hash: previous_batch_hash.unwrap(),
+            final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
         }
     }
 }
