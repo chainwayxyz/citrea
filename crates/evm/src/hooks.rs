@@ -63,12 +63,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
             parent_block.into()
         };
 
-        let sealed_parent_block = parent_block.clone().seal();
+        let parent_block_number = parent_block.header.number;
+        let parent_block_base_fee_per_gas =
+            parent_block.header.base_fee_per_gas.unwrap_or_default();
+        let parent_block_gas_used = parent_block.header.gas_used;
+        let parent_block_gas_limit = parent_block.header.gas_limit;
+
+        let sealed_parent_block = parent_block.seal();
         let last_block_hash = sealed_parent_block.header.hash();
 
         // since we know the previous state root only here, we can set the last block hash
         self.latest_block_hashes.set(
-            &U256::from(parent_block.header.number),
+            &U256::from(parent_block_number),
             &last_block_hash,
             working_set,
         );
@@ -107,9 +113,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
         let basefee = calculate_next_block_base_fee(
-            parent_block.header.gas_used,
-            parent_block.header.gas_limit,
-            parent_block.header.base_fee_per_gas.unwrap_or_default(),
+            parent_block_gas_used,
+            parent_block_gas_limit,
+            parent_block_base_fee_per_gas,
             cfg.base_fee_params,
         );
 
@@ -122,7 +128,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let new_pending_env = BlockEnv {
-            number: U256::from(parent_block.header.number + 1),
+            number: U256::from(parent_block_number + 1),
             coinbase: cfg.coinbase,
             timestamp: U256::from(soft_confirmation_info.timestamp),
             prevrandao: Some(soft_confirmation_info.da_slot_hash.into()),
