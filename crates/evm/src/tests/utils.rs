@@ -74,7 +74,7 @@ pub(crate) fn get_evm_with_spec(
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [2u8; 32],
-        pre_state_root: root.to_vec(),
+        pre_state_root: root,
         current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],

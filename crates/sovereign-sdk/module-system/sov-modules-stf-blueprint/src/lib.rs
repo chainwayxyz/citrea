@@ -174,7 +174,7 @@ where
     pub fn end_soft_confirmation(
         &mut self,
         current_spec: SpecId,
-        pre_state_root: Vec<u8>,
+        pre_state_root: StorageRootHash,
         sequencer_public_key: &[u8],
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
@@ -370,11 +370,8 @@ where
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness>, StateTransitionError> {
-        let soft_confirmation_info = HookSoftConfirmationInfo::new(
-            soft_confirmation,
-            pre_state_root.as_ref().to_vec(),
-            current_spec,
-        );
+        let soft_confirmation_info =
+            HookSoftConfirmationInfo::new(soft_confirmation, *pre_state_root, current_spec);
 
         let checkpoint =
             StateCheckpoint::with_witness(pre_state.clone(), state_witness, offchain_witness);
@@ -398,7 +395,7 @@ where
 
         self.end_soft_confirmation(
             current_spec,
-            pre_state_root.as_ref().to_vec(),
+            *pre_state_root,
             sequencer_public_key,
             soft_confirmation,
             &mut working_set,

@@ -882,7 +882,7 @@ fn test_queries_with_forks() {
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],

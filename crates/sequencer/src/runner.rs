@@ -339,7 +339,7 @@ where
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
-            pre_state_root: self.state_root.clone().as_ref().to_vec(),
+            pre_state_root: self.state_root,
             deposit_data: deposit_data.clone(),
             current_spec: active_fork_spec,
             pub_key: pub_key.clone(),
@@ -436,7 +436,7 @@ where
 
                 self.stf.end_soft_confirmation(
                     active_fork_spec,
-                    self.state_root.as_ref().to_vec(),
+                    self.state_root,
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
                     &mut working_set,
