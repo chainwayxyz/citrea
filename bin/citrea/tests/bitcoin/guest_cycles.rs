@@ -121,21 +121,28 @@ async fn guest_cycles() {
     let input = fs::read("tests/bitcoin/test-data/kumquat-input.bin").unwrap();
     println!("Input size: {}", input.len());
 
-    // Convert tmpdir to path so it's not deleted after the run for debugging purposes
-    let tmpdir = tempfile::tempdir().unwrap().into_path();
+    let elf_path = match env::var("ELF_PATH") {
+        Ok(elf_path) => elf_path.into(),
+        Err(_) => {
+            // Convert tmpdir to path so it's not deleted after the run for debugging purposes
+            let tmpdir = tempfile::tempdir().unwrap().into_path();
 
-    let mut elf_path = tmpdir.clone();
-    elf_path.push("batch_proof_bitcoin");
+            let mut elf_path = tmpdir.clone();
+            elf_path.push("batch_proof_bitcoin");
 
-    // Build guest elf with nightly network
-    let status = Command::new("make")
-        .arg("batch-proof-bitcoin-docker")
-        .current_dir("../../guests/risc0")
-        .env("CITREA_NETWORK", "nightly")
-        .env("OUT_PATH", &elf_path)
-        .status()
-        .expect("'make batch-proof-bitcoin-docker' command failed");
-    assert!(status.success());
+            // Build guest elf with nightly network
+            let status = Command::new("make")
+                .arg("batch-proof-bitcoin-docker")
+                .current_dir("../../guests/risc0")
+                .env("CITREA_NETWORK", "nightly")
+                .env("OUT_PATH", &elf_path)
+                .status()
+                .expect("'make batch-proof-bitcoin-docker' command failed");
+            assert!(status.success());
+
+            elf_path
+        }
+    };
 
     println!("\nELF path: {:?}", elf_path);
     let elf = fs::read(elf_path).unwrap();
