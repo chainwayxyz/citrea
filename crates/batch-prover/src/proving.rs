@@ -169,13 +169,16 @@ where
             })?
             .expect("There should be a state root");
 
-        let initial_batch_hash = ledger
+        let initial_soft_confirmation_hash = ledger
             .get_soft_confirmation_by_number(&SoftConfirmationNumber(first_l2_height_of_l1))
             .map_err(|e| {
-                L1ProcessingError::Other(format!("Error getting initial batch hash: {:?}", e))
+                L1ProcessingError::Other(format!(
+                    "Error getting initial soft confirmation hash: {:?}",
+                    e
+                ))
             })?
             .ok_or(L1ProcessingError::Other(format!(
-                "Could not find soft batch at height {}",
+                "Could not find soft confirmation at height {}",
                 first_l2_height_of_l1
             )))?
             .prev_hash;
@@ -197,7 +200,7 @@ where
             sequencer_public_key: sequencer_pub_key.clone(),
             sequencer_da_public_key: sequencer_da_pub_key.clone(),
             final_state_root,
-            prev_soft_confirmation_hash: initial_batch_hash,
+            prev_soft_confirmation_hash: initial_soft_confirmation_hash,
         };
 
         batch_proof_circuit_inputs.push(input);

@@ -84,7 +84,7 @@ fn test_state_change() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
