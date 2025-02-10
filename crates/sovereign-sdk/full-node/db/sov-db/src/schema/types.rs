@@ -17,37 +17,6 @@ use sov_rollup_interface::zk::light_client_proof::output::{
 };
 use sov_rollup_interface::zk::Proof;
 
-/// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
-/// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
-/// than most bytes abstractions, but is vulnerable to out-of-memory attacks
-/// when read from an untrusted source.
-///
-/// # Warning
-/// Do not use this type when deserializing data from an untrusted source!!
-#[derive(
-    Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Default, BorshDeserialize, BorshSerialize,
-)]
-pub struct DbBytes(Arc<Vec<u8>>);
-
-impl DbBytes {
-    /// Create `DbBytes` from a `Vec<u8>`
-    pub fn new(contents: Vec<u8>) -> Self {
-        Self(Arc::new(contents))
-    }
-}
-
-impl From<Vec<u8>> for DbBytes {
-    fn from(value: Vec<u8>) -> Self {
-        Self(Arc::new(value))
-    }
-}
-
-impl AsRef<[u8]> for DbBytes {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
 /// Latest da state to verify and apply da block changes
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 pub struct StoredLatestDaState {
