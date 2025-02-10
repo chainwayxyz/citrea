@@ -11,9 +11,9 @@ use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
-use sov_db::schema::types::{
-    SlotNumber, SoftConfirmationNumber, StoredBatchProofOutput, StoredSoftConfirmation,
-};
+use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
+use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::{Context, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;

@@ -18,10 +18,12 @@ use sov_rollup_interface::stf::StateDiff;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
+use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
+use super::types::light_client_proof::StoredLightClientProof;
+use super::types::soft_confirmation::StoredSoftConfirmation;
 use super::types::{
     AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2HeightRange, SlotNumber,
-    SoftConfirmationNumber, StateKey, StoredBatchProof, StoredLightClientProof,
-    StoredSoftConfirmation, StoredVerifiedProof,
+    SoftConfirmationNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning

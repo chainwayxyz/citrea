@@ -21,11 +21,14 @@ use crate::schema::tables::{
     SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
     LEDGER_TABLES,
 };
-use crate::schema::types::{
-    L2HeightRange, SlotNumber, SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput,
-    StoredLightClientProof, StoredLightClientProofOutput, StoredSoftConfirmation,
-    StoredTransaction, StoredVerifiedProof,
+use crate::schema::types::batch_proof::{
+    StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
+use crate::schema::types::light_client_proof::{
+    StoredLightClientProof, StoredLightClientProofOutput,
+};
+use crate::schema::types::soft_confirmation::{StoredSoftConfirmation, StoredTransaction};
+use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
 
 /// Implementation of database migrator
 pub mod migrations;
