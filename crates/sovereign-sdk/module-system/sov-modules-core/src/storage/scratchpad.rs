@@ -71,6 +71,8 @@ impl<S: Storage> NewDelta<S> {
     fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
         let ordered_reads = mem::take(&mut self.ordered_storage_reads);
         let ordered_writes = mem::take(&mut self.cache_log).take_writes();
+        println!("ordered reads: {}", ordered_reads.len());
+        println!("ordered writes: {}", ordered_writes.len());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
             ordered_reads,
