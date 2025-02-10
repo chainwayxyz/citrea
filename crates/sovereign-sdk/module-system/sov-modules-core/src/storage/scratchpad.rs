@@ -253,55 +253,6 @@ pub trait StateReaderAndWriter {
     }
 }
 
-/// A working set accumulates reads and writes on top of the underlying DB,
-/// automating witness creation.
-pub struct Delta<S: Storage> {
-    inner: S,
-    witness: S::Witness,
-    cache: StorageInternalCache,
-}
-
-impl<S: Storage> Delta<S> {
-    fn new(inner: S, version: Option<u64>) -> Self {
-        Self::with_witness(inner, Default::default(), version)
-    }
-
-    fn with_witness(inner: S, witness: S::Witness, version: Option<u64>) -> Self {
-        Self {
-            inner,
-            witness,
-            cache: StorageInternalCache::new(version, CacheMode::State),
-        }
-    }
-
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
-        let cache = mem::take(&mut self.cache);
-        let witness = mem::take(&mut self.witness);
-
-        (cache.into(), witness)
-    }
-}
-
-impl<S: Storage> fmt::Debug for Delta<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Delta").finish()
-    }
-}
-
-impl<S: Storage> StateReaderAndWriter for Delta<S> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        self.cache.get_or_fetch(key, &self.inner, &mut self.witness)
-    }
-
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.cache.set(key, value)
-    }
-
-    fn delete(&mut self, key: &StorageKey) {
-        self.cache.delete(key)
-    }
-}
-
 #[derive(Default)]
 struct RevertableWrites {
     pub cache: BTreeMap<CacheKey, Option<CacheValue>>,
