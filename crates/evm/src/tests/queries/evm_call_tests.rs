@@ -84,7 +84,7 @@ fn test_state_change() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -112,7 +112,7 @@ fn test_state_change() {
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
     assert_eq!(balance_1, balance_2);

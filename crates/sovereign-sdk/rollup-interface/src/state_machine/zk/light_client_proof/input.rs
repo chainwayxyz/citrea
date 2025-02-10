@@ -1,5 +1,4 @@
-use alloc::collections::VecDeque;
-use alloc::vec::Vec;
+use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 

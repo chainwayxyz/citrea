@@ -69,7 +69,7 @@ fn call_multiple_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -101,7 +101,7 @@ fn call_multiple_test() {
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let account_info = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
 
@@ -236,7 +236,7 @@ fn call_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -263,7 +263,7 @@ fn call_test() {
         evm.call(call_message, &context, &mut working_set).unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
@@ -393,7 +393,7 @@ fn failed_transaction_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -539,7 +539,7 @@ fn self_destruct_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Genesis,
         pub_key: vec![],
         deposit_data: vec![],
@@ -571,7 +571,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -603,7 +603,7 @@ fn self_destruct_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 2,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [99u8; 32].to_vec(),
+        pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Genesis,
         pub_key: vec![],
         deposit_data: vec![],
@@ -631,7 +631,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -695,7 +695,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -719,7 +719,7 @@ fn self_destruct_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -747,7 +747,7 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts = evm
         .receipts_rlp
@@ -816,7 +816,7 @@ fn test_block_hash_in_evm() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -841,7 +841,7 @@ fn test_block_hash_in_evm() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
@@ -853,7 +853,7 @@ fn test_block_hash_in_evm() {
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [99u8; 32].to_vec(),
+            pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -862,7 +862,7 @@ fn test_block_hash_in_evm() {
         };
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;
     }
@@ -973,7 +973,7 @@ fn test_block_gas_limit() {
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1038,7 +1038,7 @@ fn test_block_gas_limit() {
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1079,7 +1079,7 @@ fn test_block_gas_limit() {
         assert!(result.is_ok());
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
         .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
@@ -1194,7 +1194,7 @@ fn test_l1_fee_success() {
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
+            pre_state_root: [10u8; 32],
             current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -1226,7 +1226,7 @@ fn test_l1_fee_success() {
             .unwrap();
         }
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         let db_account = evm
             .accounts
@@ -1378,7 +1378,7 @@ fn test_l1_fee_not_enough_funds() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1481,7 +1481,7 @@ fn test_l1_fee_not_enough_funds() {
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
         .accounts
@@ -1511,7 +1511,7 @@ fn test_l1_fee_halt() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1555,7 +1555,7 @@ fn test_l1_fee_halt() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     assert_eq!(evm.receipts_rlp
         .iter(&mut working_set.accessory_state())
@@ -1700,7 +1700,7 @@ fn test_l1_fee_compression_discount() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Genesis,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1731,7 +1731,7 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
         .accounts
@@ -1772,7 +1772,7 @@ fn test_l1_fee_compression_discount() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [99u8; 32].to_vec(),
+        pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Kumquat, // Compression discount is enabled
         pub_key: vec![],
         deposit_data: vec![],
@@ -1804,7 +1804,7 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[98u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[98u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
         .accounts
@@ -1861,7 +1861,7 @@ fn test_call_with_block_overrides() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1887,7 +1887,7 @@ fn test_call_with_block_overrides() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
     l2_height += 1;
 
     // Create empty EVM blocks
@@ -1898,7 +1898,7 @@ fn test_call_with_block_overrides() {
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [99u8; 32].to_vec(),
+            pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -1907,7 +1907,7 @@ fn test_call_with_block_overrides() {
         };
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;
     }
@@ -1992,7 +1992,7 @@ fn test_blob_tx() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat, // wont be Kumquat at height 2 currently but we can trick the spec id
         pub_key: vec![],
         deposit_data: vec![],

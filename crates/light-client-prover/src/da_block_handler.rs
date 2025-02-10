@@ -7,6 +7,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
+use prover_services::{ParallelProverService, ProofData};
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
@@ -19,7 +20,6 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::{ProofData, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
@@ -33,15 +33,14 @@ pub enum StartVariant {
     FromBlock(u64),
 }
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB>
+pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
-    Vm: ZkvmHost + Zkvm,
+    Vm: ZkvmHost + Zkvm + 'static,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
-    Ps: ProverService,
 {
     _prover_config: LightClientProverConfig,
-    prover_service: Arc<Ps>,
+    prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger_db: DB,
     da_service: Arc<Da>,
     batch_prover_da_pub_key: Vec<u8>,
@@ -54,17 +53,16 @@ where
     backup_manager: Arc<BackupManager>,
 }
 
-impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
+impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<DaService = Da>,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: LightClientProverConfig,
-        prover_service: Arc<Ps>,
+        prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
         da_service: Arc<Da>,
         batch_prover_da_pub_key: Vec<u8>,
@@ -397,18 +395,16 @@ where
         light_client_l2_height: u64,
     ) -> anyhow::Result<bool> {
         let batch_proof_last_l2_height = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec, [u8; 32]>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec>,
         >(proof)
         {
             Ok(output) => output.last_l2_height,
             Err(e) => {
                 warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                if Vm::extract_output::<
-                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, [u8; 32]>,
-                >(proof)
-                .is_err()
-                {
-                    return Err(anyhow::anyhow!("Failed to extract both pre-fork1 and fork1 output from proof"));
+                if Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(proof).is_err() {
+                    return Err(anyhow::anyhow!(
+                        "Failed to extract both pre-fork1 and fork1 output from proof"
+                    ));
                 }
                 0
             }

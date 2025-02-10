@@ -16,7 +16,6 @@ alloy-primitives = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
-borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
@@ -40,11 +39,11 @@ sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
+# sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
 # Citrea
 citrea-primitives = { path = "../primitives/" }
-citrea-pruning = { path = "../pruning" }
+citrea-storage-ops = { path = "../storage-ops" }
 
 [dev-dependencies]
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }

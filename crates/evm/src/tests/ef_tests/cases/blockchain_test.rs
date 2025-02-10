@@ -74,7 +74,7 @@ impl BlockchainTestCase {
             da_slot_hash: [0u8; 32],
             da_slot_height: 0,
             da_slot_txs_commitment: [0u8; 32],
-            pre_state_root: root.to_vec(),
+            pre_state_root: *root,
             current_spec,
             pub_key: vec![],
             deposit_data: vec![],
@@ -91,7 +91,7 @@ impl BlockchainTestCase {
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         let root = commit(working_set, storage.clone());
         let mut working_set = WorkingSet::new(storage.clone());
-        evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+        evm.finalize_hook(&root, &mut working_set.accessory_state());
 
         (working_set, storage)
     }
@@ -203,7 +203,7 @@ impl Case for BlockchainTestCase {
                 evm.pending_head
                     .set(&block.into(), &mut working_set.accessory_state());
                 evm.finalize_hook(
-                    &case.genesis_block_header.state_root.0.into(),
+                    &case.genesis_block_header.state_root.0,
                     &mut working_set.accessory_state(),
                 );
 

@@ -78,7 +78,7 @@ fn init_evm() -> (
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -107,7 +107,7 @@ fn init_evm() -> (
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
     l2_height += 1;
@@ -119,7 +119,7 @@ fn init_evm() -> (
         da_slot_hash: [8u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [99u8; 32].to_vec(),
+        pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -149,7 +149,7 @@ fn init_evm() -> (
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[100u8; 32], &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
     l2_height += 1;
@@ -161,7 +161,7 @@ fn init_evm() -> (
         da_slot_hash: [10u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [100u8; 32].to_vec(),
+        pre_state_root: [100u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -189,7 +189,7 @@ fn init_evm() -> (
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[101u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[101u8; 32], &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
     l2_height += 1;
@@ -239,7 +239,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, Tes
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [0u8; 32].to_vec(),
+        pre_state_root: [0u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -265,7 +265,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, Tes
     .unwrap();
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[2u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[2u8; 32], &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
 
@@ -313,7 +313,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [0u8; 32].to_vec(),
+        pre_state_root: [0u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -341,7 +341,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[2u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[2u8; 32], &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
     l2_height += 1;
@@ -353,7 +353,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         da_slot_hash: [2u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [2u8; 32].to_vec(),
+        pre_state_root: [2u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -382,7 +382,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[3u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[3u8; 32], &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
     l2_height += 1;

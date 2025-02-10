@@ -1,0 +1,30 @@
+[package]
+name = "citrea-cli"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+publish = false
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Citrea deps
+citrea-storage-ops = { path = "../../crates/storage-ops" }
+
+# Sovereign-SDK deps
+sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
+sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager" }
+
+# 3rd-party deps
+anyhow = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[bin]]
+name = "citrea-cli"
+path = "src/main.rs"

@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -10,10 +9,11 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{get_da_block_at_height, sync_l1};
 use citrea_common::utils::merge_state_diffs;
-use citrea_common::BatchProverConfig;
+use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
+use prover_services::ParallelProverService;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -25,7 +25,6 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
@@ -42,23 +41,15 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
+pub struct L1BlockHandler<Vm, Da, DB, Witness, Tx>
 where
     Da: DaService,
-    Vm: ZkvmHost + Zkvm,
+    Vm: ZkvmHost + Zkvm + 'static,
     DB: BatchProverLedgerOps,
-    Ps: ProverService,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: BatchProverConfig,
-    prover_service: Arc<Ps>,
+    prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger_db: DB,
     da_service: Arc<Da>,
     sequencer_pub_key: Vec<u8>,
@@ -68,32 +59,23 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
-    _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
     backup_manager: Arc<BackupManager>,
 }
 
-impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx> L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
+impl<Vm, Da, DB, Witness, Tx> L1BlockHandler<Vm, Da, DB, Witness, Tx>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<DaService = Da>,
     DB: BatchProverLedgerOps + Clone + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
     Tx: Clone + BorshDeserialize + BorshSerialize,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: BatchProverConfig,
-        prover_service: Arc<Ps>,
+        prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
         da_service: Arc<Da>,
         sequencer_pub_key: Vec<u8>,
@@ -116,7 +98,6 @@ where
             skip_submission_until_l1,
             l1_block_cache,
             pending_l1_blocks: VecDeque::new(),
-            _state_root: PhantomData,
             _witness: PhantomData,
             _tx: PhantomData,
             backup_manager,
@@ -203,7 +184,7 @@ where
                 continue;
             }
 
-            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
+            let data_to_prove = data_to_prove::<Da, DB, Witness, Tx>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
                 self.sequencer_pub_key.clone(),
@@ -281,7 +262,7 @@ where
             };
 
             if should_prove {
-                prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
+                prove_l1::<Da, Vm, DB, Witness, Tx>(
                     self.prover_service.clone(),
                     self.ledger_db.clone(),
                     self.code_commitments_by_spec.clone(),
@@ -313,7 +294,7 @@ where
         let prover_service = self.prover_service.as_ref();
         let txs_and_proofs = prover_service.recover_and_submit_proving_sessions().await?;
 
-        extract_and_store_proof::<DB, Da, Vm, StateRoot>(
+        extract_and_store_proof::<DB, Da, Vm>(
             self.ledger_db.clone(),
             txs_and_proofs,
             self.code_commitments_by_spec.clone(),

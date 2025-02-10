@@ -1,17 +1,15 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use futures::future;
 use rand::Rng;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::{oneshot, Mutex};
 use tracing::{info, warn};
 
-use crate::ProofGenMode;
+use crate::{ProofData, ProofGenMode};
 
 /// Prover service that generates proofs in parallel.
 pub struct ParallelProverService<Da, Vm>
@@ -177,22 +175,13 @@ where
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
-}
 
-#[async_trait]
-impl<Da, Vm> ProverService for ParallelProverService<Da, Vm>
-where
-    Da: DaService,
-    Vm: ZkvmHost,
-{
-    type DaService = Da;
-
-    async fn add_proof_data(&self, proof_data: ProofData) {
+    pub async fn add_proof_data(&self, proof_data: ProofData) {
         let mut proof_queue = self.proof_queue.lock().await;
         proof_queue.push(proof_data);
     }
 
-    async fn prove(&self) -> anyhow::Result<Vec<Proof>> {
+    pub async fn prove(&self) -> anyhow::Result<Vec<Proof>> {
         let mut proof_queue = self.proof_queue.lock().await;
         if let ProofGenMode::Skip = self.proof_mode {
             tracing::debug!("Skipped proving {} proofs", proof_queue.len());
@@ -212,7 +201,7 @@ where
         Ok(self.prove_all(proof_queue).await)
     }
 
-    async fn submit_proofs(
+    pub async fn submit_proofs(
         &self,
         proofs: Vec<Proof>,
     ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
@@ -224,7 +213,7 @@ where
         Ok(tx_and_proof)
     }
 
-    async fn recover_and_submit_proving_sessions(
+    pub async fn recover_and_submit_proving_sessions(
         &self,
     ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
         let vm = self.vm.clone();

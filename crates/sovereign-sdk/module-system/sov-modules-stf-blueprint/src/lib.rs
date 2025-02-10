@@ -32,11 +32,9 @@ mod stf_blueprint;
 pub use stf_blueprint::StfBlueprint;
 
 /// The tx hook for a blueprint runtime
-pub struct RuntimeTxHook<C: Context> {
+pub struct RuntimeTxHook {
     /// Height to initialize the context
     pub height: u64,
-    /// Sequencer public key
-    pub sequencer: C::PublicKey,
     /// Current spec
     pub current_spec: SpecId,
     /// L1 fee rate
@@ -50,7 +48,7 @@ pub struct RuntimeTxHook<C: Context> {
 pub trait Runtime<C: Context, Da: DaSpec>:
     DispatchCall<Context = C>
     + Genesis<Context = C, Config = Self::GenesisConfig>
-    + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
+    + TxHooks<Context = C, PreArg = RuntimeTxHook, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
     + ApplySoftConfirmationHooks<
@@ -176,7 +174,7 @@ where
     pub fn end_soft_confirmation(
         &mut self,
         current_spec: SpecId,
-        pre_state_root: Vec<u8>,
+        pre_state_root: StorageRootHash,
         sequencer_public_key: &[u8],
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
@@ -259,7 +257,7 @@ where
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
-    ) -> SoftConfirmationResult<StorageRootHash, C::Storage, <C::Storage as Storage>::Witness> {
+    ) -> SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness> {
         native_debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
             soft_confirmation.hash(),
@@ -315,7 +313,6 @@ where
     RT: Runtime<C, Da>,
 {
     type Transaction = Transaction<C>;
-    type StateRoot = StorageRootHash;
 
     type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
@@ -331,7 +328,7 @@ where
         &self,
         pre_state: Self::PreState,
         params: Self::GenesisParams,
-    ) -> (Self::StateRoot, Self::ChangeSet) {
+    ) -> (StorageRootHash, Self::ChangeSet) {
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
 
         self.runtime.genesis(&params.runtime, &mut working_set);
@@ -364,7 +361,7 @@ where
         &mut self,
         current_spec: SpecId,
         sequencer_public_key: &[u8],
-        pre_state_root: &Self::StateRoot,
+        pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
@@ -372,15 +369,9 @@ where
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-    ) -> Result<
-        SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>,
-        StateTransitionError,
-    > {
-        let soft_confirmation_info = HookSoftConfirmationInfo::new(
-            soft_confirmation,
-            pre_state_root.as_ref().to_vec(),
-            current_spec,
-        );
+    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness>, StateTransitionError> {
+        let soft_confirmation_info =
+            HookSoftConfirmationInfo::new(soft_confirmation, *pre_state_root, current_spec);
 
         let checkpoint =
             StateCheckpoint::with_witness(pre_state.clone(), state_witness, offchain_witness);
@@ -404,7 +395,7 @@ where
 
         self.end_soft_confirmation(
             current_spec,
-            pre_state_root.as_ref().to_vec(),
+            *pre_state_root,
             sequencer_public_key,
             soft_confirmation,
             &mut working_set,
@@ -425,14 +416,14 @@ where
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        initial_state_root: &Self::StateRoot,
+        initial_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         preproven_commitment_indices: Vec<usize>,
         forks: &[Fork],
-    ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
+    ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
 
         // Extract all sequencer commitments.
@@ -499,7 +490,7 @@ where
 
         // Then verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
-        let mut previous_batch_hash: Option<[u8; 32]> = None;
+        let mut prev_soft_confirmation_hash: Option<[u8; 32]> = None;
         let mut last_commitment_end_height: Option<u64> = None;
 
         let group_count: u32 = guest.read_from_host();
@@ -541,7 +532,7 @@ where
                         <C::Storage as Storage>::Witness,
                     )>();
 
-                if let Some(hash) = previous_batch_hash {
+                if let Some(hash) = prev_soft_confirmation_hash {
                     assert_eq!(
                         soft_confirmation.prev_hash(),
                         hash,
@@ -631,7 +622,7 @@ where
 
                 l2_height += 1;
 
-                previous_batch_hash = Some(soft_confirmation.hash());
+                prev_soft_confirmation_hash = Some(soft_confirmation.hash());
 
                 soft_confirmation_hashes.push(soft_confirmation.hash());
             }
@@ -665,7 +656,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
-            final_soft_confirmation_hash: previous_batch_hash.unwrap(),
+            final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
         }
     }
 }

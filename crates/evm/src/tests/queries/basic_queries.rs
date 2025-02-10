@@ -882,7 +882,7 @@ fn test_queries_with_forks() {
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -892,7 +892,7 @@ fn test_queries_with_forks() {
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let no_access_list_post_fork = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),

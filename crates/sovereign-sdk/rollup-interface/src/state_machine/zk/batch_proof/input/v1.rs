@@ -1,5 +1,4 @@
-use alloc::collections::VecDeque;
-use alloc::vec::Vec;
+use std::collections::VecDeque;
 
 use borsh::BorshSerialize;
 use serde::de::DeserializeOwned;
@@ -8,17 +7,17 @@ use serde::{Deserialize, Serialize};
 use super::BatchProofCircuitInput;
 use crate::da::{BlobReaderTrait, DaSpec};
 use crate::soft_confirmation::SignedSoftConfirmationV1;
+use crate::zk::StorageRootHash;
 
 #[derive(Serialize, Deserialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
-#[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInputV1<StateRoot, Witness, Da: DaSpec> {
+pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
     /// The state root before the state transition
-    pub initial_state_root: StateRoot,
+    pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
-    pub final_state_root: StateRoot,
+    pub final_state_root: StorageRootHash,
     /// The hash before the state transition
     pub initial_batch_hash: [u8; 32],
     /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
@@ -45,8 +44,8 @@ pub struct BatchProofCircuitInputV1<StateRoot, Witness, Da: DaSpec> {
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
 }
-impl<StateRoot: borsh::BorshSerialize, Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
-    for BatchProofCircuitInputV1<StateRoot, Witness, Da>
+impl<Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
+    for BatchProofCircuitInputV1<Witness, Da>
 {
     /// Pre fork 1 serialization
     /// An additional [u8; 32] is added to the end of the bitcoin da header
@@ -93,16 +92,14 @@ impl<StateRoot: borsh::BorshSerialize, Witness: borsh::BorshSerialize, Da: DaSpe
     }
 }
 
-impl<'txs, StateRoot, Witness, Da, Tx>
-    From<BatchProofCircuitInput<'txs, StateRoot, Witness, Da, Tx>>
-    for BatchProofCircuitInputV1<StateRoot, Witness, Da>
+impl<'txs, Witness, Da, Tx> From<BatchProofCircuitInput<'txs, Witness, Da, Tx>>
+    for BatchProofCircuitInputV1<Witness, Da>
 where
     Da: DaSpec,
     Tx: Clone,
-    StateRoot: Serialize + DeserializeOwned,
     Witness: Serialize + DeserializeOwned,
 {
-    fn from(input: BatchProofCircuitInput<'txs, StateRoot, Witness, Da, Tx>) -> Self {
+    fn from(input: BatchProofCircuitInput<'txs, Witness, Da, Tx>) -> Self {
         BatchProofCircuitInputV1 {
             initial_state_root: input.initial_state_root,
             final_state_root: input.final_state_root,

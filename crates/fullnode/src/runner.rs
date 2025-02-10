@@ -10,7 +10,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::soft_confirmation_to_receipt;
-use citrea_common::{RollupPublicKeys, RunnerConfig};
+use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -25,7 +25,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_stf_runner::InitParams;
+use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -34,7 +34,6 @@ use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 
-type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
 type StfTransaction<C, Da, RT> =
     <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
 
@@ -51,8 +50,8 @@ where
     stf: StfBlueprint<C, Da::Spec, RT>,
     storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
-    state_root: StateRoot<C, Da::Spec, RT>,
-    batch_hash: SoftConfirmationHash,
+    state_root: StorageRootHash,
+    soft_confirmation_hash: SoftConfirmationHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
@@ -79,7 +78,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
-        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        init_params: InitParams,
         stf: StfBlueprint<C, Da::Spec, RT>,
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
@@ -100,7 +99,7 @@ where
             storage_manager,
             ledger_db,
             state_root: init_params.state_root,
-            batch_hash: init_params.batch_hash,
+            soft_confirmation_hash: init_params.batch_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
@@ -135,7 +134,7 @@ where
             current_l1_block.header().height()
         );
 
-        if self.batch_hash != soft_confirmation.prev_hash {
+        if self.soft_confirmation_hash != soft_confirmation.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
@@ -197,11 +196,12 @@ where
         let _ = self.soft_confirmation_tx.send(l2_height);
 
         self.state_root = next_state_root;
-        self.batch_hash = soft_confirmation.hash;
+        self.soft_confirmation_hash = soft_confirmation.hash;
 
         info!(
-            "New State Root after soft confirmation #{} is: {:?}",
-            l2_height, self.state_root
+            "New State Root after soft confirmation #{} is: 0x{}",
+            l2_height,
+            hex::encode(self.state_root)
         );
 
         FULLNODE_METRICS.current_l2_block.set(l2_height as f64);
@@ -290,7 +290,7 @@ where
     }
 
     /// Allows to read current state root
-    pub fn get_state_root(&self) -> &StateRoot<C, Da::Spec, RT> {
+    pub fn get_state_root(&self) -> &StorageRootHash {
         &self.state_root
     }
 }
@@ -307,10 +307,11 @@ async fn sync_l2(
         let exponential_backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_secs(1))
             .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+            .with_multiplier(1.5)
             .build();
 
         let inner_client = &sequencer_client;
-        let soft_confirmations = match retry_backoff(exponential_backoff.clone(), || async move {
+        let soft_confirmations = match retry_backoff(exponential_backoff, || async move {
             match inner_client
                 .get_soft_confirmation_range(
                     U64::from(l2_height),

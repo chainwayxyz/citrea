@@ -8,6 +8,7 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationHookError, StateTransitionError, StateTransitionFunction,
 };
+use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -104,7 +105,6 @@ where
         // Pre dispatch hook
         let hook = RuntimeTxHook {
             height: soft_confirmation_info.l2_height(),
-            sequencer: tx.pub_key().clone(),
             current_spec: soft_confirmation_info.current_spec(),
             l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
         };
@@ -150,7 +150,7 @@ where
     pub fn end_soft_confirmation_inner(
         &mut self,
         current_spec: SpecId,
-        pre_state_root: Vec<u8>,
+        pre_state_root: StorageRootHash,
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,

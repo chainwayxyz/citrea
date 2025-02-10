@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
-use prover_services::{ParallelProverService, ProofGenMode};
+use prover_services::{ParallelProverService, ProofData, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
@@ -10,7 +10,6 @@ use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -342,9 +341,9 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
 
 fn make_transition_data(
     header_hash: MockHash,
-) -> BatchProofCircuitInput<'static, [u8; 0], Vec<u8>, MockDaSpec, ()> {
+) -> BatchProofCircuitInput<'static, Vec<u8>, MockDaSpec, ()> {
     BatchProofCircuitInput {
-        initial_state_root: [],
+        initial_state_root: [0; 32],
         inclusion_proof: [0; 32],
         prev_soft_confirmation_hash: [0; 32],
         completeness_proof: Vec::new(),
@@ -364,7 +363,7 @@ fn make_transition_data(
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
         preproven_commitments: vec![],
-        final_state_root: [],
+        final_state_root: [0u8; 32],
     }
 }
 
@@ -384,9 +383,7 @@ async fn spawn_prove(
 }
 
 fn extract_output_header(proof: &Vec<u8>) -> MockBlockHeader {
-    MockZkvm::extract_output::<BatchProofCircuitInput<'static, [u8; 0], Vec<u8>, MockDaSpec, ()>>(
-        proof,
-    )
-    .unwrap()
-    .da_block_header_of_commitments
+    MockZkvm::extract_output::<BatchProofCircuitInput<'static, Vec<u8>, MockDaSpec, ()>>(proof)
+        .unwrap()
+        .da_block_header_of_commitments
 }

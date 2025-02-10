@@ -14,7 +14,6 @@ use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{ProverStorage, Storage};
-use sov_stf_runner::read_json_file;
 
 use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use crate::tests::test_signer::TestSigner;
@@ -47,10 +46,7 @@ pub(crate) fn get_evm_with_storage(
     let mut genesis_state_root = [0u8; 32];
     genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
-    evm.finalize_hook(
-        &genesis_state_root.into(),
-        &mut working_set.accessory_state(),
-    );
+    evm.finalize_hook(&genesis_state_root, &mut working_set.accessory_state());
     (evm, working_set, prover_storage)
 }
 
@@ -71,14 +67,14 @@ pub(crate) fn get_evm_with_spec(
     let root = commit(working_set, storage.clone());
 
     let mut working_set = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&root, &mut working_set.accessory_state());
 
     let hook_info = HookSoftConfirmationInfo {
         l2_height: 1,
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [2u8; 32],
-        pre_state_root: root.to_vec(),
+        pre_state_root: root,
         current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],
@@ -92,7 +88,7 @@ pub(crate) fn get_evm_with_spec(
 
     let root = commit(working_set, storage.clone());
     let mut working_set: WorkingSet<<C as Spec>::Storage> = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&root, &mut working_set.accessory_state());
 
     // let mut genesis_state_root = [0u8; 32];
     // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -120,15 +116,14 @@ pub(crate) fn commit(
 
     storage.commit(&authenticated_node_batch, &accessory_log, &offchain_log);
 
-    state_root_transition.final_root.0
+    state_root_transition.final_root
 }
 
 /// Loads the genesis configuration from the given path and pushes the accounts to the evm config
 pub(crate) fn config_push_contracts(config: &mut EvmConfig, path: Option<&str>) {
     let mut genesis_config: EvmConfig = read_json_file(Path::new(
         path.unwrap_or("../../resources/test-data/integration-tests/evm.json"),
-    ))
-    .expect("Failed to read genesis configuration");
+    ));
     config.data.append(&mut genesis_config.data);
 }
 
@@ -330,4 +325,13 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
 
 pub(crate) fn get_fork_fn_only_fork1() -> impl Fn(u64) -> Fork {
     |_: u64| Fork::new(SovSpecId::Kumquat, 0)
+}
+
+/// Read genesis file
+pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(path: P) -> T {
+    let data = std::fs::read_to_string(&path).unwrap();
+
+    let config: T = serde_json::from_str(&data).unwrap();
+
+    config
 }

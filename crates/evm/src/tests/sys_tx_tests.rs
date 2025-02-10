@@ -159,7 +159,7 @@ fn test_sys_bitcoin_light_client() {
         da_slot_hash: [2u8; 32],
         da_slot_height: 2,
         da_slot_txs_commitment: [3u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -191,7 +191,7 @@ fn test_sys_bitcoin_light_client() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
@@ -303,7 +303,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -328,7 +328,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let mut working_set = working_set.checkpoint().to_revertable();
     l2_height += 1;
@@ -338,7 +338,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_hash: [10u8; 32],
         da_slot_height: 2,
         da_slot_txs_commitment: [43u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -414,7 +414,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_hash: [10u8; 32],
         da_slot_height: 2,
         da_slot_txs_commitment: [43u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -477,7 +477,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     }
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
         .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
@@ -514,7 +514,7 @@ fn test_bridge() {
             35, 6, 15, 121, 7, 142, 70, 109, 219, 14, 211, 34, 120, 157, 121, 127, 164, 53, 23, 80,
             188, 45, 73, 146, 108, 41, 125, 77, 133, 86, 235, 104,
         ],
-        pre_state_root: [1u8; 32].to_vec(),
+        pre_state_root: [1u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![[
@@ -566,7 +566,7 @@ fn test_bridge() {
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let recipient_address = address!("0101010101010101010101010101010101010101");
     let recipient_account = evm
@@ -632,7 +632,7 @@ fn test_upgrade_light_client() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -664,7 +664,7 @@ fn test_upgrade_light_client() {
     .unwrap();
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let hash = evm
         .get_call_inner(
@@ -759,7 +759,7 @@ fn test_change_upgrade_owner() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -788,7 +788,7 @@ fn test_change_upgrade_owner() {
     .unwrap();
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
     let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
@@ -798,7 +798,7 @@ fn test_change_upgrade_owner() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -832,7 +832,7 @@ fn test_change_upgrade_owner() {
     .unwrap();
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let provided_new_owner = evm
         .get_call_inner(
