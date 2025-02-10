@@ -15,14 +15,16 @@ use crate::system_contracts::{BitcoinLightClient, BridgeWrapper};
 use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
 use crate::{citrea_spec_id_to_evm_spec_id, Evm, PendingTransaction, SystemEvent};
 
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
-
 /// EVM call message.
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct CallMessage {
     /// RLP encoded transaction.
     pub txs: Vec<RlpEvmTransaction>,

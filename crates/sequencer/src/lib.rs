@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use citrea_common::RollupPublicKeys;
 pub use citrea_common::SequencerConfig;
+use citrea_common::{InitParams, RollupPublicKeys};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
@@ -17,7 +17,6 @@ use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
-use sov_stf_runner::InitParams;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 

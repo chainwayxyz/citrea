@@ -70,7 +70,7 @@ async fn full_node_verify_proof_and_store() {
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             Some(BatchProverConfig {
-                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
+                proving_mode: citrea_common::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),
@@ -262,7 +262,7 @@ async fn test_batch_prover_prove_rpc() {
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             Some(BatchProverConfig {
-                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
+                proving_mode: citrea_common::ProverGuestRunConfig::Execute,
                 // Make it impossible for proving to happen
                 proof_sampling_number: 1_000_000,
                 enable_recovery: true,

@@ -141,7 +141,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 system_events,
                 soft_confirmation_info.l1_fee_rate(),
                 cfg,
-                new_pending_env.clone(),
+                new_pending_env,
                 active_evm_spec,
                 working_set,
             );
@@ -153,9 +153,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // remove block 0, keep blocks 1-256
         // then on block 258
         // remove block 1, keep blocks 2-257
-        if new_pending_env.number > U256::from(256) {
+        if self.block_env.number > U256::from(256) {
             self.latest_block_hashes
-                .remove(&(new_pending_env.number - U256::from(257)), working_set);
+                .remove(&(self.block_env.number - U256::from(257)), working_set);
         }
 
         self.last_l1_hash

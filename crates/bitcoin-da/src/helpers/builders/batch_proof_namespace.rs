@@ -96,7 +96,7 @@ pub fn create_batchproof_type_0(
         "The body of a serialized sequencer commitment exceeds 520 bytes"
     );
     // Create reveal key
-    let key_pair = UntweakedKeypair::new(SECP256K1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let kind = TransactionKindBatchProof::SequencerCommitment;

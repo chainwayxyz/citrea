@@ -75,7 +75,7 @@ pub struct HookSoftConfirmationInfo {
     /// DA block transactions commitment
     pub da_slot_txs_commitment: [u8; 32],
     /// Previous batch's pre state root
-    pub pre_state_root: Vec<u8>,
+    pub pre_state_root: StorageRootHash,
     /// The current spec
     pub current_spec: SpecId,
     /// Public key of the sequencer
@@ -91,7 +91,7 @@ pub struct HookSoftConfirmationInfo {
 impl HookSoftConfirmationInfo {
     pub fn new<Tx: Clone>(
         signed_soft_confirmation: &SignedSoftConfirmation<Tx>,
-        pre_state_root: Vec<u8>,
+        pre_state_root: StorageRootHash,
         current_spec: SpecId,
     ) -> Self {
         HookSoftConfirmationInfo {
@@ -126,8 +126,8 @@ impl HookSoftConfirmationInfo {
     }
 
     /// Previous batch's pre state root
-    pub fn pre_state_root(&self) -> Vec<u8> {
-        self.pre_state_root.clone()
+    pub fn pre_state_root(&self) -> StorageRootHash {
+        self.pre_state_root
     }
 
     /// Active spec

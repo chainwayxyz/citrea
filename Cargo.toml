@@ -26,7 +26,6 @@ members = [
   # Full Node
   "crates/sovereign-sdk/full-node/db/sov-db",
   "crates/sovereign-sdk/full-node/sov-ledger-rpc",
-  "crates/sovereign-sdk/full-node/sov-stf-runner",
   "crates/sovereign-sdk/full-node/sov-prover-storage-manager",
   # Module System
   "crates/sovereign-sdk/module-system/sov-modules-stf-blueprint",
@@ -157,7 +156,7 @@ alloy-eips = { version = "0.4.2", default-features = false }
 alloy-consensus = { version = "0.4.2", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.4.2", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "e22b1e7b2f038f82f80481c3f844c954307e32f7" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "86a164a29c7cca109b1e921ed3ffd4d3175ebb12" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }

@@ -8,6 +8,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::extract_sequencer_commitments;
 use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
 use citrea_primitives::forks::fork_from_block_number;
+use prover_services::{ParallelProverService, ProofData};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
@@ -22,7 +23,6 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
@@ -171,13 +171,16 @@ where
             })?
             .expect("There should be a state root");
 
-        let initial_batch_hash = ledger
+        let initial_soft_confirmation_hash = ledger
             .get_soft_confirmation_by_number(&SoftConfirmationNumber(first_l2_height_of_l1))
             .map_err(|e| {
-                L1ProcessingError::Other(format!("Error getting initial batch hash: {:?}", e))
+                L1ProcessingError::Other(format!(
+                    "Error getting initial soft confirmation hash: {:?}",
+                    e
+                ))
             })?
             .ok_or(L1ProcessingError::Other(format!(
-                "Could not find soft batch at height {}",
+                "Could not find soft confirmation at height {}",
                 first_l2_height_of_l1
             )))?
             .prev_hash;
@@ -199,7 +202,7 @@ where
             sequencer_public_key: sequencer_pub_key.clone(),
             sequencer_da_public_key: sequencer_da_pub_key.clone(),
             final_state_root,
-            prev_soft_confirmation_hash: initial_batch_hash,
+            prev_soft_confirmation_hash: initial_soft_confirmation_hash,
         };
 
         batch_proof_circuit_inputs.push(input);
@@ -208,8 +211,8 @@ where
     Ok((sequencer_commitments, batch_proof_circuit_inputs))
 }
 
-pub(crate) async fn prove_l1<Da, Ps, Vm, DB, Witness, Tx>(
-    prover_service: Arc<Ps>,
+pub(crate) async fn prove_l1<Da, Vm, DB, Witness, Tx>(
+    prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger: DB,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
@@ -221,7 +224,6 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<DaService = Da>,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
     Tx: Clone + BorshSerialize,
 {

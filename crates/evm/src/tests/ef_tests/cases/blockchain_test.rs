@@ -74,7 +74,7 @@ impl BlockchainTestCase {
             da_slot_hash: [0u8; 32],
             da_slot_height: 0,
             da_slot_txs_commitment: [0u8; 32],
-            pre_state_root: root.to_vec(),
+            pre_state_root: *root,
             current_spec,
             pub_key: vec![],
             deposit_data: vec![],
