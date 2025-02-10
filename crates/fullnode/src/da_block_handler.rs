@@ -377,7 +377,7 @@ where
             .into_iter()
             .enumerate()
             .filter(|(index, _)| !excluded_commitment_indices.contains(index))
-            .map(|(_, commitment)| commitment.clone())
+            .map(|(_, commitment)| commitment)
             .collect();
 
         let l2_height = filtered_commitments
