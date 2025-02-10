@@ -61,12 +61,6 @@ pub(crate) struct Args {
     /// Logging verbosity
     #[arg(long, short = 'q', action)]
     pub(crate) quiet: bool,
-
-    /// Optionally restore DB state from a backup before starting the node.
-    /// If provided, databases are restored from the specified backup path
-    /// before any services are initialized.
-    #[arg(long)]
-    pub(crate) restore_db: Option<PathBuf>,
 }
 
 pub(crate) enum NodeType {

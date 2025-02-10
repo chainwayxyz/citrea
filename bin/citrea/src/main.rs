@@ -75,7 +75,6 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
-                args.restore_db,
             )
             .await?;
         }
@@ -85,7 +84,6 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
-                args.restore_db,
             )
             .await?;
         }
@@ -103,7 +101,6 @@ async fn start_rollup<S, DaC>(
     >>::GenesisPaths,
     rollup_config_path: Option<String>,
     node_type: NodeType,
-    restore_db: Option<PathBuf>,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
@@ -139,15 +136,11 @@ where
 
     let rollup_blueprint = S::new(network);
 
-    // Restore db from backup before running migrations
     let backup_manager = Arc::new(BackupManager::new(
         node_type.to_string(),
         rollup_config.storage.backup_path.clone(),
         Default::default(),
     ));
-    if let Some(path) = restore_db {
-        backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), &path)?;
-    }
 
     // Based on the node's type, execute migrations before constructing an instance of LedgerDB
     // so that avoid locking the DB.
