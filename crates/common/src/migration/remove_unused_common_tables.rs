@@ -2,11 +2,13 @@ use std::sync::Arc;
 
 use sov_db::ledger_db::migrations::{LedgerMigration, MigrationName, MigrationVersion};
 use sov_db::ledger_db::LedgerDB;
-use sov_db::schema::tables::{BATCH_PROVER_LEDGER_TABLES, LEDGER_TABLES};
+use sov_db::schema::tables::LEDGER_TABLES;
 
 /// Table removal migration
 /// tables BatchByNumber and SlotByNumber are removed
-pub(crate) struct RemoveUnusedTables {}
+pub struct RemoveUnusedTables {
+    pub tables: &'static [&'static str],
+}
 
 impl LedgerMigration for RemoveUnusedTables {
     fn identifier(&self) -> (MigrationName, MigrationVersion) {
@@ -20,7 +22,7 @@ impl LedgerMigration for RemoveUnusedTables {
     ) -> anyhow::Result<()> {
         // Get difference of LEDGER_TABLES and SEQUENCER_LEDGER_TABLES and drop them
         let mut diff = LEDGER_TABLES.to_vec();
-        diff.retain(|x| !BATCH_PROVER_LEDGER_TABLES.contains(x));
+        diff.retain(|x| !self.tables.contains(x));
         let diff_tables = diff.iter().map(|x| x.to_string()).collect::<Vec<_>>();
         for table in diff_tables {
             // Check if table exists in the database
