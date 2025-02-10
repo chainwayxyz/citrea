@@ -5,6 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, VerifiedBatchProofResponse,
 };
+use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::Proof;
 
@@ -35,6 +36,11 @@ pub struct StoredBatchProofOutput {
     /// The last processed l2 height in the processed sequencer commitments.
     pub last_l2_height: u64,
 }
+
+// #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
+// pub enum StoredBatchProofOutput {
+//     V1(BatchProofCircuitOutputV1),
+// }
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
