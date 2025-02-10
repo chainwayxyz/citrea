@@ -20,7 +20,7 @@ pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'sta
             Box::new(RemoveUnusedTables {
                 tables: FULL_NODE_LEDGER_TABLES,
             }),
-            Box::new(FixVerifiedBatchProofsEncoding {}),
+            Box::new(FixVerifiedBatchProofsEncoding),
         ]
     })
 }

@@ -7,7 +7,7 @@ use sov_db::schema::types::SlotNumber;
 
 /// Table removal migration
 /// tables BatchByNumber and SlotByNumber are removed
-pub(crate) struct FixVerifiedBatchProofsEncoding {}
+pub(crate) struct FixVerifiedBatchProofsEncoding;
 
 impl LedgerMigration for FixVerifiedBatchProofsEncoding {
     fn identifier(&self) -> (MigrationName, MigrationVersion) {

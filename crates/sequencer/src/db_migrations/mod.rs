@@ -11,7 +11,7 @@ pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'sta
         OnceLock::new();
     MIGRATIONS.get_or_init(|| {
         vec![
-            Box::new(MigrateVerifiedProofsBySlotNumber {}),
+            Box::new(MigrateVerifiedProofsBySlotNumber),
             Box::new(MigrateBatchAndSlotByNumber),
             Box::new(RemoveUnusedTables {
                 tables: SEQUENCER_LEDGER_TABLES,
