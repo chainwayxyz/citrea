@@ -323,8 +323,8 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
     config
 }
 
-pub(crate) fn get_fork_fn_only_fork1() -> impl Fn(u64) -> Fork {
-    |_: u64| Fork::new(SovSpecId::Kumquat, 0)
+pub(crate) fn get_fork_fn_only_fork2() -> impl Fn(u64) -> Fork {
+    |_: u64| Fork::new(SovSpecId::Fork2, 0)
 }
 
 /// Read genesis file
