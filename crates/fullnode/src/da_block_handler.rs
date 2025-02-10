@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
-use citrea_common::utils::check_l2_range_exists;
+use citrea_common::utils::check_l2_block_exists;
 use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -145,9 +145,8 @@ where
         if !sequencer_commitments.is_empty() {
             // If the L2 range does not exist, we break off the current process call
             // We retry the L1 block at a later tick.
-            if !check_l2_range_exists(
+            if !check_l2_block_exists(
                 &self.ledger_db,
-                sequencer_commitments[0].l2_start_block_number,
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
             ) {
                 warn!("L1 commitment received, but L2 range is not synced yet...");
