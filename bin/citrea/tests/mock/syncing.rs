@@ -375,7 +375,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
-    // becase it must not skip blocks.
+    // because it must not skip blocks.
     wait_for_l2_block(&prover_node_test_client, 8, None).await;
     // Allow for the L2 block to be commited and stored
     // Otherwise, the L2 block height might be registered but it hasn't
