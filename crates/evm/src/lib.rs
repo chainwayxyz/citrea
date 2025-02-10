@@ -89,7 +89,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub accounts_prefork2: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
 
     /// Mapping from account id to account state.
-    #[state(rename = "an")]
+    #[state(rename = "t")]
     pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BcsCodec>,
 
     /// The total number of accounts.

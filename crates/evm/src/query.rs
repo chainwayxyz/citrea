@@ -402,7 +402,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_number = self.block_number_from_state(block_id, working_set)?;
 
         let citrea_spec = fork_fn(block_number).spec_id;
-        let evm_spec = citrea_spec_id_to_evm_spec_id(citrea_spec);
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
@@ -410,7 +409,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .account_info(&address, citrea_spec, working_set)
             .unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
-            if evm_spec.is_enabled_in(SpecId::CANCUN) {
+            if citrea_spec >= CitreaSpecId::Kumquat {
                 self.offchain_code
                     .get(&code_hash, &mut working_set.offchain_state())
                     .unwrap_or_else(|| self.code.get(&code_hash, working_set).unwrap_or_default())
