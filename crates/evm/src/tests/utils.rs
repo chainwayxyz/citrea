@@ -51,7 +51,7 @@ pub(crate) fn get_evm_with_storage(
 }
 
 pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
-    get_evm_with_spec(config, SovSpecId::Kumquat)
+    get_evm_with_spec(config, SovSpecId::Fork2)
 }
 
 pub(crate) fn get_evm_with_spec(
