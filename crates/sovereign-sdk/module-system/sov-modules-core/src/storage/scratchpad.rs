@@ -6,13 +6,118 @@ use core::{fmt, mem};
 use sov_rollup_interface::zk::StorageRootHash;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
+use super::CacheLog;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
 use crate::storage::{
     CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageKey, StorageProof, StorageValue,
 };
-use crate::{CacheMode, Version};
+use crate::{CacheMode, ValueExists, Version};
+
+/*
+JmtWorkingSet:
+    jmt_delta: JmtDelta
+
+OffchainWorkingSet:
+    offchain_delta: OffchainDelta
+
+Delta<S: Storage>:
+    storage: S
+    logs: CacheLog
+    uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>
+    witness: S::Witness
+    version: Option<u64>
+*/
+
+struct NewDelta<S: Storage> {
+    storage: S,
+    cache_log: CacheLog,
+    uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>,
+    ordered_storage_reads: Vec<(CacheKey, Option<CacheValue>)>,
+    witness: S::Witness,
+    version: Option<Version>,
+}
+
+impl<S: Storage> NewDelta<S> {
+    fn new(storage: S, version: Option<Version>) -> Self {
+        Self::with_witness(storage, Default::default(), version)
+    }
+
+    fn with_witness(storage: S, witness: S::Witness, version: Option<Version>) -> Self {
+        Self {
+            storage,
+            cache_log: CacheLog::default(),
+            uncommitted_writes: BTreeMap::default(),
+            ordered_storage_reads: Vec::default(),
+            witness,
+            version,
+        }
+    }
+
+    fn commit(mut self) -> Self {
+        let writes = mem::take(&mut self.uncommitted_writes);
+        for (key, value) in writes {
+            self.cache_log.add_write(key, value);
+        }
+        self
+    }
+
+    fn revert(mut self) -> Self {
+        self.uncommitted_writes.clear();
+        self
+    }
+
+    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+        let ordered_reads = mem::take(&mut self.ordered_storage_reads);
+        let ordered_writes = mem::take(&mut self.cache_log).take_writes();
+
+        let ordered_reads_writes = OrderedReadsAndWrites {
+            ordered_reads,
+            ordered_writes,
+        };
+        let witness = mem::take(&mut self.witness);
+
+        (ordered_reads_writes, witness)
+    }
+}
+
+impl<S: Storage> StateReaderAndWriter for NewDelta<S> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        let cache_key = key.to_cache_key_version(self.version);
+
+        if let Some(value) = self.uncommitted_writes.get(&cache_key) {
+            return value.as_ref().cloned().map(Into::into);
+        }
+
+        match self.cache_log.get_value(&cache_key) {
+            ValueExists::Yes(value) => value.map(Into::into),
+            ValueExists::No => {
+                let storage_value = self.storage.get(key, self.version, &mut self.witness);
+                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
+
+                self.cache_log
+                    .add_read(cache_key.clone(), cache_value.clone())
+                    .expect("Read from CacheLog failed");
+                self.ordered_storage_reads.push((cache_key, cache_value));
+
+                storage_value
+            }
+        }
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        self.uncommitted_writes.insert(
+            key.to_cache_key_version(self.version),
+            Some(value.into_cache_value()),
+        );
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        self.uncommitted_writes
+            .insert(key.to_cache_key_version(self.version), None);
+    }
+}
 
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
@@ -313,7 +418,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
 ///  1. With [`WorkingSet::checkpoint`].
 ///  2. With [`WorkingSet::revert`].
 pub struct StateCheckpoint<S: Storage> {
-    delta: Delta<S>,
+    delta: NewDelta<S>,
     accessory_delta: AccessoryDelta<S>,
     offchain_delta: OffchainDelta<S>,
 }
@@ -333,16 +438,17 @@ impl<S: Storage> StateCheckpoint<S> {
         offchain_witness: <S as Storage>::Witness,
     ) -> Self {
         Self {
-            delta: Delta::with_witness(inner.clone(), state_witness, None),
+            delta: NewDelta::with_witness(inner.clone(), state_witness, None),
             accessory_delta: AccessoryDelta::new(inner.clone(), None),
             offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
         }
     }
 
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
-    pub fn to_revertable(self) -> WorkingSet<S> {
+    pub fn to_revertable(mut self) -> WorkingSet<S> {
+        self.delta.version = None;
         WorkingSet {
-            delta: RevertableWriter::new(self.delta, None),
+            delta: self.delta.revert(),
             offchain_delta: RevertableWriter::new(self.offchain_delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
             archival_working_set: None,
@@ -386,7 +492,7 @@ impl<S: Storage> StateCheckpoint<S> {
 /// 1. By using the checkpoint() method, where all the changes are added to the underlying StateCheckpoint.
 /// 2. By using the revert method, where the most recent changes are reverted and the previous `StateCheckpoint` is returned.
 pub struct WorkingSet<S: Storage> {
-    delta: RevertableWriter<Delta<S>>,
+    delta: NewDelta<S>,
     accessory_delta: RevertableWriter<AccessoryDelta<S>>,
     offchain_delta: RevertableWriter<OffchainDelta<S>>,
     archival_working_set: Option<ArchivalJmtWorkingSet<S>>,
@@ -427,7 +533,7 @@ impl<S: Storage> WorkingSet<S> {
 
     /// Returns a handler for the archival state (JMT state).
     fn archival_state(&mut self, version: Version) -> ArchivalJmtWorkingSet<S> {
-        ArchivalJmtWorkingSet::new(&self.delta.inner.inner, version)
+        ArchivalJmtWorkingSet::new(&self.delta.storage, version)
     }
 
     /// Returns a handler for the archival offchain state.
@@ -481,7 +587,7 @@ impl<S: Storage> WorkingSet<S> {
         S: NativeStorage,
     {
         // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
-        self.delta.inner.inner.get_with_proof(key, version)
+        self.delta.storage.get_with_proof(key, version)
     }
 
     /// Get the root hash of the tree.
@@ -490,7 +596,7 @@ impl<S: Storage> WorkingSet<S> {
         S: NativeStorage,
     {
         // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
-        self.delta.inner.inner.get_root_hash(version)
+        self.delta.storage.get_root_hash(version)
     }
 }
 
@@ -585,7 +691,7 @@ pub mod archival_state {
 
     /// Archival JMT
     pub struct ArchivalJmtWorkingSet<S: Storage> {
-        delta: RevertableWriter<Delta<S>>,
+        delta: RevertableWriter<NewDelta<S>>,
     }
 
     impl<S: Storage> ArchivalJmtWorkingSet<S> {
@@ -593,7 +699,7 @@ pub mod archival_state {
         pub fn new(inner: &S, version: Version) -> Self {
             Self {
                 delta: RevertableWriter::new(
-                    Delta::new(inner.clone(), Some(version)),
+                    NewDelta::new(inner.clone(), Some(version)),
                     Some(version),
                 ),
             }
