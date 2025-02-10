@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 use citrea::NetworkArg;
 use citrea_common::{

@@ -1,6 +1,5 @@
 use core::fmt::Debug as DebugTrait;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
