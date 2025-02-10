@@ -275,8 +275,9 @@ where
         self.batch_hash = soft_confirmation.hash;
 
         info!(
-            "New State Root after soft confirmation #{} is: {:?}",
-            l2_height, self.state_root
+            "New State Root after soft confirmation #{} is: 0x{}",
+            l2_height,
+            hex::encode(self.state_root)
         );
 
         BATCH_PROVER_METRICS.current_l2_block.set(l2_height as f64);
