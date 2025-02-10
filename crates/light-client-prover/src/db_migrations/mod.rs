@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use citrea_common::migration::RemoveUnusedTables;
+use citrea_common::db_migrations::RemoveUnusedTables;
 use sov_db::{
     ledger_db::migrations::LedgerMigration, schema::tables::LIGHT_CLIENT_PROVER_LEDGER_TABLES,
 };

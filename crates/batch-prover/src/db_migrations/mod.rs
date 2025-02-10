@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use sov_db::{ledger_db::migrations::LedgerMigration, schema::tables::BATCH_PROVER_LEDGER_TABLES};
 
-use citrea_common::migration::{
+use citrea_common::db_migrations::{
     MigrateBatchAndSlotByNumber, MigrateVerifiedProofsBySlotNumber, RemoveUnusedTables,
 };
 
