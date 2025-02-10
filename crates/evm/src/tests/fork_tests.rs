@@ -869,3 +869,99 @@ fn test_offchain_contract_storage_evm() {
 
     assert!(offchain_code.is_some());
 }
+
+#[test]
+fn test_kumquat_to_fork2_account_migration() {
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Kumquat,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    // Send money to a contract address
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+        let call_tx = send_money_to_contract_message(contract_addr, &dev_signer, 0, 100000);
+
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let old_acc = evm
+        .accounts_prefork2
+        .get(&contract_addr, &mut working_set)
+        .unwrap();
+    assert_eq!(old_acc.balance, U256::from(100000));
+    let old_idx = evm.account_idxs.get(&contract_addr, &mut working_set);
+    assert!(old_idx.is_none());
+
+    l2_height += 1;
+
+    // Now trying with Fork2 spec on the next block
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork2,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+        let call_tx = send_money_to_contract_message(contract_addr, &dev_signer, 1, 100000);
+
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let old_acc = evm
+        .accounts_prefork2
+        .get(&contract_addr, &mut working_set)
+        .unwrap();
+    // Because we sent in Fork2, old account format should stay the same (but not the new account format)
+    assert_eq!(old_acc.balance, U256::from(100000));
+
+    let new_idx = evm
+        .account_idxs
+        .get(&contract_addr, &mut working_set)
+        .unwrap();
+    let new_acc = evm
+        .accounts_postfork2
+        .get(&new_idx, &mut working_set)
+        .unwrap();
+    assert_eq!(new_acc.balance, U256::from(200000));
+}
