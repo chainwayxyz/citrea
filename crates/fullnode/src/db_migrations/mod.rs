@@ -1,11 +1,12 @@
 use std::sync::OnceLock;
 
-use sov_db::{ledger_db::migrations::LedgerMigration, schema::tables::FULL_NODE_LEDGER_TABLES};
-
-use crate::db_migrations::verified_batch_proof_encoding::FixVerifiedBatchProofsEncoding;
 use citrea_common::db_migrations::{
     MigrateBatchAndSlotByNumber, MigrateVerifiedProofsBySlotNumber, RemoveUnusedTables,
 };
+use sov_db::ledger_db::migrations::LedgerMigration;
+use sov_db::schema::tables::FULL_NODE_LEDGER_TABLES;
+
+use crate::db_migrations::verified_batch_proof_encoding::FixVerifiedBatchProofsEncoding;
 
 mod verified_batch_proof_encoding;
 
