@@ -795,7 +795,7 @@ fn test_queries_with_forks() {
         if num < 3 {
             Fork::new(SovSpecId::Genesis, 0)
         } else {
-            Fork::new(SovSpecId::Fork2, 4)
+            Fork::new(SovSpecId::Kumquat, 4)
         }
     };
 

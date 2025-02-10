@@ -721,6 +721,8 @@ fn self_destruct_test() {
         timestamp: 0,
     };
 
+    // Switch to another fork
+    let spec_id = SovSpecId::Fork2;
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -1767,7 +1769,8 @@ fn test_l1_fee_compression_discount() {
     assert_eq!(coinbase_account.balance, expected_coinbase_balance);
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
-    // Set up the next transaction with the fork 1 activated
+    // Set up the next transaction with the fork 2 activated
+    let spec_id = SovSpecId::Fork2;
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height: 3,
         da_slot_hash: [5u8; 32],
