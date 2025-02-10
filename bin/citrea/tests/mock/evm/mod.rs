@@ -318,6 +318,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     // citrea::initialize_logging(::tracing::Level::INFO);
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();

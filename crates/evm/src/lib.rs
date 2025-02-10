@@ -4,7 +4,6 @@ mod call;
 mod evm;
 mod genesis;
 mod hooks;
-#[cfg(feature = "native")]
 mod provider_functions;
 
 use alloy_rlp::{RlpDecodable, RlpEncodable};
@@ -37,8 +36,7 @@ mod tests;
 use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
-pub use revm::primitives::SpecId as EvmSpecId;
-use revm::primitives::{BlockEnv, U256};
+use revm::primitives::{BlockEnv, SpecId as EvmSpecId, U256};
 use sov_modules_api::{
     ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };
@@ -71,6 +69,9 @@ impl PendingTransaction {
     }
 }
 
+/// A unique id of account inside our evm state. 64 bits is enough.
+type AccountId = u64;
+
 /// The citrea-evm module provides compatibility with the EVM.
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
@@ -79,13 +80,29 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[address]
     pub(crate) address: C::Address,
 
+    /// Mapping from account address to account id.
+    #[state(rename = "i")]
+    pub(crate) account_idxs: sov_modules_api::StateMap<Address, AccountId, BcsCodec>,
+
     /// Mapping from account address to account state.
     #[state(rename = "a")]
-    pub accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
+    pub accounts_prefork2: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
+
+    /// Mapping from account id to account state.
+    #[state(rename = "t")]
+    pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BcsCodec>,
+
+    /// The total number of accounts.
+    #[state(rename = "n")]
+    pub(crate) account_amount: sov_modules_api::StateValue<u64, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
     pub(crate) code: sov_modules_api::StateMap<B256, revm::primitives::Bytecode, BcsCodec>,
+
+    /// Mapping from storage hash ( sha256(address | key) ) to storage value.
+    #[state(rename = "s")]
+    pub storage: sov_modules_api::StateMap<U256, U256, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     /// This is the new offchain version which is not counted in the state diff.
@@ -199,18 +216,11 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
 impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
-        &self,
+        &'a self,
         working_set: &'a mut WorkingSet<C::Storage>,
-        current_spec: EvmSpecId,
+        citrea_spec: CitreaSpecId,
     ) -> EvmDb<'a, C> {
-        EvmDb::new(
-            self.accounts.clone(),
-            self.code.clone(),
-            self.offchain_code.clone(),
-            self.latest_block_hashes.clone(),
-            working_set,
-            current_spec,
-        )
+        EvmDb::new(self, working_set, citrea_spec)
     }
 }
 

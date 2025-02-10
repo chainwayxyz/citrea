@@ -50,14 +50,14 @@ pub(crate) fn get_evm_with_storage(
     (evm, working_set, prover_storage)
 }
 
-pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
+pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
     get_evm_with_spec(config, SovSpecId::Kumquat)
 }
 
 pub(crate) fn get_evm_with_spec(
     config: &EvmConfig,
     spec_id: SovSpecId,
-) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
+) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
@@ -93,7 +93,7 @@ pub(crate) fn get_evm_with_spec(
     // let mut genesis_state_root = [0u8; 32];
     // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
-    (evm, working_set)
+    (evm, working_set, spec_id)
 }
 
 pub(crate) fn commit(

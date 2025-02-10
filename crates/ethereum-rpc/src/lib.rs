@@ -10,7 +10,8 @@ use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{DbAccount, Evm, Filter};
+use citrea_evm::{Evm, Filter};
+use citrea_primitives::forks::fork_from_block_number;
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -28,7 +29,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
@@ -249,6 +250,7 @@ where
             .map_err(to_eth_rpc_error)
     }
 
+    // Implemented for Genesis and Fork1 only. Not for Fork2 yet.
     fn eth_get_proof(
         &self,
         address: Address,
@@ -270,7 +272,17 @@ where
             }
             None => BlockNumberOrTag::Latest,
         };
+
         let block_id_internal = evm.block_number_for_id(&block_number, &mut working_set)?;
+
+        let citrea_spec = fork_from_block_number(block_id_internal).spec_id;
+
+        if citrea_spec >= CitreaSpecId::Fork2 {
+            return Err(EthApiError::EvmCustom(
+                "Method not implemented yet for >= Fork2".into(),
+            ))?;
+        }
+
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 
         let version = block_id_internal
@@ -282,17 +294,16 @@ where
             .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
 
         let account = evm
-            .accounts
-            .get(&address, &mut working_set)
+            .account_info(&address, citrea_spec, &mut working_set)
             .unwrap_or_default();
         let balance = account.balance;
         let nonce = account.nonce;
         let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
 
         let account_key = StorageKey::new(
-            evm.accounts.prefix(),
+            evm.accounts_prefork2.prefix(),
             &address,
-            evm.accounts.codec().key_codec(),
+            evm.accounts_prefork2.codec().key_codec(),
         );
 
         let account_proof = working_set.get_with_proof(account_key, version);
@@ -305,16 +316,12 @@ where
             borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
         let account_proof = Bytes::from(account_proof);
 
-        let db_account = DbAccount::new(address);
         let mut storage_proof = vec![];
         for key in keys {
             let key: U256 = key.0.into();
-            let storage_key = StorageKey::new(
-                db_account.storage.prefix(),
-                &key,
-                db_account.storage.codec().key_codec(),
-            );
-            let value = db_account.storage.get(&key, &mut working_set);
+            let storage_key =
+                StorageKey::new(evm.storage.prefix(), &key, evm.storage.codec().key_codec());
+            let value = evm.storage_get(&address, &key, citrea_spec, &mut working_set);
             let proof = working_set.get_with_proof(storage_key, version);
             let value_exists = if proof.value.is_some() {
                 Bytes::from("y")

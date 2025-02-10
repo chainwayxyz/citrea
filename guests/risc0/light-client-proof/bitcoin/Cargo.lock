@@ -631,12 +631,13 @@ dependencies = [
 name = "citrea-risc0-adapter"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "bincode",
  "borsh",
+ "risc0-zkp",
  "risc0-zkvm",
  "serde",
  "sov-rollup-interface",
+ "thiserror",
  "tracing",
 ]
 
