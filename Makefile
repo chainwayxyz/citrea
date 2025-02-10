@@ -61,7 +61,8 @@ test-ci:
 coverage-ci:
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
-test: build-test test-ci ## Runs test suite using next test
+test: build-test ## Runs test suite using next test
+	$(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: build-test coverage-ci ## Coverage in lcov format
 
@@ -98,9 +99,9 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 
 lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
 	dprint fmt
-	cargo +nightly fmt --all
 	cargo fix --allow-dirty
 	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty
+	cargo +nightly fmt --all
 
 check-features: ## Checks that project compiles with all combinations of features.
 	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets

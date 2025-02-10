@@ -150,12 +150,11 @@ pub(crate) fn execute_system_txs<
 ) -> Vec<ExecutionResult> {
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
 
-    let mut tx_results = vec![];
-    for tx in system_txs {
-        let result = evm
-            .transact_commit(tx)
-            .expect("System transactions must never fail");
-        tx_results.push(result);
-    }
-    tx_results
+    system_txs
+        .iter()
+        .map(|tx| {
+            evm.transact_commit(tx)
+                .expect("System transactions must never fail")
+        })
+        .collect()
 }

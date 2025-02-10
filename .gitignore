@@ -33,3 +33,5 @@ reveal_*.tx
 elf/
 *input.bin
 *transactions.txt
+
+bitcoin-testnet4/

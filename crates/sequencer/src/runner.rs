@@ -9,7 +9,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::utils::soft_confirmation_to_receipt;
-use citrea_common::{RollupPublicKeys, SequencerConfig};
+use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
@@ -39,7 +39,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::ProverStorage;
-use sov_stf_runner::InitParams;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
@@ -340,7 +339,7 @@ where
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
-            pre_state_root: self.state_root.clone().as_ref().to_vec(),
+            pre_state_root: self.state_root,
             deposit_data: deposit_data.clone(),
             current_spec: active_fork_spec,
             pub_key: pub_key.clone(),
@@ -437,7 +436,7 @@ where
 
                 self.stf.end_soft_confirmation(
                     active_fork_spec,
-                    self.state_root.as_ref().to_vec(),
+                    self.state_root,
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
                     &mut working_set,
@@ -889,8 +888,9 @@ where
     ) -> anyhow::Result<()> {
         debug!("We have {} missed DA blocks", missed_da_blocks_count);
         let exponential_backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_millis(50))
-            .with_max_elapsed_time(Some(Duration::from_secs(1)))
+            .with_initial_interval(Duration::from_millis(200))
+            .with_max_elapsed_time(Some(Duration::from_secs(30)))
+            .with_multiplier(1.5)
             .build();
         for i in 1..=missed_da_blocks_count {
             let needed_da_block_height = last_used_l1_height + i;

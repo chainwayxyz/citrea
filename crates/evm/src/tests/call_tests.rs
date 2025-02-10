@@ -7,7 +7,6 @@ use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{BlockNumberOrTag, Log, LogData};
-use revm::primitives::SpecId::SHANGHAI;
 use revm::primitives::{hex, KECCAK_EMPTY, U256};
 use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
@@ -57,7 +56,7 @@ fn call_multiple_test() {
         ..Default::default()
     };
     config_push_contracts(&mut config, None);
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, spec_id) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
@@ -69,7 +68,7 @@ fn call_multiple_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -103,7 +102,9 @@ fn call_multiple_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let account_info = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+    let account_info = evm
+        .account_info(&contract_addr, spec_id, &mut working_set)
+        .unwrap();
 
     // Make sure the contract db account size is 75 bytes
     let db_account_len = bcs::to_bytes(&account_info)
@@ -112,18 +113,15 @@ fn call_multiple_test() {
     assert_eq!(db_account_len, 75);
 
     let eoa_account_info = evm
-        .accounts
-        .get(&dev_signer1.address(), &mut working_set)
+        .account_info(&dev_signer1.address(), spec_id, &mut working_set)
         .unwrap();
     // Make sure the eoa db account size is 42 bytes
     let db_account_len = bcs::to_bytes(&eoa_account_info)
         .expect("Failed to serialize value")
         .len();
     assert_eq!(db_account_len, 42);
-    let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
         .unwrap();
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
@@ -227,7 +225,7 @@ fn call_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -236,7 +234,7 @@ fn call_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -265,10 +263,8 @@ fn call_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
         .unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
@@ -383,7 +379,7 @@ fn failed_transaction_test() {
     let mut config = EvmConfig::default();
     config_push_contracts(&mut config, None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -393,7 +389,7 @@ fn failed_transaction_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -530,7 +526,7 @@ fn self_destruct_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -539,7 +535,7 @@ fn self_destruct_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Genesis,
         pub_key: vec![],
         deposit_data: vec![],
@@ -576,20 +572,17 @@ fn self_destruct_test() {
     l2_height += 1;
 
     let contract_info = evm
-        .accounts
-        .get(&contract_addr, &mut working_set)
+        .account_info(&contract_addr, spec_id, &mut working_set)
         .expect("contract address should exist");
 
     // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
-    let db_contract = DbAccount::new(contract_addr);
+    let db_contract = DbAccount::new(&contract_addr);
 
     // Test if we managed to set the variable in the contract
     assert_eq!(
-        db_contract
-            .storage
-            .get(&U256::from(0), &mut working_set)
+        evm.storage_get(&contract_addr, &U256::from(0), spec_id, &mut working_set)
             .unwrap(),
         U256::from(123)
     );
@@ -603,7 +596,7 @@ fn self_destruct_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 2,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [99u8; 32].to_vec(),
+        pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Genesis,
         pub_key: vec![],
         deposit_data: vec![],
@@ -636,11 +629,13 @@ fn self_destruct_test() {
     l2_height += 1;
 
     // we now delete destructed accounts from storage
-    assert_eq!(evm.accounts.get(&contract_addr, &mut working_set), None);
+    assert_eq!(
+        evm.account_info(&contract_addr, spec_id, &mut working_set),
+        None
+    );
 
     let die_to_acc = evm
-        .accounts
-        .get(&die_to_address, &mut working_set)
+        .account_info(&die_to_address, spec_id, &mut working_set)
         .expect("die to address should exist");
 
     let receipts = evm
@@ -654,11 +649,11 @@ fn self_destruct_test() {
     // the to address balance should be equal to contract balance
     assert_eq!(die_to_acc.balance, U256::from(contract_balance));
 
-    let db_account = DbAccount::new(contract_addr);
+    let db_account = DbAccount::new(&contract_addr);
 
     // the storage should be empty
     assert_eq!(
-        db_account.storage.get(&U256::from(0), &mut working_set),
+        evm.storage_get(&contract_addr, &U256::from(0), spec_id, &mut working_set),
         None
     );
 
@@ -700,8 +695,7 @@ fn self_destruct_test() {
     l2_height += 1;
 
     let contract_info = evm
-        .accounts
-        .get(&new_contract_address, &mut working_set)
+        .account_info(&new_contract_address, spec_id, &mut working_set)
         .expect("contract address should exist");
 
     let new_contract_code_hash_before_destruct = contract_info.code_hash.unwrap();
@@ -719,7 +713,7 @@ fn self_destruct_test() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -759,8 +753,7 @@ fn self_destruct_test() {
 
     // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
     let contract_info = evm
-        .accounts
-        .get(&new_contract_address, &mut working_set)
+        .account_info(&new_contract_address, spec_id, &mut working_set)
         .expect("contract address should exist");
 
     // Test if we managed to send money to contract
@@ -786,18 +779,20 @@ fn self_destruct_test() {
     assert_eq!(contract_info.balance, U256::from(0));
 
     let die_to_contract = evm
-        .accounts
-        .get(&die_to_address, &mut working_set)
+        .account_info(&die_to_address, spec_id, &mut working_set)
         .expect("die to address should exist");
 
     // the to address balance should be equal to double contract balance now that two selfdestructs have been called
     assert_eq!(die_to_contract.balance, U256::from(2 * contract_balance));
 
-    let db_account = DbAccount::new(new_contract_address);
-
     // the storage should not be empty
     assert_eq!(
-        db_account.storage.get(&U256::from(0), &mut working_set),
+        evm.storage_get(
+            &new_contract_address,
+            &U256::from(0),
+            spec_id,
+            &mut working_set,
+        ),
         Some(U256::from(123))
     );
 }
@@ -807,7 +802,7 @@ fn test_block_hash_in_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -816,7 +811,7 @@ fn test_block_hash_in_evm() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -853,7 +848,7 @@ fn test_block_hash_in_evm() {
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [99u8; 32].to_vec(),
+            pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -962,7 +957,7 @@ fn test_block_gas_limit() {
         Some(ETHEREUM_BLOCK_GAS_LIMIT),
     );
 
-    let (mut evm, working_set) = get_evm(&config);
+    let (mut evm, working_set, _spec_id) = get_evm(&config);
 
     let mut working_set = working_set.checkpoint().to_revertable();
     let l1_fee_rate = 0;
@@ -973,7 +968,7 @@ fn test_block_gas_limit() {
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1025,7 +1020,7 @@ fn test_block_gas_limit() {
     let mut working_set = working_set.revert().to_revertable();
 
     assert_eq!(
-        evm.get_db(&mut working_set, SHANGHAI)
+        evm.get_db(&mut working_set, SovSpecId::Genesis)
             .basic(dev_signer.address())
             .unwrap()
             .unwrap()
@@ -1038,7 +1033,7 @@ fn test_block_gas_limit() {
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1187,14 +1182,14 @@ fn test_l1_fee_success() {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-        let (mut evm, mut working_set) = get_evm(&config);
+        let (mut evm, mut working_set, spec_id) = get_evm(&config);
 
         let soft_confirmation_info = HookSoftConfirmationInfo {
             l2_height: 2,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
+            pre_state_root: [10u8; 32],
             current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -1229,16 +1224,18 @@ fn test_l1_fee_success() {
         evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         let db_account = evm
-            .accounts
-            .get(&dev_signer.address(), &mut working_set)
+            .account_info(&dev_signer.address(), spec_id, &mut working_set)
             .unwrap();
 
-        let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-        let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+        let base_fee_vault = evm
+            .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
+            .unwrap();
+        let l1_fee_vault = evm
+            .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
+            .unwrap();
 
         let coinbase_account = evm
-            .accounts
-            .get(&config.coinbase, &mut working_set)
+            .account_info(&config.coinbase, spec_id, &mut working_set)
             .unwrap();
         assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
@@ -1369,7 +1366,7 @@ fn test_l1_fee_not_enough_funds() {
     );
 
     let l1_fee_rate = 10000;
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, spec_id) = get_evm(&config);
 
     let l2_height = 2;
 
@@ -1378,7 +1375,7 @@ fn test_l1_fee_not_enough_funds() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1484,8 +1481,7 @@ fn test_l1_fee_not_enough_funds() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
-        .accounts
-        .get(&dev_signer.address(), &mut working_set)
+        .account_info(&dev_signer.address(), spec_id, &mut working_set)
         .unwrap();
 
     // The account balance is unchanged
@@ -1493,7 +1489,7 @@ fn test_l1_fee_not_enough_funds() {
     assert_eq!(db_account.nonce, 0);
 
     // The coinbase balance is zero
-    let db_coinbase = evm.accounts.get(&config.coinbase, &mut working_set);
+    let db_coinbase = evm.account_info(&config.coinbase, spec_id, &mut working_set);
     assert_eq!(db_coinbase.unwrap().balance, U256::from(0));
 }
 
@@ -1502,7 +1498,7 @@ fn test_l1_fee_halt() {
     let (config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
-    let (mut evm, mut working_set) = get_evm(&config); // l2 height 1
+    let (mut evm, mut working_set, spec_id) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
     let l2_height = 2;
 
@@ -1511,7 +1507,7 @@ fn test_l1_fee_halt() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1662,8 +1658,7 @@ fn test_l1_fee_halt() {
     );
 
     let db_account = evm
-        .accounts
-        .get(&dev_signer.address(), &mut working_set)
+        .account_info(&dev_signer.address(), spec_id, &mut working_set)
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
@@ -1677,8 +1672,12 @@ fn test_l1_fee_halt() {
             expenses
         )
     );
-    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+    let base_fee_vault = evm
+        .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
+        .unwrap();
+    let l1_fee_vault = evm
+        .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
+        .unwrap();
 
     assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
@@ -1692,7 +1691,7 @@ fn test_l1_fee_compression_discount() {
     let (config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 1;
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -1700,7 +1699,7 @@ fn test_l1_fee_compression_discount() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Genesis,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1734,16 +1733,18 @@ fn test_l1_fee_compression_discount() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
-        .accounts
-        .get(&dev_signer.address(), &mut working_set)
+        .account_info(&dev_signer.address(), spec_id, &mut working_set)
         .unwrap();
 
-    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+    let base_fee_vault = evm
+        .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
+        .unwrap();
+    let l1_fee_vault = evm
+        .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
+        .unwrap();
 
     let coinbase_account = evm
-        .accounts
-        .get(&config.coinbase, &mut working_set)
+        .account_info(&config.coinbase, spec_id, &mut working_set)
         .unwrap();
     assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
@@ -1772,7 +1773,7 @@ fn test_l1_fee_compression_discount() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [99u8; 32].to_vec(),
+        pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Kumquat, // Compression discount is enabled
         pub_key: vec![],
         deposit_data: vec![],
@@ -1807,15 +1808,17 @@ fn test_l1_fee_compression_discount() {
     evm.finalize_hook(&[98u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
-        .accounts
-        .get(&dev_signer.address(), &mut working_set)
+        .account_info(&dev_signer.address(), spec_id, &mut working_set)
         .unwrap();
-    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+    let base_fee_vault = evm
+        .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
+        .unwrap();
+    let l1_fee_vault = evm
+        .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
+        .unwrap();
 
     let coinbase_account = evm
-        .accounts
-        .get(&config.coinbase, &mut working_set)
+        .account_info(&config.coinbase, spec_id, &mut working_set)
         .unwrap();
 
     // gas fee remains the same
@@ -1852,7 +1855,7 @@ fn test_call_with_block_overrides() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -1861,7 +1864,7 @@ fn test_call_with_block_overrides() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -1898,7 +1901,7 @@ fn test_call_with_block_overrides() {
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [99u8; 32].to_vec(),
+            pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -1982,7 +1985,7 @@ fn test_call_with_block_overrides() {
 fn test_blob_tx() {
     let (config, dev_signer, _contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -1992,7 +1995,7 @@ fn test_blob_tx() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Kumquat, // wont be Kumquat at height 2 currently but we can trick the spec id
         pub_key: vec![],
         deposit_data: vec![],

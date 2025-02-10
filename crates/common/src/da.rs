@@ -93,6 +93,7 @@ pub async fn get_da_block_at_height<Da: DaService>(
     let exponential_backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(Duration::from_secs(1))
         .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+        .with_multiplier(1.5)
         .build();
 
     let l1_block = retry_backoff(exponential_backoff.clone(), || async {

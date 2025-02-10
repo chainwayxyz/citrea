@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::FullNodeConfig;
+use citrea_common::{FullNodeConfig, ProverGuestRunConfig};
+use prover_services::ParallelProverService;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
@@ -17,7 +18,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
-use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::sync::broadcast;
 
 mod runtime_rpc;
@@ -52,9 +52,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type ZkRuntime: RuntimeTrait<Self::ZkContext, Self::DaSpec> + Default;
     /// Runtime for the Native environment.
     type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
-
-    /// Prover service.
-    type ProverService: ProverService<DaService = Self::DaService> + Send + Sync + 'static;
 
     /// Creates a new instance of the blueprint.
     fn new(network: Network) -> Self;
@@ -128,7 +125,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         ledger_db: LedgerDB,
         proof_sampling_number: usize,
         is_light_client_prover: bool,
-    ) -> Self::ProverService;
+    ) -> ParallelProverService<Self::DaService, Self::Vm>;
 
     /// Creates instance of [`Self::StorageManager`].
     /// Panics if initialization fails.

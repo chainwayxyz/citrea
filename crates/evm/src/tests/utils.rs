@@ -14,7 +14,6 @@ use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{ProverStorage, Storage};
-use sov_stf_runner::read_json_file;
 
 use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use crate::tests::test_signer::TestSigner;
@@ -51,14 +50,14 @@ pub(crate) fn get_evm_with_storage(
     (evm, working_set, prover_storage)
 }
 
-pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
+pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
     get_evm_with_spec(config, SovSpecId::Kumquat)
 }
 
 pub(crate) fn get_evm_with_spec(
     config: &EvmConfig,
     spec_id: SovSpecId,
-) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
+) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
@@ -75,7 +74,7 @@ pub(crate) fn get_evm_with_spec(
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [2u8; 32],
-        pre_state_root: root.to_vec(),
+        pre_state_root: root,
         current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],
@@ -94,7 +93,7 @@ pub(crate) fn get_evm_with_spec(
     // let mut genesis_state_root = [0u8; 32];
     // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
-    (evm, working_set)
+    (evm, working_set, spec_id)
 }
 
 pub(crate) fn commit(
@@ -124,8 +123,7 @@ pub(crate) fn commit(
 pub(crate) fn config_push_contracts(config: &mut EvmConfig, path: Option<&str>) {
     let mut genesis_config: EvmConfig = read_json_file(Path::new(
         path.unwrap_or("../../resources/test-data/integration-tests/evm.json"),
-    ))
-    .expect("Failed to read genesis configuration");
+    ));
     config.data.append(&mut genesis_config.data);
 }
 
@@ -327,4 +325,13 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
 
 pub(crate) fn get_fork_fn_only_fork1() -> impl Fn(u64) -> Fork {
     |_: u64| Fork::new(SovSpecId::Kumquat, 0)
+}
+
+/// Read genesis file
+pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(path: P) -> T {
+    let data = std::fs::read_to_string(&path).unwrap();
+
+    let config: T = serde_json::from_str(&data).unwrap();
+
+    config
 }

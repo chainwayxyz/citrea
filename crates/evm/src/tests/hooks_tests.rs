@@ -25,7 +25,7 @@ lazy_static! {
 #[test]
 fn begin_soft_confirmation_hook_creates_pending_block() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -33,7 +33,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -60,7 +60,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
 #[test]
 fn end_soft_confirmation_hook_sets_head() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
 
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -73,7 +73,7 @@ fn end_soft_confirmation_hook_sets_head() {
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
-        pre_state_root: pre_state_root.to_vec(),
+        pre_state_root,
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -139,7 +139,7 @@ fn end_soft_confirmation_hook_sets_head() {
 
 #[test]
 fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
-    let (mut evm, mut working_set) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -148,7 +148,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32].to_vec(),
+        pre_state_root: [10u8; 32],
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -253,14 +253,14 @@ fn create_pending_transaction(index: u64, nonce: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     // hack to get the root hash
     let binding = evm
         .blocks_rlp
         .get(1, &mut working_set.accessory_state())
         .unwrap();
-    let root = binding.header.header().state_root.as_slice();
+    let root = binding.header.header().state_root.0;
 
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
@@ -271,7 +271,7 @@ fn finalize_hook_creates_final_block() {
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
-        pre_state_root: root.to_vec(),
+        pre_state_root: root,
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -300,7 +300,7 @@ fn finalize_hook_creates_final_block() {
             da_slot_hash: DA_ROOT_HASH.0,
             da_slot_height: 1,
             da_slot_txs_commitment: txs_commitment.into(),
-            pre_state_root: root_hash.to_vec(),
+            pre_state_root: root_hash,
             current_spec: SpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -371,14 +371,14 @@ fn finalize_hook_creates_final_block() {
 
 #[test]
 fn begin_soft_confirmation_hook_appends_last_block_hashes() {
-    let (mut evm, mut working_set) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
 
     // hack to get the root hash
     let binding = evm
         .blocks_rlp
         .get(1, &mut working_set.accessory_state())
         .unwrap();
-    let root = binding.header.header().state_root.as_slice();
+    let root = binding.header.header().state_root.0;
 
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
@@ -389,7 +389,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
-        pre_state_root: root.to_vec(),
+        pre_state_root: root,
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
@@ -432,7 +432,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             da_slot_hash: DA_ROOT_HASH.0,
             da_slot_height: 1,
             da_slot_txs_commitment: random_32_bytes,
-            pre_state_root: random_32_bytes.to_vec(),
+            pre_state_root: random_32_bytes,
             current_spec: SpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
@@ -456,7 +456,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
         da_slot_txs_commitment: random_32_bytes,
-        pre_state_root: random_32_bytes.to_vec(),
+        pre_state_root: random_32_bytes,
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],

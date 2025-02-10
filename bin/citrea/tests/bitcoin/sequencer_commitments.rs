@@ -85,7 +85,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         // wait here until we see from prover's rpc that it finished proving
         prover.wait_for_l1_height(finalized_height, None).await?;
@@ -167,7 +167,7 @@ impl TestCase for LedgerGetCommitmentsTest {
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
             .await?;
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         let commitments = wait_for_sequencer_commitments(full_node, finalized_height, None).await?;
 
@@ -233,7 +233,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         da.generate(FINALITY_DEPTH).await?;
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         for height in initial_height..finalized_height {
             let hash = da.get_block_hash(height).await?;
@@ -294,7 +294,7 @@ impl SequencerSendCommitmentsToDaTest {
         start_l2_block: u64,
         end_l2_block: u64,
     ) -> Result<()> {
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         // Extract and verify the commitment from the block
         let hash = da.get_block_hash(finalized_height).await?;

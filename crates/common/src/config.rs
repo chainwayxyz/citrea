@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use citrea_storage_ops::pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_stf_runner::ProverGuestRunConfig;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
@@ -427,6 +426,36 @@ impl FromEnv for TelemetryConfig {
             bind_host,
             bind_port: bind_port.map(|p| p.parse()).transpose()?,
         })
+    }
+}
+
+/// The possible configurations of the prover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProverGuestRunConfig {
+    /// Skip proving.
+    Skip,
+    /// Run the rollup verifier in a zkVM executor.
+    Execute,
+    /// Run the rollup verifier and create a SNARK of execution.
+    Prove,
+    /// Run the rollup verifier and create a SNARK or a fake proof of execution.
+    ProveWithFakeProofs,
+}
+
+impl<'de> Deserialize<'de> for ProverGuestRunConfig {
+    fn deserialize<D>(deserializer: D) -> Result<ProverGuestRunConfig, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = <std::string::String as Deserialize>::deserialize(deserializer)?;
+        match s.as_str() {
+            "skip" => Ok(ProverGuestRunConfig::Skip),
+            "execute" => Ok(ProverGuestRunConfig::Execute),
+            "prove" => Ok(ProverGuestRunConfig::Prove),
+            "prove-with-fakes" => Ok(ProverGuestRunConfig::ProveWithFakeProofs),
+            _ => Err(serde::de::Error::custom("invalid prover guest run config")),
+        }
     }
 }
 

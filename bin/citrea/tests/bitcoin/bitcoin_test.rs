@@ -117,7 +117,7 @@ impl TestCase for BitcoinReorgTest {
         assert_eq!(block.txdata.len(), 3); // Coinbase + seq commit/reveal txs
 
         da1.generate(FINALITY_DEPTH - 1).await?;
-        let finalized_height = da1.get_finalized_height().await?;
+        let finalized_height = da1.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
@@ -326,7 +326,7 @@ impl TestCase for CpfpFeeBumpingTest {
         );
 
         da.generate(FINALITY_DEPTH - 1).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
