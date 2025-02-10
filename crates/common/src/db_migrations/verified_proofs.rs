@@ -5,7 +5,7 @@ use sov_db::ledger_db::LedgerDB;
 
 /// Table name change migration
 /// table name "VerifiedProofsBySlotNumber" is now "VerifiedBatchProofsBySlotNumber"
-pub(crate) struct MigrateVerifiedProofsBySlotNumber {}
+pub struct MigrateVerifiedProofsBySlotNumber;
 
 // Name of the schema was changed from VerifiedProofsBySlotNumber to VerifiedBatchProofsBySlotNumber
 impl LedgerMigration for MigrateVerifiedProofsBySlotNumber {

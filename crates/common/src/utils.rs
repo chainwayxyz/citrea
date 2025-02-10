@@ -68,20 +68,15 @@ fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
     Ok((filtered, skipped_commitments))
 }
 
-pub fn check_l2_range_exists<DB: SharedLedgerOps>(
-    ledger_db: &DB,
-    first_l2_height_of_l1: u64,
-    last_l2_height_of_l1: u64,
-) -> bool {
-    if let Ok(range) = ledger_db.get_soft_confirmation_range(
-        &(SoftConfirmationNumber(first_l2_height_of_l1)
-            ..=SoftConfirmationNumber(last_l2_height_of_l1)),
-    ) {
-        if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
-            return true;
-        }
-    }
-    false
+pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64) -> bool {
+    let Some(head_l2_height) = ledger_db
+        .get_head_soft_confirmation_height()
+        .expect("Ledger db read must not fail")
+    else {
+        return false;
+    };
+
+    head_l2_height >= l2_height
 }
 
 pub fn soft_confirmation_to_receipt<C: Context, Tx: TransactionDigest + Clone, DS: DaSpec>(

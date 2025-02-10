@@ -311,14 +311,19 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     ledger_db: &DB,
     l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
 ) -> Result<CommitmentStateTransitionData<'txs, Witness, Da, Tx>, anyhow::Error> {
-    let mut state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>> = VecDeque::new();
-    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Tx>>> = VecDeque::new();
+    let mut state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>> =
+        VecDeque::with_capacity(sequencer_commitments.len());
+    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Tx>>> =
+        VecDeque::with_capacity(sequencer_commitments.len());
     let mut da_block_headers_of_soft_confirmations: VecDeque<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
-    > = VecDeque::new();
-    for sequencer_commitment in sequencer_commitments.to_owned().iter() {
+    > = VecDeque::with_capacity(sequencer_commitments.len());
+    for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
-        let mut witnesses = vec![];
+        let mut witnesses = Vec::with_capacity(
+            (sequencer_commitment.l2_end_block_number - sequencer_commitment.l2_start_block_number
+                + 1) as usize,
+        );
         let start_l2 = sequencer_commitment.l2_start_block_number;
         let end_l2 = sequencer_commitment.l2_end_block_number;
         let soft_confirmations_in_commitment = match ledger_db.get_soft_confirmation_range(
@@ -332,7 +337,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 ));
             }
         };
-        let mut commitment_soft_confirmations = vec![];
+        let mut commitment_soft_confirmations =
+            Vec::with_capacity(soft_confirmations_in_commitment.len());
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
