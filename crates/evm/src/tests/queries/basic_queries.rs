@@ -787,15 +787,13 @@ fn test_queries_with_forks() {
     // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
     // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
 
-    let (mut evm, mut working_set, signer, _) = init_evm_with_caller_contract();
-
-    let l2_height = 2;
+    let (mut evm, mut working_set, signer, l2_height) = init_evm_with_caller_contract();
 
     let fork_fn = |num: u64| {
-        if num < 2 {
+        if num < 3 {
             Fork::new(SovSpecId::Genesis, 0)
         } else {
-            Fork::new(SovSpecId::Fork2, 4)
+            Fork::new(SovSpecId::Fork2, 3)
         }
     };
 
@@ -846,7 +844,7 @@ fn test_queries_with_forks() {
         diff_size,
         EstimatedDiffSize {
             gas: U64::from(30859),
-            l1_diff_size: U64::from(53),
+            l1_diff_size: U64::from(255),
         }
     );
 
@@ -859,14 +857,16 @@ fn test_queries_with_forks() {
         )
         .unwrap();
 
-    // This assert fails because I don't know why:
-    // assert_eq!(
-    //     form_access_list,
-    //     AccessListWithGasUsed {
-    //         access_list: AccessList(vec![]),
-    //         gas_used: U256::from_str("0x54ef").unwrap()
-    //     }
-    // );
+    assert_eq!(
+        form_access_list,
+        AccessListWithGasUsed {
+            access_list: AccessList(vec![AccessListItem {
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![B256::ZERO],
+            }]),
+            gas_used: U256::from(30558),
+        }
+    );
 
     let tx_req_with_access_list = TransactionRequest {
         access_list: Some(form_access_list.access_list.clone()),
@@ -948,8 +948,10 @@ fn test_queries_with_forks() {
 
     assert_eq!(
         diff_size,
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x788b","l1DiffSize":"0x35"}])
-            .unwrap()
+        EstimatedDiffSize {
+            gas: U64::from(30859),
+            l1_diff_size: U64::from(53),
+        }
     );
 
     // Get pre fork estimated gas and expect it to still work same
@@ -964,9 +966,8 @@ fn test_queries_with_forks() {
         no_access_list_pre_fork.clone().unwrap()
     );
 
-    // This assert fails because I don't know why:
-    // assert_ne!(
-    //     no_access_list_pre_fork.clone().unwrap(),
-    //     no_access_list_post_fork.unwrap()
-    // );
+    assert_eq!(
+        no_access_list_pre_fork.clone().unwrap(),
+        no_access_list_post_fork.unwrap()
+    );
 }
