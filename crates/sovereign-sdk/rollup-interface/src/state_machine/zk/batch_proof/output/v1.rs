@@ -2,7 +2,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use super::CumulativeStateDiff;
-use crate::da::DaSpec;
 use crate::spec::SpecId;
 use crate::zk::StorageRootHash;
 

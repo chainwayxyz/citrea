@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use rand::{thread_rng, Rng};
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRInclusionProof, MMRNative};

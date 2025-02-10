@@ -304,12 +304,12 @@ where
     for proof in proofs {
         let (initial_state_root, sequencer_commitments_range) = match &proof.proof_output {
             StoredBatchProofOutput::V1(output) => (
-                output.initial_state_root.clone(),
-                output.sequencer_commitments_range.clone(),
+                output.initial_state_root,
+                output.sequencer_commitments_range,
             ),
             StoredBatchProofOutput::V2(output) => (
-                output.initial_state_root.clone(),
-                output.sequencer_commitments_range.clone(),
+                output.initial_state_root,
+                output.sequencer_commitments_range,
             ),
         };
 
@@ -343,7 +343,7 @@ where
         {
             Ok(output) => (
                 fork_from_block_number(output.last_l2_height).spec_id,
-                output.da_slot_hash.clone(),
+                output.da_slot_hash,
                 StoredBatchProofOutput::V2(output),
             ),
             Err(e) => {
@@ -354,7 +354,7 @@ where
                 // If we got output of pre fork 1 that means we are in genesis
                 (
                     SpecId::Genesis,
-                    output.da_slot_hash.clone(),
+                    output.da_slot_hash,
                     StoredBatchProofOutput::V1(output),
                 )
             }
@@ -371,7 +371,7 @@ where
 
         debug!("circuit output: {:?}", batch_proof_output);
 
-        let slot_hash = da_slot_hash.into();
+        let slot_hash = da_slot_hash;
 
         let l1_height = ledger_db
             .get_l1_height_of_l1_hash(slot_hash)?

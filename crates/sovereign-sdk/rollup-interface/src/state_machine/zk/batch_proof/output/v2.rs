@@ -2,7 +2,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use super::CumulativeStateDiff;
-use crate::da::DaSpec;
 use crate::zk::StorageRootHash;
 
 /// The public output of a SNARK batch proof in Sovereign, this struct makes a claim that
