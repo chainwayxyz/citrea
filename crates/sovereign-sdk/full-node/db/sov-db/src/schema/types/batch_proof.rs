@@ -122,8 +122,8 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 final_state_root: value.final_state_root.to_vec(),
                 state_diff: value.state_diff,
                 da_slot_hash: value.da_slot_hash,
-                sequencer_da_public_key: value.sequencer_da_public_key,
-                sequencer_public_key: value.sequencer_public_key,
+                sequencer_da_public_key: vec![],
+                sequencer_public_key: vec![],
                 sequencer_commitments_range: (
                     U32::from(value.sequencer_commitments_range.0),
                     U32::from(value.sequencer_commitments_range.1),

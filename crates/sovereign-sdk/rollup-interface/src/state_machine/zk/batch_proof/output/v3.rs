@@ -33,12 +33,6 @@ pub struct BatchProofCircuitOutputV3 {
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
-    /// Sequencer public key.
-    pub sequencer_public_key: Vec<u8>,
-    /// Sequencer k256 public key.
-    pub sequencer_k256_public_key: Vec<u8>,
-    /// Sequencer DA public key.
-    pub sequencer_da_public_key: Vec<u8>,
     /// The last processed l2 height in the processed sequencer commitments.
     /// This will be 0 for pre fork 1 proofs
     pub last_l2_height: u64,

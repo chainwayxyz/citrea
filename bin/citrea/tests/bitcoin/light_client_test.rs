@@ -1341,9 +1341,6 @@ fn create_serialized_fake_receipt_batch_proof(
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
         sequencer_commitments_range: (0, 0),
-        sequencer_da_public_key,
-        sequencer_public_key,
-        sequencer_k256_public_key,
         preproven_commitments: vec![],
     };
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
