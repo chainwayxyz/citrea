@@ -398,8 +398,7 @@ impl<S: Storage> StateCheckpoint<S> {
     }
 
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
-    pub fn to_revertable(mut self) -> WorkingSet<S> {
-        self.delta.version = None;
+    pub fn to_revertable(self) -> WorkingSet<S> {
         WorkingSet {
             delta: self.delta,
             offchain_delta: RevertableWriter::new(self.offchain_delta, None),
