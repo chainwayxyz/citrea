@@ -146,7 +146,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     .next_if(|&x| x == current_proof_index)
                     .is_some();
                 println!("Complete proof expected to fail: {}", expected_to_fail);
-                match process_complete_proof::<DaV, G>(
+                match process_complete_proof::<G>(
                     &proof,
                     &batch_proof_method_ids,
                     last_l2_height,
@@ -226,7 +226,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     .next_if(|&x| x == current_proof_index)
                     .is_some();
                 println!("Aggregate proof expected to fail: {}", expected_to_fail);
-                match process_complete_proof::<DaV, G>(
+                match process_complete_proof::<G>(
                     &complete_proof,
                     &batch_proof_method_ids,
                     last_l2_height,
@@ -299,7 +299,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     })
 }
 
-fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
+fn process_complete_proof<G: ZkvmGuest>(
     proof: &[u8],
     batch_proof_method_ids: &InitialBatchProofMethodIds,
     last_l2_height: u64,
@@ -314,16 +314,13 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
         batch_proof_output_initial_state_root,
         batch_proof_output_final_state_root,
         batch_proof_output_last_l2_height,
-    ) = if let Ok(output) = G::deserialize_output::<BatchProofCircuitOutputV2<DaV::Spec>>(&journal)
-    {
+    ) = if let Ok(output) = G::deserialize_output::<BatchProofCircuitOutputV2>(&journal) {
         (
             output.initial_state_root,
             output.final_state_root,
             output.last_l2_height,
         )
-    } else if let Ok(output) =
-        G::deserialize_output::<BatchProofCircuitOutputV1<DaV::Spec>>(&journal)
-    {
+    } else if let Ok(output) = G::deserialize_output::<BatchProofCircuitOutputV1>(&journal) {
         (output.initial_state_root, output.final_state_root, 0)
     } else {
         return Err("Failed to parse proof");

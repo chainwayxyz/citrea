@@ -7,7 +7,6 @@ use core::fmt;
 use sov_rollup_interface::RefCount;
 
 use crate::common::{MergeError, ReadError};
-use crate::storage::{Storage, StorageKey, StorageValue};
 
 /// A key for a cache set.
 #[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
@@ -357,119 +356,6 @@ impl CacheLog {
     }
 }
 
-/// Caches reads and writes for a (key, value) pair. On the first read the value is fetched
-/// from an external source represented by the `ValueReader` trait. On following reads,
-/// the cache checks if the value we read was inserted before.
-#[derive(Default)]
-pub struct StorageInternalCache {
-    /// Transaction cache.
-    pub tx_cache: CacheLog,
-    /// Ordered reads and writes.
-    pub ordered_db_reads: Vec<(CacheKey, Option<CacheValue>)>,
-    /// Version for versioned usage with cache
-    pub version: Option<u64>,
-    /// What storage is used for the cache
-    pub mode: CacheMode,
-}
-
-/// The mode of the cache.
-/// State for storage cache, Offchain for offchain storage cache.
-#[derive(Default)]
-pub enum CacheMode {
-    /// Storage mode for serving state.
-    #[default]
-    State,
-    /// Offchain mode for serving offchain state.
-    Offchain,
-}
-
-impl StorageInternalCache {
-    /// Wrapper around default that can create the cache with knowledge of the version
-    pub fn new(version: Option<u64>, mode: CacheMode) -> Self {
-        StorageInternalCache {
-            version,
-            ordered_db_reads: Vec::new(),
-            tx_cache: CacheLog::default(),
-            mode,
-        }
-    }
-
-    /// Gets a value from the cache or reads it from the provided `ValueReader`.
-    pub fn get_or_fetch<S: Storage>(
-        &mut self,
-        key: &StorageKey,
-        value_reader: &S,
-        witness: &mut S::Witness,
-    ) -> Option<StorageValue> {
-        let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = self.get_value_from_cache(&cache_key);
-
-        match cache_value {
-            ValueExists::Yes(cache_value_exists) => cache_value_exists.map(Into::into),
-            // If the value does not exist in the cache, then fetch it from an external source.
-            ValueExists::No => {
-                let storage_value = match self.mode {
-                    CacheMode::State => value_reader.get(key, self.version, witness),
-                    CacheMode::Offchain => value_reader.get_offchain(key, self.version, witness),
-                };
-                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
-
-                self.add_read(cache_key, cache_value);
-                storage_value
-            }
-        }
-    }
-
-    /// Gets a keyed value from the cache, returning a wrapper on whether it exists.
-    pub fn try_get(&self, key: &StorageKey) -> ValueExists {
-        let cache_key = key.to_cache_key_version(self.version);
-        self.get_value_from_cache(&cache_key)
-    }
-
-    /// Replaces the keyed value on the storage.
-    pub fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = value.into_cache_value();
-        self.tx_cache.add_write(cache_key, Some(cache_value));
-    }
-
-    /// Deletes a keyed value from the cache.
-    pub fn delete(&mut self, key: &StorageKey) {
-        let cache_key = key.to_cache_key_version(self.version);
-        self.tx_cache.add_write(cache_key, None);
-    }
-
-    fn get_value_from_cache(&self, cache_key: &CacheKey) -> ValueExists {
-        self.tx_cache.get_value(cache_key)
-    }
-
-    /// Merges the provided `StorageInternalCache` into this one.
-    pub fn merge_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_left(rhs.tx_cache)
-    }
-
-    /// Merges the reads of the provided `StorageInternalCache` into this one.
-    pub fn merge_reads_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_reads_left(rhs.tx_cache)
-    }
-
-    /// Merges the writes of the provided `StorageInternalCache` into this one.
-    pub fn merge_writes_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_writes_left(rhs.tx_cache)
-    }
-
-    fn add_read(&mut self, key: CacheKey, value: Option<CacheValue>) {
-        self.tx_cache
-            .add_read(key.clone(), value.clone())
-            // It is ok to panic here, we must guarantee that the cache is consistent.
-            .unwrap_or_else(|e| panic!("Inconsistent read from the cache: {e:?}"));
-
-        if matches!(self.mode, CacheMode::State) {
-            self.ordered_db_reads.push((key, value));
-        }
-    }
-}
-
 /// A struct that contains the values read from the DB and the values to be written, both in
 /// deterministic order.
 #[derive(Debug, Default)]
@@ -478,18 +364,6 @@ pub struct OrderedReadsAndWrites {
     pub ordered_reads: Vec<(CacheKey, Option<CacheValue>)>,
     /// Ordered writes.
     pub ordered_writes: Vec<(CacheKey, Option<CacheValue>)>,
-}
-
-impl From<StorageInternalCache> for OrderedReadsAndWrites {
-    fn from(val: StorageInternalCache) -> Self {
-        // Because BTreeMap is used there is no need to sort writes by key. It is already sorted.
-        let writes = val.tx_cache.take_writes();
-
-        Self {
-            ordered_reads: val.ordered_db_reads,
-            ordered_writes: writes,
-        }
-    }
 }
 
 #[cfg(test)]

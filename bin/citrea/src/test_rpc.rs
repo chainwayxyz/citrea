@@ -5,7 +5,7 @@ use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_db::schema::types::StoredTransaction;
+use sov_db::schema::types::soft_confirmation::StoredTransaction;
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_modules_api::DaSpec;

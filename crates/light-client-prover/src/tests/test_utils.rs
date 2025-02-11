@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use rand::{thread_rng, Rng};
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRInclusionProof, MMRNative};
@@ -16,13 +16,13 @@ pub(crate) fn create_mock_batch_proof(
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2::<MockDaSpec> {
+    let bp = BatchProofCircuitOutputV2 {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: BTreeMap::new(),
-        da_slot_hash: MockHash([5; 32]),
+        da_slot_hash: [5; 32],
         sequencer_commitments_range: (0, 0),
         sequencer_public_key: [9; 32].to_vec(),
         sequencer_da_public_key: [9; 32].to_vec(),
@@ -63,13 +63,13 @@ pub(crate) fn create_serialized_mock_proof(
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2::<MockDaSpec> {
+    let bp = BatchProofCircuitOutputV2 {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
-        da_slot_hash: MockHash([5; 32]),
+        da_slot_hash: [5; 32],
         sequencer_commitments_range: (0, 0),
         sequencer_public_key: [9; 32].to_vec(),
         sequencer_da_public_key: [9; 32].to_vec(),

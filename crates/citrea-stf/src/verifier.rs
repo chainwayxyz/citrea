@@ -34,7 +34,7 @@ where
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         forks: &[Fork],
-    ) -> Result<BatchProofCircuitOutputV2<Da::Spec>, Da::Error> {
+    ) -> Result<BatchProofCircuitOutputV2, Da::Error> {
         println!("Running sequencer commitments in DA slot");
 
         let data: BatchProofCircuitInputV3Part1<Da::Spec> = guest.read_from_host();
@@ -79,7 +79,7 @@ where
             final_soft_confirmation_hash,
             state_diff,
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
-            da_slot_hash: data.da_block_header_of_commitments.hash(),
+            da_slot_hash: data.da_block_header_of_commitments.hash().into(),
             sequencer_public_key: sequencer_public_key.to_vec(),
             sequencer_da_public_key: sequencer_da_public_key.to_vec(),
             sequencer_commitments_range: data.sequencer_commitments_range,

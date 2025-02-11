@@ -34,12 +34,6 @@ jobs:
         run: |
           cargo build --release
 
-      - name: Check BATCH_PROOF_BITCOIN_ID
-        id: check-id
-        uses: ./.github/actions/validate-bitcoin-da
-        with:
-          expected_da_id: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
-          action: check_binary
 
       - name: Upload linux-amd64 Binary
         uses: actions/upload-artifact@v4
@@ -69,13 +63,6 @@ jobs:
         run: |
           source $HOME/.cargo/env
           cargo build --release
-
-      - name: Check BATCH_PROOF_BITCOIN_ID
-        id: check-id
-        uses: ./.github/actions/validate-bitcoin-da
-        with:
-          expected_da_id: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
-          action: check_binary
 
       - name: Upload osx-arm64 Binary
         uses: actions/upload-artifact@v4
