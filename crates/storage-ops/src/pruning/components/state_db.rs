@@ -153,12 +153,12 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
             }
         }
 
-        if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
-            error!(
-                "Could not add JMT node deletion to schema batch operation: {:?}",
-                e
-            );
-        }
+        // if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
+        //     error!(
+        //         "Could not add JMT node deletion to schema batch operation: {:?}",
+        //         e
+        //     );
+        // }
 
         if let Err(e) = batch.delete::<StaleNodes>(&index) {
             error!(
