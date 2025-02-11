@@ -4,7 +4,7 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use reth_primitives::KECCAK_EMPTY;
-use revm::handler::register::{EvmHandler, HandleRegisters};
+use revm::handler::register::{EvmHandler, HandleRegisterBox, HandleRegisters};
 #[cfg(feature = "native")]
 use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
 use revm::interpreter::{Gas, InstructionResult};
@@ -18,7 +18,8 @@ use revm::primitives::{
 use revm::{Context, ContextPrecompiles, Database, FrameResult, InnerEvmContext, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{EvmContext, Inspector};
-use sov_modules_api::{native_debug, native_error, native_warn};
+use revm_precompile::secp256r1::P256VERIFY;
+use sov_modules_api::{native_debug, native_error, native_warn, SpecId as CitreaSpecId};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -267,47 +268,60 @@ impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
     }
 }
 
-pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
+pub(crate) fn citrea_handler<'a, DB, EXT>(
+    citrea_spec: CitreaSpecId,
+    cfg: HandlerCfg,
+) -> EvmHandler<'a, EXT, DB>
 where
     DB: Database,
     EXT: CitreaExternalExt,
 {
     let mut handler = EvmHandler::mainnet_with_spec(cfg.spec_id);
-    handler.append_handler_register(HandleRegisters::Plain(citrea_handle_register));
+    handler.append_handler_register(HandleRegisters::Box(citrea_handle_register(citrea_spec)));
     handler
 }
 
-pub(crate) fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
+pub(crate) fn citrea_handle_register<DB, EXT>(
+    citrea_spec: CitreaSpecId,
+) -> HandleRegisterBox<'static, EXT, DB>
 where
     DB: Database,
     EXT: CitreaExternalExt,
 {
-    spec_to_generic!(handler.cfg.spec_id, {
-        let validation = &mut handler.validation;
-        let pre_execution = &mut handler.pre_execution;
-        // let execution = &mut handler.execution;
-        let post_execution = &mut handler.post_execution;
-        // validation.initial_tx_gas = can be overloaded too
-        // validation.env =
-        validation.tx_against_state =
-            Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
-        pre_execution.load_precompiles = Arc::new(CitreaHandler::<SPEC, EXT, DB>::load_precompiles);
-        // pre_execution.load_accounts =
-        pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
-        // execution.last_frame_return =
-        // execution.call =
-        // execution.call_return =
-        // execution.insert_call_outcome =
-        // execution.create =
-        // execution.create_return =
-        // execution.insert_create_outcome =
-        post_execution.reimburse_caller =
-            Arc::new(CitreaHandler::<SPEC, EXT, DB>::reimburse_caller);
-        post_execution.reward_beneficiary =
-            Arc::new(CitreaHandler::<SPEC, EXT, DB>::reward_beneficiary);
-        post_execution.output = Arc::new(CitreaHandler::<SPEC, EXT, DB>::post_execution_output);
-        // post_execution.end =
-    });
+    let f = move |handler: &mut EvmHandler<'_, EXT, DB>| {
+        spec_to_generic!(handler.cfg.spec_id, {
+            let validation = &mut handler.validation;
+            let pre_execution = &mut handler.pre_execution;
+            // let execution = &mut handler.execution;
+            let post_execution = &mut handler.post_execution;
+            // validation.initial_tx_gas = can be overloaded too
+            // validation.env =
+            validation.tx_against_state =
+                Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
+            let load_precompiles = if citrea_spec >= CitreaSpecId::Fork2 {
+                CitreaHandler::<SPEC, EXT, DB>::load_precompiles_postfork2
+            } else {
+                CitreaHandler::<SPEC, EXT, DB>::load_precompiles_prefork2
+            };
+            pre_execution.load_precompiles = Arc::new(load_precompiles);
+            // pre_execution.load_accounts =
+            pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
+            // execution.last_frame_return =
+            // execution.call =
+            // execution.call_return =
+            // execution.insert_call_outcome =
+            // execution.create =
+            // execution.create_return =
+            // execution.insert_create_outcome =
+            post_execution.reimburse_caller =
+                Arc::new(CitreaHandler::<SPEC, EXT, DB>::reimburse_caller);
+            post_execution.reward_beneficiary =
+                Arc::new(CitreaHandler::<SPEC, EXT, DB>::reward_beneficiary);
+            post_execution.output = Arc::new(CitreaHandler::<SPEC, EXT, DB>::post_execution_output);
+            // post_execution.end =
+        });
+    };
+    Box::new(f)
 }
 
 struct CitreaHandler<SPEC, EXT, DB> {
@@ -315,7 +329,7 @@ struct CitreaHandler<SPEC, EXT, DB> {
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    fn load_precompiles() -> ContextPrecompiles<DB> {
+    fn load_precompiles_prefork2() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
 
@@ -325,6 +339,22 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
                     .remove(&u64_to_address(0x0A))
                     .expect("after cancun point eval should be removed");
             }
+
+            precompiles
+        }
+
+        our_precompiles::<SPEC, DB>()
+    }
+
+    fn load_precompiles_postfork2() -> ContextPrecompiles<DB> {
+        fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
+            let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
+
+            let p = precompiles.to_mut();
+            p.remove(&u64_to_address(0x0A))
+                .expect("point eval should be removed");
+
+            precompiles.extend([P256VERIFY]);
 
             precompiles
         }

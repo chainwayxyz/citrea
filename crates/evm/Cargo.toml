@@ -49,6 +49,7 @@ reth-rpc-types-compat = { workspace = true, optional = true }
 reth-transaction-pool = { workspace = true, optional = true }
 revm = { workspace = true, default-features = false }
 revm-inspectors = { workspace = true, optional = true }
+revm-precompile = { workspace = true }
 
 [dev-dependencies]
 alloy = { workspace = true, features = ["consensus", "providers", "signers", "signer-local"] }

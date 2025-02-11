@@ -11,6 +11,7 @@ use revm::primitives::db::Database;
 use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
+use sov_modules_api::SpecId as CitreaSpecId;
 
 use crate::evm::db::EvmDb;
 use crate::handler::{
@@ -33,6 +34,8 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
         ..
     } = opts;
 
+    let citrea_spec = db.citrea_spec;
+
     if let Some(tracer) = tracer {
         return match tracer {
             GethDebugTracerType::BuiltInTracer(tracer) => match tracer {
@@ -41,6 +44,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
                     let res = inspect_citrea(
                         db,
+                        citrea_spec,
                         config_env,
                         block_env,
                         tx_env,
@@ -63,6 +67,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
                     let res = inspect_citrea(
                         db,
+                        citrea_spec,
                         config_env,
                         block_env,
                         tx_env,
@@ -104,6 +109,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 
     let res = inspect_citrea(
         db,
+        citrea_spec,
         config_env,
         block_env,
         tx_env,
@@ -124,6 +130,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 /// Executes the [Env] against the given [Database] without committing state changes.
 fn inspect_citrea<DB, I>(
     db: DB,
+    citrea_spec: CitreaSpecId,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
@@ -142,7 +149,7 @@ where
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env)
         .with_tx_env(tx_env)
-        .append_handler_register(citrea_handle_register)
+        .append_handler_register_box(citrea_handle_register(citrea_spec))
         .append_handler_register(inspector_handle_register)
         .build();
     evm.context.external.set_current_tx_hash(tx_hash);
@@ -177,6 +184,7 @@ where
 
 pub(crate) fn inspect_no_tracing<DB>(
     db: DB,
+    citrea_spec: CitreaSpecId,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
@@ -195,7 +203,7 @@ where
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env)
         .with_tx_env(tx_env)
-        .append_handler_register(citrea_handle_register)
+        .append_handler_register_box(citrea_handle_register(citrea_spec))
         .build();
 
     let result_and_state = evm.transact()?;

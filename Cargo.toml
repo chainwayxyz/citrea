@@ -141,6 +141,7 @@ reth-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "1ba631ba9581973
 reth-stages = { git = "https://github.com/paradigmxyz/reth", rev = "1ba631ba9581973e7c6cadeea92cfe1802aceb4a", default-features = false }
 
 revm = { version = "14.0.3", features = ["serde"], default-features = false }
+revm-precompile = { version = "11.0.3", default-features = false, features = ['secp256r1'] }
 revm-primitives = { version = "10.0.0", default-features = false }
 alloy-genesis = { version = "0.4.2", default-features = false }
 alloy-trie = { version = "0.6", default-features = false }
