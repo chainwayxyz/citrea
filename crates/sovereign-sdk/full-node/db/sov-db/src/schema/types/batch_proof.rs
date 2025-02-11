@@ -3,8 +3,7 @@ use std::fmt::Debug;
 use alloy_primitives::{U32, U64, U8};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::rpc::{
-    BatchProofOutputRpcResponse, BatchProofResponse, SerializableOptionalHash,
-    VerifiedBatchProofResponse,
+    BatchProofOutputRpcResponse, BatchProofResponse, SerializableHash, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
@@ -103,7 +102,7 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 ),
                 preproven_commitments: value.preproven_commitments,
                 prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
-                final_soft_confirmation_hash: Some(SerializableOptionalHash(
+                final_soft_confirmation_hash: Some(SerializableHash(
                     value.final_soft_confirmation_hash,
                 )),
                 last_l2_height: Some(U64::from(value.last_l2_height)),

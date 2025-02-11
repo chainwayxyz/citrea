@@ -292,7 +292,7 @@ pub type ProofRpcResponse = Vec<u8>;
 
 /// Workaround to serialize [u8; 32] with rpc_hex when the hash is optinal
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct SerializableOptionalHash(#[serde(with = "utils::rpc_hex")] pub [u8; 32]);
+pub struct SerializableHash(#[serde(with = "utils::rpc_hex")] pub [u8; 32]);
 
 /// The state transition response of ledger proof data rpc
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -309,7 +309,7 @@ pub struct BatchProofOutputRpcResponse {
     pub prev_soft_confirmation_hash: [u8; 32],
     /// The hash of the last soft confirmation in the state transition
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub final_soft_confirmation_hash: Option<SerializableOptionalHash>,
+    pub final_soft_confirmation_hash: Option<SerializableHash>,
     /// State diff of L2 blocks in the processed sequencer commitments.
     #[serde(
         serialize_with = "custom_serialize_btreemap",
