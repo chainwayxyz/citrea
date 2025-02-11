@@ -21,7 +21,7 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, SignedSoftConfirmationV2};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
@@ -375,10 +375,31 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                     .context("Failed to parse transactions")?;
                 signed_soft_confirmation
             } else {
-                let signed_soft_confirmation: SignedSoftConfirmationV2<TxOld> = soft_confirmation
+                let signed_soft_confirmation: SignedSoftConfirmation<TxOld> = soft_confirmation
                     .try_into()
                     .context("Failed to parse transactions")?;
-                signed_soft_confirmation.into()
+                // Convert to new transaction type
+                let signed_soft_confirmation: SignedSoftConfirmation<Tx> =
+                    SignedSoftConfirmation::new(
+                        signed_soft_confirmation.l2_height(),
+                        signed_soft_confirmation.hash(),
+                        signed_soft_confirmation.prev_hash(),
+                        signed_soft_confirmation.da_slot_height(),
+                        signed_soft_confirmation.da_slot_hash(),
+                        signed_soft_confirmation.da_slot_txs_commitment(),
+                        signed_soft_confirmation.l1_fee_rate(),
+                        signed_soft_confirmation.blobs().to_vec().into(),
+                        signed_soft_confirmation
+                            .txs()
+                            .into_iter()
+                            .map(|tx| Tx::from(tx.clone()))
+                            .collect(),
+                        signed_soft_confirmation.deposit_data().to_vec(),
+                        signed_soft_confirmation.signature().to_vec(),
+                        signed_soft_confirmation.pub_key().to_vec(),
+                        signed_soft_confirmation.timestamp(),
+                    );
+                signed_soft_confirmation
             };
 
             commitment_soft_confirmations.push(signed_soft_confirmation);

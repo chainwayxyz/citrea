@@ -7,7 +7,7 @@ use v2::{BatchProofCircuitInputV2Part1, BatchProofCircuitInputV2Part2};
 use v3::{BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2};
 
 use crate::da::DaSpec;
-use crate::soft_confirmation::{SignedSoftConfirmation, SignedSoftConfirmationV2};
+use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::zk::StorageRootHash;
 
 /// Genesis input module
@@ -83,7 +83,7 @@ where
             .map(|confirmations| {
                 confirmations
                     .into_iter()
-                    .map(SignedSoftConfirmationV2::from)
+                    .map(SignedSoftConfirmation::from)
                     .collect::<Vec<_>>()
             })
             .collect::<VecDeque<_>>();

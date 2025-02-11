@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
-use crate::soft_confirmation::SignedSoftConfirmationV2;
+use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::zk::StorageRootHash;
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -12,7 +12,7 @@ use crate::zk::StorageRootHash;
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
 pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone>(
-    pub VecDeque<Vec<(SignedSoftConfirmationV2<'txs, Tx>, Witness, Witness)>>,
+    pub VecDeque<Vec<(SignedSoftConfirmation<'txs, Tx>, Witness, Witness)>>,
 );
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
