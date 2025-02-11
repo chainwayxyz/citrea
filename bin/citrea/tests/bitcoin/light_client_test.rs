@@ -608,7 +608,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(50),
+                    height: U64::from(100),
                     method_id: [
                         2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
                         248465296, 3556276186
@@ -616,7 +616,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(100),
+                    height: U64::from(200),
                     method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
                 }
             ],
@@ -628,7 +628,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     method_id: new_batch_proof_method_id,
-                    activation_l2_height: 150,
+                    activation_l2_height: 210,
                 }),
                 1,
             )
@@ -669,7 +669,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(50),
+                    height: U64::from(100),
                     method_id: [
                         2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
                         248465296, 3556276186
@@ -677,7 +677,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(100),
+                    height: U64::from(200),
                     method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
                 },
             ]
@@ -703,7 +703,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(50),
+                    height: U64::from(100),
                     method_id: [
                         2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
                         248465296, 3556276186
@@ -711,11 +711,11 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(100),
+                    height: U64::from(200),
                     method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(150),
+                    height: U64::from(210),
                     method_id: new_batch_proof_method_id.into()
                 }
             ]
@@ -749,7 +749,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(50),
+                    height: U64::from(100),
                     method_id: [
                         2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
                         248465296, 3556276186
@@ -757,11 +757,11 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     .into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(100),
+                    height: U64::from(200),
                     method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
                 },
                 BatchProofMethodIdRpcResponse {
-                    height: U64::from(150),
+                    height: U64::from(210),
                     method_id: new_batch_proof_method_id.into()
                 }
             ]
