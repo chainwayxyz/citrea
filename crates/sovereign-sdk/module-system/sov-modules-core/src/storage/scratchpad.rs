@@ -15,21 +15,6 @@ use crate::storage::{
 };
 use crate::{ValueExists, Version};
 
-/*
-JmtWorkingSet:
-    jmt_delta: JmtDelta
-
-OffchainWorkingSet:
-    offchain_delta: OffchainDelta
-
-Delta<S: Storage>:
-    storage: S
-    logs: CacheLog
-    uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>
-    witness: S::Witness
-    version: Option<u64>
-*/
-
 struct StateDelta<S: Storage> {
     storage: S,
     cache_log: CacheLog,
