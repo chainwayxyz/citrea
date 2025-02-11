@@ -72,10 +72,10 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
 
     // Non pruned block balances should be available
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(21))))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(20))))
         .await
         .unwrap();
-    assert_eq!(balance, U256::from(21000000000000000000u128));
+    assert_eq!(balance, U256::from(20000000000000000000u128));
 
     let balance = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
@@ -116,10 +116,10 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
 
     // Non pruned block balances should be available
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(81))))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(80))))
         .await
         .unwrap();
-    assert_eq!(balance, U256::from(81000000000000000000u128));
+    assert_eq!(balance, U256::from(80000000000000000000u128));
 
     let balance = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(100))))

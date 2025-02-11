@@ -4,7 +4,7 @@ use std::sync::Arc;
 use jmt::storage::{Node, StaleNodeIndex};
 use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes};
 use sov_schema_db::{SchemaBatch, SchemaIterator, DB};
-use tracing::{debug, error};
+use tracing::{debug, error, info, trace};
 
 struct StaleNodeIndicesByVersionIterator<'a> {
     inner: Peekable<SchemaIterator<'a, StaleNodes>>,
@@ -62,7 +62,7 @@ impl<'a> Iterator for StaleNodeIndicesByVersionIterator<'a> {
 
 /// Prune state DB
 pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64) {
-    debug!("Pruning state DB, up to L2 block {}", up_to_block);
+    info!("Pruning state DB, up to L2 block {}", up_to_block);
 
     let Ok(indices) = StaleNodeIndicesByVersionIterator::new(&state_db, up_to_block + 1) else {
         error!("Could not read stale nodes");
@@ -76,13 +76,17 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
         return;
     }
 
-    let count = indices.len();
+    let mut state_keys_deleted = 0;
 
     let mut batch = SchemaBatch::new();
     for index in indices {
+        // Skip genesis keys altogether.
         if index.node_key.version() == 1 {
             continue;
         }
+
+        // Based on the `NodeKey` for the stale node, we'd like to find the actual key
+        // to identify the values saved for that specific key.
         let node = match state_db.get::<JmtNodes>(&index.node_key) {
             Ok(Some(node)) => node,
             _ => {
@@ -105,11 +109,48 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
             }
         };
 
-        if let Err(e) = batch.delete::<JmtValues>(&(key, version)) {
-            error!(
-                "Could not add JMT value deletion to schema batch operation: {:?}",
-                e
+        // We have the key, now we should find how many values of which versions we have.
+        let mut values_iter = match state_db.iter::<JmtValues>() {
+            Ok(iter) => iter,
+            Err(e) => {
+                error!("Could not create an iterator for JmtValues: {:?}", e);
+                continue;
+            }
+        };
+        if let Err(e) = values_iter.seek(&(key.clone(), version)) {
+            error!("Failed to seek on JmtValues iterator: {:?}", e);
+            continue;
+        }
+
+        let mut value_keys = vec![];
+        while let Some(value_key) = values_iter.next() {
+            if let Ok(value_key) = value_key {
+                if value_key.key.0 == key && value_key.key.1 < up_to_block + 1 {
+                    value_keys.push(value_key.key);
+                }
+            }
+        }
+        value_keys.sort_by_key(|(_, version)| *version);
+
+        let keys_count = value_keys.len();
+        if keys_count <= 1 {
+            trace!(
+                "Only one value for a key {:?} is found, skipping",
+                hex::encode(key)
             );
+            continue;
+        }
+
+        state_keys_deleted += keys_count - 1;
+
+        // Delete all values BUT the last one.
+        for (value_key, value_version) in &value_keys {
+            if let Err(e) = batch.delete::<JmtValues>(&(value_key.clone(), *value_version)) {
+                error!(
+                    "Could not add JMT value deletion to schema batch operation: {:?}",
+                    e
+                );
+            }
         }
 
         if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
@@ -131,5 +172,5 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
         error!("Could not delete state data: {:?}", e);
     }
 
-    debug!("Pruned {} state DB records", count);
+    info!("Pruned {} state DB records", state_keys_deleted);
 }
