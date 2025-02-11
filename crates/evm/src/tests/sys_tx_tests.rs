@@ -21,7 +21,7 @@ use crate::system_contracts::{BridgeWrapper, ProxyAdmin};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee, get_evm,
-    get_evm_config_starting_base_fee, get_fork_fn_only_fork1, publish_event_message,
+    get_evm_config_starting_base_fee, get_fork_fn_only_fork2, publish_event_message,
 };
 use crate::{AccountData, BASE_FEE_VAULT, L1_FEE_VAULT, SYSTEM_SIGNER};
 
@@ -132,7 +132,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -147,7 +147,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -160,7 +160,7 @@ fn test_sys_bitcoin_light_client() {
         da_slot_height: 2,
         da_slot_txs_commitment: [3u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -172,7 +172,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -262,7 +262,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -277,7 +277,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -302,7 +302,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -310,7 +310,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 1,
@@ -345,7 +345,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_height: 2,
         da_slot_txs_commitment: [43u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -353,7 +353,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         let pending_cumulative_from_sum: u128 = evm
             .pending_transactions
@@ -421,7 +421,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_height: 2,
         da_slot_txs_commitment: [43u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -429,7 +429,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         let pending_cumulative_from_sum: u128 = evm
             .pending_transactions
@@ -521,7 +521,7 @@ fn test_bridge() {
             188, 45, 73, 146, 108, 41, 125, 77, 133, 86, 235, 104,
         ],
         pre_state_root: [1u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![[
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -630,7 +630,7 @@ fn test_upgrade_light_client() {
     let l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -638,7 +638,7 @@ fn test_upgrade_light_client() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -682,7 +682,7 @@ fn test_upgrade_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -757,7 +757,7 @@ fn test_change_upgrade_owner() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -765,7 +765,7 @@ fn test_change_upgrade_owner() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -796,7 +796,7 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -804,7 +804,7 @@ fn test_change_upgrade_owner() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -850,7 +850,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -870,7 +870,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 

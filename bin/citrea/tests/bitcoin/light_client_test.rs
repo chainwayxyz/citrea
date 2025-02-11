@@ -5,7 +5,7 @@ use std::time::Duration;
 use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
-use bitcoin_da::spec::{BitcoinSpec, RollupParams};
+use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::GroupCommitments;
@@ -1332,11 +1332,11 @@ fn create_serialized_fake_receipt_batch_proof(
         3, 99, 96, 232, 86, 49, 12, 229, 210, 148, 232, 190, 51, 252, 128, 112, 119, 220, 86, 172,
         128, 217, 93, 156, 212, 221, 189, 33, 50, 94, 255, 115, 247,
     ];
-    let batch_proof_output = BatchProofCircuitOutputV3::<BitcoinSpec> {
+    let batch_proof_output = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         last_l2_height,
-        da_slot_hash: [0u8; 32].into(),
+        da_slot_hash: [0u8; 32],
         prev_soft_confirmation_hash: [0u8; 32],
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
