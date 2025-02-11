@@ -121,14 +121,14 @@ impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
     }
 }
 
-struct NewAccessoryDelta<S: Storage> {
+struct AccessoryDelta<S: Storage> {
     storage: S,
     committed_writes: BTreeMap<CacheKey, Option<CacheValue>>,
     uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>,
     version: Option<Version>,
 }
 
-impl<S: Storage> NewAccessoryDelta<S> {
+impl<S: Storage> AccessoryDelta<S> {
     fn new(storage: S, version: Option<Version>) -> Self {
         Self {
             storage,
@@ -161,7 +161,7 @@ impl<S: Storage> NewAccessoryDelta<S> {
     }
 }
 
-impl<S: Storage> StateReaderAndWriter for NewAccessoryDelta<S> {
+impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
         let cache_key = key.to_cache_key_version(self.version);
 
@@ -377,7 +377,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
 ///  2. With [`WorkingSet::revert`].
 pub struct StateCheckpoint<S: Storage> {
     delta: StateDelta<S>,
-    accessory_delta: NewAccessoryDelta<S>,
+    accessory_delta: AccessoryDelta<S>,
     offchain_delta: OffchainDelta<S>,
 }
 
@@ -397,7 +397,7 @@ impl<S: Storage> StateCheckpoint<S> {
     ) -> Self {
         Self {
             delta: StateDelta::with_witness(inner.clone(), state_witness, None),
-            accessory_delta: NewAccessoryDelta::new(inner.clone(), None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
             offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
         }
     }
@@ -450,7 +450,7 @@ impl<S: Storage> StateCheckpoint<S> {
 /// 2. By using the revert method, where the most recent changes are reverted and the previous `StateCheckpoint` is returned.
 pub struct WorkingSet<S: Storage> {
     delta: StateDelta<S>,
-    accessory_delta: NewAccessoryDelta<S>,
+    accessory_delta: AccessoryDelta<S>,
     offchain_delta: RevertableWriter<OffchainDelta<S>>,
     archival_working_set: Option<ArchivalJmtWorkingSet<S>>,
     archival_offchain_working_set: Option<ArchivalOffchainWorkingSet<S>>,
@@ -665,14 +665,14 @@ pub mod archival_state {
 
     /// Archival Accessory
     pub struct ArchivalAccessoryWorkingSet<S: Storage> {
-        delta: NewAccessoryDelta<S>,
+        delta: AccessoryDelta<S>,
     }
 
     impl<S: Storage> ArchivalAccessoryWorkingSet<S> {
         /// create a new instance of ArchivalAccessoryWorkingSet
         pub fn new(inner: &S, version: Version) -> Self {
             Self {
-                delta: NewAccessoryDelta::new(inner.clone(), Some(version)),
+                delta: AccessoryDelta::new(inner.clone(), Some(version)),
             }
         }
     }
