@@ -20,7 +20,7 @@ use crate::cache::L1BlockCache;
 use crate::FullNodeConfig;
 
 pub async fn sync_l1<Da>(
-    last_scanned_l1_height: u64,
+    start_from: u64,
     da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
@@ -28,8 +28,7 @@ pub async fn sync_l1<Da>(
 ) where
     Da: DaService,
 {
-    let mut last_scanned_l1_height = last_scanned_l1_height;
-    info!("Starting to sync from L1 height {}", last_scanned_l1_height);
+    info!("Starting to sync from L1 height {}", start_from);
 
     let start = Instant::now();
 
@@ -44,9 +43,9 @@ pub async fn sync_l1<Da>(
                 }
             };
 
-        let new_l1_height = last_finalized_l1_block_header.height();
+        let highest_finalized_l1_height = last_finalized_l1_block_header.height();
 
-        for block_number in last_scanned_l1_height + 1..=new_l1_height {
+        for block_number in start_from..=highest_finalized_l1_height {
             let l1_block =
                 match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
                     .await
@@ -60,22 +59,20 @@ pub async fn sync_l1<Da>(
                     }
                 };
 
-            if block_number > last_scanned_l1_height {
-                if let Err(e) = sender.send(l1_block).await {
-                    error!("Could not notify about L1 block: {}", e);
-                    // We should not continue with the internal loop since we were not
-                    // able to notify about the L1 block
-                    break;
-                }
-                // If the send above does not succeed, we don't set new values
-                // nor do we record any metrics.
-                last_scanned_l1_height = block_number;
-                l1_block_scan_histogram.record(
-                    Instant::now()
-                        .saturating_duration_since(start)
-                        .as_secs_f64(),
-                );
+            if let Err(e) = sender.send(l1_block).await {
+                error!("Could not notify about L1 block: {}", e);
+                // We should not continue with the internal loop since we were not
+                // able to notify about the L1 block
+                break;
             }
+
+            // If the send above does not succeed, we don't set new values
+            // nor do we record any metrics.
+            l1_block_scan_histogram.record(
+                Instant::now()
+                    .saturating_duration_since(start)
+                    .as_secs_f64(),
+            );
         }
 
         sleep(Duration::from_secs(2)).await;
@@ -175,5 +172,5 @@ pub async fn get_start_l1_height<Da>(
             get_initial_slot_height(&sequencer_client).await
         }
     };
-    Ok(height)
+    Ok(height + 1)
 }
