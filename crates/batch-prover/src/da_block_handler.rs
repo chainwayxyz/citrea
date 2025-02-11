@@ -18,6 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -40,12 +41,13 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, DB, Witness, Tx, TxOld>
+pub struct L1BlockHandler<Vm, Da, DB, Witness, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm + 'static,
     DB: BatchProverLedgerOps,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+    C: sov_modules_api::Context,
 {
     prover_config: BatchProverConfig,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
@@ -59,18 +61,16 @@ where
     skip_submission_until_l1: u64,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     _witness: PhantomData<Witness>,
-    _tx: PhantomData<Tx>,
-    _tx_old: PhantomData<TxOld>,
+    _context: PhantomData<C>,
 }
 
-impl<Vm, Da, DB, Witness, Tx, TxOld> L1BlockHandler<Vm, Da, DB, Witness, Tx, TxOld>
+impl<Vm, Da, DB, Witness, C> L1BlockHandler<Vm, Da, DB, Witness, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: BatchProverLedgerOps + Clone + 'static,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
-    Tx: From<TxOld> + Clone + BorshDeserialize + BorshSerialize,
-    TxOld: Clone + BorshDeserialize + BorshSerialize,
+    C: sov_modules_api::Context,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -98,8 +98,7 @@ where
             l1_block_cache,
             pending_l1_blocks: VecDeque::new(),
             _witness: PhantomData,
-            _tx: PhantomData,
-            _tx_old: PhantomData,
+            _context: PhantomData,
         }
     }
 
@@ -181,16 +180,17 @@ where
                 continue;
             }
 
-            let data_to_prove = data_to_prove::<Da, DB, Witness, Tx, TxOld>(
-                self.da_service.clone(),
-                self.ledger_db.clone(),
-                self.sequencer_pub_key.clone(),
-                self.sequencer_da_pub_key.clone(),
-                self.l1_block_cache.clone(),
-                l1_block,
-                Some(GroupCommitments::Normal),
-            )
-            .await;
+            let data_to_prove =
+                data_to_prove::<Da, DB, Witness, Transaction, PreFork2Transaction<C>>(
+                    self.da_service.clone(),
+                    self.ledger_db.clone(),
+                    self.sequencer_pub_key.clone(),
+                    self.sequencer_da_pub_key.clone(),
+                    self.l1_block_cache.clone(),
+                    l1_block,
+                    Some(GroupCommitments::Normal),
+                )
+                .await;
 
             let (sequencer_commitments, inputs) = match data_to_prove {
                 Ok((commitments, inputs)) => (commitments, inputs),
@@ -259,7 +259,7 @@ where
             };
 
             if should_prove {
-                prove_l1::<Da, Vm, DB, Witness, Tx>(
+                prove_l1::<Da, Vm, DB, Witness, Transaction>(
                     self.prover_service.clone(),
                     self.ledger_db.clone(),
                     self.code_commitments_by_spec.clone(),
@@ -421,6 +421,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         }
         state_transition_witnesses.push_back(witnesses);
     }
+
     Ok((
         state_transition_witnesses,
         soft_confirmations,
