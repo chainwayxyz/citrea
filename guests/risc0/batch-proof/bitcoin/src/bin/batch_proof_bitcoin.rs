@@ -49,7 +49,7 @@ const SEQUENCER_K256_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "034682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1", // TODO: Completely wrong, update
-        Network::Devnet => "0352f41a5076498d1ae8bdfa57d19e91e3c2c94b6de21985d099cd48cfa7aef174", // TODO: Completely wrong, update
+        Network::Devnet => "03745871636b11562a7f2d7c0e883a960b54c7e2c0a5427d4b99ac403588530589",
         Network::Nightly | Network::TestNetworkWithForks => {
             match option_env!("SEQUENCER_K256_PUBLIC_KEY") {
                 Some(hex_pub_key) => hex_pub_key,
