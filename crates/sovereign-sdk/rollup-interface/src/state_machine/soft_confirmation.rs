@@ -21,20 +21,6 @@ pub struct UnsignedSoftConfirmation<'txs, Tx> {
     timestamp: u64,
 }
 
-/// Contains raw transactions and information about the soft confirmation block
-#[derive(Debug, PartialEq, BorshSerialize, Clone)]
-pub struct UnsignedSoftConfirmationV2<'txs, Tx> {
-    l2_height: u64,
-    da_slot_height: u64,
-    da_slot_hash: [u8; 32],
-    da_slot_txs_commitment: [u8; 32],
-    blobs: &'txs [Vec<u8>],
-    txs: &'txs [Tx],
-    deposit_data: Vec<Vec<u8>>,
-    l1_fee_rate: u128,
-    timestamp: u64,
-}
-
 /// Old version of UnsignedSoftConfirmation
 /// Used for backwards compatibility
 /// Always use ```UnsignedSoftConfirmation``` instead
