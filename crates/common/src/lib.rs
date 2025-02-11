@@ -5,6 +5,7 @@ pub mod backup;
 pub mod cache;
 pub mod config;
 pub mod da;
+pub mod db_migrations;
 pub mod error;
 pub mod rpc;
 pub mod tasks;

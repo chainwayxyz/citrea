@@ -70,21 +70,21 @@ pub struct DbAccount {
 
 impl DbAccount {
     /// Create a new DbAccount
-    pub fn new(address: Address) -> Self {
+    pub fn new(address: &Address) -> Self {
         Self {
             storage: StateMap::with_codec(Self::create_storage_prefix(address), BcsCodec {}),
             keys: StateVec::with_codec(Self::create_keys_prefix(address), BcsCodec {}),
         }
     }
 
-    fn create_storage_prefix(address: Address) -> Prefix {
+    fn create_storage_prefix(address: &Address) -> Prefix {
         let mut prefix = [0u8; 26];
         prefix[0..6].copy_from_slice(&DBACCOUNT_STORAGE_PREFIX);
         prefix[6..].copy_from_slice(address.as_raw_slice());
         Prefix::new(prefix.to_vec())
     }
 
-    fn create_keys_prefix(address: Address) -> Prefix {
+    fn create_keys_prefix(address: &Address) -> Prefix {
         let mut prefix = [0u8; 26];
         prefix[0..6].copy_from_slice(&DBACCOUNT_KEYS_PREFIX);
         prefix[6..].copy_from_slice(address.as_raw_slice());

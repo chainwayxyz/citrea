@@ -259,9 +259,9 @@ where
         >,
     ) -> SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness> {
         native_debug!(
-            "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
-            soft_confirmation.hash(),
-            soft_confirmation.sequencer_pub_key(),
+            "soft confirmation with hash: {:?} from sequencer {:?} successfully applied",
+            hex::encode(soft_confirmation.hash()),
+            hex::encode(soft_confirmation.sequencer_pub_key()),
         );
 
         let (state_root_transition, witness, offchain_witness, storage, state_diff) = {

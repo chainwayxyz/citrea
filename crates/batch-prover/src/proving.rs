@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::extract_sequencer_commitments;
-use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
+use citrea_common::utils::{check_l2_block_exists, filter_out_proven_commitments};
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData};
 use serde::de::DeserializeOwned;
@@ -85,8 +85,8 @@ where
     let end_block_number =
         sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
 
-    // If range is not synced yet return error
-    if !check_l2_range_exists(&ledger, start_block_number, end_block_number) {
+    // Verify that we have all l2 blocks synced to execute the commitment
+    if !check_l2_block_exists(&ledger, end_block_number) {
         return Err(L1ProcessingError::L2RangeMissing {
             start_block_number,
             end_block_number,
@@ -123,7 +123,7 @@ where
         )?,
     };
 
-    let mut batch_proof_circuit_inputs = vec![];
+    let mut batch_proof_circuit_inputs = Vec::with_capacity(ranges.len());
 
     for sequencer_commitments_range in ranges {
         let first_l2_height_of_l1 =

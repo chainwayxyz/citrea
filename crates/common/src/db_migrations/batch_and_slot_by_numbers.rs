@@ -5,7 +5,7 @@ use sov_db::ledger_db::LedgerDB;
 
 /// Table removal migration
 /// tables BatchByNumber and SlotByNumber are removed
-pub(crate) struct MigrateBatchAndSlotByNumber {}
+pub struct MigrateBatchAndSlotByNumber;
 
 impl LedgerMigration for MigrateBatchAndSlotByNumber {
     fn identifier(&self) -> (MigrationName, MigrationVersion) {

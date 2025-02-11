@@ -40,14 +40,13 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::fork::Fork;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 
 use crate::call::get_cfg_env;
 use crate::conversions::{create_tx_env, sealed_block_to_block_env};
 use crate::evm::call::{create_txn_env, prepare_call_env};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::evm::DbAccount;
 use crate::handler::{diff_size_send_eth_eoa, TxInfo};
 use crate::rpc_helpers::*;
 use crate::{
@@ -302,12 +301,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<U256> {
+        let block_number = self.block_number_from_state(block_id, working_set)?;
+
+        let citrea_spec = fork_from_block_number(block_number).spec_id;
+
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         let balance = self
-            .accounts
-            .get(&address, working_set)
+            .account_info(&address, citrea_spec, working_set)
             .map(|info| info.balance)
             .unwrap_or_default();
 
@@ -323,19 +325,34 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<B256> {
+        self.get_storage_at_inner(
+            address,
+            index,
+            block_id,
+            working_set,
+            fork_from_block_number,
+        )
+    }
+
+    pub(crate) fn get_storage_at_inner(
+        &self,
+        address: Address,
+        index: U256,
+        block_id: Option<BlockId>,
+        working_set: &mut WorkingSet<C::Storage>,
+        fork_fn: impl Fn(u64) -> Fork,
+    ) -> RpcResult<B256> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
+
+        let block_number = self.block_number_from_state(block_id, working_set)?;
+
+        let citrea_spec = fork_fn(block_number).spec_id;
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
-        let storage_slot = if self.accounts.get(&address, working_set).is_some() {
-            let db_account = DbAccount::new(address);
-            db_account
-                .storage
-                .get(&index, working_set)
-                .unwrap_or_default()
-        } else {
-            Default::default()
-        };
+        let storage_slot = self
+            .storage_get(&address, &index, citrea_spec, working_set)
+            .unwrap_or_default();
 
         Ok(storage_slot.into())
     }
@@ -349,11 +366,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<U64> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
+
+        let block_number = self.block_number_from_state(block_id, working_set)?;
+
+        let citrea_spec = fork_from_block_number(block_number).spec_id;
+
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let nonce = self
-            .accounts
-            .get(&address, working_set)
+            .account_info(&address, citrea_spec, working_set)
             .map(|account| account.nonce)
             .unwrap_or_default();
 
@@ -378,31 +399,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<Bytes> {
-        let block_number = match block_id {
-            Some(BlockId::Number(block_num)) => block_num,
-            Some(BlockId::Hash(block_hash)) => {
-                let block_number = self
-                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
-                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
-                BlockNumberOrTag::Number(block_number)
-            }
-            None => BlockNumberOrTag::Latest,
-        };
+        let block_number = self.block_number_from_state(block_id, working_set)?;
 
-        let block_number = match block_number {
-            BlockNumberOrTag::Pending => {
-                self.block_number_for_id(&BlockNumberOrTag::Latest, working_set)? + 1
-            }
-            _ => self.block_number_for_id(&block_number, working_set)?,
-        };
-
-        let current_spec = citrea_spec_id_to_evm_spec_id(fork_fn(block_number).spec_id);
+        let citrea_spec = fork_fn(block_number).spec_id;
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
-        let account = self.accounts.get(&address, working_set).unwrap_or_default();
+        let account = self
+            .account_info(&address, citrea_spec, working_set)
+            .unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
-            if current_spec.is_enabled_in(SpecId::CANCUN) {
+            if citrea_spec >= CitreaSpecId::Kumquat {
                 self.offchain_code
                     .get(&code_hash, &mut working_set.offchain_state())
                     .unwrap_or_else(|| self.code.get(&code_hash, working_set).unwrap_or_default())
@@ -593,43 +600,38 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => BlockNumberOrTag::Latest,
         };
 
-        let (mut block_env, mut cfg_env) = {
-            let block_env = match block_number {
-                BlockNumberOrTag::Pending => get_pending_block_env(self, working_set, &fork_fn),
-                _ => {
-                    let block = self
-                        .get_sealed_block_by_number(Some(block_number), working_set)?
-                        .ok_or(EthApiError::HeaderNotFound(
-                            block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
-                        ))?;
+        let mut block_env = match block_number {
+            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set, &fork_fn),
+            _ => {
+                let block = self
+                    .get_sealed_block_by_number(Some(block_number), working_set)?
+                    .ok_or(EthApiError::HeaderNotFound(
+                        block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
+                    ))?;
 
-                    sealed_block_to_block_env(&block.header, &fork_fn)
-                }
-            };
-
-            let block_num: u64 = block_env.number.saturating_to();
-
-            // Set evm state to block if needed
-            match block_number {
-                BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
-                _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
-            };
-
-            let cfg = self
-                .cfg
-                .get(working_set)
-                .expect("EVM chain config should be set");
-
-            let citrea_spec_id = fork_fn(block_num).spec_id;
-            let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
-
-            let cfg_env = get_cfg_env(cfg, evm_spec_id);
-
-            (block_env, cfg_env)
+                sealed_block_to_block_env(&block.header, &fork_fn)
+            }
         };
 
-        let current_spec = cfg_env.handler_cfg.spec_id;
-        let mut evm_db = self.get_db(working_set, current_spec);
+        let block_num: u64 = block_env.number.saturating_to();
+
+        // Set evm state to block if needed
+        match block_number {
+            BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
+            _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
+        };
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+
+        let citrea_spec_id = fork_fn(block_num).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
+
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(mut block_overrides) = block_overrides {
             apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
@@ -693,51 +695,47 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<AccessListWithGasUsed> {
         let mut request = request.clone();
 
-        let (l1_fee_rate, block_env, mut cfg_env) = {
-            let (l1_fee_rate, block_env) = match block_number {
-                Some(BlockNumberOrTag::Pending) => {
-                    let l1_fee_rate = self
-                        .blocks_rlp
-                        .last(&mut working_set.accessory_state())
-                        .expect("Head block must be set")
-                        .l1_fee_rate;
-                    (
-                        l1_fee_rate,
-                        get_pending_block_env(self, working_set, &fork_fn),
-                    )
-                }
-                _ => {
-                    let block = self
-                        .get_sealed_block_by_number(block_number, working_set)?
-                        // Is this ok : block_number.unwrap_or_default()
-                        .ok_or(EthApiError::HeaderNotFound(
-                            block_number.unwrap_or_default().into(),
-                        ))?;
-                    (
-                        block.l1_fee_rate,
-                        sealed_block_to_block_env(&block.header, &fork_fn),
-                    )
-                }
-            };
-            let block_num: u64 = block_env.number.saturating_to();
-
-            match block_number {
-                None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
-                _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
-            };
-
-            let cfg = self
-                .cfg
-                .get(working_set)
-                .expect("EVM chain config should be set");
-
-            let citrea_spec_id = fork_fn(block_num).spec_id;
-            let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
-
-            let cfg_env = get_cfg_env(cfg, evm_spec_id);
-
-            (l1_fee_rate, block_env, cfg_env)
+        let (l1_fee_rate, block_env) = match block_number {
+            Some(BlockNumberOrTag::Pending) => {
+                let l1_fee_rate = self
+                    .blocks_rlp
+                    .last(&mut working_set.accessory_state())
+                    .expect("Head block must be set")
+                    .l1_fee_rate;
+                (
+                    l1_fee_rate,
+                    get_pending_block_env(self, working_set, &fork_fn),
+                )
+            }
+            _ => {
+                let block = self
+                    .get_sealed_block_by_number(block_number, working_set)?
+                    // Is this ok : block_number.unwrap_or_default()
+                    .ok_or(EthApiError::HeaderNotFound(
+                        block_number.unwrap_or_default().into(),
+                    ))?;
+                (
+                    block.l1_fee_rate,
+                    sealed_block_to_block_env(&block.header, &fork_fn),
+                )
+            }
         };
+        let block_num: u64 = block_env.number.saturating_to();
+
+        match block_number {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+            _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
+        };
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+
+        let citrea_spec_id = fork_fn(block_num).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
 
         // we want to disable this in eth_createAccessList, since this is common practice used by
         // other node impls and providers <https://github.com/foundry-rs/foundry/issues/4388>
@@ -748,8 +746,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // <https://github.com/ethereum/go-ethereum/blob/8990c92aea01ca07801597b00c0d83d4e2d9b811/internal/ethapi/api.go#L1476-L1476>
         cfg_env.disable_base_fee = true;
 
-        let current_spec = cfg_env.handler_cfg.spec_id;
-        let mut evm_db = self.get_db(working_set, current_spec);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         let from = request.from.unwrap_or_default();
         let account = evm_db
@@ -800,6 +797,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             l1_fee_rate,
             block_env.clone(),
             cfg_env,
+            citrea_spec_id,
             working_set,
         )?;
 
@@ -818,45 +816,48 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<EstimatedTxExpenses> {
-        let (l1_fee_rate, block_env, cfg_env) = {
-            let (l1_fee_rate, block_env) = match block_number {
-                Some(BlockNumberOrTag::Pending) => {
-                    let l1_fee_rate = self
-                        .blocks_rlp
-                        .last(&mut working_set.accessory_state())
-                        .expect("Head block must be set")
-                        .l1_fee_rate;
-                    (
-                        l1_fee_rate,
-                        get_pending_block_env(self, working_set, &fork_fn),
-                    )
-                }
-                _ => {
-                    let block = self
-                        .get_sealed_block_by_number(block_number, working_set)?
-                        .ok_or(EthApiError::HeaderNotFound(
-                            block_number.unwrap_or_default().into(),
-                        ))?;
-                    (
-                        block.l1_fee_rate,
-                        sealed_block_to_block_env(&block.header, &fork_fn), // correct spec will be set later
-                    )
-                }
-            };
-            let cfg = self
-                .cfg
-                .get(working_set)
-                .expect("EVM chain config should be set");
-
-            let citrea_spec_id = fork_fn(block_env.number.saturating_to()).spec_id;
-            let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
-
-            let cfg_env = get_cfg_env(cfg, evm_spec_id);
-
-            (l1_fee_rate, block_env, cfg_env)
+        let (l1_fee_rate, block_env) = match block_number {
+            Some(BlockNumberOrTag::Pending) => {
+                let l1_fee_rate = self
+                    .blocks_rlp
+                    .last(&mut working_set.accessory_state())
+                    .expect("Head block must be set")
+                    .l1_fee_rate;
+                (
+                    l1_fee_rate,
+                    get_pending_block_env(self, working_set, &fork_fn),
+                )
+            }
+            _ => {
+                let block = self
+                    .get_sealed_block_by_number(block_number, working_set)?
+                    .ok_or(EthApiError::HeaderNotFound(
+                        block_number.unwrap_or_default().into(),
+                    ))?;
+                (
+                    block.l1_fee_rate,
+                    sealed_block_to_block_env(&block.header, &fork_fn), // correct spec will be set later
+                )
+            }
         };
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
 
-        self.estimate_gas_with_env(request, l1_fee_rate, block_env, cfg_env, working_set)
+        let citrea_spec_id = fork_fn(block_env.number.saturating_to()).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+
+        self.estimate_gas_with_env(
+            request,
+            l1_fee_rate,
+            block_env,
+            cfg_env,
+            citrea_spec_id,
+            working_set,
+        )
     }
 
     /// Handler for: `eth_estimateGas`
@@ -961,6 +962,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         l1_fee_rate: u128,
         block_env: BlockEnv,
         mut cfg_env: CfgEnvWithHandlerCfg,
+        citrea_spec: CitreaSpecId,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<EstimatedTxExpenses> {
         // Disabled because eth_estimateGas is sometimes used with eoa senders
@@ -972,8 +974,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // <https://github.com/ethereum/go-ethereum/blob/ee8e83fa5f6cb261dad2ed0a7bbcde4930c41e6c/internal/ethapi/api.go#L985>
         cfg_env.disable_base_fee = true;
 
-        let current_spec = cfg_env.handler_cfg.spec_id;
-
         // set nonce to None so that the correct nonce is chosen by the EVM
         request.nonce = None;
 
@@ -983,8 +983,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_env_base_fee = U256::from(block_env.basefee);
 
         let account = self
-            .accounts
-            .get(&request.from.unwrap_or_default(), working_set)
+            .account_info(&request.from.unwrap_or_default(), citrea_spec, working_set)
             .unwrap_or_default();
 
         // create tx env
@@ -993,7 +992,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.transact_to {
-                let to_account = self.accounts.get(&to, working_set).unwrap_or_default();
+                let to_account = self
+                    .account_info(&to, citrea_spec, working_set)
+                    .unwrap_or_default();
                 if to_account.code_hash.is_none() {
                     // If the tx is a simple transfer (call to an account with no code) we can
                     // shortcircuit But simply returning
@@ -1006,7 +1007,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     tx_env.gas_limit = MIN_TRANSACTION_GAS;
 
                     let res = inspect_no_tracing(
-                        self.get_db(working_set, current_spec),
+                        self.get_db(working_set, citrea_spec),
                         cfg_env.clone(),
                         block_env.clone(),
                         tx_env.clone(),
@@ -1051,7 +1052,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // if the provided gas limit is less than computed cap, use that
         tx_env.gas_limit = std::cmp::min(tx_env.gas_limit, highest_gas_limit); // highest_gas_limit is capped to u64::MAX
 
-        let evm_db = self.get_db(working_set, current_spec);
+        let evm_db = self.get_db(working_set, citrea_spec);
 
         // execute the call without writing to db
         let result = inspect_no_tracing(
@@ -1069,7 +1070,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // if price or limit was included in the request then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas_limit.is_some() || request_gas_price.is_some() {
-                let evm_db = self.get_db(working_set, current_spec);
+                let evm_db = self.get_db(working_set, citrea_spec);
                 return Err(map_out_of_gas_err(
                     block_env.clone(),
                     tx_env.clone(),
@@ -1093,7 +1094,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // if price or limit was included in the request then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas_limit.is_some() || request_gas_price.is_some() {
-                        let evm_db = self.get_db(working_set, current_spec);
+                        let evm_db = self.get_db(working_set, citrea_spec);
                         Err(map_out_of_gas_err(
                             block_env.clone(),
                             tx_env.clone(),
@@ -1134,7 +1135,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
             let curr_result = inspect_no_tracing(
-                self.get_db(working_set, current_spec),
+                self.get_db(working_set, citrea_spec),
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
@@ -1174,7 +1175,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
-            let evm_db = self.get_db(working_set, current_spec);
+            let evm_db = self.get_db(working_set, citrea_spec);
             let result = inspect_no_tracing(
                 evm_db,
                 cfg_env.clone(),
@@ -1318,11 +1319,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
-        let current_spec = cfg_env.handler_cfg.spec_id;
 
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
         // TODO: Move to CacheDB once immutable state is implemented
-        let mut evm_db = self.get_db(working_set, current_spec);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();
@@ -1594,6 +1594,32 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 "Please provide a number or earliest/latest/pending tag".to_string(),
             )),
         }
+    }
+
+    /// Return block number using the state
+    pub(crate) fn block_number_from_state(
+        &self,
+        block_id: Option<BlockId>,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<u64, EthApiError> {
+        let block_number = match block_id {
+            Some(BlockId::Number(block_num)) => block_num,
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = self
+                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+                BlockNumberOrTag::Number(block_number)
+            }
+            None => BlockNumberOrTag::Latest,
+        };
+
+        let res = match block_number {
+            BlockNumberOrTag::Pending => {
+                self.block_number_for_id(&BlockNumberOrTag::Latest, working_set)? + 1
+            }
+            _ => self.block_number_for_id(&block_number, working_set)?,
+        };
+        Ok(res)
     }
 
     /// Helper function to get sealed block by number
