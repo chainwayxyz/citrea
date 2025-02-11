@@ -132,9 +132,7 @@ impl<S: Storage> AccessoryDelta<S> {
     }
 
     fn freeze(&mut self) -> OrderedReadsAndWrites {
-        let ordered_writes = mem::take(&mut self.committed_writes)
-            .into_iter()
-            .collect();
+        let ordered_writes = mem::take(&mut self.committed_writes).into_iter().collect();
 
         OrderedReadsAndWrites {
             ordered_reads: Vec::default(),
