@@ -73,6 +73,7 @@ where
 {
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool<C>>,
+    // TODO: Use k256 private key here before mainnet
     sov_tx_signer_priv_key: Vec<u8>,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider<C>,
