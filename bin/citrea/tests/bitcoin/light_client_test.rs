@@ -1320,18 +1320,6 @@ fn create_serialized_fake_receipt_batch_proof(
     state_diff: Option<BTreeMap<Vec<u8>, Option<Vec<u8>>>>,
     malformed_journal: bool,
 ) -> Vec<u8> {
-    let sequencer_da_public_key = vec![
-        2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71, 236, 37, 185, 161, 53, 187,
-        218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215, 125, 201,
-    ];
-    let sequencer_public_key = vec![
-        32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214,
-        80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
-    ];
-    let sequencer_k256_public_key = vec![
-        3, 99, 96, 232, 86, 49, 12, 229, 210, 148, 232, 190, 51, 252, 128, 112, 119, 220, 86, 172,
-        128, 217, 93, 156, 212, 221, 189, 33, 50, 94, 255, 115, 247,
-    ];
     let batch_proof_output = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,

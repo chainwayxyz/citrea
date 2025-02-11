@@ -2139,6 +2139,7 @@ dependencies = [
  "reth-trie",
  "rs_merkle",
  "schnellru",
+ "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-db",
  "sov-modules-api",

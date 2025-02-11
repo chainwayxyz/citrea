@@ -21,6 +21,7 @@ use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
 };
+use soft_confirmation_rule_enforcer::CallMessage as RuleEnforcerCallMessage;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -220,8 +221,24 @@ where
                                     soft_confirmation_info.current_spec(),
                                 )?;
 
-                                let txs = vec![signed_blob.clone()];
-                                let txs_new = vec![signed_tx];
+                                let mut txs = vec![signed_blob.clone()];
+                                let mut txs_new = vec![signed_tx];
+
+                                // get the fork2 activation height
+                                // If next block activates Fork2 we should update rule enforcer authority
+                                // Because we use a new public key for sequencer now
+                                let next_fork = self.fork_manager.next_fork();
+                                if let Some(next_fork) = next_fork {
+                                    if next_fork.spec_id == SpecId::Fork2 {
+                                        if soft_confirmation_info.l2_height + 1
+                                            == next_fork.activation_height
+                                        {
+                                            let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set_to_discard, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                                            txs.push(signed_blob);
+                                            txs_new.push(signed_tx);
+                                        }
+                                    }
+                                }
 
                                 let mut working_set =
                                     working_set_to_discard.checkpoint().to_revertable();
@@ -430,6 +447,20 @@ where
                     )?;
                     txs.push(signed_blob);
                     txs_new.push(signed_tx);
+
+                    // get the fork2 activation height
+                    // If next block activates Fork2 we should update rule enforcer authority
+                    // Because we use a new public key for sequencer now
+                    let next_fork = self.fork_manager.next_fork();
+                    if let Some(next_fork) = next_fork {
+                        if next_fork.spec_id == SpecId::Fork2 {
+                            if soft_confirmation_info.l2_height + 1 == next_fork.activation_height {
+                                let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                                txs.push(signed_blob);
+                                txs_new.push(signed_tx);
+                            }
+                        }
+                    }
 
                     self.stf
                         .apply_soft_confirmation_txs(
@@ -1056,6 +1087,32 @@ where
         }
         // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
         skipped_blocks
+    }
+
+    fn update_sequencer_authority(
+        &mut self,
+        mut working_set: &mut WorkingSet<C::Storage>,
+        current_spec: SpecId,
+    ) -> anyhow::Result<(Vec<u8>, Transaction)> {
+        let k256_priv_key =
+            K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
+        let new_address = k256_priv_key.to_address::<C::Address>();
+
+        let rule_enforcer_call_tx = RuleEnforcerCallMessage::ChangeAuthority::<C> {
+            new_authority: new_address,
+        };
+
+        let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+            soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<
+                C,
+                <Da as DaService>::Spec,
+            >,
+        >>::encode_call(rule_enforcer_call_tx);
+
+        let signed_blob = self.make_blob(raw_message.clone(), &mut working_set, current_spec)?;
+
+        let signed_tx = self.sign_tx(raw_message, &mut working_set, current_spec)?;
+        Ok((signed_blob, signed_tx))
     }
 }
 
