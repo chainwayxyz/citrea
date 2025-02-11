@@ -638,11 +638,25 @@ impl TestCase for ForkElfSwitchingTest {
 
         assert_eq!(proofs.len(), 2);
         assert_eq!(
-            fork_from_block_number(proofs[0].proof_output.last_l2_height.to()).spec_id,
+            SpecId::from_u8(
+                proofs[0]
+                    .proof_output
+                    .last_active_spec_id
+                    .expect("should have field")
+                    .to()
+            )
+            .expect("should be valid"),
             SpecId::Genesis
         );
         assert_eq!(
-            fork_from_block_number(proofs[1].proof_output.last_l2_height.to()).spec_id,
+            fork_from_block_number(
+                proofs[1]
+                    .proof_output
+                    .last_l2_height
+                    .expect("should have field")
+                    .to()
+            )
+            .spec_id,
             SpecId::Kumquat
         );
 

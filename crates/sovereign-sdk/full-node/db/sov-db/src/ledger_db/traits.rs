@@ -8,10 +8,12 @@ use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaBatch;
 
-use crate::schema::types::{
-    L2HeightRange, SlotNumber, SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput,
-    StoredLightClientProof, StoredLightClientProofOutput, StoredSoftConfirmation,
+use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::light_client_proof::{
+    StoredLightClientProof, StoredLightClientProofOutput,
 };
+use crate::schema::types::soft_confirmation::StoredSoftConfirmation;
+use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
