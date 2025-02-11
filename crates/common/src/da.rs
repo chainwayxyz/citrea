@@ -20,7 +20,7 @@ use crate::cache::L1BlockCache;
 use crate::FullNodeConfig;
 
 pub async fn sync_l1<Da>(
-    start_from: u64,
+    mut start_from: u64,
     da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
@@ -65,6 +65,8 @@ pub async fn sync_l1<Da>(
                 // able to notify about the L1 block
                 break;
             }
+
+            start_from = block_number;
 
             // If the send above does not succeed, we don't set new values
             // nor do we record any metrics.
