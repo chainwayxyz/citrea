@@ -670,25 +670,16 @@ where
                 //     .register_block(l2_height)
                 //     .expect("Fork transition failed");
 
-                let result = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
-                    self.apply_soft_confirmation(
-                        fork_manager.active_fork().spec_id,
-                        sequencer_k256_public_key,
-                        &current_state_root,
-                        pre_state.clone(),
-                        state_witness,
-                        offchain_witness,
-                        &da_block_headers[index_headers],
-                        &mut soft_confirmation,
-                    )
-                    // TODO: this can be just ignoring the failing seq. com.
-                    // We can count a failed soft confirmation as a valid state transition.
-                    // for now we don't allow "broken" seq. com.s
-                    .expect("Soft confirmation must succeed")
+                let sequencer_pub_key = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
+                    sequencer_k256_public_key
                 } else {
-                    self.apply_soft_confirmation(
+                    sequencer_public_key
+                };
+
+                let result = self
+                    .apply_soft_confirmation(
                         fork_manager.active_fork().spec_id,
-                        sequencer_public_key,
+                        sequencer_pub_key,
                         &current_state_root,
                         pre_state.clone(),
                         state_witness,
@@ -699,8 +690,7 @@ where
                     // TODO: this can be just ignoring the failing seq. com.
                     // We can count a failed soft confirmation as a valid state transition.
                     // for now we don't allow "broken" seq. com.s
-                    .expect("Soft confirmation must succeed")
-                };
+                    .expect("Soft confirmation must succeed");
 
                 assert_eq!(current_state_root, result.state_root_transition.init_root);
                 current_state_root = result.state_root_transition.final_root;
