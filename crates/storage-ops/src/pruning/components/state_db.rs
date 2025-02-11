@@ -123,7 +123,7 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
         }
 
         let mut value_keys = vec![];
-        while let Some(value_key) = values_iter.next() {
+        for value_key in values_iter {
             if let Ok(value_key) = value_key {
                 if value_key.key.0 == key && value_key.key.1 < up_to_block + 1 {
                     value_keys.push(value_key.key);
