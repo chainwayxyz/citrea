@@ -121,6 +121,74 @@ impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
     }
 }
 
+struct NewAccessoryDelta<S: Storage> {
+    storage: S,
+    committed_writes: BTreeMap<CacheKey, Option<CacheValue>>,
+    uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>,
+    version: Option<Version>,
+}
+
+impl<S: Storage> NewAccessoryDelta<S> {
+    fn new(storage: S, version: Option<Version>) -> Self {
+        Self {
+            storage,
+            committed_writes: BTreeMap::default(),
+            uncommitted_writes: BTreeMap::default(),
+            version,
+        }
+    }
+
+    fn commit(mut self) -> Self {
+        self.committed_writes.append(&mut self.uncommitted_writes);
+        self
+    }
+
+    fn revert(mut self) -> Self {
+        self.uncommitted_writes.clear();
+        self
+    }
+
+    fn freeze(&mut self) -> OrderedReadsAndWrites {
+        let ordered_writes = mem::take(&mut self.committed_writes)
+            .into_iter()
+            .collect::<Vec<_>>();
+        println!("accessory ordered writes: {}", ordered_writes.len());
+
+        OrderedReadsAndWrites {
+            ordered_reads: Vec::default(),
+            ordered_writes,
+        }
+    }
+}
+
+impl<S: Storage> StateReaderAndWriter for NewAccessoryDelta<S> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        let cache_key = key.to_cache_key_version(self.version);
+
+        if let Some(value) = self.uncommitted_writes.get(&cache_key) {
+            return value.as_ref().cloned().map(Into::into);
+        }
+
+        if let Some(value) = self.committed_writes.get(&cache_key) {
+            return value.as_ref().cloned().map(Into::into);
+        }
+
+        self.storage.get_accessory(key, self.version)
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        self.uncommitted_writes.insert(
+            key.to_cache_key_version(self.version),
+            Some(value.into_cache_value()),
+        );
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        self.uncommitted_writes
+            .insert(key.to_cache_key_version(self.version), None);
+    }
+}
+
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
     /// Get a value from the storage.
@@ -372,7 +440,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
 ///  2. With [`WorkingSet::revert`].
 pub struct StateCheckpoint<S: Storage> {
     delta: StateDelta<S>,
-    accessory_delta: AccessoryDelta<S>,
+    accessory_delta: NewAccessoryDelta<S>,
     offchain_delta: OffchainDelta<S>,
 }
 
@@ -392,7 +460,7 @@ impl<S: Storage> StateCheckpoint<S> {
     ) -> Self {
         Self {
             delta: StateDelta::with_witness(inner.clone(), state_witness, None),
-            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            accessory_delta: NewAccessoryDelta::new(inner.clone(), None),
             offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
         }
     }
@@ -402,7 +470,7 @@ impl<S: Storage> StateCheckpoint<S> {
         WorkingSet {
             delta: self.delta,
             offchain_delta: RevertableWriter::new(self.offchain_delta, None),
-            accessory_delta: RevertableWriter::new(self.accessory_delta, None),
+            accessory_delta: self.accessory_delta,
             archival_working_set: None,
             archival_accessory_working_set: None,
             archival_offchain_working_set: None,
@@ -445,7 +513,7 @@ impl<S: Storage> StateCheckpoint<S> {
 /// 2. By using the revert method, where the most recent changes are reverted and the previous `StateCheckpoint` is returned.
 pub struct WorkingSet<S: Storage> {
     delta: StateDelta<S>,
-    accessory_delta: RevertableWriter<AccessoryDelta<S>>,
+    accessory_delta: NewAccessoryDelta<S>,
     offchain_delta: RevertableWriter<OffchainDelta<S>>,
     archival_working_set: Option<ArchivalJmtWorkingSet<S>>,
     archival_offchain_working_set: Option<ArchivalOffchainWorkingSet<S>>,
@@ -495,7 +563,7 @@ impl<S: Storage> WorkingSet<S> {
 
     /// Returns a handler for the archival accessory state (non-JMT state).
     fn archival_accessory_state(&mut self, version: Version) -> ArchivalAccessoryWorkingSet<S> {
-        ArchivalAccessoryWorkingSet::new(&self.accessory_delta.inner.storage, version)
+        ArchivalAccessoryWorkingSet::new(&self.accessory_delta.storage, version)
     }
 
     /// Sets archival version for a working set
@@ -660,17 +728,14 @@ pub mod archival_state {
 
     /// Archival Accessory
     pub struct ArchivalAccessoryWorkingSet<S: Storage> {
-        delta: RevertableWriter<AccessoryDelta<S>>,
+        delta: NewAccessoryDelta<S>,
     }
 
     impl<S: Storage> ArchivalAccessoryWorkingSet<S> {
         /// create a new instance of ArchivalAccessoryWorkingSet
         pub fn new(inner: &S, version: Version) -> Self {
             Self {
-                delta: RevertableWriter::new(
-                    AccessoryDelta::new(inner.clone(), Some(version)),
-                    Some(version),
-                ),
+                delta: NewAccessoryDelta::new(inner.clone(), Some(version)),
             }
         }
     }
