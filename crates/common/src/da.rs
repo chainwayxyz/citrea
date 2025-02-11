@@ -19,6 +19,7 @@ use tracing::{error, info, warn};
 use crate::cache::L1BlockCache;
 use crate::FullNodeConfig;
 
+#[allow(clippy::mut_range_bound)]
 pub async fn sync_l1<Da>(
     mut start_from: u64,
     da_service: Arc<Da>,
@@ -66,7 +67,10 @@ pub async fn sync_l1<Da>(
                 break;
             }
 
-            start_from = block_number;
+            // we know this won't change the for loop range
+            // however, for the next time for loop is run in the outer loop,
+            // we will start from where we left off
+            start_from = block_number + 1;
 
             // If the send above does not succeed, we don't set new values
             // nor do we record any metrics.
