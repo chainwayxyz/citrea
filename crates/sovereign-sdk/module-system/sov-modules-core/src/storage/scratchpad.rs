@@ -30,7 +30,7 @@ Delta<S: Storage>:
     version: Option<u64>
 */
 
-struct NewDelta<S: Storage> {
+struct StateDelta<S: Storage> {
     storage: S,
     cache_log: CacheLog,
     uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>,
@@ -39,7 +39,7 @@ struct NewDelta<S: Storage> {
     version: Option<Version>,
 }
 
-impl<S: Storage> NewDelta<S> {
+impl<S: Storage> StateDelta<S> {
     fn new(storage: S, version: Option<Version>) -> Self {
         Self::with_witness(storage, Default::default(), version)
     }
@@ -84,7 +84,7 @@ impl<S: Storage> NewDelta<S> {
     }
 }
 
-impl<S: Storage> StateReaderAndWriter for NewDelta<S> {
+impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
         let cache_key = key.to_cache_key_version(self.version);
 
@@ -371,7 +371,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
 ///  1. With [`WorkingSet::checkpoint`].
 ///  2. With [`WorkingSet::revert`].
 pub struct StateCheckpoint<S: Storage> {
-    delta: NewDelta<S>,
+    delta: StateDelta<S>,
     accessory_delta: AccessoryDelta<S>,
     offchain_delta: OffchainDelta<S>,
 }
@@ -391,7 +391,7 @@ impl<S: Storage> StateCheckpoint<S> {
         offchain_witness: <S as Storage>::Witness,
     ) -> Self {
         Self {
-            delta: NewDelta::with_witness(inner.clone(), state_witness, None),
+            delta: StateDelta::with_witness(inner.clone(), state_witness, None),
             accessory_delta: AccessoryDelta::new(inner.clone(), None),
             offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
         }
@@ -444,7 +444,7 @@ impl<S: Storage> StateCheckpoint<S> {
 /// 1. By using the checkpoint() method, where all the changes are added to the underlying StateCheckpoint.
 /// 2. By using the revert method, where the most recent changes are reverted and the previous `StateCheckpoint` is returned.
 pub struct WorkingSet<S: Storage> {
-    delta: NewDelta<S>,
+    delta: StateDelta<S>,
     accessory_delta: RevertableWriter<AccessoryDelta<S>>,
     offchain_delta: RevertableWriter<OffchainDelta<S>>,
     archival_working_set: Option<ArchivalJmtWorkingSet<S>>,
@@ -643,7 +643,7 @@ pub mod archival_state {
 
     /// Archival JMT
     pub struct ArchivalJmtWorkingSet<S: Storage> {
-        delta: RevertableWriter<NewDelta<S>>,
+        delta: RevertableWriter<StateDelta<S>>,
     }
 
     impl<S: Storage> ArchivalJmtWorkingSet<S> {
@@ -651,7 +651,7 @@ pub mod archival_state {
         pub fn new(inner: &S, version: Version) -> Self {
             Self {
                 delta: RevertableWriter::new(
-                    NewDelta::new(inner.clone(), Some(version)),
+                    StateDelta::new(inner.clone(), Some(version)),
                     Some(version),
                 ),
             }
