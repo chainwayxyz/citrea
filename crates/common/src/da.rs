@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -12,9 +13,9 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::cache::L1BlockCache;
 use crate::FullNodeConfig;
@@ -23,7 +24,7 @@ use crate::FullNodeConfig;
 pub async fn sync_l1<Da>(
     mut start_from: u64,
     da_service: Arc<Da>,
-    sender: mpsc::Sender<Da::FilteredBlock>,
+    block_queue: Arc<Mutex<VecDeque<Da::FilteredBlock>>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     l1_block_scan_histogram: Histogram,
 ) where
@@ -60,10 +61,12 @@ pub async fn sync_l1<Da>(
                     }
                 };
 
-            if let Err(e) = sender.send(l1_block).await {
-                error!("Could not notify about L1 block: {}", e);
-                // We should not continue with the internal loop since we were not
-                // able to notify about the L1 block
+            let mut queue = block_queue.lock().await;
+
+            if queue.len() < 10 {
+                queue.push_back(l1_block.clone());
+            } else {
+                debug!("Block queue is full, will try later...");
                 break;
             }
 

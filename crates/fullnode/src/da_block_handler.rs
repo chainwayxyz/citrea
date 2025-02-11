@@ -23,7 +23,7 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -44,7 +44,7 @@ where
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     _context: PhantomData<C>,
 }
 
@@ -73,7 +73,7 @@ where
             prover_da_pub_key,
             code_commitments_by_spec,
             l1_block_cache,
-            pending_l1_blocks: VecDeque::new(),
+            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             _context: PhantomData,
         }
     }
@@ -82,11 +82,10 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            l1_tx,
+            self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             FULLNODE_METRICS.scan_l1_block.clone(),
         );
@@ -96,13 +95,9 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
-                    l1_rx.close();
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    self.pending_l1_blocks.push_back(l1_block);
-                },
                 _ = interval.tick() => {
                     self.process_l1_block().await
                 },
@@ -111,13 +106,12 @@ where
     }
 
     async fn process_l1_block(&mut self) {
-        if self.pending_l1_blocks.is_empty() {
+        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
+
+        let Some(l1_block) = pending_l1_blocks.front() else {
             return;
-        }
-        let l1_block = self
-            .pending_l1_blocks
-            .front()
-            .expect("Just checked pending L1 blocks is not empty");
+        };
+
         let l1_height = l1_block.header().height();
         info!("Processing L1 block at height: {}", l1_height);
 
@@ -197,7 +191,7 @@ where
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
-        self.pending_l1_blocks.pop_front();
+        pending_l1_blocks.pop_front();
     }
 
     async fn process_sequencer_commitment(

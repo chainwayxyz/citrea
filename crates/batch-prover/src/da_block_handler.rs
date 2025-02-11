@@ -25,7 +25,7 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -57,7 +57,7 @@ where
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
-    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
 }
@@ -94,7 +94,7 @@ where
             elfs_by_spec,
             skip_submission_until_l1,
             l1_block_cache,
-            pending_l1_blocks: VecDeque::new(),
+            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             _witness: PhantomData,
             _tx: PhantomData,
         }
@@ -112,11 +112,10 @@ where
                 .expect("Failed to clear pending proving sessions");
         }
 
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            l1_tx,
+            self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             BATCH_PROVER_METRICS.scan_l1_block.clone(),
         );
@@ -128,13 +127,9 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
-                    l1_rx.close();
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    self.pending_l1_blocks.push_back(l1_block);
-                },
                 _ = interval.tick() => {
                     if let Err(e) = self.process_l1_block().await {
                         error!("Could not process L1 block and generate proof: {:?}", e);
@@ -145,9 +140,10 @@ where
     }
 
     async fn process_l1_block(&mut self) -> Result<(), anyhow::Error> {
-        while !self.pending_l1_blocks.is_empty() {
-            let l1_block = self
-                .pending_l1_blocks
+        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
+
+        while !pending_l1_blocks.is_empty() {
+            let l1_block = pending_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
@@ -174,7 +170,7 @@ where
 
                 BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                self.pending_l1_blocks.pop_front();
+                pending_l1_blocks.pop_front();
                 continue;
             }
 
@@ -200,7 +196,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        self.pending_l1_blocks.pop_front();
+                        pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::DuplicateCommitments { l1_height } => {
@@ -219,7 +215,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        self.pending_l1_blocks.pop_front();
+                        pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::L2RangeMissing {
@@ -279,7 +275,7 @@ where
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-            self.pending_l1_blocks.pop_front();
+            pending_l1_blocks.pop_front();
         }
         Ok(())
     }
