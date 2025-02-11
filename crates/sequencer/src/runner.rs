@@ -229,14 +229,13 @@ where
                                 // Because we use a new public key for sequencer now
                                 let next_fork = self.fork_manager.next_fork();
                                 if let Some(next_fork) = next_fork {
-                                    if next_fork.spec_id == SpecId::Fork2 {
-                                        if soft_confirmation_info.l2_height + 1
+                                    if next_fork.spec_id == SpecId::Fork2
+                                        && soft_confirmation_info.l2_height + 1
                                             == next_fork.activation_height
-                                        {
-                                            let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set_to_discard, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
-                                            txs.push(signed_blob);
-                                            txs_new.push(signed_tx);
-                                        }
+                                    {
+                                        let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set_to_discard, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                                        txs.push(signed_blob);
+                                        txs_new.push(signed_tx);
                                     }
                                 }
 
@@ -453,12 +452,12 @@ where
                     // Because we use a new public key for sequencer now
                     let next_fork = self.fork_manager.next_fork();
                     if let Some(next_fork) = next_fork {
-                        if next_fork.spec_id == SpecId::Fork2 {
-                            if soft_confirmation_info.l2_height + 1 == next_fork.activation_height {
-                                let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
-                                txs.push(signed_blob);
-                                txs_new.push(signed_tx);
-                            }
+                        if next_fork.spec_id == SpecId::Fork2
+                            && soft_confirmation_info.l2_height + 1 == next_fork.activation_height
+                        {
+                            let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                            txs.push(signed_blob);
+                            txs_new.push(signed_tx);
                         }
                     }
 
@@ -1091,7 +1090,7 @@ where
 
     fn update_sequencer_authority(
         &mut self,
-        mut working_set: &mut WorkingSet<C::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
         current_spec: SpecId,
     ) -> anyhow::Result<(Vec<u8>, Transaction)> {
         let k256_priv_key =
@@ -1109,9 +1108,9 @@ where
             >,
         >>::encode_call(rule_enforcer_call_tx);
 
-        let signed_blob = self.make_blob(raw_message.clone(), &mut working_set, current_spec)?;
+        let signed_blob = self.make_blob(raw_message.clone(), working_set, current_spec)?;
 
-        let signed_tx = self.sign_tx(raw_message, &mut working_set, current_spec)?;
+        let signed_tx = self.sign_tx(raw_message, working_set, current_spec)?;
         Ok((signed_blob, signed_tx))
     }
 }

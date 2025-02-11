@@ -391,7 +391,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                         signed_soft_confirmation.blobs().to_vec().into(),
                         signed_soft_confirmation
                             .txs()
-                            .into_iter()
+                            .iter()
                             .map(|tx| Tx::from(tx.clone()))
                             .collect(),
                         signed_soft_confirmation.deposit_data().to_vec(),
