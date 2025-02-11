@@ -596,6 +596,12 @@ where
                         (sc, state_witness, offchain_witness)
                     };
 
+                assert_eq!(
+                    soft_confirmation.l2_height(),
+                    l2_height,
+                    "Soft confirmation height is not equal to the expected height"
+                );
+
                 if let Some(hash) = prev_soft_confirmation_hash {
                     assert_eq!(
                         soft_confirmation.prev_hash(),
