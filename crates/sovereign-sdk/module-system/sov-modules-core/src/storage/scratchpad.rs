@@ -56,8 +56,6 @@ impl<S: Storage> StateDelta<S> {
     fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
         let ordered_reads = mem::take(&mut self.ordered_storage_reads);
         let ordered_writes = mem::take(&mut self.cache_log).take_writes();
-        println!("ordered reads: {}", ordered_reads.len());
-        println!("ordered writes: {}", ordered_writes.len());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
             ordered_reads,
@@ -137,7 +135,6 @@ impl<S: Storage> AccessoryDelta<S> {
         let ordered_writes = mem::take(&mut self.committed_writes)
             .into_iter()
             .collect::<Vec<_>>();
-        println!("accessory ordered writes: {}", ordered_writes.len());
 
         OrderedReadsAndWrites {
             ordered_reads: Vec::default(),
@@ -212,8 +209,6 @@ impl<S: Storage> OffchainDelta<S> {
 
     fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
         let ordered_writes = mem::take(&mut self.cache_log).take_writes();
-        println!("offchain ordered reads: 0");
-        println!("offchain ordered writes: {}", ordered_writes.len());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
             ordered_reads: Vec::default(),
@@ -242,7 +237,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
                 let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
                 self.cache_log
-                    .add_read(cache_key.clone(), cache_value.clone())
+                    .add_read(cache_key, cache_value)
                     .expect("Read from CacheLog failed");
 
                 storage_value
@@ -568,7 +563,7 @@ impl<S: Storage> WorkingSet<S> {
     where
         S: NativeStorage,
     {
-        // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
+        // First inner is `R.clone()evertableWriter` and second inner is actually a `Storage` instance
         self.delta.storage.get_with_proof(key, version)
     }
 
