@@ -671,7 +671,7 @@ impl TestCase for ForkElfSwitchingTest {
             SpecId::Kumquat
         );
         assert_eq!(
-            fork_from_block_number(proofs[2].proof_output.last_l2_height.to()).spec_id,
+            fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
             SpecId::Fork2
         );
 
