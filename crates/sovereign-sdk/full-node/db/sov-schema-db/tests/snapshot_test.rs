@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use sov_schema_db::{define_schema, Schema, DB};
-use sov_schema_db::transaction::DbTransaction;
 use sov_schema_db::test::TestField;
+use sov_schema_db::transaction::DbTransaction;
+use sov_schema_db::{define_schema, Schema, DB};
 
 define_schema!(TestSchema1, TestField, TestField, "TestCF1");
 
@@ -10,7 +10,10 @@ type S = TestSchema1;
 
 #[test]
 fn transaction_lifecycle() {
-    let db = Arc::new(DB::open_temp("test-db-transaction", vec![S::COLUMN_FAMILY_NAME]));
+    let db = Arc::new(DB::open_temp(
+        "test-db-transaction",
+        vec![S::COLUMN_FAMILY_NAME],
+    ));
 
     let key = TestField(1);
     let value = TestField(1);

@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
-use sov_schema_db::transaction::DbTransaction;
 use sov_schema_db::test::{KeyPrefix1, KeyPrefix2, TestCompositeField, TestField};
+use sov_schema_db::transaction::DbTransaction;
 use sov_schema_db::{
     define_schema, Operation, RawRocksdbOptions, Schema, SchemaBatch, SchemaIterator,
     SeekKeyEncoder, DB,
@@ -362,7 +362,10 @@ fn test_schema_batch_iter_range() {
 
 #[test]
 fn test_db_transaction_get_last_value() {
-    let db = Arc::new(DB::open_temp("test-db-transaction", vec![S::COLUMN_FAMILY_NAME]));
+    let db = Arc::new(DB::open_temp(
+        "test-db-transaction",
+        vec![S::COLUMN_FAMILY_NAME],
+    ));
     let transaction_1 = DbTransaction::new(db.clone());
 
     assert!(transaction_1.get_largest::<S>().unwrap().is_none());
@@ -433,7 +436,10 @@ fn test_db_transaction_get_last_value() {
 
 #[test]
 fn test_db_transaction_get_prev_value() {
-    let db = Arc::new(DB::open_temp("test-db-transaction", vec![S::COLUMN_FAMILY_NAME]));
+    let db = Arc::new(DB::open_temp(
+        "test-db-transaction",
+        vec![S::COLUMN_FAMILY_NAME],
+    ));
 
     // Transaction 1 and 2 are to black box usages of parents iterator
     let transaction_1 = DbTransaction::new(db.clone());

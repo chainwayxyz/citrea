@@ -119,10 +119,7 @@ fn test_state_map_with_delete() {
     }
 }
 
-fn create_state_value(
-    value: u32,
-    working_set: &mut WorkingSet<ProverStorage>,
-) -> StateValue<u32> {
+fn create_state_value(value: u32, working_set: &mut WorkingSet<ProverStorage>) -> StateValue<u32> {
     let state_value = StateValue::new(Prefix::new(vec![0]));
     state_value.set(&value, working_set);
     state_value
