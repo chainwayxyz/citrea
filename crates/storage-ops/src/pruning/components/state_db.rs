@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use jmt::storage::{Node, StaleNodeIndex};
 use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes};
-use sov_schema_db::{SchemaBatch, SchemaIterator, DB};
+use sov_schema_db::rocksdb::ReadOptions;
+use sov_schema_db::{ScanDirection, SchemaBatch, SchemaIterator, DB};
 use tracing::{debug, error, info, trace};
 
 struct StaleNodeIndicesByVersionIterator<'a> {
@@ -109,8 +110,12 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
             }
         };
 
+        let mut read_options = ReadOptions::default();
+        read_options.set_async_io(true);
         // We have the key, now we should find how many values of which versions we have.
-        let mut values_iter = match state_db.iter::<JmtValues>() {
+        let mut values_iter = match state_db
+            .iter_with_direction::<JmtValues>(read_options, ScanDirection::Backward)
+        {
             Ok(iter) => iter,
             Err(e) => {
                 error!("Could not create an iterator for JmtValues: {:?}", e);
@@ -153,12 +158,12 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
             }
         }
 
-        // if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
-        //     error!(
-        //         "Could not add JMT node deletion to schema batch operation: {:?}",
-        //         e
-        //     );
-        // }
+        if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
+            error!(
+                "Could not add JMT node deletion to schema batch operation: {:?}",
+                e
+            );
+        }
 
         if let Err(e) = batch.delete::<StaleNodes>(&index) {
             error!(
