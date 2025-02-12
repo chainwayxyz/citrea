@@ -9,30 +9,30 @@ pub use sov_state::ProverStorage;
 pub struct ProverStorageManager {
     state_db: Arc<DB>,
     native_db: Arc<DB>,
-    last_version: u64,
+    next_version: u64,
 }
 
 impl ProverStorageManager {
-    fn with_db_handles(state_db: Arc<DB>, native_db: Arc<DB>, last_version: u64) -> Self {
+    fn with_db_handles(state_db: Arc<DB>, native_db: Arc<DB>, next_version: u64) -> Self {
         Self {
             state_db,
             native_db,
-            last_version,
+            next_version,
         }
     }
 
     /// Create new [`ProverStorageManager`] from state config
-    pub fn new(config: sov_state::config::Config, last_version: u64) -> anyhow::Result<Self> {
+    pub fn new(config: sov_state::config::Config, next_version: u64) -> anyhow::Result<Self> {
         let rocksdb_config =
             RocksdbConfig::new(config.path.as_path(), config.db_max_open_files, None);
         let state_db = Arc::new(StateDB::setup_schema_db(&rocksdb_config)?);
         let native_db = Arc::new(NativeDB::setup_schema_db(&rocksdb_config)?);
-        Ok(Self::with_db_handles(state_db, native_db, last_version))
+        Ok(Self::with_db_handles(state_db, native_db, next_version))
     }
 
     pub fn create_storage_snapshot(&self, l2_height: u64) -> ProverStorage {
         assert!(
-            l2_height < self.last_version,
+            l2_height <= self.next_version,
             "Got l2 height higher than last version"
         );
         let state_db = StateDB::new(self.state_db.clone());
@@ -42,7 +42,7 @@ impl ProverStorageManager {
     }
 
     pub fn create_storage(&self) -> ProverStorage {
-        self.create_storage_snapshot(self.last_version)
+        self.create_storage_snapshot(self.next_version)
     }
 
     pub fn finalize_storage(&self, state_batch: SchemaBatch, native_batch: SchemaBatch) {
