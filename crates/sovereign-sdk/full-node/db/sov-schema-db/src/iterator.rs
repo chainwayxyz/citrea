@@ -30,11 +30,11 @@ pub trait SeekKeyEncoder<S: Schema>: Sized {
     fn encode_seek_key(&self) -> crate::schema::Result<Vec<u8>>;
 }
 
-/// Doc
+/// The direction which is used with the iterator
 pub enum ScanDirection {
-    /// Doc
+    /// Going forward
     Forward,
-    /// Docs
+    /// Going backward
     Backward,
 }
 

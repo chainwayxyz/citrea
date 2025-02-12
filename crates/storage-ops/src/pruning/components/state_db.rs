@@ -1,9 +1,9 @@
+use std::collections::HashSet;
 use std::iter::Peekable;
 use std::sync::Arc;
 
 use jmt::storage::{Node, StaleNodeIndex};
 use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes};
-use sov_schema_db::rocksdb::ReadOptions;
 use sov_schema_db::{ScanDirection, SchemaBatch, SchemaIterator, DB};
 use tracing::{debug, error, info, trace};
 
@@ -62,15 +62,19 @@ impl<'a> Iterator for StaleNodeIndicesByVersionIterator<'a> {
 }
 
 /// Prune state DB
-pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64) {
-    info!("Pruning state DB, up to L2 block {}", up_to_block);
+pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
+    info!("Pruning state DB, up to L2 block {}", to_block);
 
-    let Ok(indices) = StaleNodeIndicesByVersionIterator::new(&state_db, up_to_block + 1) else {
+    let Ok(indices) = StaleNodeIndicesByVersionIterator::new(&state_db, to_block + 1) else {
         error!("Could not read stale nodes");
         return;
     };
 
-    let indices = indices.into_iter().flatten().flatten().collect::<Vec<_>>();
+    let indices = indices
+        .into_iter()
+        .flatten()
+        .flatten()
+        .collect::<HashSet<_>>();
 
     if indices.is_empty() {
         debug!("State: Nothing to prune");
@@ -78,6 +82,7 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
     }
 
     let mut state_keys_deleted = 0;
+    let mut state_values_deleted = 0;
 
     let mut batch = SchemaBatch::new();
     for index in indices {
@@ -96,7 +101,7 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
             }
         };
 
-        let version = index.node_key.version();
+        let stale_since_version = index.stale_since_version;
         let key_hash = match node {
             Node::Null | Node::Internal(_) => continue,
             Node::Leaf(leaf) => leaf.key_hash(),
@@ -110,11 +115,28 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
             }
         };
 
-        let mut read_options = ReadOptions::default();
-        read_options.set_async_io(true);
+        // println!(
+        //     "Deleting from {} - to {}",
+        //     from_block + 1,
+        //     stale_since_version - 1
+        // );
+        // if let Err(e) = state_db.delete_range::<JmtValues>(
+        //     &(key.clone(), from_block + 1),
+        //     &(key.clone(), stale_since_version - 1),
+        // ) {
+        //     error!("Could not delete JmtValues range: {:?}", e);
+        // }
+
+        state_keys_deleted += 1;
+
+        // println!(
+        //     "DELETING Node key: {:?} up to version {}",
+        //     String::from_utf8_lossy(&key),
+        //     to_block
+        // );
         // We have the key, now we should find how many values of which versions we have.
         let mut values_iter = match state_db
-            .iter_with_direction::<JmtValues>(read_options, ScanDirection::Backward)
+            .iter_with_direction::<JmtValues>(Default::default(), ScanDirection::Backward)
         {
             Ok(iter) => iter,
             Err(e) => {
@@ -122,7 +144,7 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
                 continue;
             }
         };
-        if let Err(e) = values_iter.seek(&(key.clone(), version)) {
+        if let Err(e) = values_iter.seek(&(key.clone(), stale_since_version)) {
             error!("Failed to seek on JmtValues iterator: {:?}", e);
             continue;
         }
@@ -130,7 +152,17 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
         let mut value_keys = vec![];
         for value_key in values_iter {
             if let Ok(value_key) = value_key {
-                if value_key.key.0 == key && value_key.key.1 < up_to_block + 1 {
+                if value_key.key.0 != key {
+                    break;
+                }
+                if value_key.key.0 == key
+                    && value_key.key.1 <= stale_since_version
+                    && stale_since_version <= to_block
+                {
+                    // println!(
+                    //     "Node key: {:?} stale since: {}",
+                    //     value_key.key, stale_since_version
+                    // );
                     value_keys.push(value_key.key);
                 }
             }
@@ -146,7 +178,7 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
             continue;
         }
 
-        state_keys_deleted += keys_count - 1;
+        state_values_deleted += keys_count - 1;
 
         // Delete all values BUT the last one.
         for (value_key, value_version) in &value_keys {
@@ -177,5 +209,8 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
         error!("Could not delete state data: {:?}", e);
     }
 
-    info!("Pruned {} state DB records", state_keys_deleted);
+    info!(
+        "Pruned {} keys and {} values from DB records",
+        state_keys_deleted, state_values_deleted
+    );
 }

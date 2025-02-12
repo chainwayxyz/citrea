@@ -228,7 +228,7 @@ impl DB {
         Ok(())
     }
 
-    /// Docs
+    /// Returns a [`SchemaIterator`] on a certain schema with the provided read options and direction.
     pub fn iter_with_direction<S: Schema>(
         &self,
         opts: ReadOptions,
