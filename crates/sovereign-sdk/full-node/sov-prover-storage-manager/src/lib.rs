@@ -37,6 +37,9 @@ impl ProverStorageManager {
             l2_height <= self.next_version(),
             "Got l2 height higher than last version"
         );
+
+        tracing::debug!("Creating storage on height {l2_height}");
+
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
         ProverStorage::with_db_handles(state_db, native_db, l2_height)
@@ -54,6 +57,8 @@ impl ProverStorageManager {
         if storage.version() != self.next_version() {
             return false;
         }
+
+        tracing::debug!("Finalizing storage on height {}", storage.version());
 
         let (state_batch, native_batch) = storage.freeze().expect("Storage freeze must not fail");
 
