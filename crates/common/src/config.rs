@@ -81,6 +81,8 @@ pub struct RpcConfig {
     /// Maximum number of subscription connections
     #[serde(default = "default_max_subscriptions_per_connection")]
     pub max_subscriptions_per_connection: u32,
+    /// API key for protected JSON-RPC methods
+    pub api_key: Option<String>,
 }
 
 impl FromEnv for RpcConfig {
@@ -113,6 +115,7 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_subscriptions_per_connection),
+            api_key: std::env::var("RPC_API_KEY").ok(),
         })
     }
 }
