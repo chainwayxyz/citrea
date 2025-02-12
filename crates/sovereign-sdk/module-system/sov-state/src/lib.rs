@@ -15,7 +15,7 @@ pub use prover_storage::ProverStorage;
 pub use zk_storage::ZkStorage;
 
 pub mod config;
-
+pub use config::Config;
 pub use sov_modules_core::{
     storage, AlignedVec, CacheLog, OrderedReadsAndWrites, Prefix, Storage, Witness,
 };
