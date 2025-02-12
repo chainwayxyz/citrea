@@ -248,6 +248,13 @@ impl DB {
         self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
     }
 
+    /// Returns a backward [`SchemaIterator`] on a certain schema with the default read options.
+    pub fn rev_iter<S: Schema>(&self) -> anyhow::Result<SchemaIterator<S>> {
+        let mut read_options = ReadOptions::default();
+        read_options.set_async_io(true);
+        self.iter_with_direction::<S>(read_options, ScanDirection::Backward)
+    }
+
     /// Drops a column family from the database.
     pub fn drop_cf(&mut self, cf_name: &str) -> anyhow::Result<()> {
         Ok(self.inner.drop_cf(cf_name)?)
