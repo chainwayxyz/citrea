@@ -1884,6 +1884,7 @@ name = "citrea-cli"
 version = "0.6.0"
 dependencies = [
  "anyhow",
+ "citrea-common",
  "citrea-storage-ops",
  "clap",
  "sov-db",
