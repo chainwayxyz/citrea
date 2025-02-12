@@ -76,7 +76,6 @@ where
         );
         let mut x = VecDeque::with_capacity(self.soft_confirmations.len());
 
-        // TODO: What happens if a proof has soft confirmations from fork1 and fork2?
         let v2_confirmations = self
             .soft_confirmations
             .into_iter()

@@ -664,12 +664,6 @@ where
                     "Soft confirmation heights not sequential"
                 );
 
-                // // Notify fork manager about the block so that the next spec / fork
-                // // is transitioned into if criteria is met.
-                // fork_manager
-                //     .register_block(l2_height)
-                //     .expect("Fork transition failed");
-
                 let sequencer_pub_key = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
                     sequencer_k256_public_key
                 } else {
