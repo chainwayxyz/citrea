@@ -133,24 +133,13 @@ where
     }
 
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
-        let l1_block = self.queued_l1_blocks.lock().await.front().cloned();
-
-        if let Some(l1_block) = l1_block {
-            self.process_l1_block(l1_block.clone()).await?;
+        loop {
+            let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
+                break;
+            };
+            self.process_l1_block(l1_block).await?;
+            self.queued_l1_blocks.lock().await.pop_front();
         }
-
-        self.queued_l1_blocks.lock().await.pop_front();
-
-        // while !queued_l1_blocks.is_empty() {
-        //     let l1_block = queued_l1_blocks
-        //         .front()
-        //         .expect("Pending l1 blocks cannot be empty")
-        //         .clone();
-
-        //     self.process_l1_block(l1_block).await?;
-
-        //     queued_l1_blocks.pop_front();
-        // }
 
         Ok(())
     }
