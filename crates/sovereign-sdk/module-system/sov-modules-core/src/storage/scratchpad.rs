@@ -210,7 +210,7 @@ impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
         match self.cache_log.get_value(&cache_key) {
             ValueExists::Yes(value) => value.map(Into::into),
             ValueExists::No => {
-                let storage_value = self.storage.get(key, self.version, &mut self.witness);
+                let storage_value = self.storage.get(key, &mut self.witness);
                 let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
                 self.cache_log
@@ -285,7 +285,7 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
             return value.as_ref().cloned().map(Into::into);
         }
 
-        self.storage.get_accessory(key, self.version)
+        self.storage.get_accessory(key)
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
@@ -361,9 +361,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
         match self.cache_log.get_value(&cache_key) {
             ValueExists::Yes(value) => value.map(Into::into),
             ValueExists::No => {
-                let storage_value = self
-                    .storage
-                    .get_offchain(key, self.version, &mut self.witness);
+                let storage_value = self.storage.get_offchain(key, &mut self.witness);
                 let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
                 self.cache_log

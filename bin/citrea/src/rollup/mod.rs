@@ -26,7 +26,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
     GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
 };
-use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::storage::NativeStorage;
@@ -47,13 +47,13 @@ type GenesisParams<T> = StfGenesisParams<
 >;
 
 /// Group for storage instances
-pub struct Storage<T: RollupBlueprint> {
+pub struct Storage {
     /// The ledger DB instance
     pub ledger_db: LedgerDB,
     /// The prover storage manager instance.
-    pub storage_manager: ProverStorageManager<<T as RollupBlueprint>::DaSpec>,
+    pub storage_manager: ProverStorageManager,
     /// The prover storage
-    pub prover_storage: ProverStorage<SnapshotManager>,
+    pub prover_storage: ProverStorage,
 }
 
 /// Group for initialization dependencies
@@ -99,10 +99,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         rocksdb_config: &RocksdbConfig,
-    ) -> Result<Storage<Self>> {
+    ) -> Result<Storage> {
         let ledger_db = self.create_ledger_db(rocksdb_config);
-        let mut storage_manager = self.create_storage_manager(rollup_config)?;
-        let prover_storage = storage_manager.create_finalized_storage()?;
+        let storage_manager = self.create_storage_manager(rollup_config)?;
+        let prover_storage = storage_manager.create_storage();
 
         Ok(Storage {
             ledger_db,
@@ -114,7 +114,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     /// Setup the RPC server
     fn setup_rpc(
         &self,
-        prover_storage: &ProverStorage<SnapshotManager>,
+        prover_storage: &ProverStorage,
         ledger_db: LedgerDB,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         sequencer_client_url: Option<String>,
@@ -139,8 +139,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         sequencer_config: SequencerConfig,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
-        mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
-        prover_storage: ProverStorage<SnapshotManager>,
+        mut storage_manager: ProverStorageManager,
+        prover_storage: ProverStorage,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
     ) -> Result<(
@@ -192,8 +192,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
-        mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
-        prover_storage: ProverStorage<SnapshotManager>,
+        mut storage_manager: ProverStorageManager,
+        prover_storage: ProverStorage,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<(
         CitreaFullnode<Self::DaService, Self::NativeContext, LedgerDB, Self::NativeRuntime>,
@@ -249,8 +249,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
-        mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
-        prover_storage: ProverStorage<SnapshotManager>,
+        mut storage_manager: ProverStorageManager,
+        prover_storage: ProverStorage,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
     ) -> Result<(
@@ -398,8 +398,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         genesis_config: GenesisParams<Self>,
         stf: &StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
         ledger_db: &LedgerDB,
-        storage_manager: &mut ProverStorageManager<Self::DaSpec>,
-        prover_storage: &ProverStorage<SnapshotManager>,
+        storage_manager: &mut ProverStorageManager,
+        prover_storage: &ProverStorage,
     ) -> anyhow::Result<InitParams> {
         if let Some((number, soft_confirmation)) = ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
@@ -422,10 +422,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         }
 
         info!("No history detected. Initializing chain...",);
-        let storage = storage_manager.create_storage_on_l2_height(0)?;
+        let storage = storage_manager.create_storage_snapshot(0);
         let (genesis_root, initialized_storage) = stf.init_chain(storage, genesis_config);
-        storage_manager.save_change_set_l2(0, initialized_storage)?;
-        storage_manager.finalize_l2(0)?;
+        let (state_batch, native_batch) = initialized_storage.freeze()?;
+        storage_manager.finalize_storage(state_batch, native_batch);
         ledger_db.set_l2_genesis_state_root(&genesis_root)?;
         info!(
             "Chain initialization is done. Genesis root: 0x{}",

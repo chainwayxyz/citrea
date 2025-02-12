@@ -12,7 +12,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait};
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
@@ -46,7 +46,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type ZkContext: Context;
 
     /// Context for Native environment.
-    type NativeContext: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Sync + Send;
+    type NativeContext: Context + Spec<Storage = ProverStorage> + Sync + Send;
 
     /// Runtime for the Zero Knowledge environment.
     type ZkRuntime: RuntimeTrait<Self::ZkContext, Self::DaSpec> + Default;
@@ -75,7 +75,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
-        storage: &ProverStorage<SnapshotManager>,
+        storage: &ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
@@ -132,7 +132,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     fn create_storage_manager(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Result<ProverStorageManager<Self::DaSpec>, anyhow::Error>;
+    ) -> Result<ProverStorageManager, anyhow::Error>;
 
     /// Creates instance of a LedgerDB.
     fn create_ledger_db(&self, rocksdb_config: &RocksdbConfig) -> LedgerDB {

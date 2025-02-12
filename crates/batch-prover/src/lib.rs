@@ -16,7 +16,7 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{Context, Spec, SpecId, Zkvm};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::{broadcast, Mutex};
@@ -39,7 +39,7 @@ pub async fn build_services<C, Da, DB, RT, Vm, Witness, Tx>(
     da_service: Arc<Da>,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger_db: DB,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    storage_manager: ProverStorageManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
@@ -51,7 +51,7 @@ pub async fn build_services<C, Da, DB, RT, Vm, Witness, Tx>(
     RpcModule<()>,
 )>
 where
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
+    C: Context + Spec<Storage = ProverStorage>,
     Da: DaService<Error = anyhow::Error>,
     DB: BatchProverLedgerOps + Clone + 'static,
     RT: Runtime<C, Da::Spec>,

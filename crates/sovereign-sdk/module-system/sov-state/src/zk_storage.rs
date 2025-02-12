@@ -50,21 +50,11 @@ where
     type RuntimeConfig = ();
     type StateUpdate = ();
 
-    fn get(
-        &self,
-        _key: &StorageKey,
-        _version: Option<u64>,
-        witness: &mut Self::Witness,
-    ) -> Option<StorageValue> {
+    fn get(&self, _key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
         witness.get_hint()
     }
 
-    fn get_offchain(
-        &self,
-        _key: &StorageKey,
-        _version: Option<jmt::Version>,
-        witness: &mut Self::Witness,
-    ) -> Option<StorageValue> {
+    fn get_offchain(&self, _key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
         witness.get_hint()
     }
 

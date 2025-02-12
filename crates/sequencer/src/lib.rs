@@ -13,7 +13,7 @@ pub use runner::CitreaSequencer;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_api::{Context, Spec};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
-use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
@@ -38,14 +38,14 @@ pub fn build_services<C, Da, DB, RT>(
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     ledger_db: DB,
-    storage_manager: ProverStorageManager<Da::Spec>,
-    prover_storage: ProverStorage<SnapshotManager>,
+    storage_manager: ProverStorageManager,
+    prover_storage: ProverStorage,
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     rpc_module: RpcModule<()>,
 ) -> Result<(CitreaSequencer<C, Da, DB, RT>, RpcModule<()>)>
 where
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
+    C: Context + Spec<Storage = ProverStorage>,
     Da: DaService,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
     RT: Runtime<C, Da::Spec>,

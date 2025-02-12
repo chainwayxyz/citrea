@@ -8071,6 +8071,7 @@ dependencies = [
  "sov-db",
  "sov-modules-core",
  "sov-rollup-interface",
+ "sov-schema-db",
  "tempfile",
 ]
 

@@ -190,12 +190,7 @@ pub trait Storage: Clone {
     type StateUpdate;
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get(
-        &self,
-        key: &StorageKey,
-        version: Option<Version>,
-        witness: &mut Self::Witness,
-    ) -> Option<StorageValue>;
+    fn get(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.
     ///
@@ -204,7 +199,7 @@ pub trait Storage: Clone {
     /// execution environments** (i.e. outside of the zmVM) **SHOULD** override
     /// this method to return a value. This is because accessory state **MUST
     /// NOT** be readable from within the zmVM.
-    fn get_accessory(&self, _key: &StorageKey, _version: Option<Version>) -> Option<StorageValue> {
+    fn get_accessory(&self, _key: &StorageKey) -> Option<StorageValue> {
         None
     }
 
@@ -212,7 +207,6 @@ pub trait Storage: Clone {
     fn get_offchain(
         &self,
         _key: &StorageKey,
-        _version: Option<Version>,
         _witness: &mut Self::Witness,
     ) -> Option<StorageValue> {
         None

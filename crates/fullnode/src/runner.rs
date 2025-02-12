@@ -18,7 +18,7 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{Context, SignedSoftConfirmation, Spec};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
@@ -40,14 +40,14 @@ type StfTransaction<C, Da, RT> =
 pub struct CitreaFullnode<Da, C, DB, RT>
 where
     Da: DaService,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
+    C: Context + Spec<Storage = ProverStorage>,
     DB: NodeLedgerOps + Clone,
     RT: Runtime<C, Da::Spec>,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
     stf: StfBlueprint<C, Da::Spec, RT>,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    storage_manager: ProverStorageManager,
     ledger_db: DB,
     state_root: StorageRootHash,
     soft_confirmation_hash: SoftConfirmationHash,
@@ -64,7 +64,7 @@ where
 impl<Da, C, DB, RT> CitreaFullnode<Da, C, DB, RT>
 where
     Da: DaService<Error = anyhow::Error>,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
+    C: Context + Spec<Storage = ProverStorage> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
     RT: Runtime<C, Da::Spec>,
 {
@@ -81,7 +81,7 @@ where
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
         ledger_db: DB,
-        storage_manager: ProverStorageManager<Da::Spec>,
+        storage_manager: ProverStorageManager,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
@@ -135,9 +135,7 @@ where
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
-        let pre_state = self
-            .storage_manager
-            .create_storage_on_l2_height(l2_height)?;
+        let pre_state = self.storage_manager.create_storage_snapshot(l2_height);
 
         let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
             soft_confirmation
@@ -167,10 +165,13 @@ where
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
-        self.storage_manager
-            .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
+        // self.storage_manager
+        //     .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
 
-        self.storage_manager.finalize_l2(l2_height)?;
+        // self.storage_manager.finalize_l2(l2_height)?;
+        let (state_batch, native_batch) = soft_confirmation_result.change_set.freeze()?;
+        self.storage_manager
+            .finalize_storage(state_batch, native_batch);
 
         let tx_bodies = if self.include_tx_body {
             Some(signed_soft_confirmation.blobs().to_owned())

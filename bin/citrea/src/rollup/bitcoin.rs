@@ -21,7 +21,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
@@ -64,7 +64,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_rpc_methods(
         &self,
-        storage: &ProverStorage<SnapshotManager>,
+        storage: &ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
@@ -101,12 +101,13 @@ impl RollupBlueprint for BitcoinRollup {
     fn create_storage_manager(
         &self,
         rollup_config: &citrea_common::FullNodeConfig<Self::DaConfig>,
-    ) -> Result<ProverStorageManager<Self::DaSpec>, anyhow::Error> {
+    ) -> Result<ProverStorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
             db_max_open_files: rollup_config.storage.db_max_open_files,
         };
-        ProverStorageManager::new(storage_config)
+        // TODO: fix version
+        ProverStorageManager::new(storage_config, 0)
     }
 
     #[instrument(level = "trace", skip_all)]

@@ -28,7 +28,7 @@ pub struct DefaultContext {
 #[cfg(feature = "native")]
 impl Spec for DefaultContext {
     type Address = Address;
-    type Storage = ProverStorage<sov_prover_storage_manager::SnapshotManager>;
+    type Storage = ProverStorage;
     type PrivateKey = DefaultPrivateKey;
     type PublicKey = DefaultPublicKey;
     type Hasher = sha2::Sha256;

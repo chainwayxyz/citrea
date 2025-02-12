@@ -158,11 +158,12 @@ impl RollupBlueprint for MockDemoRollup {
     fn create_storage_manager(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> anyhow::Result<ProverStorageManager<Self::DaSpec>> {
+    ) -> anyhow::Result<ProverStorageManager> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
             db_max_open_files: rollup_config.storage.db_max_open_files,
         };
-        ProverStorageManager::new(storage_config)
+        // TODO: fix version
+        ProverStorageManager::new(storage_config, 0)
     }
 }

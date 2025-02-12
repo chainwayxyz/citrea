@@ -11,7 +11,7 @@ use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{Context, Spec, SpecId, Zkvm};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
-use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::ProverStorage;
@@ -30,7 +30,7 @@ pub fn build_services<Da, C, DB, RT, Vm>(
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     ledger_db: DB,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    storage_manager: ProverStorageManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
@@ -41,7 +41,7 @@ pub fn build_services<Da, C, DB, RT, Vm>(
 )>
 where
     Da: DaService<Error = anyhow::Error>,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
+    C: Context + Spec<Storage = ProverStorage> + Send + Sync,
     DB: NodeLedgerOps + Send + Sync + Clone + 'static,
     RT: Runtime<C, Da::Spec>,
     Vm: ZkvmHost + Zkvm,
