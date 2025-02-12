@@ -424,8 +424,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         info!("No history detected. Initializing chain...",);
         let storage = storage_manager.create_storage_snapshot(0);
         let (genesis_root, initialized_storage) = stf.init_chain(storage, genesis_config);
-        let (state_batch, native_batch) = initialized_storage.freeze()?;
-        storage_manager.finalize_storage(state_batch, native_batch);
+        storage_manager.finalize_storage(initialized_storage);
         ledger_db.set_l2_genesis_state_root(&genesis_root)?;
         info!(
             "Chain initialization is done. Genesis root: 0x{}",

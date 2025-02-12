@@ -3,7 +3,8 @@ use std::sync::Arc;
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
-use sov_schema_db::{SchemaBatch, DB};
+use sov_schema_db::DB;
+use sov_state::storage::NativeStorage;
 pub use sov_state::ProverStorage;
 
 pub struct ProverStorageManager {
@@ -45,13 +46,25 @@ impl ProverStorageManager {
         self.create_storage_snapshot(self.next_version)
     }
 
-    pub fn finalize_storage(&self, state_batch: SchemaBatch, native_batch: SchemaBatch) {
+    /// Commits all the changes to `ProverStorage` to underlying database.
+    /// Finalizes only if storage version is the expected next version, and returns true.
+    /// Otherwise returns false.
+    pub fn finalize_storage(&self, storage: ProverStorage) -> bool {
+        // No backwards committing
+        if storage.version() != self.next_version {
+            return false;
+        }
+
+        let (state_batch, native_batch) = storage.freeze().expect("Storage freeze must not fail");
+
         self.state_db
             .write_schemas(state_batch)
             .expect("DB write must not fail");
         self.native_db
             .write_schemas(native_batch)
             .expect("DB write must not fail");
+
+        true
     }
 
     pub fn get_state_db_handle(&self) -> Arc<DB> {

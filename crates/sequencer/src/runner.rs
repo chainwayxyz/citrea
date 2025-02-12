@@ -466,9 +466,13 @@ where
                 // is merged, rpc will access up to date storage then we won't need to finalize right away.
                 // however we need much better DA + finalization logic here
                 // self.storage_manager.finalize_l2(l2_height)?;
-                let (state_batch, native_batch) = soft_confirmation_result.change_set.freeze()?;
-                self.storage_manager
-                    .finalize_storage(state_batch, native_batch);
+                let finalized = self
+                    .storage_manager
+                    .finalize_storage(soft_confirmation_result.change_set);
+                assert!(
+                    finalized,
+                    "This should have been the next version of the storage"
+                );
 
                 let tx_bodies = signed_soft_confirmation.blobs().to_owned();
                 let soft_confirmation_hash = signed_soft_confirmation.hash();
