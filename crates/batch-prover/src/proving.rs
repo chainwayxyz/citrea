@@ -254,7 +254,7 @@ where
             let input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
                 // TODO: activate this once we freeze Kumquat ELFs
-                // SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
+                SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
                 _ => borsh::to_vec(&input.into_v3_parts())?,
             };
 

@@ -22,7 +22,7 @@ use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -49,7 +49,7 @@ where
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     mmr_native: MMRNative<MmrDB>,
     backup_manager: Arc<BackupManager>,
 }
@@ -84,7 +84,7 @@ where
             light_client_proof_code_commitments,
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
-            queued_l1_blocks: VecDeque::new(),
+            queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             mmr_native,
             backup_manager,
         }
@@ -109,11 +109,10 @@ where
             StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
             StartVariant::FromBlock(height) => height,       // first block to scan
         };
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            l1_tx,
+            self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             LIGHT_CLIENT_METRICS.scan_l1_block.clone(),
         );
@@ -130,9 +129,6 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    self.queued_l1_blocks.push_back(l1_block);
-                },
                 _ = interval.tick() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_queued_l1_blocks().await {
@@ -144,16 +140,12 @@ where
     }
 
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
-        while !self.queued_l1_blocks.is_empty() {
-            let l1_block = self
-                .queued_l1_blocks
-                .front()
-                .expect("Pending l1 blocks cannot be empty")
-                .clone();
-
+        loop {
+            let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
+                break;
+            };
             self.process_l1_block(l1_block).await?;
-
-            self.queued_l1_blocks.pop_front();
+            self.queued_l1_blocks.lock().await.pop_front();
         }
 
         Ok(())
