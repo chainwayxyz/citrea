@@ -11,8 +11,8 @@ use revm::primitives::db::Database;
 use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
-use sov_modules_api::SpecId as CitreaSpecId;
 
+use crate::db::DBError;
 use crate::evm::db::EvmDb;
 use crate::handler::{
     citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
@@ -34,8 +34,6 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
         ..
     } = opts;
 
-    let citrea_spec = db.citrea_spec;
-
     if let Some(tracer) = tracer {
         return match tracer {
             GethDebugTracerType::BuiltInTracer(tracer) => match tracer {
@@ -44,7 +42,6 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
                     let res = inspect_citrea(
                         db,
-                        citrea_spec,
                         config_env,
                         block_env,
                         tx_env,
@@ -67,7 +64,6 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
                     let res = inspect_citrea(
                         db,
-                        citrea_spec,
                         config_env,
                         block_env,
                         tx_env,
@@ -109,7 +105,6 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 
     let res = inspect_citrea(
         db,
-        citrea_spec,
         config_env,
         block_env,
         tx_env,
@@ -128,21 +123,20 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 }
 
 /// Executes the [Env] against the given [Database] without committing state changes.
-fn inspect_citrea<DB, I>(
-    db: DB,
-    citrea_spec: CitreaSpecId,
+fn inspect_citrea<'a, 'b, C, I>(
+    db: &'b mut EvmDb<'a, C>,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
     tx_hash: TxHash,
     inspector: I,
-) -> Result<ResultAndState, EVMError<DB::Error>>
+) -> Result<ResultAndState, EVMError<DBError>>
 where
-    DB: Database,
-    <DB as Database>::Error: Into<EthApiError>,
-    I: Inspector<DB>,
+    C: sov_modules_api::Context,
+    I: Inspector<&'b mut EvmDb<'a, C>>,
     I: CitreaExternalExt,
 {
+    let citrea_spec = db.citrea_spec;
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_external_context(inspector)
@@ -182,21 +176,18 @@ where
     evm.transact()
 }
 
-pub(crate) fn inspect_no_tracing<DB>(
-    db: DB,
-    citrea_spec: CitreaSpecId,
+pub(crate) fn inspect_no_tracing<C: sov_modules_api::Context>(
+    db: EvmDb<'_, C>,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
     l1_fee_rate: u128,
-) -> Result<(ResultAndState, TxInfo), EVMError<DB::Error>>
-where
-    DB: Database,
-{
+) -> Result<(ResultAndState, TxInfo), EVMError<DBError>> {
     let tmp_hash: TxHash = b"hash_of_an_ephemeral_transaction".into();
     let mut ext = CitreaExternal::new(l1_fee_rate);
     ext.set_current_tx_hash(tmp_hash);
 
+    let citrea_spec = db.citrea_spec;
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_external_context(&mut ext)

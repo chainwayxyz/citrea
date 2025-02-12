@@ -75,7 +75,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_number = block_env.number;
         let tx_results = executor::execute_system_txs(
             db,
-            citrea_spec,
             block_env,
             &system_txs,
             cfg_env,
@@ -133,8 +132,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         // use of `self.block_env` is allowed here
 
-        let citrea_spec = context.active_spec();
-
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
             .map(|tx| tx.try_into())
@@ -161,7 +158,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let results = executor::execute_multiple_tx(
             evm_db,
-            citrea_spec,
             self.block_env.clone(),
             &users_txs,
             cfg_env,

@@ -1008,7 +1008,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                     let res = inspect_no_tracing(
                         self.get_db(working_set, citrea_spec),
-                        citrea_spec,
                         cfg_env.clone(),
                         block_env.clone(),
                         tx_env.clone(),
@@ -1058,7 +1057,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // execute the call without writing to db
         let result = inspect_no_tracing(
             evm_db,
-            citrea_spec,
             cfg_env.clone(),
             block_env.clone(),
             tx_env.clone(),
@@ -1138,7 +1136,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // (result, env) = executor::transact(&mut db, env)?;
             let curr_result = inspect_no_tracing(
                 self.get_db(working_set, citrea_spec),
-                citrea_spec,
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
@@ -1181,7 +1178,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let evm_db = self.get_db(working_set, citrea_spec);
             let result = inspect_no_tracing(
                 evm_db,
-                citrea_spec,
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
@@ -1839,9 +1835,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit.saturating_to();
 
-    let citrea_spec = db.citrea_spec;
-
-    match inspect_no_tracing(db, citrea_spec, cfg_env, block_env, tx_env, l1_fee_rate) {
+    match inspect_no_tracing(db, cfg_env, block_env, tx_env, l1_fee_rate) {
         Ok((res, _tx_info)) => match res.result {
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to
