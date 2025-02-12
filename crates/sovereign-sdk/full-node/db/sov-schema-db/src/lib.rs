@@ -27,7 +27,7 @@ use std::time::Instant;
 
 use ::metrics::{gauge, histogram};
 use anyhow::format_err;
-use iterator::ScanDirection;
+pub use iterator::ScanDirection;
 pub use iterator::{RawDbReverseIterator, SchemaIterator, SeekKeyEncoder};
 pub use rocksdb;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
@@ -229,7 +229,8 @@ impl DB {
         Ok(())
     }
 
-    fn iter_with_direction<S: Schema>(
+    /// Returns a [`SchemaIterator`] on a certain schema with the provided read options and direction.
+    pub fn iter_with_direction<S: Schema>(
         &self,
         opts: ReadOptions,
         direction: ScanDirection,
@@ -246,13 +247,6 @@ impl DB {
         let mut read_options = ReadOptions::default();
         read_options.set_async_io(true);
         self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
-    }
-
-    /// Returns a backward [`SchemaIterator`] on a certain schema with the default read options.
-    pub fn rev_iter<S: Schema>(&self) -> anyhow::Result<SchemaIterator<S>> {
-        let mut read_options = ReadOptions::default();
-        read_options.set_async_io(true);
-        self.iter_with_direction::<S>(read_options, ScanDirection::Backward)
     }
 
     /// Drops a column family from the database.
