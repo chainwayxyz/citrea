@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use sov_db::native_db::NativeDB;
@@ -10,7 +11,7 @@ pub use sov_state::ProverStorage;
 pub struct ProverStorageManager {
     state_db: Arc<DB>,
     native_db: Arc<DB>,
-    next_version: u64,
+    next_version: AtomicU64,
 }
 
 impl ProverStorageManager {
@@ -18,7 +19,7 @@ impl ProverStorageManager {
         Self {
             state_db,
             native_db,
-            next_version,
+            next_version: AtomicU64::new(next_version),
         }
     }
 
@@ -33,17 +34,16 @@ impl ProverStorageManager {
 
     pub fn create_storage_snapshot(&self, l2_height: u64) -> ProverStorage {
         assert!(
-            l2_height <= self.next_version,
+            l2_height <= self.next_version(),
             "Got l2 height higher than last version"
         );
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
-        // TODO: l2_height as version??
         ProverStorage::with_db_handles(state_db, native_db, l2_height)
     }
 
     pub fn create_storage(&self) -> ProverStorage {
-        self.create_storage_snapshot(self.next_version)
+        self.create_storage_snapshot(self.next_version())
     }
 
     /// Commits all the changes to `ProverStorage` to underlying database.
@@ -51,7 +51,7 @@ impl ProverStorageManager {
     /// Otherwise returns false.
     pub fn finalize_storage(&self, storage: ProverStorage) -> bool {
         // No backwards committing
-        if storage.version() != self.next_version {
+        if storage.version() != self.next_version() {
             return false;
         }
 
@@ -64,6 +64,8 @@ impl ProverStorageManager {
             .write_schemas(native_batch)
             .expect("DB write must not fail");
 
+        self.next_version.fetch_add(1, Ordering::SeqCst);
+
         true
     }
 
@@ -73,6 +75,10 @@ impl ProverStorageManager {
 
     pub fn get_native_db_handle(&self) -> Arc<DB> {
         self.native_db.clone()
+    }
+
+    fn next_version(&self) -> u64 {
+        self.next_version.load(Ordering::SeqCst)
     }
 }
 
