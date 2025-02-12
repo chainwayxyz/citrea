@@ -73,7 +73,7 @@ pub const ALL_FORKS: [Fork; 3] = [
     // are actually going to be using the current elf.
     // So this doesn't mean anything, it will act like Fork2
     Fork::new(SpecId::Kumquat, 100),
-    Fork::new(SpecId::Fork2, 300),
+    Fork::new(SpecId::Fork2, 200),
 ];
 
 const _CHECK_FORKS: () = {

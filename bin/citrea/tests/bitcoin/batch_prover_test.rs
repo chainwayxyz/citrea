@@ -551,15 +551,15 @@ impl TestCase for ForkElfSwitchingTest {
     }
 
     fn sequencer_config() -> SequencerConfig {
-        let fork_1_height = ForkManager::new(get_forks(), 0)
+        let kumquat_height = ForkManager::new(get_forks(), 0)
             .next_fork()
             .unwrap()
             .activation_height;
 
-        // Set just below fork1 height so we can generate first soft com txs in genesis
-        // and second batch above fork1
+        // Set just below kumquat height so we can generate first soft com txs in genesis
+        // and second batch above kumquat
         SequencerConfig {
-            min_soft_confirmations_per_commitment: fork_1_height - 5,
+            min_soft_confirmations_per_commitment: kumquat_height - 5,
             ..Default::default()
         }
     }
@@ -604,7 +604,7 @@ impl TestCase for ForkElfSwitchingTest {
 
         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
 
-        // Generate softcom in fork1
+        // Generate softcom in kumquat
         for _ in 0..min_soft_confirmations {
             sequencer.client.send_publish_batch_request().await?;
         }
@@ -615,7 +615,18 @@ impl TestCase for ForkElfSwitchingTest {
             .await?;
         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
 
-        da.wait_mempool_len(4, None).await?;
+        // Generate softcom in fork2
+        for _ in 0..min_soft_confirmations {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        let height = sequencer
+            .client
+            .ledger_get_head_soft_confirmation_height()
+            .await?;
+        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
+
+        da.wait_mempool_len(6, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
 
@@ -626,7 +637,7 @@ impl TestCase for ForkElfSwitchingTest {
             .await?;
 
         // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(6, None).await?;
         da.generate(FINALITY_DEPTH).await?;
 
         full_node
@@ -636,7 +647,7 @@ impl TestCase for ForkElfSwitchingTest {
             .await
             .unwrap();
 
-        assert_eq!(proofs.len(), 2);
+        assert_eq!(proofs.len(), 3);
         assert_eq!(
             SpecId::from_u8(
                 proofs[0]
@@ -659,6 +670,10 @@ impl TestCase for ForkElfSwitchingTest {
             .spec_id,
             SpecId::Kumquat
         );
+        assert_eq!(
+            fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
+            SpecId::Fork2
+        );
 
         light_client_prover
             .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
@@ -678,7 +693,7 @@ impl TestCase for ForkElfSwitchingTest {
 
         assert_eq!(
             lcp.light_client_proof_output.state_root.to_vec(),
-            proofs[1].proof_output.final_state_root
+            proofs[2].proof_output.final_state_root
         );
 
         Ok(())
