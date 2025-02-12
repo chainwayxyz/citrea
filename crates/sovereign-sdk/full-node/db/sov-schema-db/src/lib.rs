@@ -27,8 +27,7 @@ use std::time::Instant;
 
 use ::metrics::{gauge, histogram};
 use anyhow::format_err;
-pub use iterator::ScanDirection;
-pub use iterator::{RawDbReverseIterator, SchemaIterator, SeekKeyEncoder};
+pub use iterator::{RawDbReverseIterator, ScanDirection, SchemaIterator, SeekKeyEncoder};
 pub use rocksdb;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use rocksdb::{DBIterator, ReadOptions};
