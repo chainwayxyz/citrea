@@ -153,7 +153,7 @@ pub trait CitreaRollupBlueprint:
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
     ) -> Result<(
-        CitreaSequencer<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
+        CitreaSequencer<Self::DaService, LedgerDB, Self::NativeRuntime>,
         RpcModule<()>,
     )>
     where
