@@ -12,7 +12,9 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
 
     let to_version = to_block + 1;
 
-    let mut indices = state_db.iter::<StaleNodes>().expect("should get iter");
+    let mut indices = state_db
+        .iter::<StaleNodes>()
+        .expect("Tried to prune state DB but could not obtain an iterator");
 
     indices.seek_to_first();
 
