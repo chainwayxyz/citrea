@@ -44,6 +44,17 @@ impl StateDB {
         ))?;
         Ok(inner.into())
     }
+
+    /// Returns the next expected version from the state storage.
+    /// TODO: before, this started from 1, but now it starts from 0, ensure it is not a problem
+    pub fn next_version(&self) -> anyhow::Result<Version> {
+         let last_key_value = self.db.get_largest::<JmtNodes>()?;
+         let largest_version = last_key_value.map(|(k, _)| k.version());
+         let next_version = largest_version
+            .map(|v| v.checked_add(1).expect("JMT Version overflow. It is over."))
+            .unwrap_or_default();
+         Ok(next_version)
+     }
 }
 
 impl StateDB {
