@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sov_schema_db::DB;
-use tables::prune_soft_confirmations_by_number;
+use tables::{prune_soft_confirmation_status, prune_soft_confirmations_by_number};
 use tracing::{debug, error};
 
 use crate::pruning::types::PruningNodeType;
@@ -31,6 +31,10 @@ pub(crate) fn prune_ledger(node_type: PruningNodeType, ledger_db: Arc<DB>, up_to
             log_result_or_error!(
                 "soft_confirmations_by_number",
                 prune_soft_confirmations_by_number(node_type, &ledger_db, up_to_block)
+            );
+            log_result_or_error!(
+                "soft_confirmation_status",
+                prune_soft_confirmation_status(&ledger_db, up_to_block)
             );
         }
         PruningNodeType::FullNode => todo!(),
