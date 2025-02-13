@@ -702,8 +702,6 @@ impl DaService for BitcoinService {
 
     type Error = anyhow::Error;
 
-    type BlockHash = bitcoin::BlockHash;
-
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     #[instrument(level = "trace", skip(self), err)]
@@ -733,8 +731,7 @@ impl DaService for BitcoinService {
 
             break;
         }
-
-        let block = self.get_block_by_hash(block_hash).await?;
+        let block = self.get_block_by_hash(block_hash.into()).await?;
 
         Ok(block)
     }
@@ -749,7 +746,7 @@ impl DaService for BitcoinService {
             .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH).saturating_add(1))
             .await?;
 
-        let finalized_block_header = self.get_block_by_hash(finalized_blockhash).await?;
+        let finalized_block_header = self.get_block_by_hash(finalized_blockhash.into()).await?;
 
         Ok(finalized_block_header.header)
     }
@@ -759,7 +756,7 @@ impl DaService for BitcoinService {
     async fn get_head_block_header(&self) -> Result<<Self::Spec as DaSpec>::BlockHeader> {
         let best_blockhash = self.client.get_best_block_hash().await?;
 
-        let head_block_header = self.get_block_by_hash(best_blockhash).await?;
+        let head_block_header = self.get_block_by_hash(best_blockhash.into()).await?;
 
         Ok(head_block_header.header)
     }
@@ -1107,7 +1104,11 @@ impl DaService for BitcoinService {
     }
 
     #[instrument(level = "trace", skip(self))]
-    async fn get_block_by_hash(&self, hash: Self::BlockHash) -> Result<Self::FilteredBlock> {
+    async fn get_block_by_hash(
+        &self,
+        hash: <Self::Spec as DaSpec>::SlotHash,
+    ) -> Result<Self::FilteredBlock> {
+        let hash = hash.0;
         debug!("Getting block with hash {:?}", hash);
 
         let block = self.client.get_block_verbose(&hash).await?;
