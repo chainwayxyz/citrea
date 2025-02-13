@@ -50,11 +50,9 @@ impl RollupBlueprint for BitcoinRollup {
     type DaConfig = BitcoinServiceConfig;
     type DaVerifier = BitcoinVerifier;
     type Vm = Risc0BonsaiHost;
-    type ZkContext = ZkDefaultContext;
-    type NativeContext = DefaultContext;
 
-    type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
-    type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
+    type ZkRuntime = Runtime<ZkDefaultContext, Self::DaSpec>;
+    type NativeRuntime = Runtime<DefaultContext, Self::DaSpec>;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -76,7 +74,6 @@ impl RollupBlueprint for BitcoinRollup {
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::NativeRuntime,
-            Self::NativeContext,
             Self::DaService,
         >(storage, ledger_db, da_service, sov_sequencer)?;
 

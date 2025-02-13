@@ -21,8 +21,6 @@ use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
     GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
@@ -42,7 +40,7 @@ pub use mock::*;
 
 type GenesisParams<T> = StfGenesisParams<
     <<T as RollupBlueprint>::NativeRuntime as RuntimeTrait<
-        <T as RollupBlueprint>::NativeContext,
+        DefaultContext,
         <T as RollupBlueprint>::DaSpec,
     >>::GenesisConfig,
 >;
@@ -71,8 +69,6 @@ pub struct Dependencies<T: RollupBlueprint> {
 #[async_trait]
 pub trait CitreaRollupBlueprint:
     RollupBlueprint<
-    NativeContext = DefaultContext,
-    ZkContext = ZkDefaultContext,
     // cant do below because of cyclic dependency
     // NativeRuntime = Runtime<DefaultContext, Self::DaSpec>,
     // ZkRuntime = StfBlueprint<ZkDefaultContext, Self::DaSpec, Self::ZkRuntime>,
@@ -156,8 +152,6 @@ pub trait CitreaRollupBlueprint:
         CitreaSequencer<Self::DaService, LedgerDB, Self::NativeRuntime>,
         RpcModule<()>,
     )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -208,10 +202,7 @@ pub trait CitreaRollupBlueprint:
         CitreaFullnode<Self::DaService, LedgerDB, Self::NativeRuntime>,
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService<LedgerDB>>,
-    )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
-    {
+    )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let native_stf = StfBlueprint::new();
@@ -267,8 +258,6 @@ pub trait CitreaRollupBlueprint:
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
         RpcModule<()>,
     )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
@@ -336,8 +325,6 @@ pub trait CitreaRollupBlueprint:
         LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
     )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
@@ -399,7 +386,7 @@ pub trait CitreaRollupBlueprint:
     fn init_chain(
         &self,
         genesis_config: GenesisParams<Self>,
-        stf: &StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
+        stf: &StfBlueprint<DefaultContext, Self::DaSpec, Self::NativeRuntime>,
         ledger_db: &LedgerDB,
         storage_manager: &mut ProverStorageManager<Self::DaSpec>,
         prover_storage: &ProverStorage<SnapshotManager>,

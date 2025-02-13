@@ -12,6 +12,7 @@ use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
+use citrea_stf::runtime::DefaultContext;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
@@ -93,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
 async fn start_rollup<S, DaC>(
     network: Network,
     runtime_genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
-        <S as RollupBlueprint>::NativeContext,
+        DefaultContext,
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
     rollup_config_path: Option<String>,
@@ -102,7 +103,7 @@ async fn start_rollup<S, DaC>(
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
-    <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
+    <DefaultContext as Spec>::Storage: NativeStorage,
     <S as RollupBlueprint>::NativeRuntime: 'static,
 {
     let rollup_config: FullNodeConfig<DaC> = match rollup_config_path {
