@@ -221,23 +221,8 @@ where
                                     soft_confirmation_info.current_spec(),
                                 )?;
 
-                                let mut txs = vec![signed_blob.clone()];
-                                let mut txs_new = vec![signed_tx];
-
-                                // get the fork2 activation height
-                                // If next block activates Fork2 we should update rule enforcer authority
-                                // Because we use a new public key for sequencer now
-                                let next_fork = self.fork_manager.next_fork();
-                                if let Some(next_fork) = next_fork {
-                                    if next_fork.spec_id == SpecId::Fork2
-                                        && soft_confirmation_info.l2_height + 1
-                                            == next_fork.activation_height
-                                    {
-                                        let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set_to_discard, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
-                                        txs.push(signed_blob);
-                                        txs_new.push(signed_tx);
-                                    }
-                                }
+                                let txs = vec![signed_blob.clone()];
+                                let txs_new = vec![signed_tx];
 
                                 let mut working_set =
                                     working_set_to_discard.checkpoint().to_revertable();
@@ -446,30 +431,30 @@ where
                     )?;
                     txs.push(signed_blob);
                     txs_new.push(signed_tx);
-
-                    // get the fork2 activation height
-                    // If next block activates Fork2 we should update rule enforcer authority
-                    // Because we use a new public key for sequencer now
-                    let next_fork = self.fork_manager.next_fork();
-                    if let Some(next_fork) = next_fork {
-                        if next_fork.spec_id == SpecId::Fork2
-                            && soft_confirmation_info.l2_height + 1 == next_fork.activation_height
-                        {
-                            let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
-                            txs.push(signed_blob);
-                            txs_new.push(signed_tx);
-                        }
-                    }
-
-                    self.stf
-                        .apply_soft_confirmation_txs(
-                            soft_confirmation_info,
-                            &txs,
-                            &txs_new,
-                            &mut working_set,
-                        )
-                        .expect("dry_run_transactions should have already checked this");
                 }
+
+                // get the fork2 activation height
+                // If next block activates Fork2 we should update rule enforcer authority
+                // Because we use a new public key for sequencer now
+                let next_fork = self.fork_manager.next_fork();
+                if let Some(next_fork) = next_fork {
+                    if next_fork.spec_id == SpecId::Fork2
+                        && soft_confirmation_info.l2_height + 1 == next_fork.activation_height
+                    {
+                        let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                        txs.push(signed_blob);
+                        txs_new.push(signed_tx);
+                    }
+                }
+
+                self.stf
+                    .apply_soft_confirmation_txs(
+                        soft_confirmation_info,
+                        &txs,
+                        &txs_new,
+                        &mut working_set,
+                    )
+                    .expect("dry_run_transactions should have already checked this");
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmation::new(
@@ -820,7 +805,6 @@ where
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        // TODO: Should this be >= Fork2?
         if spec_id >= SpecId::Kumquat {
             let transaction: Transaction = Transaction::new_signed_tx(
                 &self.sov_tx_signer_priv_key,

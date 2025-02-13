@@ -369,7 +369,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             }
 
             let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = if spec_id >= SpecId::Fork2 {
+            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = if spec_id >= SpecId::Kumquat
+            {
                 let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
                     .try_into()
                     .context("Failed to parse transactions")?;
