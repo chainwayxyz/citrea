@@ -39,8 +39,6 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
             break;
         }
 
-        // println!("Deleteing stale node: {:?}", index);
-
         // Based on the `NodeKey` for the stale node, we'd like to find the actual key
         // to identify the values saved for that specific key.
         let node = match state_db.get::<JmtNodes>(&index.node_key) {
@@ -95,8 +93,7 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
         }
 
         if values_iter.next().is_none() {
-            error!("The JmtValue key does not exist in DB");
-            continue;
+            panic!("The JmtValue key does not exist in DB");
         }
 
         // Check if a value that has a larger key version exists
