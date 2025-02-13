@@ -12,10 +12,10 @@ macro_rules! log_result_or_error {
     ($table:literal, $call:expr) => {{
         match $call {
             Ok(result) => {
-                debug!("Deleted {} records from {}", $table, result);
+                debug!("Deleted {} records from {}", result, $table);
             }
             Err(e) => {
-                error!("Failed to prune {} ledger tables: {:?}", $table, e);
+                error!("Failed to prune {} ledger table: {:?}", $table, e);
                 return;
             }
         }
