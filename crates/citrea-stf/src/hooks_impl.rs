@@ -6,8 +6,8 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     AccessoryWorkingSet, Context, SoftConfirmationHookError, SpecId, WorkingSet,
 };
-use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_modules_stf_blueprint::RuntimeTxHook;
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -56,8 +56,6 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
 
 impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     type Context = C;
-    type SoftConfirmationResult =
-        SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
 
     #[cfg_attr(
         feature = "native",

@@ -54,13 +54,8 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     + TxHooks<Context = C, PreArg = RuntimeTxHook, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
-    + ApplySoftConfirmationHooks<
-        Da,
-        Context = C,
-        SoftConfirmationResult = SequencerOutcome<
-            <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
-        >,
-    > + Default
+    + ApplySoftConfirmationHooks<Da, Context = C>
+    + Default
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
@@ -78,15 +73,6 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     fn genesis_config(
         genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error>;
-}
-
-/// The receipts of all the transactions in a batch.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum TxEffect {
-    /// Batch was reverted.
-    Reverted,
-    /// Batch was processed successfully.
-    Successful,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -341,10 +327,6 @@ where
     type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
     type ChangeSet = C::Storage;
-
-    type TxReceiptContents = TxEffect;
-
-    type BatchReceiptContents = ();
 
     type Witness = <C::Storage as Storage>::Witness;
 
