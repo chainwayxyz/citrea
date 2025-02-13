@@ -205,8 +205,8 @@ pub trait CitreaRollupBlueprint:
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<(
-        CitreaFullnode<Self::DaService, Self::NativeContext, LedgerDB, Self::NativeRuntime>,
-        FullNodeL1BlockHandler<Self::NativeContext, Self::Vm, Self::DaService, LedgerDB>,
+        CitreaFullnode<Self::DaService, LedgerDB, Self::NativeRuntime>,
+        FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService<LedgerDB>>,
     )>
     where
