@@ -10,7 +10,7 @@ use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{Evm, Filter};
+use citrea_evm::{DbAccount, Evm, Filter};
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
@@ -300,28 +300,53 @@ where
         let nonce = account.nonce;
         let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
 
-        let account_key = StorageKey::new(
-            evm.accounts_prefork2.prefix(),
-            &address,
-            evm.accounts_prefork2.codec().key_codec(),
-        );
+        fn generate_account_proof_prefork2<C>(
+            evm: &Evm<C>,
+            account: &Address,
+            version: u64,
+            working_set: &mut WorkingSet<C::Storage>,
+        ) -> Vec<Bytes>
+        where
+            C: sov_modules_api::Context,
+            C::Storage: NativeStorage,
+        {
+            let account_key = StorageKey::new(
+                evm.accounts_prefork2.prefix(),
+                &account,
+                evm.accounts_prefork2.codec().key_codec(),
+            );
 
-        let account_proof = working_set.get_with_proof(account_key, version);
-        let account_exists = if account_proof.value.is_some() {
-            Bytes::from("y")
-        } else {
-            Bytes::from("n")
-        };
-        let account_proof =
-            borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
-        let account_proof = Bytes::from(account_proof);
+            let account_proof = working_set.get_with_proof(account_key, version);
+            let account_exists = if account_proof.value.is_some() {
+                Bytes::from("y")
+            } else {
+                Bytes::from("n")
+            };
+            let account_proof =
+                borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
+            let account_proof = Bytes::from(account_proof);
+            vec![account_proof, account_exists]
+        }
 
-        let mut storage_proof = vec![];
-        for key in keys {
-            let key: U256 = key.0.into();
-            let storage_key =
-                StorageKey::new(evm.storage.prefix(), &key, evm.storage.codec().key_codec());
-            let value = evm.storage_get(&address, &key, citrea_spec, &mut working_set);
+        fn generate_storage_proof_prefork2<C>(
+            evm: &Evm<C>,
+            account: &Address,
+            key: &U256,
+            citrea_spec: CitreaSpecId,
+            version: u64,
+            working_set: &mut WorkingSet<C::Storage>,
+        ) -> EIP1186StorageProof
+        where
+            C: sov_modules_api::Context,
+            C::Storage: NativeStorage,
+        {
+            let db_account = DbAccount::new(account);
+            let storage_key = StorageKey::new(
+                db_account.storage.prefix(),
+                key,
+                evm.storage.codec().key_codec(),
+            );
+            let value = evm.storage_get(account, key, citrea_spec, working_set);
             let proof = working_set.get_with_proof(storage_key, version);
             let value_exists = if proof.value.is_some() {
                 Bytes::from("y")
@@ -330,11 +355,28 @@ where
             };
             let value_proof = borsh::to_vec(&proof.proof).expect("Serialization shouldn't fail");
             let value_proof = Bytes::from(value_proof);
-            storage_proof.push(EIP1186StorageProof {
+            EIP1186StorageProof {
                 key: JsonStorageKey(key.to_le_bytes().into()),
                 value: value.unwrap_or_default(),
                 proof: vec![value_proof, value_exists],
-            });
+            }
+        }
+
+        let account_proof =
+            generate_account_proof_prefork2(&evm, &address, version, &mut working_set);
+
+        let mut storage_proof = vec![];
+        for key in keys {
+            let key: U256 = key.0.into();
+            let proof = generate_storage_proof_prefork2(
+                &evm,
+                &address,
+                &key,
+                citrea_spec,
+                version,
+                &mut working_set,
+            );
+            storage_proof.push(proof);
         }
 
         Ok(EIP1186AccountProofResponse {
@@ -343,7 +385,7 @@ where
             nonce,
             code_hash,
             storage_hash: root_hash.into(),
-            account_proof: vec![account_proof, account_exists],
+            account_proof,
             storage_proof,
         })
     }
