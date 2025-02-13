@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use sov_db::native_db::NativeDB;
@@ -11,54 +10,63 @@ pub use sov_state::ProverStorage;
 pub struct ProverStorageManager {
     state_db: Arc<DB>,
     native_db: Arc<DB>,
-    next_version: AtomicU64,
 }
 
 impl ProverStorageManager {
-    fn with_db_handles(state_db: Arc<DB>, native_db: Arc<DB>, next_version: u64) -> Self {
+    fn with_db_handles(state_db: Arc<DB>, native_db: Arc<DB>) -> Self {
         Self {
             state_db,
             native_db,
-            next_version: AtomicU64::new(next_version),
         }
     }
 
     /// Create new [`ProverStorageManager`] from state config
-    pub fn new(config: sov_state::config::Config, next_version: u64) -> anyhow::Result<Self> {
+    pub fn new(config: sov_state::config::Config) -> anyhow::Result<Self> {
         let rocksdb_config =
             RocksdbConfig::new(config.path.as_path(), config.db_max_open_files, None);
         let state_db = Arc::new(StateDB::setup_schema_db(&rocksdb_config)?);
         let native_db = Arc::new(NativeDB::setup_schema_db(&rocksdb_config)?);
-        Ok(Self::with_db_handles(state_db, native_db, next_version))
+        Ok(Self::with_db_handles(state_db, native_db))
     }
 
-    pub fn create_storage_snapshot(&self, l2_height: u64) -> ProverStorage {
-        assert!(
-            l2_height <= self.next_version(),
-            "Got l2 height higher than last version"
-        );
-
-        tracing::debug!("Creating storage on height {l2_height}");
-
+    /// Creates a new [`ProverStorage`] with version as a snapshot. Created storage can not be committed
+    /// to underlying rocksdb when [`ProverStorageManager::finalize_storage`] method is called.
+    pub fn create_storage_snapshot_on_version(
+        &self,
+        version: u64,
+    ) -> anyhow::Result<ProverStorage> {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
-        ProverStorage::with_db_handles(state_db, native_db, l2_height)
+
+        let storage = ProverStorage::with_version_snapshot(state_db, native_db, version)?;
+        tracing::debug!("Created storage on version {}", version);
+
+        Ok(storage)
     }
 
-    pub fn create_storage(&self) -> ProverStorage {
-        self.create_storage_snapshot(self.next_version())
+    /// Creates a new [`ProverStorage`] with latest version.
+    pub fn create_latest_version_storage(&self) -> ProverStorage {
+        let state_db = StateDB::new(self.state_db.clone());
+        let native_db = NativeDB::new(self.native_db.clone());
+
+        let storage = ProverStorage::with_latest_version(state_db, native_db);
+        tracing::debug!("Created storage on latest version {}", storage.version());
+
+        storage
     }
 
     /// Commits all the changes to `ProverStorage` to underlying database.
-    /// Finalizes only if storage version is the expected next version, and returns true.
-    /// Otherwise returns false.
+    /// If storage is a snapshot, nothing is committed, an false is returned.
     pub fn finalize_storage(&self, storage: ProverStorage) -> bool {
-        // No backwards committing
-        if storage.version() != self.next_version() {
+        if storage.is_snapshot() {
+            tracing::debug!(
+                "Storage on version {} is a snapshot, skipping finalization",
+                storage.version()
+            );
             return false;
         }
 
-        tracing::debug!("Finalizing storage on height {}", storage.version());
+        tracing::debug!("Finalizing storage on version {}", storage.version());
 
         let (state_batch, native_batch) = storage.freeze().expect("Storage freeze must not fail");
 
@@ -68,8 +76,6 @@ impl ProverStorageManager {
         self.native_db
             .write_schemas(native_batch)
             .expect("DB write must not fail");
-
-        self.next_version.fetch_add(1, Ordering::SeqCst);
 
         true
     }
@@ -81,10 +87,6 @@ impl ProverStorageManager {
     pub fn get_native_db_handle(&self) -> Arc<DB> {
         self.native_db.clone()
     }
-
-    fn next_version(&self) -> u64 {
-        self.next_version.load(Ordering::SeqCst)
-    }
 }
 
 /// Creates orphan [`ProverStorage`] which just points directly to the underlying database for previous data
@@ -95,7 +97,7 @@ pub fn new_orphan_storage(path: impl AsRef<std::path::Path>) -> anyhow::Result<P
     let state_db = StateDB::new(Arc::new(state_db_raw));
     let native_db_raw = NativeDB::setup_schema_db(&RocksdbConfig::new(path.as_ref(), None, None))?;
     let native_db = NativeDB::new(Arc::new(native_db_raw));
-    Ok(ProverStorage::with_db_handles(state_db, native_db, 0))
+    Ok(ProverStorage::with_latest_version(state_db, native_db))
 }
 
 // TODO: write tests

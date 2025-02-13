@@ -106,8 +106,7 @@ impl RollupBlueprint for BitcoinRollup {
             path: rollup_config.storage.path.clone(),
             db_max_open_files: rollup_config.storage.db_max_open_files,
         };
-        // TODO: fix version
-        ProverStorageManager::new(storage_config, 0)
+        ProverStorageManager::new(storage_config)
     }
 
     #[instrument(level = "trace", skip_all)]

@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use jmt::storage::{NodeBatch, StaleNodeIndex, TreeWriter};
@@ -22,17 +23,44 @@ use crate::{DefaultHasher, DefaultWitness};
 pub struct ProverStorage {
     db: StateDB,
     native_db: NativeDB,
-    version: Version,
+    version: Arc<AtomicU64>,
+    is_snapshot: bool,
 }
 
 impl ProverStorage {
-    /// Creates a new [`ProverStorage`] instance from specified db handles
-    pub fn with_db_handles(db: StateDB, native_db: NativeDB, version: Version) -> Self {
+    /// Creates a new [`ProverStorage`] instance from specified db handles.
+    /// Gets latest version from [`StateDB`].
+    pub fn with_latest_version(db: StateDB, native_db: NativeDB) -> Self {
+        let version = db.next_version() - 1;
         Self {
             db,
             native_db,
-            version,
+            version: Arc::new(AtomicU64::new(version)),
+            is_snapshot: false,
         }
+    }
+
+    /// Creates a new [`ProverStorage`] instace from specified db handles and version.
+    /// When created using this method, storage is marked as snapshot and won't be committed
+    /// to underlying database.
+    pub fn with_version_snapshot(
+        db: StateDB,
+        native_db: NativeDB,
+        version: Version,
+    ) -> anyhow::Result<Self> {
+        let next_version = db.next_version();
+        anyhow::ensure!(
+            version < next_version,
+            "Can not initialize storage on version {}, should be smaller than {}",
+            version,
+            next_version
+        );
+        Ok(Self {
+            db,
+            native_db,
+            version: Arc::new(AtomicU64::new(version)),
+            is_snapshot: true,
+        })
     }
 
     /// Converts it to pair of readonly [`ReadOnlyDbSnapshot`]s
@@ -44,11 +72,18 @@ impl ProverStorage {
         let native_db_snapshot = native_db.freeze()?;
         Ok((state_db_snapshot, native_db_snapshot))
     }
-}
 
-impl ProverStorage {
+    /// Whether the current storage is a snapshot. Will be used
+    /// for manager to determine commit to db.
+    pub fn is_snapshot(&self) -> bool {
+        self.is_snapshot
+    }
+
     fn read_value(&self, key: &StorageKey) -> Option<StorageValue> {
-        match self.db.get_value_option_by_key(self.version, key.as_ref()) {
+        match self
+            .db
+            .get_value_option_by_key(self.version(), key.as_ref())
+        {
             Ok(value) => value.map(Into::into),
             // It is ok to panic here, we assume the db is available and consistent.
             Err(e) => panic!("Unable to read value from db: {e}"),
@@ -76,7 +111,7 @@ impl Storage for ProverStorage {
     fn get_offchain(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
         let val = self
             .native_db
-            .get_value_option(key.as_ref(), self.version)
+            .get_value_option(key.as_ref(), self.version())
             .unwrap()
             .map(Into::into);
         witness.add_hint(&val);
@@ -86,7 +121,7 @@ impl Storage for ProverStorage {
     #[cfg(feature = "native")]
     fn get_accessory(&self, key: &StorageKey) -> Option<StorageValue> {
         self.native_db
-            .get_value_option(key.as_ref(), self.version)
+            .get_value_option(key.as_ref(), self.version())
             .unwrap()
             .map(Into::into)
     }
@@ -96,15 +131,15 @@ impl Storage for ProverStorage {
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
-        let latest_version = self.version;
+        let version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
         // Handle empty jmt
         // TODO: Fix this before introducing snapshots!
-        if jmt.get_root_hash_option(latest_version)?.is_none() {
-            assert_eq!(latest_version, 0);
+        if jmt.get_root_hash_option(version)?.is_none() {
+            assert_eq!(version, 0);
             let (_, tree_update) = jmt
-                .put_value_set([], latest_version)
+                .put_value_set([], version)
                 .expect("JMT update must succeed");
 
             self.db
@@ -112,7 +147,7 @@ impl Storage for ProverStorage {
                 .expect("db write must succeed");
         }
         let prev_root = jmt
-            .get_root_hash(latest_version)
+            .get_root_hash(version)
             .expect("Previous root hash was just populated");
         witness.add_hint(&prev_root.0);
 
@@ -120,7 +155,7 @@ impl Storage for ProverStorage {
         for (key, read_value) in state_accesses.ordered_reads {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
-            let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
+            let (result, proof) = jmt.get_with_proof(key_hash, version)?;
             if result.as_ref() != read_value.as_ref().map(|f| f.value.as_ref()) {
                 anyhow::bail!("Bug! Incorrect value read from jmt");
             }
@@ -149,7 +184,7 @@ impl Storage for ProverStorage {
                 (key_hash, value_bytes)
             });
 
-        let next_version = self.version + 1;
+        let next_version = version + 1;
 
         let (new_root, update_proof, tree_update) = jmt
             .put_value_set_with_proof(batch, next_version)
@@ -183,7 +218,17 @@ impl Storage for ProverStorage {
         accessory_writes: &OrderedReadsAndWrites,
         offchain_writes: &OrderedReadsAndWrites,
     ) {
-        let latest_version = self.version;
+        // TODO: native db was committing to version and not version + 1 before, check if its a problem
+        let next_version = self.version() + 1;
+
+        // Integrity check
+        for (version, _) in state_update.node_batch.values().keys() {
+            assert_eq!(
+                *version, next_version,
+                "State update must be for next version"
+            );
+        }
+
         self.db
             .put_preimages(
                 state_update
@@ -199,7 +244,7 @@ impl Storage for ProverStorage {
                     .ordered_writes
                     .iter()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
-                latest_version,
+                next_version,
             )
             .expect("native db write must succeed");
 
@@ -209,7 +254,7 @@ impl Storage for ProverStorage {
                     .ordered_writes
                     .iter()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
-                latest_version,
+                next_version,
             )
             .expect("native db write must succeed");
 
@@ -224,6 +269,8 @@ impl Storage for ProverStorage {
         self.db
             .set_stale_nodes(&state_update.stale_state)
             .expect("db set stale nodes must succeed");
+
+        self.version.fetch_add(1, Ordering::SeqCst);
     }
 
     fn open_proof(
@@ -243,13 +290,13 @@ impl Storage for ProverStorage {
 
     // Based on assumption `validate_and_commit` increments version.
     fn is_empty(&self) -> bool {
-        self.version == 0
+        self.version() == 0
     }
 }
 
 impl NativeStorage for ProverStorage {
     fn version(&self) -> u64 {
-        self.version
+        self.version.load(Ordering::SeqCst)
     }
 
     fn get_with_proof(&self, key: StorageKey, version: Version) -> StorageProof {

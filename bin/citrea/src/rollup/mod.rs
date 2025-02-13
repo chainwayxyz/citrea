@@ -101,7 +101,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> Result<Storage> {
         let ledger_db = self.create_ledger_db(rocksdb_config);
         let storage_manager = self.create_storage_manager(rollup_config)?;
-        let prover_storage = storage_manager.create_storage();
+        let prover_storage = storage_manager.create_latest_version_storage();
 
         Ok(Storage {
             ledger_db,
@@ -421,7 +421,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         }
 
         info!("No history detected. Initializing chain...",);
-        let storage = storage_manager.create_storage_snapshot(0);
+        let storage = storage_manager.create_latest_version_storage();
+        assert_eq!(storage.version(), 0, "Init version must be 0");
         let (genesis_root, initialized_storage) = stf.init_chain(storage, genesis_config);
         storage_manager.finalize_storage(initialized_storage);
         ledger_db.set_l2_genesis_state_root(&genesis_root)?;
