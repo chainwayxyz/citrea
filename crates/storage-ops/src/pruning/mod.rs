@@ -88,15 +88,16 @@ where
         let ledger_pruning_handle =
             tokio::task::spawn_blocking(move || prune_ledger(ledger_db, up_to_block));
 
-        let state_db_pruning_handle =
-            tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
+        // TODO: Fix me
+        // let state_db_pruning_handle =
+        //     tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
 
         let native_db_pruning_handle =
             tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
 
         future::join_all([
             ledger_pruning_handle,
-            state_db_pruning_handle,
+            // state_db_pruning_handle,
             native_db_pruning_handle,
         ])
         .await;

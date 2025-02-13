@@ -14,6 +14,7 @@ use crate::common::helpers::{tempdir_with_children, wait_for_l1_block, wait_for_
 
 /// Trigger pruning state DB data.
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     citrea::initialize_logging(tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
