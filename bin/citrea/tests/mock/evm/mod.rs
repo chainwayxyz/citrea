@@ -57,6 +57,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequener_config),
+            None,
         )
         .await;
     });
@@ -118,6 +119,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -159,6 +161,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -201,6 +204,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -346,6 +350,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });

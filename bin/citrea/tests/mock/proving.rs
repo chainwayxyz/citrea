@@ -46,6 +46,7 @@ async fn full_node_verify_proof_and_store() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -77,6 +78,7 @@ async fn full_node_verify_proof_and_store() {
             None,
             rollup_config,
             None,
+            None,
         )
         .await;
     });
@@ -101,6 +103,7 @@ async fn full_node_verify_proof_and_store() {
             None,
             None,
             rollup_config,
+            None,
             None,
         )
         .await;
@@ -241,6 +244,7 @@ async fn test_batch_prover_prove_rpc() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -273,6 +277,7 @@ async fn test_batch_prover_prove_rpc() {
             None,
             rollup_config,
             None,
+            None,
         )
         .await;
     });
@@ -297,6 +302,7 @@ async fn test_batch_prover_prove_rpc() {
             None,
             None,
             rollup_config,
+            None,
             None,
         )
         .await;

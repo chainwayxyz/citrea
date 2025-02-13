@@ -42,6 +42,7 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });

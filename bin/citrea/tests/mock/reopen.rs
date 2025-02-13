@@ -46,6 +46,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -69,6 +70,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             None,
             rollup_config,
+            None,
             None,
         )
         .await;
@@ -151,6 +153,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             None,
+            None,
         )
         .await;
     });
@@ -211,6 +214,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -260,6 +264,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -325,6 +330,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -356,6 +362,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     Some(BatchProverConfig::default()),
                     None,
                     rollup_config,
+                    None,
                     None,
                 )
                 .await;
@@ -427,6 +434,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     None,
                     rollup_config,
                     None,
+                    None,
                 )
                 .await;
             });
@@ -480,6 +488,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     Some(BatchProverConfig::default()),
                     None,
                     rollup_config,
+                    None,
                     None,
                 )
                 .await;
