@@ -14,12 +14,14 @@ use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientP
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
+use citrea_stf::runtime::DefaultContext;
 use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
+use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
@@ -67,7 +69,15 @@ pub struct Dependencies<T: RollupBlueprint> {
 
 /// Overrides RollupBlueprint methods
 #[async_trait]
-pub trait CitreaRollupBlueprint: RollupBlueprint {
+pub trait CitreaRollupBlueprint:
+    RollupBlueprint<
+    NativeContext = DefaultContext,
+    ZkContext = ZkDefaultContext,
+    // cant do below because of cyclic dependency
+    // NativeRuntime = Runtime<DefaultContext, Self::DaSpec>,
+    // ZkRuntime = StfBlueprint<ZkDefaultContext, Self::DaSpec, Self::ZkRuntime>,
+>
+{
     /// Setup the rollup's dependencies
     async fn setup_dependencies(
         &self,
@@ -253,14 +263,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
     ) -> Result<(
-        CitreaBatchProver<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
-        BatchProverL1BlockHandler<
-            Self::Vm,
-            Self::DaService,
-            LedgerDB,
-            ArrayWitness,
-            Self::NativeContext,
-        >,
+        CitreaBatchProver<Self::DaService, LedgerDB, Self::NativeRuntime>,
+        BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
         RpcModule<()>,
     )>
     where

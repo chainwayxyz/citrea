@@ -50,7 +50,7 @@ use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
 
-/// The `demo-stf runtime`.
+/// The Citrea runtime.
 
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
