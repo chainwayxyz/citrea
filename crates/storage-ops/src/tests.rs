@@ -49,10 +49,10 @@ async fn test_pruner_simple_run() {
 pub fn test_should_prune() {
     let criteria = DistanceCriteria { distance: 1000 };
     assert_eq!(criteria.should_prune(0, 1000), None);
-    assert_eq!(criteria.should_prune(0, 2000), None);
-    assert_eq!(criteria.should_prune(0, 2001), Some(1000));
+    assert_eq!(criteria.should_prune(0, 1999), None);
+    assert_eq!(criteria.should_prune(0, 2000), Some(1000));
 
-    assert_eq!(criteria.should_prune(1000, 2000), None);
-    assert_eq!(criteria.should_prune(1000, 3000), None);
-    assert_eq!(criteria.should_prune(1000, 3001), Some(2000));
+    assert_eq!(criteria.should_prune(1000, 2500), None);
+    assert_eq!(criteria.should_prune(1000, 2999), None);
+    assert_eq!(criteria.should_prune(1000, 3000), Some(2000));
 }

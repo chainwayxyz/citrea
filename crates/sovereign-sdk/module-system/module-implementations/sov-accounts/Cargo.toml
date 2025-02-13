@@ -13,6 +13,7 @@ resolver = "2"
 
 [dependencies]
 borsh = { workspace = true, features = ["rc"] }
+hex = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }

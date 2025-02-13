@@ -22,6 +22,7 @@ use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -44,7 +45,7 @@ pub enum GroupCommitments {
     OneByOne,
 }
 
-pub(crate) async fn data_to_prove<'txs, Da, DB, Witness, Tx>(
+pub(crate) async fn data_to_prove<'txs, Da, DB, Witness, Tx, TxOld>(
     da_service: Arc<Da>,
     ledger: DB,
     sequencer_pub_key: Vec<u8>,
@@ -63,7 +64,8 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
-    Tx: Clone + BorshDeserialize + 'txs,
+    Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
+    TxOld: Clone + BorshDeserialize + 'txs,
 {
     let l1_height = l1_block.header().height();
 
@@ -143,7 +145,7 @@ where
             state_transition_witnesses,
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
-        ) = get_batch_proof_circuit_input_from_commitments(
+        ) = get_batch_proof_circuit_input_from_commitments::<_, _, _, Tx, TxOld>(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
             &ledger,
@@ -253,7 +255,6 @@ where
 
             let input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
-                // TODO: activate this once we freeze Kumquat ELFs
                 SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
                 _ => borsh::to_vec(&input.into_v3_parts())?,
             };
@@ -311,6 +312,10 @@ where
                 output.initial_state_root,
                 output.sequencer_commitments_range,
             ),
+            StoredBatchProofOutput::V3(output) => (
+                output.initial_state_root,
+                output.sequencer_commitments_range,
+            ),
         };
 
         if initial_state_root == input.initial_state_root.as_ref()
@@ -338,25 +343,35 @@ where
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
         let (last_active_spec_id, da_slot_hash, batch_proof_output) = match Vm::extract_output::<
-            BatchProofCircuitOutputV2,
+            BatchProofCircuitOutputV3,
         >(&proof)
         {
             Ok(output) => (
                 fork_from_block_number(output.last_l2_height).spec_id,
                 output.da_slot_hash,
-                StoredBatchProofOutput::V2(output),
+                StoredBatchProofOutput::V3(output),
             ),
             Err(e) => {
-                info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
-                    .expect("Should be able to extract either pre or post fork 1 output");
+                info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
+                    Ok(output) => (
+                        fork_from_block_number(output.last_l2_height).spec_id,
+                        output.da_slot_hash,
+                        StoredBatchProofOutput::V2(output),
+                    ),
+                    Err(e) => {
+                        info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
+                        let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
+                            .expect("Should be able to extract either pre or post fork 1 output");
 
-                // If we got output of pre fork 1 that means we are in genesis
-                (
-                    SpecId::Genesis,
-                    output.da_slot_hash,
-                    StoredBatchProofOutput::V1(output),
-                )
+                        // If we got output of pre fork 1 that means we are in genesis
+                        (
+                            SpecId::Genesis,
+                            output.da_slot_hash,
+                            StoredBatchProofOutput::V1(output),
+                        )
+                    }
+                }
             }
         };
 

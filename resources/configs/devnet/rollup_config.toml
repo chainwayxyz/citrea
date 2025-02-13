@@ -1,5 +1,6 @@
 [public_keys]
 sequencer_public_key = "52f41a5076498d1ae8bdfa57d19e91e3c2c94b6de21985d099cd48cfa7aef174"
+sequencer_k256_public_key = "03745871636b11562a7f2d7c0e883a960b54c7e2c0a5427d4b99ac403588530589"
 sequencer_da_pub_key = "039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486"
 prover_da_pub_key = "03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5"
 
@@ -28,3 +29,9 @@ max_subscriptions_per_connection = 100
 sequencer_client_url = "https://rpc.devnet.citrea.xyz"
 # set this to true if you want to include soft confirmation tx bodies
 include_tx_body = false
+
+# WARNING: State pruning is not completely implemented.
+# Enabling this might lead to state corruption and therefore,
+# avoid using it for now.
+# [runner.pruning_config]
+# distance = 6000

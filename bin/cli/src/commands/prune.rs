@@ -22,17 +22,17 @@ pub(crate) async fn prune(db_path: PathBuf, distance: u64) -> anyhow::Result<()>
     let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
     let state_db = StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
 
-    let Some((soft_confirmation_number, _)) = ledger_db.get_head_soft_confirmation()? else {
+    let Some(soft_confirmation_number) = ledger_db.get_head_soft_confirmation_height()? else {
         return Ok(());
     };
 
     debug!(
         "Pruning up to latest soft confirmation number: {}, taking into consideration the configured distance of {}",
-        soft_confirmation_number.0, distance
+        soft_confirmation_number, distance
     );
 
     let pruner = Pruner::new(config, ledger_db, Arc::new(state_db), Arc::new(native_db));
-    pruner.prune(soft_confirmation_number.0).await;
+    pruner.prune(soft_confirmation_number).await;
 
     Ok(())
 }

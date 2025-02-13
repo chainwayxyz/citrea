@@ -66,6 +66,7 @@ citrea-common = { path = "../common" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
+soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer", features = ["native"] }
 
 [features]
 default = []

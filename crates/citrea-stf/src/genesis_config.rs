@@ -64,7 +64,7 @@ pub(crate) fn validate_config<C: Context, Da: DaSpec>(
 fn create_genesis_config<C: Context, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
 ) -> anyhow::Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig> {
-    let accounts_config: AccountConfig<C> = read_json_file(&genesis_paths.accounts_genesis_path)?;
+    let accounts_config: AccountConfig = read_json_file(&genesis_paths.accounts_genesis_path)?;
 
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 

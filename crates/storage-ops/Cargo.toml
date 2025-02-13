@@ -12,12 +12,14 @@ repository.workspace = true
 # Citrea dependencies
 
 # Sov SDK deps
+jmt = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 
 # 3rd-party dependencies
 anyhow = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }

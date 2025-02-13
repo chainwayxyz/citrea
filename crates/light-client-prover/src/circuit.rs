@@ -6,6 +6,7 @@ use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespac
 use sov_rollup_interface::mmr::{MMRChunk, MMRGuest, Wtxid};
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::{
     BatchProofInfo, LightClientCircuitOutput,
@@ -314,7 +315,13 @@ fn process_complete_proof<G: ZkvmGuest>(
         batch_proof_output_initial_state_root,
         batch_proof_output_final_state_root,
         batch_proof_output_last_l2_height,
-    ) = if let Ok(output) = G::deserialize_output::<BatchProofCircuitOutputV2>(&journal) {
+    ) = if let Ok(output) = G::deserialize_output::<BatchProofCircuitOutputV3>(&journal) {
+        (
+            output.initial_state_root,
+            output.final_state_root,
+            output.last_l2_height,
+        )
+    } else if let Ok(output) = G::deserialize_output::<BatchProofCircuitOutputV2>(&journal) {
         (
             output.initial_state_root,
             output.final_state_root,

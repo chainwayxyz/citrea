@@ -7,6 +7,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
+use borsh::BorshDeserialize;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
@@ -20,9 +21,12 @@ use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_stf::runtime::DefaultContext;
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::default_signature::K256PublicKey;
 use sov_modules_api::fork::ForkManager;
-use sov_modules_api::SpecId;
+use sov_modules_api::transaction::Transaction;
+use sov_modules_api::{PublicKey, Spec, SpecId};
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
 use sov_rollup_interface::Network;
@@ -618,6 +622,60 @@ impl TestCase for ForkElfSwitchingTest {
         // Generate softcom in fork2
         for _ in 0..min_soft_confirmations {
             sequencer.client.send_publish_batch_request().await?;
+        }
+
+        let last_sc_before_fork2 = sequencer
+            .client
+            .http_client()
+            .get_soft_confirmation_by_number(U64::from(199u64))
+            .await
+            .unwrap()
+            .unwrap();
+
+        // the last tx of last soft confirmation before fork2 should be the change authority sov tx
+        let last_tx_hex = last_sc_before_fork2
+            .clone()
+            .txs
+            .clone()
+            .unwrap()
+            .last()
+            .expect("should have last tx")
+            .clone();
+
+        let tx_vec = last_tx_hex.tx.clone();
+
+        let tx = Transaction::try_from_slice(&tx_vec).expect("Should be the tx");
+
+        let k256_pub_key_sequencer = K256PublicKey::try_from(
+            sequencer
+                .config()
+                .rollup
+                .public_keys
+                .sequencer_k256_public_key
+                .as_slice(),
+        )
+        .unwrap();
+
+        let address = k256_pub_key_sequencer.to_address::<<DefaultContext as Spec>::Address>();
+
+        // Going to ignore the first byte here because it's the call prefix
+        // It is an enum of modules:
+        // 0 is accounts,1 is evm, 2 is soft confirmation rule enforcer
+        // assert the first byte is 2 as in sc rule enforcer
+        assert_eq!(tx.runtime_msg()[0], 2);
+
+        let change_authority_call_message: soft_confirmation_rule_enforcer::CallMessage<
+            DefaultContext,
+            // Going to ignore the first byte here because it's the call prefix as explained above
+        > = soft_confirmation_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
+            .expect("Should be the tx");
+
+        match change_authority_call_message {
+            soft_confirmation_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
+                assert_eq!(new_authority, address);
+                println!("New authority: {:?}", new_authority);
+            }
+            _ => panic!("Should be change authority"),
         }
 
         let height = sequencer

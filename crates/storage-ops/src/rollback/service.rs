@@ -1,7 +1,7 @@
 use tokio::select;
 use tokio::sync::mpsc::Receiver;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::info;
 
 use super::Rollback;
 
@@ -26,7 +26,7 @@ impl RollbackService {
                 Some(num_blocks) = self.receiver.recv() => {
                     info!("Received signal to rollback {num_blocks} blocks");
                     if let Err(e) = self.rollback.execute(num_blocks) {
-                        error!("Could not rollback blocks: {:?}", e);
+                        panic!("Could not rollback blocks: {:?}", e);
                     }
                 }
             }
