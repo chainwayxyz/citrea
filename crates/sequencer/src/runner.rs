@@ -13,7 +13,7 @@ use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_stf::runtime::{DefaultContext, Runtime};
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
@@ -203,7 +203,7 @@ where
                                     txs: vec![rlp_tx.clone()],
                                 };
                                 let raw_message =
-                                    <Runtime<DefaultContext, Da::Spec> as EncodeCall<
+                                    <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
                                         citrea_evm::Evm<DefaultContext>,
                                     >>::encode_call(call_txs);
                                 let signed_blob = self.make_blob(
@@ -412,7 +412,7 @@ where
                 let evm_txs_count = txs_to_run.len();
                 if evm_txs_count > 0 {
                     let call_txs = CallMessage { txs: txs_to_run };
-                    let raw_message = <Runtime<DefaultContext, Da::Spec> as EncodeCall<
+                    let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
                         citrea_evm::Evm<DefaultContext>,
                     >>::encode_call(call_txs);
                     let signed_blob = self.make_blob(
@@ -1086,7 +1086,7 @@ where
             new_authority: new_address,
         };
 
-        let raw_message = <Runtime<DefaultContext, Da::Spec> as EncodeCall<
+        let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
             soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<
                 DefaultContext,
                 <Da as DaService>::Spec,

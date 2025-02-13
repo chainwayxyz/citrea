@@ -67,13 +67,7 @@ pub struct Dependencies<T: RollupBlueprint> {
 
 /// Overrides RollupBlueprint methods
 #[async_trait]
-pub trait CitreaRollupBlueprint:
-    RollupBlueprint<
-    // cant do below because of cyclic dependency
-    // NativeRuntime = Runtime<DefaultContext, Self::DaSpec>,
-    // ZkRuntime = StfBlueprint<ZkDefaultContext, Self::DaSpec, Self::ZkRuntime>,
->
-{
+pub trait CitreaRollupBlueprint: RollupBlueprint {
     /// Setup the rollup's dependencies
     async fn setup_dependencies(
         &self,
@@ -151,8 +145,7 @@ pub trait CitreaRollupBlueprint:
     ) -> Result<(
         CitreaSequencer<Self::DaService, LedgerDB, Self::NativeRuntime>,
         RpcModule<()>,
-    )>
-    {
+    )> {
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
@@ -257,8 +250,7 @@ pub trait CitreaRollupBlueprint:
         CitreaBatchProver<Self::DaService, LedgerDB, Self::NativeRuntime>,
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
         RpcModule<()>,
-    )>
-    {
+    )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let native_stf = StfBlueprint::new();
@@ -324,8 +316,7 @@ pub trait CitreaRollupBlueprint:
         CitreaLightClientProver,
         LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
-    )>
-    {
+    )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let current_l2_height = ledger_db

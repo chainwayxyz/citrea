@@ -15,7 +15,7 @@ use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
-use citrea_stf::runtime::Runtime;
+use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
@@ -51,8 +51,8 @@ impl RollupBlueprint for BitcoinRollup {
     type DaVerifier = BitcoinVerifier;
     type Vm = Risc0BonsaiHost;
 
-    type ZkRuntime = Runtime<ZkDefaultContext, Self::DaSpec>;
-    type NativeRuntime = Runtime<DefaultContext, Self::DaSpec>;
+    type ZkRuntime = CitreaRuntime<ZkDefaultContext, Self::DaSpec>;
+    type NativeRuntime = CitreaRuntime<DefaultContext, Self::DaSpec>;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
