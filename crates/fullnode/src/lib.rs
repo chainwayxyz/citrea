@@ -50,7 +50,7 @@ where
     let pruner = runner_config.pruning_config.as_ref().map(|pruning_config| {
         let pruner = Pruner::new(
             pruning_config.clone(),
-            ledger_db.clone(),
+            ledger_db.inner(),
             storage_manager.get_state_db_handle(),
             storage_manager.get_native_db_handle(),
         );

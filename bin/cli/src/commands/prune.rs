@@ -62,7 +62,12 @@ pub(crate) async fn prune(
         soft_confirmation_number, distance
     );
 
-    let pruner = Pruner::new(config, ledger_db, Arc::new(state_db), Arc::new(native_db));
+    let pruner = Pruner::new(
+        config,
+        ledger_db.inner(),
+        Arc::new(state_db),
+        Arc::new(native_db),
+    );
     pruner
         .prune(node_type.into(), soft_confirmation_number)
         .await;
