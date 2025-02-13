@@ -4,6 +4,7 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
+use super::types::PruningNodeType;
 use super::Pruner;
 
 pub struct PrunerService<DB: SharedLedgerOps> {
@@ -30,7 +31,7 @@ where
         }
     }
 
-    pub async fn run(mut self, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, node_type: PruningNodeType, cancellation_token: CancellationToken) {
         loop {
             select! {
                 biased;
@@ -45,7 +46,7 @@ where
                     if let Ok(current_l2_block) = current_l2_block {
                         debug!("Pruner received L2 {}, checking criteria", current_l2_block);
                         if let Some(up_to_block) = self.pruner.should_prune(self.last_pruned_block, current_l2_block) {
-                            self.pruner.prune(up_to_block).await;
+                            self.pruner.prune(node_type, up_to_block).await;
                             self.last_pruned_block = up_to_block;
                         }
                     }

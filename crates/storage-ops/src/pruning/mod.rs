@@ -4,6 +4,7 @@ use futures::future;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::SharedLedgerOps;
 use tracing::info;
+use types::PruningNodeType;
 
 use self::components::{prune_ledger, prune_native_db};
 use self::criteria::{Criteria, DistanceCriteria};
@@ -12,6 +13,7 @@ pub use self::service::*;
 pub(crate) mod components;
 pub(crate) mod criteria;
 pub(crate) mod service;
+pub mod types;
 
 /// A configuration type to define the behaviour of the pruner.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -78,7 +80,7 @@ where
     }
 
     /// Prune everything
-    pub async fn prune(&self, up_to_block: u64) {
+    pub async fn prune(&self, node_type: PruningNodeType, up_to_block: u64) {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
 
@@ -87,7 +89,7 @@ where
         // let state_db = self.state_db.clone();
 
         let ledger_pruning_handle =
-            tokio::task::spawn_blocking(move || prune_ledger(ledger_db, up_to_block));
+            tokio::task::spawn_blocking(move || prune_ledger(node_type, ledger_db, up_to_block));
 
         // TODO: Fix me
         // let state_db_pruning_handle =

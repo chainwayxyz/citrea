@@ -12,6 +12,7 @@ use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
+use citrea_storage_ops::pruning::types::PruningNodeType;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
@@ -360,7 +361,9 @@ where
             // Spawn pruner if configs are set
             if let Some(pruner_service) = pruner_service {
                 task_manager.spawn(|cancellation_token| async move {
-                    pruner_service.run(cancellation_token).await
+                    pruner_service
+                        .run(PruningNodeType::FullNode, cancellation_token)
+                        .await
                 });
             }
 

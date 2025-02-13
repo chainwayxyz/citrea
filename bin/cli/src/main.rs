@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use commands::PruningNodeTypeArg;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -19,6 +20,8 @@ struct Cli {
 enum Commands {
     /// Prune old DB entries
     Prune {
+        #[arg(long)]
+        node_type: PruningNodeTypeArg,
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,
@@ -46,8 +49,12 @@ async fn main() -> anyhow::Result<()> {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Commands::Prune { db_path, distance } => {
-            commands::prune(db_path.clone(), *distance).await?;
+        Commands::Prune {
+            node_type,
+            db_path,
+            distance,
+        } => {
+            commands::prune(*node_type, db_path.clone(), *distance).await?;
         }
         Commands::Rollback {
             db_path: _db_path,
