@@ -16,7 +16,7 @@ pub(crate) struct DistanceCriteria {
 
 impl Criteria for DistanceCriteria {
     fn should_prune(&self, last_pruned_block: u64, current_block_number: u64) -> Option<u64> {
-        let trigger_block = last_pruned_block + (2 * self.distance) + 1;
+        let trigger_block = last_pruned_block + (2 * self.distance);
         if current_block_number >= trigger_block {
             return Some(last_pruned_block + self.distance);
         }

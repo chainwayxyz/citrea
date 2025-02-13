@@ -62,3 +62,9 @@ include_tx_body = false
 # this value should be at most equal to `batch_requests_limit` set by the RPC node
 # being used.
 # sync_blocks_count = 20
+
+# WARNING: State pruning is not completely implemented.
+# Enabling this might lead to state corruption and therefore,
+# avoid using it for now.
+# [runner.pruning_config]
+# distance = 6000

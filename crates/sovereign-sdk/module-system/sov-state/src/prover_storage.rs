@@ -1,6 +1,7 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use jmt::storage::{NodeBatch, TreeWriter};
+use jmt::storage::{NodeBatch, StaleNodeIndex, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
@@ -58,6 +59,7 @@ impl ProverStorage {
 pub struct ProverStateUpdate {
     pub(crate) node_batch: NodeBatch,
     pub key_preimages: Vec<(KeyHash, CacheKey)>,
+    pub stale_state: BTreeSet<StaleNodeIndex>,
 }
 
 impl Storage for ProverStorage {
@@ -159,6 +161,7 @@ impl Storage for ProverStorage {
         let state_update = ProverStateUpdate {
             node_batch: tree_update.node_batch,
             key_preimages,
+            stale_state: tree_update.stale_node_index_batch,
         };
 
         // We need the state diff to be calculated only inside zk context.
@@ -216,6 +219,11 @@ impl Storage for ProverStorage {
         self.db
             .write_node_batch(&state_update.node_batch)
             .expect("db write must succeed");
+
+        // Write the stale state nodes which will be used by the pruner at a later stage for cleanup.
+        self.db
+            .set_stale_nodes(&state_update.stale_state)
+            .expect("db set stale nodes must succeed");
     }
 
     fn open_proof(

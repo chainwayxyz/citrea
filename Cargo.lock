@@ -2179,6 +2179,8 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "futures",
+ "hex",
+ "jmt",
  "serde",
  "sov-db",
  "sov-prover-storage-manager",

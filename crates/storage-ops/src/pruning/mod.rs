@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::SharedLedgerOps;
 use tracing::info;
 
-use self::components::{prune_ledger, prune_native_db, prune_state_db};
+use self::components::{prune_ledger, prune_native_db};
 use self::criteria::{Criteria, DistanceCriteria};
 pub use self::service::*;
 
@@ -35,6 +35,7 @@ where
     /// Access to native DB.
     native_db: Arc<sov_schema_db::DB>,
     /// Access to state DB.
+    #[allow(dead_code)]
     state_db: Arc<sov_schema_db::DB>,
     /// Criteria to decide pruning
     criteria: Box<dyn Criteria + Send + Sync>,
@@ -56,8 +57,8 @@ where
         });
         Self {
             ledger_db,
-            native_db,
             state_db,
+            native_db,
             criteria,
         }
     }
@@ -80,21 +81,24 @@ where
     pub async fn prune(&self, up_to_block: u64) {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
+
         let native_db = self.native_db.clone();
-        let state_db = self.state_db.clone();
+
+        // let state_db = self.state_db.clone();
 
         let ledger_pruning_handle =
             tokio::task::spawn_blocking(move || prune_ledger(ledger_db, up_to_block));
 
-        let state_db_pruning_handle =
-            tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
+        // TODO: Fix me
+        // let state_db_pruning_handle =
+        //     tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
 
         let native_db_pruning_handle =
             tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
 
         future::join_all([
             ledger_pruning_handle,
-            state_db_pruning_handle,
+            // state_db_pruning_handle,
             native_db_pruning_handle,
         ])
         .await;

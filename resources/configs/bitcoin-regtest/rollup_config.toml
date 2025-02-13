@@ -29,3 +29,9 @@ max_subscriptions_per_connection = 100
 [runner]
 sequencer_client_url = "http://0.0.0.0:12345"
 include_tx_body = false
+
+# WARNING: State pruning is not completely implemented.
+# Enabling this might lead to state corruption and therefore,
+# avoid using it for now.
+# [runner.pruning_config]
+# distance = 6000
