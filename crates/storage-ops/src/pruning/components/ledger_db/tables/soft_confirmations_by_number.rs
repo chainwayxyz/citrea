@@ -9,10 +9,11 @@ pub(crate) fn prune_soft_confirmations_by_number(
     ledger_db: &DB,
     up_to_block: u64,
 ) -> anyhow::Result<u64> {
-    let soft_confirmations = ledger_db.iter_with_direction::<SoftConfirmationByNumber>(
+    let mut soft_confirmations = ledger_db.iter_with_direction::<SoftConfirmationByNumber>(
         Default::default(),
         ScanDirection::Forward,
     )?;
+    soft_confirmations.seek_to_first();
 
     let mut deleted = 0;
     for record in soft_confirmations {

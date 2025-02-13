@@ -6,10 +6,11 @@ pub(crate) fn prune_soft_confirmation_status(
     ledger_db: &DB,
     up_to_block: u64,
 ) -> anyhow::Result<u64> {
-    let soft_confirmation_status = ledger_db.iter_with_direction::<SoftConfirmationStatus>(
+    let mut soft_confirmation_status = ledger_db.iter_with_direction::<SoftConfirmationStatus>(
         Default::default(),
         ScanDirection::Forward,
     )?;
+    soft_confirmation_status.seek_to_first();
 
     let mut deleted = 0;
     for record in soft_confirmation_status {
