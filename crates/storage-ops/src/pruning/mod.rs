@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::SharedLedgerOps;
+use sov_db::schema::tables::LastPrunedBlock;
 use tracing::info;
 use types::PruningNodeType;
 
@@ -28,12 +28,9 @@ impl Default for PruningConfig {
     }
 }
 
-pub struct Pruner<DB>
-where
-    DB: SharedLedgerOps,
-{
+pub struct Pruner {
     /// Access to ledger tables.
-    ledger_db: DB,
+    ledger_db: Arc<sov_schema_db::DB>,
     /// Access to native DB.
     native_db: Arc<sov_schema_db::DB>,
     /// Access to state DB.
@@ -43,13 +40,10 @@ where
     criteria: Box<dyn Criteria + Send + Sync>,
 }
 
-impl<DB> Pruner<DB>
-where
-    DB: SharedLedgerOps + Send + Sync + Clone + 'static,
-{
+impl Pruner {
     pub fn new(
         config: PruningConfig,
-        ledger_db: DB,
+        ledger_db: Arc<sov_schema_db::DB>,
         state_db: Arc<sov_schema_db::DB>,
         native_db: Arc<sov_schema_db::DB>,
     ) -> Self {
@@ -67,7 +61,7 @@ where
 
     pub fn store_last_pruned_l2_height(&self, last_pruned_l2_height: u64) -> anyhow::Result<()> {
         self.ledger_db
-            .set_last_pruned_l2_height(last_pruned_l2_height)
+            .put::<LastPrunedBlock>(&(), &last_pruned_l2_height)
     }
 
     pub(crate) fn should_prune(

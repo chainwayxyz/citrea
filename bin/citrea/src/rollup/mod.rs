@@ -197,7 +197,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> Result<(
         CitreaFullnode<Self::DaService, Self::NativeContext, LedgerDB, Self::NativeRuntime>,
         FullNodeL1BlockHandler<Self::NativeContext, Self::Vm, Self::DaService, LedgerDB>,
-        Option<PrunerService<LedgerDB>>,
+        Option<PrunerService>,
     )>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,

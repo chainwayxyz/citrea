@@ -1,4 +1,3 @@
-use sov_db::ledger_db::SharedLedgerOps;
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -7,20 +6,17 @@ use tracing::{debug, error};
 use super::types::PruningNodeType;
 use super::Pruner;
 
-pub struct PrunerService<DB: SharedLedgerOps> {
-    pruner: Pruner<DB>,
+pub struct PrunerService {
+    pruner: Pruner,
     /// The last block number which was pruned.
     last_pruned_block: u64,
     /// A channel receiver which gets notified of new L2 blocks.
     l2_receiver: broadcast::Receiver<u64>,
 }
 
-impl<DB> PrunerService<DB>
-where
-    DB: SharedLedgerOps + Send + Sync + Clone + 'static,
-{
+impl PrunerService {
     pub fn new(
-        pruner: Pruner<DB>,
+        pruner: Pruner,
         last_pruned_block: u64,
         l2_receiver: broadcast::Receiver<u64>,
     ) -> Self {

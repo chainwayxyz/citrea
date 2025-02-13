@@ -37,7 +37,7 @@ pub fn build_services<Da, C, DB, RT, Vm>(
 ) -> Result<(
     CitreaFullnode<Da, C, DB, RT>,
     L1BlockHandler<C, Vm, Da, DB>,
-    Option<PrunerService<DB>>,
+    Option<PrunerService>,
 )>
 where
     Da: DaService<Error = anyhow::Error>,
@@ -48,7 +48,7 @@ where
 {
     let last_pruned_block = ledger_db.get_last_pruned_l2_height()?.unwrap_or(0);
     let pruner = runner_config.pruning_config.as_ref().map(|pruning_config| {
-        let pruner = Pruner::<DB>::new(
+        let pruner = Pruner::new(
             pruning_config.clone(),
             ledger_db.clone(),
             storage_manager.get_state_db_handle(),
