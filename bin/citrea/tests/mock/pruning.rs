@@ -15,7 +15,7 @@ use crate::common::helpers::{tempdir_with_children, wait_for_l1_block, wait_for_
 /// Trigger pruning state DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -29,7 +29,7 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     }
     wait_for_l1_block(&da_service, 3, None).await;
 
-    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
+    let addr = Address::from_str("0xd39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
@@ -56,6 +56,10 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
             wait_for_l1_block(&da_service, 3 + (i / 5), None).await;
         }
     }
+
+    wait_for_l2_block(&full_node_test_client, 50, None).await;
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     // Old blocks balance information should have been pruned
     let get_balance_result = full_node_test_client
@@ -99,7 +103,9 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
             wait_for_l1_block(&da_service, 3 + (i / 5), None).await;
         }
     }
-    wait_for_l2_block(&seq_test_client, 101, None).await;
+    wait_for_l2_block(&full_node_test_client, 101, None).await;
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     // Old blocks balance information should have been pruned
     let get_balance_result = full_node_test_client

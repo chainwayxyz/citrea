@@ -37,7 +37,9 @@ pub const MMR_TABLES: &[&str] = &[
 pub const STATE_TABLES: &[&str] = &[
     KeyHashToKey::table_name(),
     JmtValues::table_name(),
+    // when iterating we get bigger versions first
     JmtNodes::table_name(),
+    // when iterating we get smaller stale since versions first
     StaleNodes::table_name(),
 ];
 
