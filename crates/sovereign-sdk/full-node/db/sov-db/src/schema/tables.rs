@@ -77,7 +77,6 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     SoftConfirmationByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
     ProverLastScannedSlot::table_name(),
