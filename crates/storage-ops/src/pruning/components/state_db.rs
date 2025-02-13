@@ -6,6 +6,7 @@ use sov_schema_db::SchemaBatch;
 use tracing::{error, info};
 
 /// Prune state DB
+#[allow(dead_code)]
 pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
     info!("Pruning state DB, up to L2 block {}", to_block);
 
