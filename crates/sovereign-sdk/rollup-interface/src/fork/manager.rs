@@ -28,7 +28,6 @@ impl<'a> ForkManager<'a> {
         self.forks[self.active_fork_idx]
     }
 
-    #[cfg(feature = "testing")]
     pub fn next_fork(&self) -> Option<&Fork> {
         self.forks.get(self.active_fork_idx + 1)
     }

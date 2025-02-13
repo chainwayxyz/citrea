@@ -7,6 +7,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
+use borsh::BorshDeserialize;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
@@ -20,9 +21,12 @@ use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_stf::runtime::DefaultContext;
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::default_signature::K256PublicKey;
 use sov_modules_api::fork::ForkManager;
-use sov_modules_api::SpecId;
+use sov_modules_api::transaction::Transaction;
+use sov_modules_api::{PublicKey, Spec, SpecId};
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
 use sov_rollup_interface::Network;
@@ -551,15 +555,15 @@ impl TestCase for ForkElfSwitchingTest {
     }
 
     fn sequencer_config() -> SequencerConfig {
-        let fork_1_height = ForkManager::new(get_forks(), 0)
+        let kumquat_height = ForkManager::new(get_forks(), 0)
             .next_fork()
             .unwrap()
             .activation_height;
 
-        // Set just below fork1 height so we can generate first soft com txs in genesis
-        // and second batch above fork1
+        // Set just below kumquat height so we can generate first soft com txs in genesis
+        // and second batch above kumquat
         SequencerConfig {
-            min_soft_confirmations_per_commitment: fork_1_height - 5,
+            min_soft_confirmations_per_commitment: kumquat_height - 5,
             ..Default::default()
         }
     }
@@ -604,7 +608,7 @@ impl TestCase for ForkElfSwitchingTest {
 
         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
 
-        // Generate softcom in fork1
+        // Generate softcom in kumquat
         for _ in 0..min_soft_confirmations {
             sequencer.client.send_publish_batch_request().await?;
         }
@@ -615,7 +619,72 @@ impl TestCase for ForkElfSwitchingTest {
             .await?;
         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
 
-        da.wait_mempool_len(4, None).await?;
+        // Generate softcom in fork2
+        for _ in 0..min_soft_confirmations {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        let last_sc_before_fork2 = sequencer
+            .client
+            .http_client()
+            .get_soft_confirmation_by_number(U64::from(199u64))
+            .await
+            .unwrap()
+            .unwrap();
+
+        // the last tx of last soft confirmation before fork2 should be the change authority sov tx
+        let last_tx_hex = last_sc_before_fork2
+            .clone()
+            .txs
+            .clone()
+            .unwrap()
+            .last()
+            .expect("should have last tx")
+            .clone();
+
+        let tx_vec = last_tx_hex.tx.clone();
+
+        let tx = Transaction::try_from_slice(&tx_vec).expect("Should be the tx");
+
+        let k256_pub_key_sequencer = K256PublicKey::try_from(
+            sequencer
+                .config()
+                .rollup
+                .public_keys
+                .sequencer_k256_public_key
+                .as_slice(),
+        )
+        .unwrap();
+
+        let address = k256_pub_key_sequencer.to_address::<<DefaultContext as Spec>::Address>();
+
+        // Going to ignore the first byte here because it's the call prefix
+        // It is an enum of modules:
+        // 0 is accounts,1 is evm, 2 is soft confirmation rule enforcer
+        // assert the first byte is 2 as in sc rule enforcer
+        assert_eq!(tx.runtime_msg()[0], 2);
+
+        let change_authority_call_message: soft_confirmation_rule_enforcer::CallMessage<
+            DefaultContext,
+            // Going to ignore the first byte here because it's the call prefix as explained above
+        > = soft_confirmation_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
+            .expect("Should be the tx");
+
+        match change_authority_call_message {
+            soft_confirmation_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
+                assert_eq!(new_authority, address);
+                println!("New authority: {:?}", new_authority);
+            }
+            _ => panic!("Should be change authority"),
+        }
+
+        let height = sequencer
+            .client
+            .ledger_get_head_soft_confirmation_height()
+            .await?;
+        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
+
+        da.wait_mempool_len(6, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
 
@@ -626,7 +695,7 @@ impl TestCase for ForkElfSwitchingTest {
             .await?;
 
         // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(6, None).await?;
         da.generate(FINALITY_DEPTH).await?;
 
         full_node
@@ -636,14 +705,32 @@ impl TestCase for ForkElfSwitchingTest {
             .await
             .unwrap();
 
-        assert_eq!(proofs.len(), 2);
+        assert_eq!(proofs.len(), 3);
         assert_eq!(
-            fork_from_block_number(proofs[0].proof_output.last_l2_height.to()).spec_id,
+            SpecId::from_u8(
+                proofs[0]
+                    .proof_output
+                    .last_active_spec_id
+                    .expect("should have field")
+                    .to()
+            )
+            .expect("should be valid"),
             SpecId::Genesis
         );
         assert_eq!(
-            fork_from_block_number(proofs[1].proof_output.last_l2_height.to()).spec_id,
+            fork_from_block_number(
+                proofs[1]
+                    .proof_output
+                    .last_l2_height
+                    .expect("should have field")
+                    .to()
+            )
+            .spec_id,
             SpecId::Kumquat
+        );
+        assert_eq!(
+            fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
+            SpecId::Fork2
         );
 
         light_client_prover
@@ -664,7 +751,7 @@ impl TestCase for ForkElfSwitchingTest {
 
         assert_eq!(
             lcp.light_client_proof_output.state_root.to_vec(),
-            proofs[1].proof_output.final_state_root
+            proofs[2].proof_output.final_state_root
         );
 
         Ok(())

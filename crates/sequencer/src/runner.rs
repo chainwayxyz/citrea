@@ -21,14 +21,17 @@ use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
 };
+use soft_confirmation_rule_enforcer::CallMessage as RuleEnforcerCallMessage;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
+use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
-    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateDiff,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, SpecId, StateDiff,
     UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Runtime as RuntimeT, StfBlueprint};
@@ -71,7 +74,8 @@ where
 {
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool<C>>,
-    sov_tx_signer_priv_key: C::PrivateKey,
+    // TODO: Use k256 private key here before mainnet
+    sov_tx_signer_priv_key: Vec<u8>,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider<C>,
     ledger_db: DB,
@@ -82,6 +86,7 @@ where
     state_root: StorageRootHash,
     soft_confirmation_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
@@ -115,7 +120,7 @@ where
         soft_confirmation_tx: broadcast::Sender<u64>,
         l2_force_block_rx: UnboundedReceiver<()>,
     ) -> anyhow::Result<Self> {
-        let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
+        let sov_tx_signer_priv_key = hex::decode(&config.private_key)?;
 
         Ok(Self {
             da_service,
@@ -131,6 +136,7 @@ where
             state_root: init_params.state_root,
             soft_confirmation_hash: init_params.batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
             soft_confirmation_tx,
@@ -203,11 +209,17 @@ where
                                 >>::encode_call(
                                     call_txs
                                 );
-                                let signed_blob = self
-                                    .make_blob(raw_message.clone(), &mut working_set_to_discard)?;
+                                let signed_blob = self.make_blob(
+                                    raw_message.clone(),
+                                    &mut working_set_to_discard,
+                                    soft_confirmation_info.current_spec(),
+                                )?;
 
-                                let signed_tx =
-                                    self.sign_tx(raw_message, &mut working_set_to_discard)?;
+                                let signed_tx = self.sign_tx(
+                                    raw_message,
+                                    &mut working_set_to_discard,
+                                    soft_confirmation_info.current_spec(),
+                                )?;
 
                                 let txs = vec![signed_blob.clone()];
                                 let txs_new = vec![signed_tx];
@@ -321,7 +333,6 @@ where
         );
 
         let timestamp = chrono::Local::now().timestamp() as u64;
-        let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())?;
 
         let deposit_data = self
             .deposit_mempool
@@ -333,6 +344,19 @@ where
         self.fork_manager.register_block(l2_height)?;
 
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
+        let pub_key = if active_fork_spec >= SpecId::Fork2 {
+            borsh::to_vec(
+                &K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice())
+                    .unwrap()
+                    .pub_key(),
+            )?
+        } else {
+            borsh::to_vec(
+                &DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice())
+                    .unwrap()
+                    .pub_key(),
+            )?
+        };
 
         let soft_confirmation_info = HookSoftConfirmationInfo {
             l2_height,
@@ -395,20 +419,42 @@ where
                         <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
                             call_txs,
                         );
-                    let signed_blob = self.make_blob(raw_message.clone(), &mut working_set)?;
-                    let signed_tx = self.sign_tx(raw_message, &mut working_set)?;
+                    let signed_blob = self.make_blob(
+                        raw_message.clone(),
+                        &mut working_set,
+                        soft_confirmation_info.current_spec(),
+                    )?;
+                    let signed_tx = self.sign_tx(
+                        raw_message,
+                        &mut working_set,
+                        soft_confirmation_info.current_spec(),
+                    )?;
                     txs.push(signed_blob);
                     txs_new.push(signed_tx);
-
-                    self.stf
-                        .apply_soft_confirmation_txs(
-                            soft_confirmation_info,
-                            &txs,
-                            &txs_new,
-                            &mut working_set,
-                        )
-                        .expect("dry_run_transactions should have already checked this");
                 }
+
+                // get the fork2 activation height
+                // If next block activates Fork2 we should update rule enforcer authority
+                // Because we use a new public key for sequencer now
+                let next_fork = self.fork_manager.next_fork();
+                if let Some(next_fork) = next_fork {
+                    if next_fork.spec_id == SpecId::Fork2
+                        && soft_confirmation_info.l2_height + 1 == next_fork.activation_height
+                    {
+                        let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                        txs.push(signed_blob);
+                        txs_new.push(signed_tx);
+                    }
+                }
+
+                self.stf
+                    .apply_soft_confirmation_txs(
+                        soft_confirmation_info,
+                        &txs,
+                        &txs_new,
+                        &mut working_set,
+                    )
+                    .expect("dry_run_transactions should have already checked this");
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmation::new(
@@ -424,9 +470,14 @@ where
                 );
 
                 let mut signed_soft_confirmation = if active_fork_spec
-                    >= sov_modules_api::SpecId::Kumquat
+                    >= sov_modules_api::SpecId::Fork2
                 {
                     self.sign_soft_confirmation_batch(&unsigned_batch, self.soft_confirmation_hash)?
+                } else if active_fork_spec >= sov_modules_api::SpecId::Kumquat {
+                    self.pre_fork2_sign_soft_confirmation_batch(
+                        &unsigned_batch,
+                        self.soft_confirmation_hash,
+                    )?
                 } else {
                     self.pre_fork1_sign_soft_confirmation_batch(
                         &unsigned_batch,
@@ -434,13 +485,23 @@ where
                     )?
                 };
 
-                self.stf.end_soft_confirmation(
-                    active_fork_spec,
-                    self.state_root,
-                    self.sequencer_pub_key.as_ref(),
-                    &mut signed_soft_confirmation,
-                    &mut working_set,
-                )?;
+                if active_fork_spec >= SpecId::Fork2 {
+                    self.stf.end_soft_confirmation(
+                        active_fork_spec,
+                        self.state_root,
+                        self.sequencer_k256_pub_key.as_ref(),
+                        &mut signed_soft_confirmation,
+                        &mut working_set,
+                    )?;
+                } else {
+                    self.stf.end_soft_confirmation(
+                        active_fork_spec,
+                        self.state_root,
+                        self.sequencer_pub_key.as_ref(),
+                        &mut signed_soft_confirmation,
+                        &mut working_set,
+                    )?;
+                }
 
                 // Finalize soft confirmation
                 let soft_confirmation_result = self.stf.finalize_soft_confirmation(
@@ -736,35 +797,56 @@ where
         &mut self,
         raw_message: Vec<u8>,
         working_set: &mut WorkingSet<C::Storage>,
+        spec_id: SpecId,
     ) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce(working_set)?;
+        let nonce = self.get_nonce(working_set, spec_id)?;
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let transaction =
-            Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
-        borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
+        if spec_id >= SpecId::Kumquat {
+            let transaction: Transaction = Transaction::new_signed_tx(
+                &self.sov_tx_signer_priv_key,
+                raw_message,
+                0,
+                nonce,
+                spec_id,
+            );
+            borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
+        } else {
+            let transaction: PreFork2Transaction<C> = PreFork2Transaction::<C>::new_signed_tx(
+                &self.sov_tx_signer_priv_key,
+                raw_message,
+                0,
+                nonce,
+            );
+            borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
+        }
     }
 
     fn sign_tx(
         &mut self,
         raw_message: Vec<u8>,
         working_set: &mut WorkingSet<C::Storage>,
+        spec_id: SpecId,
     ) -> anyhow::Result<StfTransaction<C, Da::Spec, RT>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce(working_set)?;
+        let nonce = self.get_nonce(working_set, spec_id)?;
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let tx =
-            Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        let tx = Transaction::new_signed_tx(
+            &self.sov_tx_signer_priv_key,
+            raw_message,
+            0,
+            nonce,
+            spec_id,
+        );
         Ok(tx)
     }
 
-    /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch<'txs>(
         &mut self,
         soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
@@ -773,8 +855,39 @@ where
         let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
 
-        let signature = self.sov_tx_signer_priv_key.sign(&hash);
-        let pub_key = self.sov_tx_signer_priv_key.pub_key();
+        let priv_key = K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
+
+        let signature = priv_key.sign(&hash);
+        let pub_key = priv_key.pub_key();
+        Ok(SignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
+            hash,
+            prev_soft_confirmation_hash,
+            soft_confirmation.da_slot_height(),
+            soft_confirmation.da_slot_hash(),
+            soft_confirmation.da_slot_txs_commitment(),
+            soft_confirmation.l1_fee_rate(),
+            soft_confirmation.blobs().into(),
+            soft_confirmation.txs().into(),
+            soft_confirmation.deposit_data(),
+            borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
+            borsh::to_vec(&pub_key).map_err(|e| anyhow!(e))?,
+            soft_confirmation.timestamp(),
+        ))
+    }
+
+    /// Signs necessary info and returns a BlockTemplate
+    fn pre_fork2_sign_soft_confirmation_batch<'txs>(
+        &mut self,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
+        prev_soft_confirmation_hash: [u8; 32],
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
+        let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
+        let hash = Into::<[u8; 32]>::into(digest);
+        let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
+
+        let signature = priv_key.sign(&hash);
+        let pub_key = priv_key.pub_key();
         Ok(SignedSoftConfirmation::new(
             soft_confirmation.l2_height(),
             hash,
@@ -801,14 +914,16 @@ where
         soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
-        use digest::Digest;
+        let unsigned_sc = UnsignedSoftConfirmationV1::from(soft_confirmation.clone());
+        let hash: [u8; 32] = unsigned_sc.hash::<<C as Spec>::Hasher>().into();
 
-        let raw = borsh::to_vec(&UnsignedSoftConfirmationV1::from(soft_confirmation.clone()))
-            .map_err(|e| anyhow!(e))?;
-        let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
+        let raw = borsh::to_vec(&unsigned_sc).map_err(|e| anyhow!(e))?;
 
-        let signature = self.sov_tx_signer_priv_key.sign(&raw);
-        let pub_key = self.sov_tx_signer_priv_key.pub_key();
+        let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
+
+        let signature = priv_key.sign(&raw);
+        let pub_key = priv_key.pub_key();
+
         Ok(SignedSoftConfirmation::new(
             soft_confirmation.l2_height(),
             hash,
@@ -827,11 +942,29 @@ where
     }
 
     /// Fetches nonce from state
-    fn get_nonce(&self, working_set: &mut WorkingSet<C::Storage>) -> anyhow::Result<u64> {
+    fn get_nonce(
+        &self,
+        working_set: &mut WorkingSet<C::Storage>,
+        spec_id: SpecId,
+    ) -> anyhow::Result<u64> {
         let accounts = Accounts::<C>::default();
 
+        let pub_key = if spec_id >= SpecId::Fork2 {
+            borsh::to_vec(
+                &K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice())
+                    .unwrap()
+                    .pub_key(),
+            )?
+        } else {
+            borsh::to_vec(
+                &DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice())
+                    .unwrap()
+                    .pub_key(),
+            )?
+        };
+
         match accounts
-            .get_account(self.sov_tx_signer_priv_key.pub_key(), working_set)
+            .get_account(pub_key, spec_id, working_set)
             .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),
@@ -937,6 +1070,32 @@ where
         }
         // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
         skipped_blocks
+    }
+
+    fn update_sequencer_authority(
+        &mut self,
+        working_set: &mut WorkingSet<C::Storage>,
+        current_spec: SpecId,
+    ) -> anyhow::Result<(Vec<u8>, Transaction)> {
+        let k256_priv_key =
+            K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
+        let new_address = k256_priv_key.to_address::<C::Address>();
+
+        let rule_enforcer_call_tx = RuleEnforcerCallMessage::ChangeAuthority::<C> {
+            new_authority: new_address,
+        };
+
+        let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+            soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<
+                C,
+                <Da as DaService>::Spec,
+            >,
+        >>::encode_call(rule_enforcer_call_tx);
+
+        let signed_blob = self.make_blob(raw_message.clone(), working_set, current_spec)?;
+
+        let signed_tx = self.sign_tx(raw_message, working_set, current_spec)?;
+        Ok((signed_blob, signed_tx))
     }
 }
 

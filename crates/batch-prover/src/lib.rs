@@ -30,7 +30,7 @@ pub mod rpc;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub async fn build_services<C, Da, DB, RT, Vm, Witness, Tx>(
+pub async fn build_services<C, Da, DB, RT, Vm, Witness>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
     init_params: InitParams,
@@ -47,7 +47,7 @@ pub async fn build_services<C, Da, DB, RT, Vm, Witness, Tx>(
     rpc_module: RpcModule<()>,
 ) -> Result<(
     CitreaBatchProver<C, Da, DB, RT>,
-    L1BlockHandler<Vm, Da, DB, Witness, Tx>,
+    L1BlockHandler<Vm, Da, DB, Witness, C>,
     RpcModule<()>,
 )>
 where
@@ -57,7 +57,6 @@ where
     RT: Runtime<C, Da::Spec>,
     Vm: ZkvmHost + Zkvm + 'static,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
-    Tx: Clone + BorshSerialize + BorshDeserialize,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
 
@@ -87,6 +86,7 @@ where
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
 
+    // We do not need to pass the new sequencer public key here, as it is a constant in circuits
     let l1_block_handler = L1BlockHandler::new(
         prover_config,
         prover_service,

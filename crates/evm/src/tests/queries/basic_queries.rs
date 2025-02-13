@@ -16,7 +16,7 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_with_caller_contract};
-use crate::tests::utils::get_fork_fn_only_fork1;
+use crate::tests::utils::get_fork_fn_only_fork2;
 use crate::EstimatedDiffSize;
 
 #[test]
@@ -286,7 +286,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(
@@ -330,7 +330,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     let nonce_too_low_result = evm.get_call_inner(
@@ -358,7 +358,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
@@ -399,7 +399,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -430,7 +430,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -468,7 +468,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -787,15 +787,13 @@ fn test_queries_with_forks() {
     // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
     // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
 
-    let (mut evm, mut working_set, signer, _) = init_evm_with_caller_contract();
-
-    let l2_height = 2;
+    let (mut evm, mut working_set, signer, l2_height) = init_evm_with_caller_contract();
 
     let fork_fn = |num: u64| {
         if num < 3 {
             Fork::new(SovSpecId::Genesis, 0)
         } else {
-            Fork::new(SovSpecId::Kumquat, 4)
+            Fork::new(SovSpecId::Fork2, 3)
         }
     };
 
@@ -832,10 +830,7 @@ fn test_queries_with_forks() {
         &mut working_set,
         fork_fn,
     );
-    assert_eq!(
-        no_access_list_pre_fork.clone().unwrap(),
-        U256::from_str("0x54ef").unwrap()
-    );
+    assert_eq!(no_access_list_pre_fork.clone().unwrap(), U256::from(30860));
 
     let diff_size = evm
         .eth_estimate_diff_size_inner(
@@ -847,8 +842,10 @@ fn test_queries_with_forks() {
         .unwrap();
     assert_eq!(
         diff_size,
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x54ee","l1DiffSize":"0x60"}])
-            .unwrap()
+        EstimatedDiffSize {
+            gas: U64::from(30859),
+            l1_diff_size: U64::from(255),
+        }
     );
 
     let form_access_list = evm
@@ -863,8 +860,11 @@ fn test_queries_with_forks() {
     assert_eq!(
         form_access_list,
         AccessListWithGasUsed {
-            access_list: AccessList(vec![]),
-            gas_used: U256::from_str("0x54ef").unwrap()
+            access_list: AccessList(vec![AccessListItem {
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![B256::ZERO],
+            }]),
+            gas_used: U256::from(30558),
         }
     );
 
@@ -875,7 +875,7 @@ fn test_queries_with_forks() {
 
     let with_access_list =
         evm.eth_estimate_gas_inner(tx_req_with_access_list, None, &mut working_set, fork_fn);
-    assert_eq!(with_access_list.unwrap(), U256::from_str("0x54ef").unwrap());
+    assert_eq!(with_access_list.unwrap(), U256::from(30558));
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -883,7 +883,7 @@ fn test_queries_with_forks() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
+        current_spec: SovSpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 0,
@@ -948,8 +948,10 @@ fn test_queries_with_forks() {
 
     assert_eq!(
         diff_size,
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x788b","l1DiffSize":"0x35"}])
-            .unwrap()
+        EstimatedDiffSize {
+            gas: U64::from(30859),
+            l1_diff_size: U64::from(53),
+        }
     );
 
     // Get pre fork estimated gas and expect it to still work same
@@ -964,7 +966,7 @@ fn test_queries_with_forks() {
         no_access_list_pre_fork.clone().unwrap()
     );
 
-    assert_ne!(
+    assert_eq!(
         no_access_list_pre_fork.clone().unwrap(),
         no_access_list_post_fork.unwrap()
     );

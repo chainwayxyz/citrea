@@ -18,6 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -25,7 +26,7 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -40,12 +41,13 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, DB, Witness, Tx>
+pub struct L1BlockHandler<Vm, Da, DB, Witness, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm + 'static,
     DB: BatchProverLedgerOps,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+    C: sov_modules_api::Context,
 {
     prover_config: BatchProverConfig,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
@@ -57,18 +59,18 @@ where
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
-    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     _witness: PhantomData<Witness>,
-    _tx: PhantomData<Tx>,
+    _context: PhantomData<C>,
 }
 
-impl<Vm, Da, DB, Witness, Tx> L1BlockHandler<Vm, Da, DB, Witness, Tx>
+impl<Vm, Da, DB, Witness, C> L1BlockHandler<Vm, Da, DB, Witness, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: BatchProverLedgerOps + Clone + 'static,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
-    Tx: Clone + BorshDeserialize + BorshSerialize,
+    C: sov_modules_api::Context,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -94,9 +96,9 @@ where
             elfs_by_spec,
             skip_submission_until_l1,
             l1_block_cache,
-            pending_l1_blocks: VecDeque::new(),
+            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             _witness: PhantomData,
-            _tx: PhantomData,
+            _context: PhantomData,
         }
     }
 
@@ -112,11 +114,10 @@ where
                 .expect("Failed to clear pending proving sessions");
         }
 
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            l1_tx,
+            self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             BATCH_PROVER_METRICS.scan_l1_block.clone(),
         );
@@ -128,13 +129,9 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
-                    l1_rx.close();
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    self.pending_l1_blocks.push_back(l1_block);
-                },
                 _ = interval.tick() => {
                     if let Err(e) = self.process_l1_block().await {
                         error!("Could not process L1 block and generate proof: {:?}", e);
@@ -145,9 +142,10 @@ where
     }
 
     async fn process_l1_block(&mut self) -> Result<(), anyhow::Error> {
-        while !self.pending_l1_blocks.is_empty() {
-            let l1_block = self
-                .pending_l1_blocks
+        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
+
+        while !pending_l1_blocks.is_empty() {
+            let l1_block = pending_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
@@ -174,20 +172,21 @@ where
 
                 BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                self.pending_l1_blocks.pop_front();
+                pending_l1_blocks.pop_front();
                 continue;
             }
 
-            let data_to_prove = data_to_prove::<Da, DB, Witness, Tx>(
-                self.da_service.clone(),
-                self.ledger_db.clone(),
-                self.sequencer_pub_key.clone(),
-                self.sequencer_da_pub_key.clone(),
-                self.l1_block_cache.clone(),
-                l1_block,
-                Some(GroupCommitments::Normal),
-            )
-            .await;
+            let data_to_prove =
+                data_to_prove::<Da, DB, Witness, Transaction, PreFork2Transaction<C>>(
+                    self.da_service.clone(),
+                    self.ledger_db.clone(),
+                    self.sequencer_pub_key.clone(),
+                    self.sequencer_da_pub_key.clone(),
+                    self.l1_block_cache.clone(),
+                    l1_block,
+                    Some(GroupCommitments::Normal),
+                )
+                .await;
 
             let (sequencer_commitments, inputs) = match data_to_prove {
                 Ok((commitments, inputs)) => (commitments, inputs),
@@ -200,7 +199,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        self.pending_l1_blocks.pop_front();
+                        pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::DuplicateCommitments { l1_height } => {
@@ -219,7 +218,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        self.pending_l1_blocks.pop_front();
+                        pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::L2RangeMissing {
@@ -256,7 +255,7 @@ where
             };
 
             if should_prove {
-                prove_l1::<Da, Vm, DB, Witness, Tx>(
+                prove_l1::<Da, Vm, DB, Witness, Transaction>(
                     self.prover_service.clone(),
                     self.ledger_db.clone(),
                     self.code_commitments_by_spec.clone(),
@@ -279,7 +278,7 @@ where
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-            self.pending_l1_blocks.pop_front();
+            pending_l1_blocks.pop_front();
         }
         Ok(())
     }
@@ -304,7 +303,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
-    Tx: Clone + BorshDeserialize + 'txs,
+    Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
+    TxOld: Clone + BorshDeserialize + 'txs,
 >(
     sequencer_commitments: &[SequencerCommitment],
     da_service: &Arc<Da>,
@@ -363,9 +363,42 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 };
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
-            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
-                .try_into()
-                .context("Failed to parse transactions")?;
+
+            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
+            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = if spec_id >= SpecId::Kumquat
+            {
+                let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?;
+                signed_soft_confirmation
+            } else {
+                let signed_soft_confirmation: SignedSoftConfirmation<TxOld> = soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?;
+                // Convert to new transaction type
+                let signed_soft_confirmation: SignedSoftConfirmation<Tx> =
+                    SignedSoftConfirmation::new(
+                        signed_soft_confirmation.l2_height(),
+                        signed_soft_confirmation.hash(),
+                        signed_soft_confirmation.prev_hash(),
+                        signed_soft_confirmation.da_slot_height(),
+                        signed_soft_confirmation.da_slot_hash(),
+                        signed_soft_confirmation.da_slot_txs_commitment(),
+                        signed_soft_confirmation.l1_fee_rate(),
+                        signed_soft_confirmation.blobs().to_vec().into(),
+                        signed_soft_confirmation
+                            .txs()
+                            .iter()
+                            .map(|tx| Tx::from(tx.clone()))
+                            .collect(),
+                        signed_soft_confirmation.deposit_data().to_vec(),
+                        signed_soft_confirmation.signature().to_vec(),
+                        signed_soft_confirmation.pub_key().to_vec(),
+                        signed_soft_confirmation.timestamp(),
+                    );
+                signed_soft_confirmation
+            };
+
             commitment_soft_confirmations.push(signed_soft_confirmation);
         }
         soft_confirmations.push_back(commitment_soft_confirmations);
@@ -385,6 +418,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         }
         state_transition_witnesses.push_back(witnesses);
     }
+
     Ok((
         state_transition_witnesses,
         soft_confirmations,

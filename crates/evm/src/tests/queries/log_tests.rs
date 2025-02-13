@@ -79,7 +79,7 @@ fn log_filter_test_at_block_hash() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -89,7 +89,7 @@ fn log_filter_test_at_block_hash() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         // deploy logs contract
         // call the contract function
@@ -291,7 +291,7 @@ fn log_filter_test_with_range() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -301,7 +301,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -353,7 +353,7 @@ fn log_filter_test_with_range() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [99u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -363,7 +363,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
         // call the contract function
         evm.call(
             CallMessage {
@@ -417,7 +417,7 @@ fn test_log_limits() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -427,7 +427,7 @@ fn test_log_limits() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -518,7 +518,7 @@ fn test_log_limits() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32],
-            current_spec: SpecId::Kumquat,
+            current_spec: SpecId::Fork2,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,

@@ -86,19 +86,6 @@ where
         Ok(())
     }
 
-    /// Reverses iterator direction.
-    pub fn rev(self) -> Self {
-        let new_direction = match self.direction {
-            ScanDirection::Forward => ScanDirection::Backward,
-            ScanDirection::Backward => ScanDirection::Forward,
-        };
-        SchemaIterator {
-            db_iter: self.db_iter,
-            direction: new_direction,
-            phantom: Default::default(),
-        }
-    }
-
     fn next_impl(&mut self) -> Result<Option<IteratorOutput<S::Key, S::Value>>> {
         let start = Instant::now();
 

@@ -16,7 +16,7 @@ use sov_rollup_interface::spec::SpecId;
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::get_fork_fn_only_fork1;
+use crate::tests::utils::get_fork_fn_only_fork2;
 use crate::Evm;
 
 type C = DefaultContext;
@@ -42,7 +42,7 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -61,7 +61,7 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(
@@ -85,7 +85,7 @@ fn test_state_change() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 1,
@@ -106,7 +106,7 @@ fn test_state_change() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -139,7 +139,7 @@ fn call_contract_with_value_transfer() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert!(call_result.is_err());
@@ -170,7 +170,7 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -191,7 +191,7 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -220,7 +220,7 @@ fn call_to_nonexistent_contract() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -248,7 +248,7 @@ fn call_with_high_gas_price() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(
@@ -357,7 +357,7 @@ fn eth_call_eip1559(
         None,
         None,
         working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     )
 }
 
@@ -399,7 +399,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(
@@ -418,7 +418,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(result_only_gas, Ok(Bytes::new()));
@@ -436,7 +436,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(
@@ -457,7 +457,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(result_gas_and_gas_price, Ok(Bytes::new()));
@@ -475,7 +475,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert!(result_fees.is_ok());
@@ -494,7 +494,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -513,7 +513,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -531,7 +531,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork1(),
+        get_fork_fn_only_fork2(),
     );
 
     assert!(result_high_fees.is_ok());
@@ -558,7 +558,7 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -600,7 +600,7 @@ fn test_call_with_state_overrides() {
             Some(state_override),
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 
@@ -625,7 +625,7 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork1(),
+            get_fork_fn_only_fork2(),
         )
         .unwrap();
 

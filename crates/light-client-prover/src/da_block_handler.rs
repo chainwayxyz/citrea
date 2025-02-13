@@ -9,8 +9,11 @@ use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData};
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
-use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
-use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, DaSpec, Zkvm};
+use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
+use sov_db::schema::types::SlotNumber;
+use sov_modules_api::{
+    BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, Zkvm,
+};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -20,7 +23,7 @@ use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -47,7 +50,7 @@ where
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     mmr_native: MMRNative<MmrDB>,
 }
 
@@ -80,7 +83,7 @@ where
             light_client_proof_code_commitments,
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
-            queued_l1_blocks: VecDeque::new(),
+            queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             mmr_native,
         }
     }
@@ -104,11 +107,10 @@ where
             StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
             StartVariant::FromBlock(height) => height,       // first block to scan
         };
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            l1_tx,
+            self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             LIGHT_CLIENT_METRICS.scan_l1_block.clone(),
         );
@@ -123,9 +125,6 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    self.queued_l1_blocks.push_back(l1_block);
-                },
                 _ = interval.tick() => {
                     if let Err(e) = self.process_queued_l1_blocks().await {
                         error!("Could not process queued L1 blocks and generate proof: {:?}", e);
@@ -136,16 +135,12 @@ where
     }
 
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
-        while !self.queued_l1_blocks.is_empty() {
-            let l1_block = self
-                .queued_l1_blocks
-                .front()
-                .expect("Pending l1 blocks cannot be empty")
-                .clone();
-
+        loop {
+            let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
+                break;
+            };
             self.process_l1_block(l1_block).await?;
-
-            self.queued_l1_blocks.pop_front();
+            self.queued_l1_blocks.lock().await.pop_front();
         }
 
         Ok(())
@@ -387,19 +382,24 @@ where
         proof: &Vec<u8>,
         light_client_l2_height: u64,
     ) -> anyhow::Result<bool> {
-        let batch_proof_last_l2_height = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec>,
-        >(proof)
-        {
+        let batch_proof_last_l2_height = match Vm::extract_output::<BatchProofCircuitOutputV3>(
+            proof,
+        ) {
             Ok(output) => output.last_l2_height,
             Err(e) => {
-                warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                if Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(proof).is_err() {
-                    return Err(anyhow::anyhow!(
-                        "Failed to extract both pre-fork1 and fork1 output from proof"
-                    ));
+                warn!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<BatchProofCircuitOutputV2>(proof) {
+                    Ok(output) => output.last_l2_height,
+                    Err(e) => {
+                        warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                        if Vm::extract_output::<BatchProofCircuitOutputV1>(proof).is_err() {
+                            return Err(anyhow::anyhow!(
+                                "Failed to extract both pre-fork1 and fork1 output from proof"
+                            ));
+                        }
+                        0
+                    }
                 }
-                0
             }
         };
 

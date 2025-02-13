@@ -13,8 +13,9 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
-    BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract, SelfDestructorContract,
-    SelfdestructingConstructorContract, SimpleStorageContract, TransientStorageContract,
+    BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract, P256VerifyCallerContract,
+    SelfDestructorContract, SelfdestructingConstructorContract, SimpleStorageContract,
+    TransientStorageContract,
 };
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
@@ -73,6 +74,23 @@ fn call_kzg_point_evaluation_transaction(
         .sign_default_transaction(
             TxKind::Call(contract_addr),
             contract.call_kzg_point_evaluation(input),
+            nonce,
+            0,
+        )
+        .unwrap()
+}
+
+fn call_p256_verify_transaction(
+    contract_addr: Address,
+    dev_signer: &TestSigner,
+    nonce: u64,
+    input: Bytes,
+) -> RlpEvmTransaction {
+    let contract = P256VerifyCallerContract::default();
+    dev_signer
+        .sign_default_transaction(
+            TxKind::Call(contract_addr),
+            contract.call_p256_verify(input),
             nonce,
             0,
         )
@@ -662,6 +680,114 @@ fn test_kzg_point_eval_should_revert() {
         )
         .unwrap()
     );
+    assert!(receipts.last().unwrap().receipt.success);
+}
+
+// 1. deploy p256verify contract on fork1 (any fork will work)
+// 2. call p256verify with a valid data on fork1 (it must fail because p256verify is not enabled on fork1)
+// 3. call p256verify with a valid data on fork2 (it must succeed because p256verify is enabled)
+#[test]
+fn test_p256_verify() {
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Kumquat,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+
+        let deploy_message =
+            create_contract_message(&dev_signer, 0, P256VerifyCallerContract::default());
+
+        let input = Bytes::from_str("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1").unwrap();
+
+        // This one should fail in Kumquat
+        let call_message = call_p256_verify_transaction(contract_addr, &dev_signer, 1, input);
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message, call_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // expect this call to fail because we do not have the p256 feature of revm enabled on fork1
+    let receipts: Vec<_> = evm
+        .receipts_rlp
+        .iter(&mut working_set.accessory_state())
+        .collect();
+    assert!(!receipts.last().unwrap().receipt.success);
+
+    let storage_value = evm.storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set);
+    assert!(storage_value.is_none());
+
+    l2_height += 1;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Fork2,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+        let input = Bytes::from_str("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1").unwrap();
+
+        let call_message = call_p256_verify_transaction(contract_addr, &dev_signer, 2, input);
+
+        evm.call(
+            CallMessage {
+                txs: vec![call_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // expect this call to success because we enabled the p256 feature of revm enabled on fork2
+    let receipts: Vec<_> = evm
+        .receipts_rlp
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
+        .unwrap();
+    assert_eq!(storage_value, U256::from(1));
     assert!(receipts.last().unwrap().receipt.success);
 }
 

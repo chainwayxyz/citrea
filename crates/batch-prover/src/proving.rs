@@ -12,7 +12,8 @@ use prover_services::{ParallelProverService, ProofData};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput};
+use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::{SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -21,6 +22,7 @@ use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -43,7 +45,7 @@ pub enum GroupCommitments {
     OneByOne,
 }
 
-pub(crate) async fn data_to_prove<'txs, Da, DB, Witness, Tx>(
+pub(crate) async fn data_to_prove<'txs, Da, DB, Witness, Tx, TxOld>(
     da_service: Arc<Da>,
     ledger: DB,
     sequencer_pub_key: Vec<u8>,
@@ -62,7 +64,8 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
-    Tx: Clone + BorshDeserialize + 'txs,
+    Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
+    TxOld: Clone + BorshDeserialize + 'txs,
 {
     let l1_height = l1_block.header().height();
 
@@ -142,7 +145,7 @@ where
             state_transition_witnesses,
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
-        ) = get_batch_proof_circuit_input_from_commitments(
+        ) = get_batch_proof_circuit_input_from_commitments::<_, _, _, Tx, TxOld>(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
             &ledger,
@@ -252,8 +255,7 @@ where
 
             let input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
-                // TODO: activate this once we freeze Kumquat ELFs
-                // SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
+                SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
                 _ => borsh::to_vec(&input.into_v3_parts())?,
             };
 
@@ -289,6 +291,8 @@ where
     Ok(())
 }
 
+/// TODO: This check needs a rewrite for sure.
+/// We could check on the sequencer commitments range only and not generate inputs
 pub(crate) fn state_transition_already_proven<Witness, Da, Tx>(
     input: &BatchProofCircuitInput<Witness, Da::Spec, Tx>,
     proofs: &Vec<StoredBatchProof>,
@@ -299,8 +303,23 @@ where
     Tx: Clone,
 {
     for proof in proofs {
-        if proof.proof_output.initial_state_root == input.initial_state_root.as_ref()
-            && proof.proof_output.sequencer_commitments_range == input.sequencer_commitments_range
+        let (initial_state_root, sequencer_commitments_range) = match &proof.proof_output {
+            StoredBatchProofOutput::V1(output) => (
+                output.initial_state_root,
+                output.sequencer_commitments_range,
+            ),
+            StoredBatchProofOutput::V2(output) => (
+                output.initial_state_root,
+                output.sequencer_commitments_range,
+            ),
+            StoredBatchProofOutput::V3(output) => (
+                output.initial_state_root,
+                output.sequencer_commitments_range,
+            ),
+        };
+
+        if initial_state_root == input.initial_state_root.as_ref()
+            && sequencer_commitments_range == input.sequencer_commitments_range
         {
             return true;
         }
@@ -323,35 +342,36 @@ where
 
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
-        let (last_active_spec_id, circuit_output) = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec>,
+        let (last_active_spec_id, da_slot_hash, batch_proof_output) = match Vm::extract_output::<
+            BatchProofCircuitOutputV3,
         >(&proof)
         {
             Ok(output) => (
                 fork_from_block_number(output.last_l2_height).spec_id,
-                output,
+                output.da_slot_hash,
+                StoredBatchProofOutput::V3(output),
             ),
             Err(e) => {
-                info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output = Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(&proof)
-                    .expect("Should be able to extract either pre or post fork 1 output");
-                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec> {
-                    initial_state_root: output.initial_state_root,
-                    final_state_root: output.final_state_root,
-                    state_diff: output.state_diff,
-                    da_slot_hash: output.da_slot_hash,
-                    sequencer_commitments_range: output.sequencer_commitments_range,
-                    sequencer_public_key: output.sequencer_public_key,
-                    sequencer_da_public_key: output.sequencer_da_public_key,
-                    preproven_commitments: output.preproven_commitments,
-                    // We don't have these fields in pre fork 1
-                    // That's why we serve them as 0
-                    prev_soft_confirmation_hash: [0; 32],
-                    final_soft_confirmation_hash: [0; 32],
-                    last_l2_height: 0,
-                };
-                // If we got output of pre fork 1 that means we are in genesis
-                (SpecId::Genesis, batch_proof_output)
+                info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
+                    Ok(output) => (
+                        fork_from_block_number(output.last_l2_height).spec_id,
+                        output.da_slot_hash,
+                        StoredBatchProofOutput::V2(output),
+                    ),
+                    Err(e) => {
+                        info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
+                        let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
+                            .expect("Should be able to extract either pre or post fork 1 output");
+
+                        // If we got output of pre fork 1 that means we are in genesis
+                        (
+                            SpecId::Genesis,
+                            output.da_slot_hash,
+                            StoredBatchProofOutput::V1(output),
+                        )
+                    }
+                }
             }
         };
 
@@ -364,23 +384,10 @@ where
         Vm::verify(proof.as_slice(), code_commitment)
             .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
-        debug!("circuit output: {:?}", circuit_output);
+        debug!("circuit output: {:?}", batch_proof_output);
 
-        let slot_hash = circuit_output.da_slot_hash.into();
+        let slot_hash = da_slot_hash;
 
-        let stored_batch_proof_output = StoredBatchProofOutput {
-            initial_state_root: circuit_output.initial_state_root.as_ref().to_vec(),
-            final_state_root: circuit_output.final_state_root.as_ref().to_vec(),
-            state_diff: circuit_output.state_diff,
-            da_slot_hash: slot_hash,
-            sequencer_commitments_range: circuit_output.sequencer_commitments_range,
-            sequencer_public_key: circuit_output.sequencer_public_key,
-            sequencer_da_public_key: circuit_output.sequencer_da_public_key,
-            preproven_commitments: circuit_output.preproven_commitments,
-            prev_soft_confirmation_hash: circuit_output.prev_soft_confirmation_hash,
-            final_soft_confirmation_hash: circuit_output.final_soft_confirmation_hash,
-            last_l2_height: circuit_output.last_l2_height,
-        };
         let l1_height = ledger_db
             .get_l1_height_of_l1_hash(slot_hash)?
             .expect("l1 height should exist");
@@ -389,7 +396,7 @@ where
             l1_height,
             tx_id_u8,
             proof,
-            stored_batch_proof_output,
+            batch_proof_output,
         ) {
             panic!("Failed to put proof data in the ledger db: {}", e);
         }

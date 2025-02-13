@@ -17,6 +17,7 @@ use prover_services::ParallelProverService;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::services::da::DaService;
@@ -106,6 +107,7 @@ where
         DB,
         StfWitness<C, Da::Spec, RT>,
         StfTransaction<C, Da::Spec, RT>,
+        PreFork2Transaction<C>,
     >(rpc_context);
     rpc_methods.merge(rpc)?;
     Ok(rpc_methods)
@@ -130,7 +132,7 @@ pub trait BatchProverRpc {
     ) -> RpcResult<()>;
 }
 
-pub struct BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx>
+pub struct BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx, TxOld>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -141,9 +143,10 @@ where
     context: Arc<RpcContext<C, Da, Vm, DB>>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
+    _tx_old: PhantomData<TxOld>,
 }
 
-impl<C, Da, Vm, DB, Witness, Tx> BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx>
+impl<C, Da, Vm, DB, Witness, Tx, TxOld> BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx, TxOld>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -157,13 +160,14 @@ where
             context: Arc::new(context),
             _witness: PhantomData,
             _tx: PhantomData,
+            _tx_old: PhantomData,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<C, Da, Vm, DB, Witness, Tx> BatchProverRpcServer
-    for BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx>
+impl<C, Da, Vm, DB, Witness, Tx, TxOld> BatchProverRpcServer
+    for BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx, TxOld>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -177,7 +181,8 @@ where
         + Send
         + Sync
         + 'static,
-    Tx: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    Tx: From<TxOld> + Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    TxOld: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
 {
     async fn generate_input(
         &self,
@@ -197,7 +202,7 @@ where
                 )
             })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness, Tx>(
+        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness, Tx, TxOld>(
             self.context.da_service.clone(),
             self.context.ledger.clone(),
             self.context.sequencer_pub_key.clone(),
@@ -229,8 +234,7 @@ where
 
             let serialized_circuit_input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input)),
-                // TODO: activate this once we freeze Kumquat ELFs
-                // SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts()),
+                SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts()),
                 _ => borsh::to_vec(&input.into_v3_parts()),
             }
             .expect("Risc0 hint serialization is infallible");
@@ -268,7 +272,7 @@ where
                 )
             })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness, Tx>(
+        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness, Tx, TxOld>(
             self.context.da_service.clone(),
             self.context.ledger.clone(),
             self.context.sequencer_pub_key.clone(),
@@ -308,9 +312,9 @@ where
     }
 }
 
-pub fn create_rpc_module<C, Da, Vm, DB, Witness, Tx>(
+pub fn create_rpc_module<C, Da, Vm, DB, Witness, Tx, TxOld>(
     rpc_context: RpcContext<C, Da, Vm, DB>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx>>
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<C, Da, Vm, DB, Witness, Tx, TxOld>>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -324,7 +328,8 @@ where
         + Send
         + Sync
         + 'static,
-    Tx: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    Tx: From<TxOld> + Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    TxOld: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
