@@ -15,19 +15,19 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
 
     indices.seek_to_first();
 
-    // if indices.is_empty() {
-    //     error!("State: Nothing to prune");
-    //     return;
-    // }
-
     let mut deletions = 0;
 
     let mut batch = SchemaBatch::new();
-    while let Some(index) = indices.next() {
-        let index = index.unwrap();
+    for index in indices {
+        let Ok(index) = index else {
+            continue;
+        };
+
         let index = index.key;
 
-        // TODO: maybe don't do this
+        // TODO: We currently have this check to prevent pruning index nodes
+        // for the genesis block. However, since this is reported as stale
+        // we need to double check if these keys are prunable as well or not.
         if index.node_key.version() == 1 {
             continue;
         }
@@ -50,7 +50,6 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
         };
 
         let key_hash = match node {
-            // TODO: check if we can delete internal nodes?
             Node::Null => continue,
             Node::Internal(_) => {
                 if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
@@ -73,8 +72,6 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
             Node::Leaf(leaf) => leaf.key_hash(),
         };
 
-        // println!("Deleting state key: {}", hex::encode(&key_hash.0));
-
         let key_preimage = match state_db.get::<KeyHashToKey>(&key_hash.0) {
             Ok(Some(key)) => key,
             _ => {
@@ -82,45 +79,46 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
                 continue;
             }
         };
-        // println!(
-        //     "Deleting state key: {} version: {} raw key: {:?}",
-        //     std::string::String::from_utf8_lossy(&key_preimage),
-        //     index.node_key.version(),
-        //     key_preimage
-        // );
-        let mut x = state_db.iter::<JmtValues>().unwrap();
 
-        x.seek(&(key_preimage.clone(), index.node_key.version()))
-            .unwrap();
+        let mut values_iter = match state_db.iter::<JmtValues>() {
+            Ok(iter) => iter,
+            Err(e) => {
+                error!("Coult not iterate JmtValues: {:?}", e);
+                continue;
+            }
+        };
 
-        let _ = x.next().expect("Should be in db");
-
-        let next_in_iter = x.next();
-
-        if next_in_iter.is_none() {
-            println!("Got the last key in db?");
-            // if let Err(e) = batch.delete::<StaleNodes>(&index) {
-            //     error!(
-            //         "Could not add stale node deletion to schema batch operation: {:?}",
-            //         e
-            //     );
-            // }
+        if let Err(e) = values_iter.seek(&(key_preimage.clone(), index.node_key.version())) {
+            error!("Could not seek on JmtValues iterator: {:?}", e);
             continue;
         }
 
-        let (key, _version) = &next_in_iter.unwrap().unwrap().key;
+        if values_iter.next().is_none() {
+            error!("The JmtValue key does not exist in DB");
+            continue;
+        }
+
+        // Check if a value that has a larger key version exists
+        let Ok(next_larger_version_value) = values_iter.next().transpose() else {
+            continue;
+        };
+
+        let Some(iterator_output) = next_larger_version_value else {
+            continue;
+        };
+
+        let (key, _version) = iterator_output.key;
 
         if *key != key_preimage {
-            // println!("No bigger version for that key!");
-
+            // TODO
             // This means there was no bigger version for that key
             // This is probably a bug in the JMT crate
-            // if let Err(e) = batch.delete::<StaleNodes>(&index) {
-            //     error!(
-            //         "Could not add stale node deletion to schema batch operation: {:?}",
-            //         e
-            //     );
-            // }
+            if let Err(e) = batch.delete::<StaleNodes>(&index) {
+                error!(
+                    "Could not add stale node deletion to schema batch operation: {:?}",
+                    e
+                );
+            }
             continue;
         }
 
