@@ -76,8 +76,18 @@ where
         );
         let mut x = VecDeque::with_capacity(self.soft_confirmations.len());
 
-        for (confirmations, witnesses) in self
+        let v2_confirmations = self
             .soft_confirmations
+            .into_iter()
+            .map(|confirmations| {
+                confirmations
+                    .into_iter()
+                    .map(SignedSoftConfirmation::from)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<VecDeque<_>>();
+
+        for (confirmations, witnesses) in v2_confirmations
             .into_iter()
             .zip(self.state_transition_witnesses)
         {
@@ -135,7 +145,12 @@ where
                 .into_iter()
                 .zip(witnesses)
                 .map(|(confirmation, (state_witness, offchain_witness))| {
-                    (confirmation, state_witness, offchain_witness)
+                    (
+                        confirmation.l2_height(),
+                        confirmation,
+                        state_witness,
+                        offchain_witness,
+                    )
                 })
                 .collect();
 

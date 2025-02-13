@@ -20,7 +20,6 @@ use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
@@ -260,7 +259,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::DaService,
             LedgerDB,
             ArrayWitness,
-            Transaction<<Self as RollupBlueprint>::NativeContext>,
+            Self::NativeContext,
         >,
         RpcModule<()>,
     )>

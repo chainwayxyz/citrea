@@ -3,14 +3,15 @@ use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
-use sov_modules_api::{native_error, native_trace, SoftConfirmationModuleCallError};
+use sov_modules_api::{
+    native_error, native_trace, SoftConfirmationModuleCallError, SpecId as CitreaSpecId,
+};
 #[cfg(feature = "native")]
 use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
-use crate::db::DBError;
-use crate::SYSTEM_SIGNER;
+use crate::{EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
     evm: revm::Evm<'a, EXT, DB>,
@@ -22,11 +23,17 @@ where
     EXT: CitreaExternalExt,
 {
     /// Creates a new Citrea EVM with the given parameters.
-    pub fn new(db: DB, block_env: BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
+    pub fn new(
+        db: DB,
+        citrea_spec: CitreaSpecId,
+        block_env: BlockEnv,
+        config_env: CfgEnvWithHandlerCfg,
+        ext: EXT,
+    ) -> Self {
         let evm_env = Env::boxed(config_env.cfg_env, block_env, Default::default());
         let evm_context = EvmContext::new_with_env(db, evm_env);
         let context = Context::new(evm_context, ext);
-        let handler = citrea_handler(config_env.handler_cfg);
+        let handler = citrea_handler(citrea_spec, config_env.handler_cfg);
         let evm = revm::Evm::new(context, handler);
         Self { evm }
     }
@@ -66,11 +73,8 @@ where
 
 /// Will fail on the first error.
 /// Rendering the soft confirmation invalid
-pub(crate) fn execute_multiple_tx<
-    DB: Database<Error = DBError> + DatabaseCommit,
-    EXT: CitreaExternalExt,
->(
-    db: DB,
+pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
+    db: EvmDb<C>,
     block_env: BlockEnv,
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
@@ -85,7 +89,8 @@ pub(crate) fn execute_multiple_tx<
 
     let mut cumulative_gas_used = prev_gas_used;
 
-    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
+    let citrea_spec = db.citrea_spec;
+    let mut evm = CitreaEvm::new(db, citrea_spec, block_env, config_env, ext);
 
     let mut tx_results = Vec::with_capacity(txs.len());
     for (_i, tx) in txs.iter().enumerate() {
@@ -138,17 +143,15 @@ pub(crate) fn execute_multiple_tx<
     Ok(tx_results)
 }
 
-pub(crate) fn execute_system_txs<
-    DB: Database<Error = DBError> + DatabaseCommit,
-    EXT: CitreaExternalExt,
->(
-    db: DB,
+pub(crate) fn execute_system_txs<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
+    db: EvmDb<C>,
     block_env: BlockEnv,
     system_txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
 ) -> Vec<ExecutionResult> {
-    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
+    let citrea_spec = db.citrea_spec;
+    let mut evm = CitreaEvm::new(db, citrea_spec, block_env, config_env, ext);
 
     system_txs
         .iter()

@@ -197,6 +197,7 @@ pub use sov_rollup_interface::soft_confirmation::{
 };
 pub use sov_rollup_interface::stf::StateDiff;
 pub use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+pub use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 pub use sov_rollup_interface::zk::Zkvm;
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
 

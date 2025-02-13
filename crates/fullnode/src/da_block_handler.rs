@@ -21,6 +21,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::Mutex;
@@ -279,48 +280,65 @@ where
         let (
             last_active_spec_id,
             batch_proof_output,
-            sequencer_da_public_key,
-            sequencer_public_key,
             da_slot_hash,
             preproven_commitments,
             sequencer_commitments_range,
             initial_state_root,
-        ) = match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
+        ) = match Vm::extract_output::<BatchProofCircuitOutputV3>(&proof) {
             Ok(output) => (
                 fork_from_block_number(output.last_l2_height).spec_id,
                 StoredBatchProofOutput::from(output.clone()),
-                output.sequencer_da_public_key,
-                output.sequencer_public_key,
                 output.da_slot_hash,
                 output.preproven_commitments,
                 output.sequencer_commitments_range,
                 output.initial_state_root,
             ),
             Err(e) => {
-                info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
-                    .expect("Should be able to extract either pre or post fork 1 output");
-                // If we got output of pre fork 1 that means we are in genesis
-                (
-                    SpecId::Genesis,
-                    StoredBatchProofOutput::from(output.clone()),
-                    output.sequencer_da_public_key,
-                    output.sequencer_public_key,
-                    output.da_slot_hash,
-                    output.preproven_commitments,
-                    output.sequencer_commitments_range,
-                    output.initial_state_root,
-                )
+                info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
+                    Ok(output) => {
+                        if output.sequencer_da_public_key != self.sequencer_da_pub_key
+                            || output.sequencer_public_key != self.sequencer_pub_key
+                        {
+                            return Err(anyhow!(
+                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+            ).into());
+                        }
+                        (
+                            fork_from_block_number(output.last_l2_height).spec_id,
+                            StoredBatchProofOutput::from(output.clone()),
+                            output.da_slot_hash,
+                            output.preproven_commitments,
+                            output.sequencer_commitments_range,
+                            output.initial_state_root,
+                        )
+                    }
+                    Err(e) => {
+                        info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
+                        let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
+                            .expect("Should be able to extract either pre or post fork 1 output");
+                        if output.sequencer_da_public_key != self.sequencer_da_pub_key
+                            || output.sequencer_public_key != self.sequencer_pub_key
+                        {
+                            return Err(anyhow!(
+                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+            ).into());
+                        }
+                        // If we got output of pre fork 1 that means we are in genesis
+                        (
+                            SpecId::Genesis,
+                            StoredBatchProofOutput::from(output.clone()),
+                            output.da_slot_hash,
+                            output.preproven_commitments,
+                            output.sequencer_commitments_range,
+                            output.initial_state_root,
+                        )
+                    }
+                }
             }
         };
 
-        if sequencer_da_public_key != self.sequencer_da_pub_key
-            || sequencer_public_key != self.sequencer_pub_key
-        {
-            return Err(anyhow!(
-                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
-            ).into());
-        }
+        // TODO: Do this check for v1 only
 
         let code_commitment = self
             .code_commitments_by_spec

@@ -11,8 +11,8 @@ mod tests;
 pub use hooks::AccountsTxHook;
 use sov_modules_api::{Context, ModuleInfo, SoftConfirmationModuleCallError, WorkingSet};
 
-impl<C: Context> FromIterator<C::PublicKey> for AccountConfig<C> {
-    fn from_iter<T: IntoIterator<Item = C::PublicKey>>(iter: T) -> Self {
+impl FromIterator<Vec<u8>> for AccountConfig {
+    fn from_iter<T: IntoIterator<Item = Vec<u8>>>(iter: T) -> Self {
         Self {
             pub_keys: iter.into_iter().collect(),
         }
@@ -37,18 +37,27 @@ pub struct Accounts<C: Context> {
     pub address: C::Address,
 
     /// Mapping from an account address to a corresponding public key.
-    #[state]
-    pub(crate) public_keys: sov_modules_api::StateMap<C::Address, C::PublicKey>,
+    #[state(rename = "public_keys_post_fork2")]
+    pub(crate) public_keys: sov_modules_api::StateMap<C::Address, Vec<u8>>,
+
+    /// Mapping from an account address to a corresponding public key used before fork2.
+    /// This uses address to public key object directly
+    #[state(rename = "public_keys")]
+    pub(crate) public_keys_pre_fork2: sov_modules_api::StateMap<C::Address, C::PublicKey>,
 
     /// Mapping from a public key to a corresponding account.
-    #[state]
-    pub(crate) accounts: sov_modules_api::StateMap<C::PublicKey, Account<C>>,
+    #[state(rename = "accounts_post_fork2")]
+    pub(crate) accounts: sov_modules_api::StateMap<Vec<u8>, Account<C>>,
+
+    /// Mapping from a public key to a corresponding account.
+    #[state(rename = "accounts")]
+    pub(crate) accounts_pre_fork2: sov_modules_api::StateMap<C::PublicKey, Account<C>>,
 }
 
 impl<C: Context> sov_modules_api::Module for Accounts<C> {
     type Context = C;
 
-    type Config = AccountConfig<C>;
+    type Config = AccountConfig;
 
     type CallMessage = ();
 

@@ -30,8 +30,11 @@ pub trait SeekKeyEncoder<S: Schema>: Sized {
     fn encode_seek_key(&self) -> crate::schema::Result<Vec<u8>>;
 }
 
-pub(crate) enum ScanDirection {
+/// The direction which is used with the iterator
+pub enum ScanDirection {
+    /// Going forward
     Forward,
+    /// Going backward
     Backward,
 }
 
@@ -81,19 +84,6 @@ where
         let key = seek_key.encode_seek_key()?;
         self.db_iter.seek_for_prev(&key);
         Ok(())
-    }
-
-    /// Reverses iterator direction.
-    pub fn rev(self) -> Self {
-        let new_direction = match self.direction {
-            ScanDirection::Forward => ScanDirection::Backward,
-            ScanDirection::Backward => ScanDirection::Forward,
-        };
-        SchemaIterator {
-            db_iter: self.db_iter,
-            direction: new_direction,
-            phantom: Default::default(),
-        }
     }
 
     fn next_impl(&mut self) -> Result<Option<IteratorOutput<S::Key, S::Value>>> {

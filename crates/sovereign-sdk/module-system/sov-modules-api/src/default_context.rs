@@ -13,7 +13,7 @@ use sov_state::{ArrayWitness, DefaultWitness, ZkStorage};
 
 #[cfg(feature = "native")]
 use crate::default_signature::private_key::DefaultPrivateKey;
-use crate::default_signature::{DefaultPublicKey, DefaultSignature};
+use crate::default_signature::{DefaultPublicKey, DefaultSignature, K256PublicKey};
 
 #[cfg(feature = "native")]
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -116,6 +116,17 @@ impl PublicKey for DefaultPublicKey {
         let pub_key_hash = {
             let mut hasher = <ZkDefaultContext as Spec>::Hasher::new();
             hasher.update(self.pub_key);
+            hasher.finalize().into()
+        };
+        A::from(pub_key_hash)
+    }
+}
+
+impl PublicKey for K256PublicKey {
+    fn to_address<A: RollupAddress>(&self) -> A {
+        let pub_key_hash = {
+            let mut hasher = <ZkDefaultContext as Spec>::Hasher::new();
+            hasher.update(self.pub_key.to_sec1_bytes());
             hasher.finalize().into()
         };
         A::from(pub_key_hash)

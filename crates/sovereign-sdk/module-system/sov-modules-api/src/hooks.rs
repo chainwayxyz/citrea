@@ -23,18 +23,20 @@ pub trait TxHooks {
     /// Runs just before a transaction is dispatched to an appropriate module.
     fn pre_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Context>,
+        tx: &Transaction,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
         arg: &Self::PreArg,
+        spec_id: SpecId,
     ) -> Result<Self::PreResult, SoftConfirmationHookError>;
 
     /// Runs after the tx is dispatched to an appropriate module.
     /// IF this hook returns error rollup panics
     fn post_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Context>,
+        tx: &Transaction,
         ctx: &Self::Context,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+        spec_id: SpecId,
     ) -> Result<(), SoftConfirmationHookError>;
 }
 
