@@ -18,7 +18,7 @@ use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
@@ -51,9 +51,6 @@ impl RollupBlueprint for BitcoinRollup {
     type DaVerifier = BitcoinVerifier;
     type Vm = Risc0BonsaiHost;
 
-    type ZkRuntime = CitreaRuntime<ZkDefaultContext, Self::DaSpec>;
-    type NativeRuntime = CitreaRuntime<DefaultContext, Self::DaSpec>;
-
     fn new(network: Network) -> Self {
         use_network_forks(network);
         Self { network }
@@ -73,9 +70,9 @@ impl RollupBlueprint for BitcoinRollup {
 
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
-            Self::NativeRuntime,
             Self::DaService,
-        >(storage, ledger_db, da_service, sov_sequencer)?;
+            CitreaRuntime<DefaultContext, Self::DaSpec>,
+        >(storage, ledger_db, sov_sequencer)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),

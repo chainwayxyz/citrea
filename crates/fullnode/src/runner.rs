@@ -11,6 +11,7 @@ use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::NodeLedgerOps;
@@ -19,7 +20,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SignedSoftConfirmation, SpecId};
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
@@ -35,19 +36,18 @@ use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 
-type StfTransaction<Da, RT> =
-    <StfBlueprint<DefaultContext, Da, RT> as StateTransitionFunction<Da>>::Transaction;
+type StfTransaction<Da> =
+    <StfBlueprint<DefaultContext, Da, CitreaRuntime<DefaultContext, Da>> as StateTransitionFunction<Da>>::Transaction;
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Da, DB, RT>
+pub struct CitreaFullnode<Da, DB>
 where
     Da: DaService,
     DB: NodeLedgerOps + Clone,
-    RT: Runtime<DefaultContext, Da::Spec>,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
-    stf: StfBlueprint<DefaultContext, Da::Spec, RT>,
+    stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
     state_root: StorageRootHash,
@@ -62,11 +62,10 @@ where
     soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
-impl<Da, DB, RT> CitreaFullnode<Da, DB, RT>
+impl<Da, DB> CitreaFullnode<Da, DB>
 where
     Da: DaService<Error = anyhow::Error>,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
-    RT: Runtime<DefaultContext, Da::Spec>,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -77,7 +76,7 @@ where
     pub fn new(
         runner_config: RunnerConfig,
         init_params: InitParams,
-        stf: StfBlueprint<DefaultContext, Da::Spec, RT>,
+        stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
         ledger_db: DB,
@@ -145,11 +144,11 @@ where
 
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction< Da::Spec, RT>> =
+        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction< Da::Spec>> =
             // TODO: Should this be >= Fork2?
             if current_spec >= SpecId::Kumquat {
                 let signed_soft_confirmation: SignedSoftConfirmation<
-                    StfTransaction< Da::Spec, RT>,
+                    StfTransaction<Da::Spec>,
                 > = soft_confirmation
                     .clone()
                     .try_into()
@@ -165,7 +164,7 @@ where
                     .txs()
                     .iter()
                     .map(|tx| {
-                        let tx: StfTransaction<Da::Spec, RT> = tx.clone().into();
+                        let tx: StfTransaction<Da::Spec> = tx.clone().into();
                         tx
                     })
                     .collect::<Vec<_>>();

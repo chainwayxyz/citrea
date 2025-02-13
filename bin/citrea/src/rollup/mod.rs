@@ -14,7 +14,7 @@ use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientP
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
-use citrea_stf::runtime::DefaultContext;
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
@@ -39,7 +39,7 @@ pub use bitcoin::*;
 pub use mock::*;
 
 type GenesisParams<T> = StfGenesisParams<
-    <<T as RollupBlueprint>::NativeRuntime as RuntimeTrait<
+    <CitreaRuntime<DefaultContext, <T as RollupBlueprint>::DaSpec> as RuntimeTrait<
         DefaultContext,
         <T as RollupBlueprint>::DaSpec,
     >>::GenesisConfig,
@@ -142,10 +142,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
-    ) -> Result<(
-        CitreaSequencer<Self::DaService, LedgerDB, Self::NativeRuntime>,
-        RpcModule<()>,
-    )> {
+    ) -> Result<(CitreaSequencer<Self::DaService, LedgerDB>, RpcModule<()>)> {
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
@@ -192,7 +189,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<(
-        CitreaFullnode<Self::DaService, LedgerDB, Self::NativeRuntime>,
+        CitreaFullnode<Self::DaService, LedgerDB>,
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService<LedgerDB>>,
     )> {
@@ -247,7 +244,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
     ) -> Result<(
-        CitreaBatchProver<Self::DaService, LedgerDB, Self::NativeRuntime>,
+        CitreaBatchProver<Self::DaService, LedgerDB>,
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
         RpcModule<()>,
     )> {
@@ -377,7 +374,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     fn init_chain(
         &self,
         genesis_config: GenesisParams<Self>,
-        stf: &StfBlueprint<DefaultContext, Self::DaSpec, Self::NativeRuntime>,
+        stf: &StfBlueprint<
+            DefaultContext,
+            Self::DaSpec,
+            CitreaRuntime<DefaultContext, Self::DaSpec>,
+        >,
         ledger_db: &LedgerDB,
         storage_manager: &mut ProverStorageManager<Self::DaSpec>,
         prover_storage: &ProverStorage<SnapshotManager>,

@@ -34,7 +34,7 @@ use sov_modules_api::{
     EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, SpecId, StateDiff,
     UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
-use sov_modules_stf_blueprint::{Runtime as RuntimeT, StfBlueprint};
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -57,19 +57,18 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
 
-type StfTransaction<Da, RT> =
-    <StfBlueprint<DefaultContext, Da, RT> as StateTransitionFunction<Da>>::Transaction;
+type StfTransaction<Da> =
+    <StfBlueprint<DefaultContext, Da, CitreaRuntime<DefaultContext, Da>> as StateTransitionFunction<Da>>::Transaction;
 
 /// Represents information about the current DA state.
 ///
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
-pub struct CitreaSequencer<Da, DB, RT>
+pub struct CitreaSequencer<Da, DB>
 where
     Da: DaService,
     DB: SequencerLedgerOps + Send + Clone + 'static,
-    RT: RuntimeT<DefaultContext, Da::Spec>,
 {
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool>,
@@ -79,7 +78,7 @@ where
     db_provider: DbProvider,
     ledger_db: DB,
     config: SequencerConfig,
-    stf: StfBlueprint<DefaultContext, Da::Spec, RT>,
+    stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: ProverStorageManager<Da::Spec>,
     state_root: StorageRootHash,
@@ -96,18 +95,17 @@ enum L2BlockMode {
     NotEmpty,
 }
 
-impl<Da, DB, RT> CitreaSequencer<Da, DB, RT>
+impl<Da, DB> CitreaSequencer<Da, DB>
 where
     Da: DaService,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
-    RT: RuntimeT<DefaultContext, Da::Spec>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
         config: SequencerConfig,
         init_params: InitParams,
-        stf: StfBlueprint<DefaultContext, Da::Spec, RT>,
+        stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         storage_manager: ProverStorageManager<Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
@@ -827,7 +825,7 @@ where
         raw_message: Vec<u8>,
         working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         spec_id: SpecId,
-    ) -> anyhow::Result<StfTransaction<Da::Spec, RT>> {
+    ) -> anyhow::Result<StfTransaction<Da::Spec>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
         let nonce = self.get_nonce(working_set, spec_id)?;
@@ -846,9 +844,9 @@ where
 
     fn sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec, RT>>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec, RT>>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec>>> {
         let digest =
             soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
@@ -877,9 +875,9 @@ where
     /// Signs necessary info and returns a BlockTemplate
     fn pre_fork2_sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec, RT>>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec, RT>>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec>>> {
         let digest =
             soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
@@ -910,9 +908,9 @@ where
     /// FIXME: ^
     fn pre_fork1_sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec, RT>>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec, RT>>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec>>> {
         let unsigned_sc = UnsignedSoftConfirmationV1::from(soft_confirmation.clone());
         let hash: [u8; 32] = unsigned_sc
             .hash::<<DefaultContext as Spec>::Hasher>()

@@ -6,16 +6,13 @@ use sov_prover_storage_manager::{ProverStorage, SnapshotManager};
 use sov_rollup_interface::services::da::DaService;
 
 /// Register rollup's default rpc methods.
-pub fn register_rpc<RT, Da>(
+pub fn register_rpc<Da: DaService, RT>(
     storage: &ProverStorage<SnapshotManager>,
     ledger_db: &LedgerDB,
-    _da_service: &Da,
     _sequencer: <DefaultContext as Spec>::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
     RT: RuntimeTrait<DefaultContext, <Da as DaService>::Spec> + Send + Sync + 'static,
-
-    Da: DaService,
 {
     // runtime rpc.
     let mut rpc_methods = RT::rpc_methods(storage.clone());

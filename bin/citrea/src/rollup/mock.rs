@@ -14,7 +14,7 @@ use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier};
-use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -37,8 +37,6 @@ impl RollupBlueprint for MockDemoRollup {
     type DaConfig = MockDaConfig;
     type DaVerifier = MockDaVerifier;
     type Vm = Risc0BonsaiHost;
-    type ZkRuntime = CitreaRuntime<ZkDefaultContext, Self::DaSpec>;
-    type NativeRuntime = CitreaRuntime<DefaultContext, Self::DaSpec>;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -57,9 +55,9 @@ impl RollupBlueprint for MockDemoRollup {
         let sequencer = Address::new([0; 32]);
 
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
-            Self::NativeRuntime,
             Self::DaService,
-        >(storage, ledger_db, da_service, sequencer)?;
+            CitreaRuntime<DefaultContext, Self::DaSpec>,
+        >(storage, ledger_db, sequencer)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),

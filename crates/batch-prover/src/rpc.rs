@@ -20,7 +20,6 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SpecId, Zkvm};
-use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -57,7 +56,7 @@ where
 
 /// Creates a shared RpcContext with all required data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn create_rpc_context<Da, Vm, DB, RT>(
+pub fn create_rpc_context<Da, Vm, DB>(
     da_service: Arc<Da>,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger: DB,
@@ -71,7 +70,6 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone,
     Vm: ZkvmHost + Zkvm,
-    RT: Runtime<DefaultContext, Da::Spec>,
 {
     RpcContext {
         ledger: ledger.clone(),
@@ -87,7 +85,7 @@ where
 }
 
 /// Updates the given RpcModule with Prover methods.
-pub fn register_rpc_methods<Da, Vm, DB, RT>(
+pub fn register_rpc_methods<Da, Vm, DB>(
     rpc_context: RpcContext<Da, Vm, DB>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
@@ -95,14 +93,13 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
-    RT: Runtime<DefaultContext, Da::Spec>,
 {
     let rpc = create_rpc_module::<
         Da,
         Vm,
         DB,
-        StfWitness<Da::Spec, RT>,
-        StfTransaction<Da::Spec, RT>,
+        StfWitness<Da::Spec>,
+        StfTransaction<Da::Spec>,
         PreFork2Transaction<DefaultContext>,
     >(rpc_context);
     rpc_methods.merge(rpc)?;
