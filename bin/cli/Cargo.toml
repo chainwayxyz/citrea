@@ -12,8 +12,8 @@ resolver = "2"
 
 [dependencies]
 # Citrea deps
-citrea-storage-ops = { path = "../../crates/storage-ops" }
 citrea-common = { path = "../../crates/common" }
+citrea-storage-ops = { path = "../../crates/storage-ops" }
 
 # Sovereign-SDK deps
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }

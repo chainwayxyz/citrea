@@ -14,10 +14,7 @@ pub struct Auth<S> {
 
 impl<S> Auth<S> {
     pub fn new(service: S, api_key: Option<String>) -> Self {
-        Self {
-            service,
-            api_key: api_key,
-        }
+        Self { service, api_key }
     }
 }
 
@@ -28,7 +25,7 @@ where
     type Future = BoxFuture<'a, MethodResponse>;
 
     fn call(&self, req: Request<'a>) -> Self::Future {
-        let method = req.method_name().as_ref();
+        let method = req.method_name();
         let service = self.service.clone();
         let api_key = self.api_key.clone();
 

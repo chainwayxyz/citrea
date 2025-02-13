@@ -545,6 +545,7 @@ mod tests {
                 batch_requests_limit: 50,
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                api_key: None,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],
@@ -724,6 +725,7 @@ mod tests {
                 batch_requests_limit: default_batch_requests_limit(),
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                api_key: None,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
