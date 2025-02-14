@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -14,7 +13,7 @@ use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
-use sov_modules_api::{Context, Zkvm};
+use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -31,9 +30,8 @@ use tracing::{error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
 
-pub struct L1BlockHandler<C, Vm, Da, DB>
+pub struct L1BlockHandler<Vm, Da, DB>
 where
-    C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps,
@@ -46,12 +44,10 @@ where
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
-    _context: PhantomData<C>,
 }
 
-impl<C, Vm, Da, DB> L1BlockHandler<C, Vm, Da, DB>
+impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
 where
-    C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps + Clone,
@@ -75,7 +71,6 @@ where
             code_commitments_by_spec,
             l1_block_cache,
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
-            _context: PhantomData,
         }
     }
 

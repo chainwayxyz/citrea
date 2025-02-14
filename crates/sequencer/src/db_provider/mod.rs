@@ -7,6 +7,7 @@ use alloy_primitives::{
 use alloy_rpc_types::{AnyNetworkBlock, BlockTransactions};
 use citrea_evm::{Evm, EvmChainConfig};
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
 use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db::models::StoredBlockBodyIndices;
@@ -22,17 +23,17 @@ use reth_provider::{
 };
 use reth_trie::updates::TrieUpdates;
 use reth_trie::{HashedPostState, HashedStorage, StorageProof};
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Spec, WorkingSet};
 
 #[derive(Clone)]
-pub struct DbProvider<C: sov_modules_api::Context> {
-    pub evm: Evm<C>,
-    pub storage: C::Storage,
+pub struct DbProvider {
+    pub evm: Evm<DefaultContext>,
+    pub storage: <DefaultContext as Spec>::Storage,
 }
 
-impl<C: sov_modules_api::Context> DbProvider<C> {
-    pub fn new(storage: C::Storage) -> Self {
-        let evm = Evm::<C>::default();
+impl DbProvider {
+    pub fn new(storage: <DefaultContext as Spec>::Storage) -> Self {
+        let evm = Evm::<DefaultContext>::default();
         Self { evm, storage }
     }
 
@@ -71,7 +72,7 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> AccountReader for DbProvider<C> {
+impl AccountReader for DbProvider {
     #[doc = r" Get basic account information."]
     #[doc = r""]
     #[doc = r" Returns `None` if the account doesn't exist."]
@@ -91,7 +92,7 @@ impl<C: sov_modules_api::Context> AccountReader for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> RequestsProvider for DbProvider<C> {
+impl RequestsProvider for DbProvider {
     fn requests_by_block(
         &self,
         _id: BlockHashOrNumber,
@@ -101,7 +102,7 @@ impl<C: sov_modules_api::Context> RequestsProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> BlockReaderIdExt for DbProvider<C> {
+impl BlockReaderIdExt for DbProvider {
     fn block_by_id(
         &self,
         _id: reth_primitives::BlockId,
@@ -168,7 +169,7 @@ impl<C: sov_modules_api::Context> BlockReaderIdExt for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> HeaderProvider for DbProvider<C> {
+impl HeaderProvider for DbProvider {
     fn header(&self, _block_hash: &BlockHash) -> ProviderResult<Option<reth_primitives::Header>> {
         unimplemented!("header")
     }
@@ -217,7 +218,7 @@ impl<C: sov_modules_api::Context> HeaderProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> BlockHashReader for DbProvider<C> {
+impl BlockHashReader for DbProvider {
     fn block_hash(&self, _number: BlockNumber) -> ProviderResult<Option<B256>> {
         unimplemented!()
     }
@@ -236,7 +237,7 @@ impl<C: sov_modules_api::Context> BlockHashReader for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> BlockNumReader for DbProvider<C> {
+impl BlockNumReader for DbProvider {
     fn best_block_number(&self) -> ProviderResult<BlockNumber> {
         unimplemented!("best_block_number")
     }
@@ -260,7 +261,7 @@ impl<C: sov_modules_api::Context> BlockNumReader for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> BlockIdReader for DbProvider<C> {
+impl BlockIdReader for DbProvider {
     fn block_hash_for_id(
         &self,
         _block_id: reth_primitives::BlockId,
@@ -299,7 +300,7 @@ impl<C: sov_modules_api::Context> BlockIdReader for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> BlockReader for DbProvider<C> {
+impl BlockReader for DbProvider {
     fn block(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<reth_primitives::Block>> {
         unimplemented!("block")
     }
@@ -374,7 +375,7 @@ impl<C: sov_modules_api::Context> BlockReader for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> TransactionsProvider for DbProvider<C> {
+impl TransactionsProvider for DbProvider {
     fn senders_by_tx_range(
         &self,
         _range: impl std::ops::RangeBounds<TxNumber>,
@@ -439,7 +440,7 @@ impl<C: sov_modules_api::Context> TransactionsProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> ReceiptProvider for DbProvider<C> {
+impl ReceiptProvider for DbProvider {
     fn receipt(&self, _id: TxNumber) -> ProviderResult<Option<reth_primitives::Receipt>> {
         unimplemented!("receipt")
     }
@@ -460,7 +461,7 @@ impl<C: sov_modules_api::Context> ReceiptProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> ReceiptProviderIdExt for DbProvider<C> {
+impl ReceiptProviderIdExt for DbProvider {
     fn receipts_by_block_id(
         &self,
         _block: reth_primitives::BlockId,
@@ -475,7 +476,7 @@ impl<C: sov_modules_api::Context> ReceiptProviderIdExt for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> WithdrawalsProvider for DbProvider<C> {
+impl WithdrawalsProvider for DbProvider {
     fn latest_withdrawal(&self) -> ProviderResult<Option<reth_primitives::Withdrawal>> {
         unimplemented!("latest_withdrawal")
     }
@@ -488,14 +489,14 @@ impl<C: sov_modules_api::Context> WithdrawalsProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> ChainSpecProvider for DbProvider<C> {
+impl ChainSpecProvider for DbProvider {
     type ChainSpec = ChainSpec;
     fn chain_spec(&self) -> std::sync::Arc<ChainSpec> {
         unimplemented!("chain_spec")
     }
 }
 
-impl<C: sov_modules_api::Context> StateProviderFactory for DbProvider<C> {
+impl StateProviderFactory for DbProvider {
     fn history_by_block_hash(
         &self,
         _block: BlockHash,
@@ -540,7 +541,7 @@ impl<C: sov_modules_api::Context> StateProviderFactory for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> StateRootProvider for DbProvider<C> {
+impl StateRootProvider for DbProvider {
     #[doc = r" Returns the state root of the BundleState on top of the current state."]
     fn state_root(&self, _hashed_state: HashedPostState) -> ProviderResult<B256> {
         unimplemented!("state_root")
@@ -562,7 +563,7 @@ impl<C: sov_modules_api::Context> StateRootProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> StateProofProvider for DbProvider<C> {
+impl StateProofProvider for DbProvider {
     fn multiproof(
         &self,
         _input: reth_trie::TrieInput,
@@ -589,7 +590,7 @@ impl<C: sov_modules_api::Context> StateProofProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> StorageRootProvider for DbProvider<C> {
+impl StorageRootProvider for DbProvider {
     #[doc = " Returns the storage root of the `HashedStorage` for target address on top of the current"]
     #[doc = " state."]
     fn storage_root(
@@ -612,7 +613,7 @@ impl<C: sov_modules_api::Context> StorageRootProvider for DbProvider<C> {
     }
 }
 
-impl<C: sov_modules_api::Context> StateProvider for DbProvider<C> {
+impl StateProvider for DbProvider {
     fn account_balance(&self, _addr: Address) -> ProviderResult<Option<U256>> {
         unimplemented!("account_balance")
     }

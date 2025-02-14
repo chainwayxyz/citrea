@@ -12,6 +12,7 @@ use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
@@ -92,18 +93,14 @@ async fn main() -> anyhow::Result<()> {
 #[instrument(level = "trace", skip_all, err)]
 async fn start_rollup<S, DaC>(
     network: Network,
-    runtime_genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
-        <S as RollupBlueprint>::NativeContext,
-        <S as RollupBlueprint>::DaSpec,
-    >>::GenesisPaths,
+    runtime_genesis_paths: &<CitreaRuntime<DefaultContext, <S as RollupBlueprint>::DaSpec> as sov_modules_stf_blueprint::Runtime<DefaultContext, <S as RollupBlueprint>::DaSpec>>::GenesisPaths,
     rollup_config_path: Option<String>,
     node_type: NodeType,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
-    <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
-    <S as RollupBlueprint>::NativeRuntime: 'static,
+    <DefaultContext as Spec>::Storage: NativeStorage,
 {
     let rollup_config: FullNodeConfig<DaC> = match rollup_config_path {
         Some(path) => from_toml_path(path)

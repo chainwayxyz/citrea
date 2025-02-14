@@ -19,7 +19,7 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["n
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = ["native"] }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
-
+citrea-stf = { path = "../../../citrea-stf" }
 prover-services = { path = "../../../prover-services" }
 
 anyhow = { workspace = true }
