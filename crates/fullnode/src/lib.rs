@@ -5,17 +5,18 @@ use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
+use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
 pub use runner::*;
 use sov_db::ledger_db::NodeLedgerOps;
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
-use sov_modules_api::{Context, Spec, SpecId, Zkvm};
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
-use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
+use sov_modules_api::{SpecId, Zkvm};
+use sov_modules_stf_blueprint::StfBlueprint;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_state::ProverStorage;
 use tokio::sync::{broadcast, Mutex};
 
 pub mod da_block_handler;
@@ -24,10 +25,14 @@ mod metrics;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn build_services<Da, C, DB, RT, Vm>(
+pub fn build_services<Da, DB, Vm>(
     runner_config: RunnerConfig,
     init_params: InitParams,
-    native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
+    native_stf: StfBlueprint<
+        DefaultContext,
+        <Da as DaService>::Spec,
+        CitreaRuntime<DefaultContext, <Da as DaService>::Spec>,
+    >,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     ledger_db: DB,
@@ -37,15 +42,13 @@ pub fn build_services<Da, C, DB, RT, Vm>(
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    CitreaFullnode<Da, C, DB, RT>,
-    L1BlockHandler<C, Vm, Da, DB>,
+    CitreaFullnode<Da, DB>,
+    L1BlockHandler<Vm, Da, DB>,
     Option<PrunerService<DB>>,
 )>
 where
     Da: DaService<Error = anyhow::Error>,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Send + Sync + Clone + 'static,
-    RT: Runtime<C, Da::Spec>,
     Vm: ZkvmHost + Zkvm,
 {
     let last_pruned_block = ledger_db.get_last_pruned_l2_height()?.unwrap_or(0);

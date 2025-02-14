@@ -50,7 +50,7 @@ use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
 
-/// The `demo-stf runtime`.
+/// The Citrea runtime.
 
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
@@ -59,7 +59,7 @@ use crate::genesis_config::GenesisPaths;
     expose_rpc,
     serialization(serde::Serialize, serde::Deserialize)
 )]
-pub struct Runtime<C: Context, Da: DaSpec> {
+pub struct CitreaRuntime<C: Context, Da: DaSpec> {
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<C>,
     /// The EVM module.
@@ -69,7 +69,7 @@ pub struct Runtime<C: Context, Da: DaSpec> {
         soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<C, Da>,
 }
 
-impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for Runtime<C, Da>
+impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for CitreaRuntime<C, Da>
 where
     C: Context,
     Da: DaSpec,

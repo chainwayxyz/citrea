@@ -1,7 +1,7 @@
 #![no_main]
 use citrea_primitives::forks::NIGHTLY_FORKS;
 use citrea_risc0_adapter::guest::Risc0Guest;
-use citrea_stf::runtime::Runtime;
+use citrea_stf::runtime::CitreaRuntime;
 use citrea_stf::StfVerifier;
 use sov_mock_da::MockDaVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
@@ -52,7 +52,7 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StfVerifier<_, ZkDefaultContext, Runtime<_, _>> =
+    let mut stf_verifier: StfVerifier<_, ZkDefaultContext, CitreaRuntime<_, _>> =
         StfVerifier::new(stf, MockDaVerifier {});
 
     let out = stf_verifier

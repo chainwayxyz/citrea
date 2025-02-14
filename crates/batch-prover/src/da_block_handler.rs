@@ -19,6 +19,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
@@ -42,13 +43,12 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, DB, Witness, C>
+pub struct L1BlockHandler<Vm, Da, DB, Witness>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm + 'static,
     DB: BatchProverLedgerOps,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
-    C: sov_modules_api::Context,
 {
     prover_config: BatchProverConfig,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
@@ -63,16 +63,14 @@ where
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     _witness: PhantomData<Witness>,
     backup_manager: Arc<BackupManager>,
-    _context: PhantomData<C>,
 }
 
-impl<Vm, Da, DB, Witness, C> L1BlockHandler<Vm, Da, DB, Witness, C>
+impl<Vm, Da, DB, Witness> L1BlockHandler<Vm, Da, DB, Witness>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: BatchProverLedgerOps + Clone + 'static,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
-    C: sov_modules_api::Context,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -102,7 +100,6 @@ where
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             _witness: PhantomData,
             backup_manager,
-            _context: PhantomData,
         }
     }
 
@@ -183,7 +180,7 @@ where
             }
 
             let data_to_prove =
-                data_to_prove::<Da, DB, Witness, Transaction, PreFork2Transaction<C>>(
+                data_to_prove::<Da, DB, Witness, Transaction, PreFork2Transaction<DefaultContext>>(
                     self.da_service.clone(),
                     self.ledger_db.clone(),
                     self.sequencer_pub_key.clone(),
