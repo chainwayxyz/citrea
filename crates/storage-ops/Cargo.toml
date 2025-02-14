@@ -26,6 +26,5 @@ tokio-util = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["testing"] }
 tempfile = { workspace = true }
