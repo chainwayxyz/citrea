@@ -152,6 +152,11 @@ impl SharedLedgerOps for LedgerDB {
         self.db.path()
     }
 
+    /// Returns the inner DB instance
+    fn inner(&self) -> Arc<DB> {
+        self.db.clone()
+    }
+
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_soft_confirmation(
         &self,

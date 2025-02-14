@@ -2190,6 +2190,7 @@ dependencies = [
  "serde",
  "sov-db",
  "sov-prover-storage-manager",
+ "sov-rollup-interface",
  "sov-schema-db",
  "tempfile",
  "tokio",

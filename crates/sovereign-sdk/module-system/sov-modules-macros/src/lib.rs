@@ -9,8 +9,6 @@
 // documented there.
 #![allow(missing_docs)]
 
-#[cfg(feature = "native")]
-mod cli_parser;
 mod common;
 mod default_runtime;
 mod dispatch;
@@ -22,8 +20,6 @@ mod module_info;
 #[cfg(feature = "native")]
 mod rpc;
 
-#[cfg(feature = "native")]
-use cli_parser::{derive_cli_wallet_arg, CliParserMacro};
 use default_runtime::DefaultRuntimeMacro;
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
@@ -205,21 +201,6 @@ pub fn expose_rpc(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let expose_macro = ExposeRpcMacro::new("Expose");
     handle_macro_error(expose_macro.generate_rpc(original, input))
-}
-
-#[cfg(feature = "native")]
-#[proc_macro_derive(CliWallet, attributes(cli_skip))]
-pub fn cli_parser(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input);
-    let cli_parser = CliParserMacro::new("Cmd");
-    handle_macro_error(cli_parser.cli_macro(input))
-}
-
-#[cfg(feature = "native")]
-#[proc_macro_derive(CliWalletArg)]
-pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
-    let input: syn::DeriveInput = parse_macro_input!(input);
-    handle_macro_error(derive_cli_wallet_arg(input))
 }
 
 #[proc_macro_derive(ForkCodec)]

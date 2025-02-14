@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Result;
 use serde::de::DeserializeOwned;
@@ -19,6 +20,9 @@ use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
 pub trait SharedLedgerOps {
     /// Return DB path
     fn path(&self) -> &Path;
+
+    /// Returns the inner DB instance
+    fn inner(&self) -> Arc<sov_schema_db::DB>;
 
     /// Put soft confirmation to db
     fn put_soft_confirmation(
