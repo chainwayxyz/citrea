@@ -1,10 +1,12 @@
-use sov_db::schema::tables::{SoftConfirmationByHash, SoftConfirmationByNumber};
+use sov_db::schema::tables::{
+    SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
+};
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::pruning::types::PruningNodeType;
 
-pub(crate) fn prune_soft_confirmations_by_number(
+pub(crate) fn prune_soft_confirmations(
     node_type: PruningNodeType,
     ledger_db: &DB,
     up_to_block: u64,
@@ -26,10 +28,11 @@ pub(crate) fn prune_soft_confirmations_by_number(
         if soft_confirmation_number > SoftConfirmationNumber(up_to_block) {
             break;
         }
-        ledger_db.delete::<SoftConfirmationByNumber>(&record.key)?;
+        ledger_db.delete::<SoftConfirmationByNumber>(&soft_confirmation_number)?;
 
         let soft_confirmation = record.value;
         ledger_db.delete::<SoftConfirmationByHash>(&soft_confirmation.hash)?;
+        ledger_db.delete::<SoftConfirmationStatus>(&soft_confirmation_number)?;
 
         deleted += 1;
     }
