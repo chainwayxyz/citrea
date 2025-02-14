@@ -57,11 +57,6 @@ pub(crate) fn prune_ledger(node_type: PruningNodeType, ledger_db: Arc<DB>, up_to
                 prune_soft_confirmation_status(&ledger_db, up_to_block)
             );
         }
-        PruningNodeType::LightClient => {
-            log_result_or_error!(
-                "soft_confirmations_by_number",
-                prune_soft_confirmations_by_number(node_type, &ledger_db, up_to_block)
-            );
-        }
+        PruningNodeType::LightClient => {}
     }
 }
