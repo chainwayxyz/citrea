@@ -103,5 +103,3 @@ pub fn new_orphan_storage(path: impl AsRef<std::path::Path>) -> anyhow::Result<P
     let native_db = NativeDB::new(Arc::new(native_db_raw));
     Ok(ProverStorage::with_latest_version(state_db, native_db))
 }
-
-// TODO: write tests
