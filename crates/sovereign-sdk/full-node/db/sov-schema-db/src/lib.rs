@@ -360,6 +360,11 @@ impl DB {
         Ok(self.inner.flush_cf(self.get_cf_handle(cf_name)?)?)
     }
 
+    /// Force flush db
+    pub fn flush(&self) -> anyhow::Result<()> {
+        Ok(self.inner.flush()?)
+    }
+
     /// Returns the current RocksDB property value for the provided column family name
     /// and property name.
     pub fn get_property(&self, cf_name: &str, property_name: &str) -> anyhow::Result<u64> {
@@ -392,7 +397,7 @@ impl DB {
         let env = rocksdb::Env::new()?;
         let mut backup_engine = rocksdb::backup::BackupEngine::open(&backup_opts, &env)?;
 
-        backup_engine.create_new_backup_flush(&self.inner, true)?;
+        backup_engine.create_new_backup_flush(&self.inner, false)?;
 
         info!(
             db_name = self.name,

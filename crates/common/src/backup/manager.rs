@@ -179,13 +179,14 @@ impl BackupManager {
             for dir in &self.config.backup_dirs {
                 let path = backup_path.join(dir);
                 let db = dbs.get(dir).context("Missing required db")?.clone();
+                db.flush()?;
                 handles.push(tokio::task::spawn_blocking(move || db.create_backup(&path)));
             }
         }
 
         // Wait for all dbs to start backing up under lock before releasing
-        drop(l1_lock);
         drop(l2_lock);
+        drop(l1_lock);
 
         for handle in handles {
             handle.await??;
