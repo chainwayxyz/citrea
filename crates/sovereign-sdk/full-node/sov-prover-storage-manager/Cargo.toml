@@ -26,11 +26,6 @@ tempfile = { workspace = true }
 criterion = "0.5.1"
 rand = { workspace = true }
 
-[[bench]]
-name = "single_thread_storage_bench"
-path = "benches/single_thread_progression.rs"
-harness = false
-
 [features]
 default = []
 test-utils = []
