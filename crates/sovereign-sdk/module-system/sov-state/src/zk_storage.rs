@@ -145,4 +145,8 @@ where
     fn is_empty(&self) -> bool {
         unimplemented!("Needs simplification in JellyfishMerkleTree: https://github.com/Sovereign-Labs/sovereign-sdk/issues/362")
     }
+
+    fn clone_with_version(&self, _version: jmt::Version) -> Self {
+        Self::new()
+    }
 }

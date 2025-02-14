@@ -278,6 +278,11 @@ pub trait Storage: Clone {
     /// Indicates if storage is empty or not.
     /// Useful during initialization.
     fn is_empty(&self) -> bool;
+
+    /// Clone self with the given version. This is useful to
+    /// hard clone the storage to not overwrite the version of cloned
+    /// storage.
+    fn clone_with_version(&self, version: Version) -> Self;
 }
 
 /// Used only in tests.

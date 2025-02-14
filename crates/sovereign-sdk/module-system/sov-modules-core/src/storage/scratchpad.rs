@@ -506,17 +506,20 @@ impl<S: Storage> WorkingSet<S> {
 
     /// Returns a handler for the archival state (JMT state).
     fn archival_state(&mut self, version: Version) -> ArchivalJmtWorkingSet<S> {
-        ArchivalJmtWorkingSet::new(&self.delta.storage, version)
+        let storage = self.delta.storage.clone_with_version(version);
+        ArchivalJmtWorkingSet::new(storage, version)
     }
 
     /// Returns a handler for the archival offchain state.
     fn archival_offchain_state(&mut self, version: Version) -> ArchivalOffchainWorkingSet<S> {
-        ArchivalOffchainWorkingSet::new(&self.offchain_delta.storage, version)
+        let storage = self.offchain_delta.storage.clone_with_version(version);
+        ArchivalOffchainWorkingSet::new(storage, version)
     }
 
     /// Returns a handler for the archival accessory state (non-JMT state).
     fn archival_accessory_state(&mut self, version: Version) -> ArchivalAccessoryWorkingSet<S> {
-        ArchivalAccessoryWorkingSet::new(&self.accessory_delta.storage, version)
+        let storage = self.accessory_delta.storage.clone_with_version(version);
+        ArchivalAccessoryWorkingSet::new(storage, version)
     }
 
     /// Sets archival version for a working set
@@ -669,9 +672,9 @@ pub mod archival_state {
 
     impl<S: Storage> ArchivalJmtWorkingSet<S> {
         /// create a new instance of ArchivalJmtWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: StateDelta::new(inner.clone(), Some(version)),
+                delta: StateDelta::new(inner, Some(version)),
             }
         }
     }
@@ -683,9 +686,9 @@ pub mod archival_state {
 
     impl<S: Storage> ArchivalAccessoryWorkingSet<S> {
         /// create a new instance of ArchivalAccessoryWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: AccessoryDelta::new(inner.clone(), Some(version)),
+                delta: AccessoryDelta::new(inner, Some(version)),
             }
         }
     }
@@ -729,9 +732,9 @@ pub mod archival_state {
 
     impl<S: Storage> ArchivalOffchainWorkingSet<S> {
         /// create a new instance of ArchivalOffchainWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: OffchainDelta::new(inner.clone(), Some(version)),
+                delta: OffchainDelta::new(inner, Some(version)),
             }
         }
     }

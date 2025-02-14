@@ -52,17 +52,6 @@ impl ProverStorage {
         }
     }
 
-    /// Clones the self with a different version
-    pub fn clone_with_version(&self, version: Version) -> Self {
-        Self {
-            db: self.db.clone(),
-            native_db: self.native_db.clone(),
-            version: Arc::new(AtomicU64::new(version)),
-            // version change on the current storage is always a snapshot
-            is_snapshot: true,
-        }
-    }
-
     /// Converts it to pair of readonly [`ReadOnlyDbSnapshot`]s
     /// First is from [`StateDB`]
     /// Second is from [`NativeDB`]
@@ -292,6 +281,17 @@ impl Storage for ProverStorage {
     fn is_empty(&self) -> bool {
         self.version() == 0
     }
+
+    fn clone_with_version(&self, version: Version) -> Self {
+        Self {
+            db: self.db.clone(),
+            native_db: self.native_db.clone(),
+            version: Arc::new(AtomicU64::new(version)),
+            // version change on the current storage is always a snapshot
+            is_snapshot: true,
+        }
+    }
+
 }
 
 impl NativeStorage for ProverStorage {
