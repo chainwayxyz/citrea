@@ -78,7 +78,6 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     SoftConfirmationStatus::table_name(),
     ProverLastScannedSlot::table_name(),
     CommitmentsByNumber::table_name(),
-    MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
     VerifiedBatchProofsBySlotNumber::table_name(),
     #[cfg(test)]
