@@ -11,13 +11,13 @@ use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes, STATE
 use crate::schema::types::StateKey;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
-/// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized snapshots
+/// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized writes.
 ///
 /// StateDB implements several convenience functions for state storage -
 /// notably the [`TreeReader`] and [`TreeWriter`] traits.
 #[derive(Debug, Clone)]
 pub struct StateDB {
-    /// The underlying [`DB`] that plays as local cache and pointer to previous snapshots and/or [`sov_schema_db::DB`]
+    /// The underlying [`DbTransaction`] that plays as local cache and pointer to [`sov_schema_db::DB`]
     db: Arc<DbTransaction>,
 }
 
@@ -26,7 +26,7 @@ impl StateDB {
     pub const DB_PATH_SUFFIX: &'static str = "state";
     const DB_NAME: &'static str = "state-db";
 
-    /// Initialize [`DB`] that should be used by snapshots.
+    /// Initialize [`DB`] that should be globally used
     pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
         let raw_options = cfg.as_raw_options(false);
         let state_db_path = cfg.path.join(Self::DB_PATH_SUFFIX);
@@ -38,7 +38,7 @@ impl StateDB {
         )
     }
 
-    /// Convert it to [`ReadOnlyDbTransaction`] which cannot be edited anymore
+    /// Convert it to [`SchemaBatch`] which cannot be edited anymore
     pub fn freeze(self) -> anyhow::Result<SchemaBatch> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
             "StateDB underlying DbTransaction has more than 1 strong references"
@@ -62,7 +62,7 @@ impl StateDB {
 }
 
 impl StateDB {
-    /// Creating instance of [`StateDB`] from [`DbTransaction`]
+    /// Creating instance of [`StateDB`] from [`Arc<DB>`]
     pub fn new(db: Arc<DB>) -> Self {
         Self {
             db: Arc::new(DbTransaction::new(db)),

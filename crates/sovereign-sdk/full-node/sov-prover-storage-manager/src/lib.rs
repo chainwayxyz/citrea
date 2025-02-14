@@ -66,7 +66,7 @@ impl ProverStorageManager {
 
     /// Commits all the changes to `ProverStorage` to underlying database.
     /// If storage is a snapshot, nothing is committed, an false is returned.
-    pub fn finalize_storage(&self, storage: ProverStorage) -> bool {
+    pub fn finalize_storage(&self, storage: ProverStorage) {
         assert!(
             !storage.is_snapshot(),
             "Snapshot storage should never be finalized"
@@ -82,8 +82,6 @@ impl ProverStorageManager {
         self.native_db
             .write_schemas(native_batch)
             .expect("DB write must not fail");
-
-        true
     }
 
     pub fn get_state_db_handle(&self) -> Arc<DB> {

@@ -517,21 +517,8 @@ where
 
                 let next_state_root = state_root_transition.final_root;
 
-                // self.storage_manager
-                //     .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
-
-                // TODO: this will only work for mock da
-                // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
-                // is merged, rpc will access up to date storage then we won't need to finalize right away.
-                // however we need much better DA + finalization logic here
-                // self.storage_manager.finalize_l2(l2_height)?;
-                let finalized = self
-                    .storage_manager
+                self.storage_manager
                     .finalize_storage(soft_confirmation_result.change_set);
-                assert!(
-                    finalized,
-                    "This should have been the next version of the storage"
-                );
 
                 let tx_bodies = signed_soft_confirmation.blobs().to_owned();
                 let soft_confirmation_hash = signed_soft_confirmation.hash();

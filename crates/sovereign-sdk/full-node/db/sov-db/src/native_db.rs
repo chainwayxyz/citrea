@@ -34,7 +34,7 @@ impl NativeDB {
             &raw_options,
         )
     }
-    /// Convert it to [`ReadOnlyDbTransaction`] which cannot be edited anymore
+    /// Convert it to [`SchmeaBatch`] which cannot be edited anymore
     pub fn freeze(self) -> anyhow::Result<SchemaBatch> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
             "NativeDB underlying DbTransaction has more than 1 strong references"
@@ -44,7 +44,7 @@ impl NativeDB {
 }
 
 impl NativeDB {
-    /// Creating instance of [`NativeDB`] from [`DbTransaction`]
+    /// Creating instance of [`NativeDB`] from [`Arc<DB>`]
     pub fn new(db: Arc<DB>) -> Self {
         Self {
             db: Arc::new(DbTransaction::new(db)),
@@ -95,7 +95,6 @@ mod tests {
     fn setup_db() -> NativeDB {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = NativeDB::setup_schema_db(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
-        // TODO: fix version
         NativeDB::new(Arc::new(db))
     }
 

@@ -6,7 +6,7 @@ use crate::schema::{KeyCodec, KeyDecoder, ValueCodec};
 use crate::schema_batch::SchemaBatchIterator;
 use crate::{Operation, Schema, SchemaBatch, SchemaKey, SchemaValue, SeekKeyEncoder, DB};
 
-/// Wrapper around [`QueryManager`] that allows to read from snapshots
+/// Wrapper around [`DB`] which allows caching writes in memory.
 #[derive(Debug)]
 pub struct DbTransaction {
     cache: Mutex<SchemaBatch>,
@@ -14,7 +14,7 @@ pub struct DbTransaction {
 }
 
 impl DbTransaction {
-    /// Create new [`DbSnapshot`]
+    /// Create new [`DbTransaction`]
     pub fn new(db: Arc<DB>) -> Self {
         Self {
             cache: Mutex::new(SchemaBatch::default()),
@@ -22,7 +22,7 @@ impl DbTransaction {
         }
     }
 
-    /// Store a value in snapshot
+    /// Store a value in transaction
     pub fn put<S: Schema>(
         &self,
         key: &impl KeyCodec<S>,
@@ -34,7 +34,7 @@ impl DbTransaction {
             .put(key, value)
     }
 
-    /// Delete given key from snapshot
+    /// Delete given key from transaction
     pub fn delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
         self.cache
             .lock()
@@ -54,7 +54,7 @@ impl DbTransaction {
 }
 
 impl DbTransaction {
-    /// Get a value from current snapshot, its parents or underlying database
+    /// Get a value from current transaction or underlying database
     pub fn read<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
         // Some(Operation) means that key was touched,
         // but in case of deletion we early return None
@@ -236,25 +236,25 @@ mod tests {
     }
 
     #[test]
-    fn test_db_snapshot_iterator_empty() {
+    fn test_db_transaction_iterator_empty() {
         let local_cache = SchemaBatch::new();
         let db = DB::open_temp("iter-test", vec![TestSchema::COLUMN_FAMILY_NAME]);
 
         let local_cache_iter = local_cache.iter::<TestSchema>().peekable();
-        let manager_iter = db.raw_iter::<TestSchema>().unwrap().peekable();
+        let db_iter = db.raw_iter::<TestSchema>().unwrap().peekable();
 
-        let snapshot_iter = DbTransactionIter::<'_, TestSchema, _, _> {
+        let transaction_iter = DbTransactionIter::<'_, TestSchema, _, _> {
             local_cache_iter,
-            db_iter: manager_iter,
+            db_iter,
         };
 
-        let values: Vec<(SchemaKey, SchemaValue)> = snapshot_iter.collect();
+        let values: Vec<(SchemaKey, SchemaValue)> = transaction_iter.collect();
 
         assert!(values.is_empty());
     }
 
     #[test]
-    fn test_db_snapshot_iterator_values() {
+    fn test_db_transaction_iterator_values() {
         let k1 = TestCompositeField(0, 1, 0);
         let k2 = TestCompositeField(0, 1, 2);
         let k3 = TestCompositeField(3, 1, 0);
@@ -277,12 +277,12 @@ mod tests {
         let local_cache_iter = local_cache.iter::<TestSchema>().peekable();
         let db_iter = db.raw_iter::<TestSchema>().unwrap().peekable();
 
-        let snapshot_iter = DbTransactionIter::<'_, TestSchema, _, _> {
+        let transaction_iter = DbTransactionIter::<'_, TestSchema, _, _> {
             local_cache_iter,
             db_iter,
         };
 
-        let actual_values: Vec<(SchemaKey, SchemaValue)> = snapshot_iter.collect();
+        let actual_values: Vec<(SchemaKey, SchemaValue)> = transaction_iter.collect();
         let expected_values = vec![
             (encode_key(&k4), encode_value(&TestField(4))),
             (encode_key(&k2), encode_value(&TestField(20))),

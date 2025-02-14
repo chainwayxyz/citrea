@@ -207,7 +207,6 @@ impl Storage for ProverStorage {
         accessory_writes: &OrderedReadsAndWrites,
         offchain_writes: &OrderedReadsAndWrites,
     ) {
-        // TODO: native db was committing to version and not version + 1 before, check if its a problem
         let next_version = self.version() + 1;
 
         // Integrity check

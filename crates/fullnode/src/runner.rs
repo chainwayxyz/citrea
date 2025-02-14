@@ -217,17 +217,8 @@ where
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
-        // self.storage_manager
-        //     .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
-
-        // self.storage_manager.finalize_l2(l2_height)?;
-        let finalized = self
-            .storage_manager
+        self.storage_manager
             .finalize_storage(soft_confirmation_result.change_set);
-        assert!(
-            finalized,
-            "This should have been the next version of the storage"
-        );
 
         let tx_bodies = if self.include_tx_body {
             Some(signed_soft_confirmation.blobs().to_owned())
