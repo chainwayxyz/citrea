@@ -5,17 +5,29 @@ use std::time::Duration;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::tables::{
+    CommitmentsByNumber, L2RangeByL1Height, L2Witness, LightClientProofBySlotNumber,
+    ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs, SlotByHash, SoftConfirmationByHash,
+    SoftConfirmationByNumber, SoftConfirmationStatus,
+};
+use sov_db::schema::types::light_client_proof::{
+    StoredLatestDaState, StoredLightClientProof, StoredLightClientProofOutput,
+};
+use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_db::state_db::StateDB;
 use sov_prover_storage_manager::SnapshotManager;
+use sov_rollup_interface::mmr::MMRGuest;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+use crate::pruning::components::prune_ledger;
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
 use crate::pruning::types::PruningNodeType;
 use crate::pruning::{Pruner, PrunerService, PruningConfig};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_pruner_simple_run() {
+async fn test_pruning_simple_run() {
     let tmpdir = tempfile::tempdir().unwrap();
     let (sender, receiver) = broadcast::channel(1);
     let cancellation_token = CancellationToken::new();
@@ -47,7 +59,7 @@ async fn test_pruner_simple_run() {
 }
 
 #[test]
-pub fn test_should_prune() {
+pub fn test_pruning_should_prune() {
     let criteria = DistanceCriteria { distance: 1000 };
     assert_eq!(criteria.should_prune(0, 1000), None);
     assert_eq!(criteria.should_prune(0, 1999), None);
@@ -56,4 +68,342 @@ pub fn test_should_prune() {
     assert_eq!(criteria.should_prune(1000, 2500), None);
     assert_eq!(criteria.should_prune(1000, 2999), None);
     assert_eq!(criteria.should_prune(1000, 3000), Some(2000));
+}
+
+#[test]
+pub fn test_pruning_ledger_db_soft_confirmations() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
+
+    let mut da_slot_height = 1;
+
+    for i in 1u64..=20 {
+        let soft_confirmation = StoredSoftConfirmation {
+            l2_height: i,
+            da_slot_height,
+            da_slot_hash: [i as u8; 32],
+            da_slot_txs_commitment: [i as u8; 32],
+            hash: [i as u8; 32],
+            prev_hash: [(i as u8) - 1; 32],
+            txs: vec![],
+            deposit_data: vec![],
+            state_root: vec![i as u8; 32],
+            soft_confirmation_signature: vec![],
+            pub_key: vec![0; 32],
+            l1_fee_rate: 0,
+            timestamp: i,
+        };
+
+        ledger_db
+            .put::<SoftConfirmationByNumber>(&SoftConfirmationNumber(i), &soft_confirmation)
+            .unwrap();
+        ledger_db
+            .put::<SoftConfirmationByHash>(&[i as u8; 32], &SoftConfirmationNumber(i))
+            .unwrap();
+        ledger_db
+            .put::<SoftConfirmationStatus>(
+                &SoftConfirmationNumber(i),
+                &sov_rollup_interface::rpc::SoftConfirmationStatus::Finalized,
+            )
+            .unwrap();
+        ledger_db
+            .put::<L2Witness>(&SoftConfirmationNumber(i), &(vec![5; 32], vec![6; 32]))
+            .unwrap();
+        ledger_db
+            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &vec![])
+            .unwrap();
+
+        da_slot_height += 1;
+    }
+
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<SoftConfirmationByHash>(&[1; 32])
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationByHash>(&[10; 32])
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationByHash>(&[20; 32])
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    prune_ledger(PruningNodeType::Sequencer, ledger_db.clone(), 10);
+
+    // Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_none());
+    // Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_none());
+    // NOT Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    // Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByHash>(&[1; 32])
+        .unwrap()
+        .is_none());
+    // Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByHash>(&[10; 32])
+        .unwrap()
+        .is_none());
+    // NOT Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByHash>(&[20; 32])
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+}
+
+#[test]
+pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
+
+    let mut da_slot_height = 1;
+
+    for i in 1u64..=20 {
+        let soft_confirmation = StoredSoftConfirmation {
+            l2_height: i,
+            da_slot_height,
+            da_slot_hash: [i as u8; 32],
+            da_slot_txs_commitment: [i as u8; 32],
+            hash: [i as u8; 32],
+            prev_hash: [(i as u8) - 1; 32],
+            txs: vec![],
+            deposit_data: vec![],
+            state_root: vec![i as u8; 32],
+            soft_confirmation_signature: vec![],
+            pub_key: vec![0; 32],
+            l1_fee_rate: 0,
+            timestamp: i,
+        };
+
+        ledger_db
+            .put::<SoftConfirmationByNumber>(&SoftConfirmationNumber(i), &soft_confirmation)
+            .unwrap();
+        ledger_db
+            .put::<L2Witness>(&SoftConfirmationNumber(i), &(vec![5; 32], vec![6; 32]))
+            .unwrap();
+        ledger_db
+            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &vec![])
+            .unwrap();
+
+        da_slot_height += 1;
+    }
+
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    prune_ledger(PruningNodeType::BatchProver, ledger_db.clone(), 10);
+
+    // Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_none());
+    // Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_none());
+    // NOT Pruned
+    assert!(ledger_db
+        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2Witness>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(1))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&SoftConfirmationNumber(20))
+        .unwrap()
+        .is_some());
+}
+
+#[test]
+pub fn test_pruning_ledger_db_slots() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
+
+    let mut da_slot_height = 1;
+
+    for i in (1u64..=20).step_by(2) {
+        ledger_db
+            .put::<L2RangeByL1Height>(
+                &SlotNumber(da_slot_height),
+                &(SoftConfirmationNumber(i), SoftConfirmationNumber(i + 1)),
+            )
+            .unwrap();
+        ledger_db
+            .put::<CommitmentsByNumber>(&SlotNumber(i), &vec![])
+            .unwrap();
+        ledger_db
+            .put::<ProofsBySlotNumber>(&SlotNumber(i), &vec![])
+            .unwrap();
+        ledger_db
+            .put::<ProofsBySlotNumberV2>(&SlotNumber(i), &vec![])
+            .unwrap();
+        ledger_db
+            .put::<LightClientProofBySlotNumber>(
+                &SlotNumber(i),
+                &StoredLightClientProof {
+                    proof: vec![1; 32],
+                    light_client_proof_output: StoredLightClientProofOutput {
+                        state_root: [0u8; 32],
+                        light_client_proof_method_id: [1 as u32; 8],
+                        latest_da_state: StoredLatestDaState {
+                            block_hash: todo!(),
+                            block_height: todo!(),
+                            total_work: todo!(),
+                            current_target_bits: todo!(),
+                            epoch_start_time: todo!(),
+                            prev_11_timestamps: todo!(),
+                        },
+                        unchained_batch_proofs_info: vec![],
+                        last_l2_height: i,
+                        batch_proof_method_ids: vec![],
+                        mmr_guest: MMRGuest::new(),
+                    },
+                },
+            )
+            .unwrap();
+        ledger_db
+            .put::<SlotByHash>(&[da_slot_height as u8; 32], &SlotNumber(i))
+            .unwrap();
+
+        da_slot_height += 1;
+    }
 }
