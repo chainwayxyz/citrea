@@ -1,15 +1,44 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use citrea_storage_ops::pruning::types::PruningNodeType;
 use citrea_storage_ops::pruning::{Pruner, PruningConfig};
+use clap::ValueEnum;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::tables::{
+    BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+    SEQUENCER_LEDGER_TABLES,
+};
 use sov_db::state_db::StateDB;
 use sov_prover_storage_manager::SnapshotManager;
 use tracing::{debug, info};
 
-pub(crate) async fn prune(db_path: PathBuf, distance: u64) -> anyhow::Result<()> {
+#[derive(Copy, Clone, ValueEnum)]
+pub enum PruningNodeTypeArg {
+    Sequencer,
+    FullNode,
+    BatchProver,
+    LightClient,
+}
+
+impl From<PruningNodeTypeArg> for PruningNodeType {
+    fn from(value: PruningNodeTypeArg) -> Self {
+        match value {
+            PruningNodeTypeArg::Sequencer => PruningNodeType::Sequencer,
+            PruningNodeTypeArg::FullNode => PruningNodeType::FullNode,
+            PruningNodeTypeArg::BatchProver => PruningNodeType::BatchProver,
+            PruningNodeTypeArg::LightClient => PruningNodeType::LightClient,
+        }
+    }
+}
+
+pub(crate) async fn prune(
+    node_type: PruningNodeTypeArg,
+    db_path: PathBuf,
+    distance: u64,
+) -> anyhow::Result<()> {
     info!(
         "Pruning DB at {} with pruning distance of {}",
         db_path.display(),
@@ -17,7 +46,9 @@ pub(crate) async fn prune(db_path: PathBuf, distance: u64) -> anyhow::Result<()>
     );
     let config = PruningConfig { distance };
 
-    let rocksdb_config = RocksdbConfig::new(&db_path, None, None);
+    let column_families = cfs_from_node_type(node_type);
+
+    let rocksdb_config = RocksdbConfig::new(&db_path, None, Some(column_families.to_vec()));
     let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
     let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
     let state_db = StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
@@ -31,8 +62,26 @@ pub(crate) async fn prune(db_path: PathBuf, distance: u64) -> anyhow::Result<()>
         soft_confirmation_number, distance
     );
 
-    let pruner = Pruner::new(config, ledger_db, Arc::new(state_db), Arc::new(native_db));
-    pruner.prune(soft_confirmation_number).await;
+    let pruner = Pruner::new(
+        config,
+        ledger_db.inner(),
+        Arc::new(state_db),
+        Arc::new(native_db),
+    );
+    pruner
+        .prune(node_type.into(), soft_confirmation_number)
+        .await;
 
     Ok(())
+}
+
+fn cfs_from_node_type(node_type: PruningNodeTypeArg) -> Vec<String> {
+    let cfs = match node_type {
+        PruningNodeTypeArg::Sequencer => SEQUENCER_LEDGER_TABLES,
+        PruningNodeTypeArg::FullNode => FULL_NODE_LEDGER_TABLES,
+        PruningNodeTypeArg::BatchProver => BATCH_PROVER_LEDGER_TABLES,
+        PruningNodeTypeArg::LightClient => LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+    };
+
+    cfs.iter().map(|x| x.to_string()).collect::<Vec<_>>()
 }
