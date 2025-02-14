@@ -54,6 +54,10 @@ pub(crate) fn prune_ledger(node_type: PruningNodeType, ledger_db: Arc<DB>, up_to
             log_result_or_error!("slots", prune_slots(node_type, &ledger_db, up_to_block));
         }
         PruningNodeType::LightClient => {
+            log_result_or_error!(
+                "soft_confirmations",
+                prune_soft_confirmations(node_type, &ledger_db, up_to_block)
+            );
             log_result_or_error!("slots", prune_slots(node_type, &ledger_db, up_to_block));
         }
     }

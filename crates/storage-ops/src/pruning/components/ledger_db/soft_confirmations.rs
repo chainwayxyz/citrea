@@ -31,6 +31,10 @@ pub(crate) fn prune_soft_confirmations(
         }
         ledger_db.delete::<SoftConfirmationByNumber>(&soft_confirmation_number)?;
 
+        if matches!(node_type, PruningNodeType::LightClient) {
+            continue;
+        }
+
         let soft_confirmation = record.value;
         ledger_db.delete::<SoftConfirmationByHash>(&soft_confirmation.hash)?;
         ledger_db.delete::<SoftConfirmationStatus>(&soft_confirmation_number)?;
