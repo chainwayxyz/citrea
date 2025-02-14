@@ -287,9 +287,16 @@ where
             .get_root_hash(version)
             .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
 
-        let account = evm
-            .account_info(&address, citrea_spec, &mut working_set)
-            .unwrap_or_default();
+        let account_in_fork1 = evm.account_info_prefork2(&address, &mut working_set);
+        let account_in_fork2 = evm.account_info_postfork2(&address, &mut working_set);
+        let account_should_gen_prefork2_proof = citrea_spec < CitreaSpecId::Fork2
+            || (account_in_fork1.is_some() && account_in_fork2.is_none());
+
+        let account = if account_should_gen_prefork2_proof {
+            account_in_fork1.unwrap_or_default()
+        } else {
+            account_in_fork2.unwrap_or_default()
+        };
         let balance = account.balance;
         let nonce = account.nonce;
         let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
@@ -341,7 +348,6 @@ where
                 &account,
                 evm.account_idxs.codec().key_codec(),
             );
-            // dbg!(&index_key);
             let index_proof = working_set.get_with_proof(index_key, version);
             let index_proof_exists = index_proof.value.is_some();
             let index_proof =
@@ -456,19 +462,25 @@ where
             }
         }
 
-        let account_proof = if citrea_spec >= CitreaSpecId::Fork2 {
-            // TODO handle not migrated yet
-            generate_account_proof_postfork2(&evm, &address, version, &mut working_set)
-        } else {
+        let account_proof = if account_should_gen_prefork2_proof {
             generate_account_proof_prefork2(&evm, &address, version, &mut working_set)
+        } else {
+            generate_account_proof_postfork2(&evm, &address, version, &mut working_set)
         };
 
         let mut storage_proof = vec![];
         for key in keys {
             let key: U256 = key.0.into();
-            let proof = if citrea_spec >= CitreaSpecId::Fork2 {
-                // TODO handle not migrated yet
-                generate_storage_proof_postfork2(
+            let in_fork1 = evm
+                .storage_get_prefork2(&address, &key, &mut working_set)
+                .is_some();
+            let in_fork2 = evm
+                .storage_get_postfork2(&address, &key, &mut working_set)
+                .is_some();
+            let should_gen_prefork2_proof =
+                citrea_spec < CitreaSpecId::Fork2 || (in_fork1 && !in_fork2);
+            let proof = if should_gen_prefork2_proof {
+                generate_storage_proof_prefork2(
                     &evm,
                     &address,
                     &key,
@@ -477,7 +489,7 @@ where
                     &mut working_set,
                 )
             } else {
-                generate_storage_proof_prefork2(
+                generate_storage_proof_postfork2(
                     &evm,
                     &address,
                     &key,
