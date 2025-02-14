@@ -59,7 +59,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_rpc_methods(
         &self,
-        storage: &ProverStorage,
+        storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
@@ -68,15 +68,14 @@ impl RollupBlueprint for BitcoinRollup {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
 
-        #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage, ledger_db, sov_sequencer)?;
+        >(storage.clone(), ledger_db, sov_sequencer)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
-            storage.clone(),
+            storage,
             ledger_db.clone(),
             &mut rpc_methods,
             sequencer_client_url,

@@ -177,7 +177,6 @@ where
     let Storage {
         ledger_db,
         storage_manager,
-        prover_storage,
     } = rollup_blueprint.setup_storage(&rollup_config, &rocksdb_config)?;
 
     let Dependencies {
@@ -203,8 +202,9 @@ where
         _ => None,
     };
 
+    let rpc_storage = storage_manager.create_latest_view_storage();
     let rpc_module = rollup_blueprint.setup_rpc(
-        &prover_storage,
+        rpc_storage,
         ledger_db.clone(),
         da_service.clone(),
         sequencer_client_url,
@@ -221,7 +221,6 @@ where
                     da_service,
                     ledger_db,
                     storage_manager,
-                    prover_storage,
                     soft_confirmation_channel.0,
                     rpc_module,
                 )
@@ -250,7 +249,6 @@ where
                     da_service,
                     ledger_db.clone(),
                     storage_manager,
-                    prover_storage,
                     soft_confirmation_channel.0,
                     rpc_module,
                 )
@@ -330,7 +328,6 @@ where
                     da_service,
                     ledger_db.clone(),
                     storage_manager,
-                    prover_storage,
                     soft_confirmation_channel.0,
                 )
                 .await

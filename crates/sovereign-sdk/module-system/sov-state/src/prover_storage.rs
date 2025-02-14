@@ -43,24 +43,24 @@ impl ProverStorage {
     /// Creates a new [`ProverStorage`] instace from specified db handles and version.
     /// When created using this method, storage is marked as snapshot and won't be committed
     /// to underlying database.
-    pub fn with_version_snapshot(
-        db: StateDB,
-        native_db: NativeDB,
-        version: Version,
-    ) -> anyhow::Result<Self> {
-        let next_version = db.next_version();
-        anyhow::ensure!(
-            version < next_version,
-            "Can not initialize storage on version {}, should be smaller than {}",
-            version,
-            next_version
-        );
-        Ok(Self {
+    pub fn with_version_snapshot(db: StateDB, native_db: NativeDB, version: Version) -> Self {
+        Self {
             db,
             native_db,
             version: Arc::new(AtomicU64::new(version)),
             is_snapshot: true,
-        })
+        }
+    }
+
+    /// Clones the self with a different version
+    pub fn clone_with_version(&self, version: Version) -> Self {
+        Self {
+            db: self.db.clone(),
+            native_db: self.native_db.clone(),
+            version: Arc::new(AtomicU64::new(version)),
+            // version change on the current storage is always a snapshot
+            is_snapshot: true,
+        }
     }
 
     /// Converts it to pair of readonly [`ReadOnlyDbSnapshot`]s

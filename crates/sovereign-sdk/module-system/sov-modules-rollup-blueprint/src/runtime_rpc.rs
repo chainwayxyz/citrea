@@ -7,7 +7,7 @@ use sov_rollup_interface::services::da::DaService;
 
 /// Register rollup's default rpc methods.
 pub fn register_rpc<Da, RT>(
-    storage: &ProverStorage,
+    storage: ProverStorage,
     ledger_db: &LedgerDB,
     _sequencer: <DefaultContext as Spec>::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
@@ -16,7 +16,7 @@ where
     RT: RuntimeTrait<DefaultContext, <Da as DaService>::Spec> + Send + Sync + 'static,
 {
     // runtime rpc.
-    let mut rpc_methods = RT::rpc_methods(storage.clone());
+    let mut rpc_methods = RT::rpc_methods(storage);
 
     // ledger rpc.
     {

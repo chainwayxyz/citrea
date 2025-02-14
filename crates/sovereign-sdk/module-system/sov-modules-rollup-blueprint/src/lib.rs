@@ -66,7 +66,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
-        storage: &ProverStorage,
+        storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,

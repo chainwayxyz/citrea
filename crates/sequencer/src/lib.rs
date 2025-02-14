@@ -16,7 +16,6 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
-use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -43,7 +42,6 @@ pub fn build_services<Da, DB>(
     da_service: Arc<Da>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
-    prover_storage: ProverStorage,
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     rpc_module: RpcModule<()>,
@@ -54,18 +52,20 @@ where
 {
     let (l2_force_block_tx, l2_force_block_rx) = unbounded_channel();
     // used as client of reth's mempool
-    let db_provider = DbProvider::new(prover_storage.clone());
+    let db_provider_storage = storage_manager.create_latest_view_storage();
+    let db_provider = DbProvider::new(db_provider_storage);
     let mempool = Arc::new(CitreaMempool::new(
         db_provider.clone(),
         sequencer_config.mempool_conf.clone(),
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
+    let rpc_storage = storage_manager.create_latest_view_storage();
     let rpc_context = rpc::create_rpc_context(
         mempool.clone(),
         deposit_mempool.clone(),
         l2_force_block_tx,
-        prover_storage.clone(),
+        rpc_storage,
         ledger_db.clone(),
         sequencer_config.test_mode,
     );

@@ -31,17 +31,14 @@ impl ProverStorageManager {
 
     /// Creates a new [`ProverStorage`] with version as a snapshot. Created storage can not be committed
     /// to underlying rocksdb when [`ProverStorageManager::finalize_storage`] method is called.
-    pub fn create_storage_snapshot_on_version(
-        &self,
-        version: u64,
-    ) -> anyhow::Result<ProverStorage> {
+    pub fn create_storage_snapshot_on_version(&self, version: u64) -> ProverStorage {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
 
-        let storage = ProverStorage::with_version_snapshot(state_db, native_db, version)?;
+        let storage = ProverStorage::with_version_snapshot(state_db, native_db, version);
         tracing::debug!("Created storage on version {}", version);
 
-        Ok(storage)
+        storage
     }
 
     /// Creates a new [`ProverStorage`] with latest version.
@@ -51,6 +48,18 @@ impl ProverStorageManager {
 
         let storage = ProverStorage::with_latest_version(state_db, native_db);
         tracing::debug!("Created storage on latest version {}", storage.version());
+
+        storage
+    }
+
+    /// Creates a new [`ProverStorage`] that always has the latest view of the state,
+    /// and can not be committed.
+    pub fn create_latest_view_storage(&self) -> ProverStorage {
+        let state_db = StateDB::new(self.state_db.clone());
+        let native_db = NativeDB::new(self.native_db.clone());
+
+        let storage = ProverStorage::with_version_snapshot(state_db, native_db, u64::MAX);
+        tracing::debug!("Created storage on latest view");
 
         storage
     }
