@@ -7,7 +7,7 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::LedgerDB;
 
 use super::{BackupManager, CreateBackupInfo};
 
@@ -67,20 +67,8 @@ impl BackupRpcServerImpl {
 #[async_trait::async_trait]
 impl BackupRpcServer for BackupRpcServerImpl {
     async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo> {
-        let l2_height = self
-            .ledger_db
-            .get_head_soft_confirmation_height()
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}")),
-                )
-            })?
-            .unwrap_or_default();
-
         self.backup_manager
-            .create_backup(path, l2_height)
+            .create_backup(path, &self.ledger_db)
             .await
             .map_err(|e| {
                 ErrorObjectOwned::owned(

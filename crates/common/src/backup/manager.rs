@@ -6,7 +6,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::LEDGER_DB_PATH_SUFFIX;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use sov_db::mmr_db::MmrDB;
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
@@ -152,7 +152,7 @@ impl BackupManager {
     pub(super) async fn create_backup(
         &self,
         path: Option<PathBuf>,
-        l2_height: u64,
+        ledger_db: &LedgerDB,
     ) -> anyhow::Result<CreateBackupInfo> {
         let backup_path = path
             .as_ref()
@@ -161,6 +161,10 @@ impl BackupManager {
 
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
+
+        let l2_height = ledger_db
+            .get_head_soft_confirmation_height()?
+            .unwrap_or_default();
 
         let start_time = Instant::now();
         info!("Starting database backup process...");
