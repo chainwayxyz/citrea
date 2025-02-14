@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
 use sov_schema_db::DB;
-use tables::{prune_slots, prune_soft_confirmations};
 use tracing::{debug, error};
 
+use self::slots::prune_slots;
+use self::soft_confirmations::prune_soft_confirmations;
 use crate::pruning::types::PruningNodeType;
 
-mod tables;
+mod slots;
+mod soft_confirmations;
 
 macro_rules! log_result_or_error {
     ($tables_group:literal, $call:expr) => {{
