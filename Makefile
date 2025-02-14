@@ -26,13 +26,13 @@ build: ## Build the project
 
 .PHONY: build-test
 build-test: $(EF_TESTS_DIR) ## Build the project
-	@cargo build $(TEST_FEATURES)
+	@cargo build --locked $(TEST_FEATURES)
 
 build-reproducible: build-risc0-docker build-sp1 ## Build the project in release mode with reproducible guest builds
-	@cargo build --release
+	@cargo build --release --locked
 
 build-release: ## Build the project in release mode
-	@cargo build --release
+	@cargo build --release --locked
 
 clean: ## Cleans compiled
 	@cargo clean
@@ -56,7 +56,7 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test-ci:
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 coverage-ci:
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
