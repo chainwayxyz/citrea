@@ -21,7 +21,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SignedSoftConfirmation, SpecId};
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
