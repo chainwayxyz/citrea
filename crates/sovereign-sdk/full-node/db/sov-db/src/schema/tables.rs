@@ -48,7 +48,6 @@ pub const STATE_TABLES: &[&str] = &[
 /// A list of all tables used by Sequencer LedgerDB
 pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
-    SlotByHash::table_name(),
     SoftConfirmationByNumber::table_name(),
     SoftConfirmationByHash::table_name(),
     L2RangeByL1Height::table_name(),
