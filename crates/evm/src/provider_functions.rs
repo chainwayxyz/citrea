@@ -131,7 +131,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Get the address of a storage key for the given account
-    fn get_storage_address(account: &Address, key: &U256) -> U256 {
+    pub fn get_storage_address(account: &Address, key: &U256) -> U256 {
         let mut hasher: sha2::Sha256 = sha2::Digest::new_with_prefix(account.as_slice());
         hasher.update(key.as_le_slice());
         let arr = hasher.finalize();
