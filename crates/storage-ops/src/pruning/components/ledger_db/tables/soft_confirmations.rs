@@ -1,5 +1,6 @@
 use sov_db::schema::tables::{
-    SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
+    L2Witness, ProverStateDiffs, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus,
 };
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_schema_db::{ScanDirection, DB};
@@ -33,6 +34,11 @@ pub(crate) fn prune_soft_confirmations(
         let soft_confirmation = record.value;
         ledger_db.delete::<SoftConfirmationByHash>(&soft_confirmation.hash)?;
         ledger_db.delete::<SoftConfirmationStatus>(&soft_confirmation_number)?;
+
+        if matches!(node_type, PruningNodeType::BatchProver) {
+            ledger_db.delete::<L2Witness>(&soft_confirmation_number)?;
+            ledger_db.delete::<ProverStateDiffs>(&soft_confirmation_number)?;
+        }
 
         deleted += 1;
     }
