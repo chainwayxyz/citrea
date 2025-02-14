@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
@@ -51,6 +52,7 @@ pub async fn build_services<Da, DB, Vm, Witness>(
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     elfs: HashMap<SpecId, Vec<u8>>,
     rpc_module: RpcModule<()>,
+    backup_manager: Arc<BackupManager>,
 ) -> Result<(
     CitreaBatchProver<Da, DB>,
     L1BlockHandler<Vm, Da, DB, Witness>,
@@ -86,6 +88,7 @@ where
         storage_manager,
         fork_manager,
         soft_confirmation_tx,
+        backup_manager.clone(),
     )?;
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
@@ -102,6 +105,7 @@ where
         elfs,
         skip_submission_until_l1,
         Arc::new(Mutex::new(L1BlockCache::new())),
+        backup_manager,
     );
     Ok((batch_prover, l1_block_handler, rpc_module))
 }

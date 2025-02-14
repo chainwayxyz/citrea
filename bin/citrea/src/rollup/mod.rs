@@ -4,6 +4,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use citrea_batch_prover::da_block_handler::L1BlockHandler as BatchProverL1BlockHandler;
 use citrea_batch_prover::CitreaBatchProver;
+use citrea_common::backup::BackupManager;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, SequencerConfig,
@@ -18,9 +19,11 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::state_db::StateDB;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
     GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
@@ -98,10 +101,22 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         rocksdb_config: &RocksdbConfig,
+        backup_manager: &Arc<BackupManager>,
     ) -> Result<Storage<Self>> {
         let ledger_db = self.create_ledger_db(rocksdb_config);
         let mut storage_manager = self.create_storage_manager(rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
+
+        backup_manager
+            .register_database(LEDGER_DB_PATH_SUFFIX.to_string(), ledger_db.db_handle())?;
+        backup_manager.register_database(
+            StateDB::<()>::DB_PATH_SUFFIX.to_string(),
+            storage_manager.get_state_db_handle(),
+        )?;
+        backup_manager.register_database(
+            NativeDB::<()>::DB_PATH_SUFFIX.to_string(),
+            storage_manager.get_native_db_handle(),
+        )?;
 
         Ok(Storage {
             ledger_db,
@@ -118,6 +133,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        backup_manager: &Arc<BackupManager>,
     ) -> Result<RpcModule<()>> {
         self.create_rpc_methods(
             prover_storage,
@@ -125,6 +141,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &da_service,
             sequencer_client_url,
             soft_confirmation_rx,
+            backup_manager,
         )
     }
 
@@ -142,6 +159,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<(CitreaSequencer<Self::DaService, LedgerDB>, RpcModule<()>)> {
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -173,6 +191,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             soft_confirmation_tx,
             fork_manager,
             rpc_module,
+            backup_manager,
         )
     }
 
@@ -188,6 +207,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaFullnode<Self::DaService, LedgerDB>,
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
@@ -226,6 +246,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             soft_confirmation_tx,
             fork_manager,
             code_commitments,
+            backup_manager,
         )
     }
 
@@ -243,6 +264,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaBatchProver<Self::DaService, LedgerDB>,
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
@@ -295,12 +317,14 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             code_commitments,
             elfs,
             rpc_module,
+            backup_manager,
         )
         .await
     }
 
     /// Creates a new light client prover
     #[instrument(level = "trace", skip_all)]
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     async fn create_light_client_prover(
         &self,
         prover_config: LightClientProverConfig,
@@ -309,6 +333,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
         rpc_module: RpcModule<()>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaLightClientProver,
         LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
@@ -352,6 +377,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             code_commitments,
             elfs,
             rpc_module,
+            backup_manager,
         )
     }
 

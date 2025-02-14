@@ -94,6 +94,7 @@ fn test_helper(
             batch_requests_limit: 50,
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
+            api_key: None,
         };
 
         queries_test_runner(test_queries, rpc_config).await;

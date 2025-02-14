@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
@@ -44,6 +45,7 @@ where
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    backup_manager: Arc<BackupManager>,
 }
 
 impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
@@ -61,6 +63,7 @@ where
         prover_da_pub_key: Vec<u8>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+        backup_manager: Arc<BackupManager>,
     ) -> Self {
         Self {
             ledger_db,
@@ -71,6 +74,7 @@ where
             code_commitments_by_spec,
             l1_block_cache,
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            backup_manager,
         }
     }
 
@@ -102,6 +106,7 @@ where
     }
 
     async fn process_l1_block(&mut self) {
+        let _l1_lock = self.backup_manager.start_l1_processing().await;
         let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
 
         let Some(l1_block) = pending_l1_blocks.front() else {

@@ -68,6 +68,25 @@ pub(crate) enum NodeType {
     LightClientProver(LightClientProverConfig),
 }
 
+impl std::fmt::Display for NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeType::Sequencer(_) => {
+                write!(f, "sequencer")
+            }
+            NodeType::FullNode => {
+                write!(f, "fullnode")
+            }
+            NodeType::BatchProver(_) => {
+                write!(f, "batch-prover")
+            }
+            NodeType::LightClientProver(_) => {
+                write!(f, "light-client-prover")
+            }
+        }
+    }
+}
+
 pub(crate) fn node_type_from_args(args: &Args) -> anyhow::Result<NodeType> {
     let sequencer_config = match &args.sequencer {
         Some(Some(path)) => Some(

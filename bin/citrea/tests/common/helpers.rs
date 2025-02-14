@@ -1,10 +1,12 @@
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
+use citrea_common::backup::BackupManager;
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::tasks::manager::TaskManager;
@@ -74,6 +76,8 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
+    let backup_manager = Arc::new(BackupManager::new("test".to_string(), None, None));
+
     let (tables, migrations) = if sequencer_config.is_some() {
         (
             SEQUENCER_LEDGER_TABLES
@@ -126,7 +130,7 @@ pub async fn start_rollup(
         storage_manager,
         prover_storage,
     } = mock_demo_rollup
-        .setup_storage(&rollup_config, &rocksdb_config)
+        .setup_storage(&rollup_config, &rocksdb_config, &backup_manager)
         .expect("Storage setup should work");
 
     let Dependencies {
@@ -157,6 +161,7 @@ pub async fn start_rollup(
             da_service.clone(),
             sequencer_client_url,
             soft_confirmation_rx,
+            &backup_manager,
         )
         .expect("RPC module setup should work");
 
@@ -180,6 +185,7 @@ pub async fn start_rollup(
             prover_storage,
             soft_confirmation_channel.0,
             rpc_module,
+            backup_manager,
         )
         .unwrap();
 
@@ -212,6 +218,7 @@ pub async fn start_rollup(
                 prover_storage,
                 soft_confirmation_channel.0,
                 rpc_module,
+                backup_manager,
             )
             .instrument(span.clone())
             .await
@@ -264,6 +271,7 @@ pub async fn start_rollup(
                 da_service,
                 ledger_db,
                 rpc_module,
+                backup_manager,
             )
             .instrument(span.clone())
             .await
@@ -303,6 +311,7 @@ pub async fn start_rollup(
             storage_manager,
             prover_storage,
             soft_confirmation_channel.0,
+            backup_manager,
         )
         .instrument(span.clone())
         .await
@@ -378,6 +387,7 @@ pub fn create_default_rollup_config(
         },
         storage: StorageConfig {
             path: rollup_path.to_path_buf(),
+            backup_path: None,
             db_max_open_files: None,
         },
         rpc: RpcConfig {
@@ -389,6 +399,7 @@ pub fn create_default_rollup_config(
             batch_requests_limit: 50,
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
+            api_key: None,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)

@@ -360,6 +360,11 @@ impl DB {
         Ok(self.inner.flush_cf(self.get_cf_handle(cf_name)?)?)
     }
 
+    /// Force flush db
+    pub fn flush(&self) -> anyhow::Result<()> {
+        Ok(self.inner.flush()?)
+    }
+
     /// Returns the current RocksDB property value for the provided column family name
     /// and property name.
     pub fn get_property(&self, cf_name: &str, property_name: &str) -> anyhow::Result<u64> {
@@ -381,6 +386,25 @@ impl DB {
 
     fn _create_checkpoint<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         rocksdb::checkpoint::Checkpoint::new(&self.inner)?.create_checkpoint(path)?;
+        Ok(())
+    }
+
+    /// Create backup at directory specified by `backup_path`
+    pub fn create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&backup_path)?;
+
+        let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path.as_ref())?;
+        let env = rocksdb::Env::new()?;
+        let mut backup_engine = rocksdb::backup::BackupEngine::open(&backup_opts, &env)?;
+
+        backup_engine.create_new_backup_flush(&self.inner, false)?;
+
+        info!(
+            db_name = self.name,
+            path = ?backup_path.as_ref(),
+            "Created database backup"
+        );
+
         Ok(())
     }
 }

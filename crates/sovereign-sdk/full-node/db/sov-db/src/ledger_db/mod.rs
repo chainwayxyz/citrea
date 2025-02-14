@@ -39,7 +39,8 @@ mod traits;
 
 pub use traits::*;
 
-const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
+/// LedgerDB path suffix
+pub const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
 
 #[derive(Clone, Debug)]
 /// A database which stores the ledger history (slots, transactions, events, etc).
@@ -137,6 +138,11 @@ impl LedgerDB {
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }
+    }
+
+    /// Reference to underlying sov DB
+    pub fn db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.db.clone()
     }
 }
 

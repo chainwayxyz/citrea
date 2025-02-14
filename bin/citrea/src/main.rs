@@ -1,5 +1,6 @@
 use core::fmt::Debug as DebugTrait;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context as _};
@@ -7,6 +8,7 @@ use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{
     initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage,
 };
+use citrea_common::backup::BackupManager;
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
@@ -131,6 +133,12 @@ where
 
     let rollup_blueprint = S::new(network);
 
+    let backup_manager = Arc::new(BackupManager::new(
+        node_type.to_string(),
+        rollup_config.storage.backup_path.clone(),
+        Default::default(),
+    ));
+
     // Based on the node's type, execute migrations before constructing an instance of LedgerDB
     // so that avoid locking the DB.
     let (tables, migrations) = match node_type {
@@ -179,7 +187,7 @@ where
         ledger_db,
         storage_manager,
         prover_storage,
-    } = rollup_blueprint.setup_storage(&rollup_config, &rocksdb_config)?;
+    } = rollup_blueprint.setup_storage(&rollup_config, &rocksdb_config, &backup_manager)?;
 
     let Dependencies {
         da_service,
@@ -210,6 +218,7 @@ where
         da_service.clone(),
         sequencer_client_url,
         soft_confirmation_rx,
+        &backup_manager,
     )?;
 
     match node_type {
@@ -225,6 +234,7 @@ where
                     prover_storage,
                     soft_confirmation_channel.0,
                     rpc_module,
+                    backup_manager,
                 )
                 .expect("Could not start sequencer");
 
@@ -254,6 +264,7 @@ where
                     prover_storage,
                     soft_confirmation_channel.0,
                     rpc_module,
+                    backup_manager,
                 )
                 .await
                 .expect("Could not start batch prover");
@@ -299,6 +310,7 @@ where
                     da_service,
                     ledger_db,
                     rpc_module,
+                    backup_manager,
                 )
                 .await
                 .expect("Could not start light client prover");
@@ -333,6 +345,7 @@ where
                     storage_manager,
                     prover_storage,
                     soft_confirmation_channel.0,
+                    backup_manager,
                 )
                 .await
                 .expect("Could not start full-node");
