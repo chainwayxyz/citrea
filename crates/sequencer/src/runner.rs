@@ -8,12 +8,13 @@ use alloy_primitives::{Address, Bytes, TxHash};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
+use citrea_common::backup::BackupManager;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_stf::runtime::Runtime;
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
@@ -31,10 +32,10 @@ use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
-    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, SpecId, StateDiff,
+    EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, SpecId, StateDiff,
     UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
-use sov_modules_stf_blueprint::{Runtime as RuntimeT, StfBlueprint};
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -57,30 +58,28 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
 
-type StfTransaction<C, Da, RT> =
-    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
+type StfTransaction<Da> =
+    <StfBlueprint<DefaultContext, Da, CitreaRuntime<DefaultContext, Da>> as StateTransitionFunction<Da>>::Transaction;
 
 /// Represents information about the current DA state.
 ///
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
-pub struct CitreaSequencer<C, Da, DB, RT>
+pub struct CitreaSequencer<Da, DB>
 where
-    C: Context,
     Da: DaService,
     DB: SequencerLedgerOps + Send + Clone + 'static,
-    RT: RuntimeT<C, Da::Spec>,
 {
     da_service: Arc<Da>,
-    mempool: Arc<CitreaMempool<C>>,
+    mempool: Arc<CitreaMempool>,
     // TODO: Use k256 private key here before mainnet
     sov_tx_signer_priv_key: Vec<u8>,
     l2_force_block_rx: UnboundedReceiver<()>,
-    db_provider: DbProvider<C>,
+    db_provider: DbProvider,
     ledger_db: DB,
     config: SequencerConfig,
-    stf: StfBlueprint<C, Da::Spec, RT>,
+    stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: ProverStorageManager<Da::Spec>,
     state_root: StorageRootHash,
@@ -90,6 +89,7 @@ where
     sequencer_da_pub_key: Vec<u8>,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
+    backup_manager: Arc<BackupManager>,
 }
 
 enum L2BlockMode {
@@ -97,27 +97,26 @@ enum L2BlockMode {
     NotEmpty,
 }
 
-impl<C, Da, DB, RT> CitreaSequencer<C, Da, DB, RT>
+impl<Da, DB> CitreaSequencer<Da, DB>
 where
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
-    RT: RuntimeT<C, Da::Spec>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
         config: SequencerConfig,
         init_params: InitParams,
-        stf: StfBlueprint<C, Da::Spec, RT>,
+        stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         storage_manager: ProverStorageManager<Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
-        db_provider: DbProvider<C>,
-        mempool: Arc<CitreaMempool<C>>,
+        db_provider: DbProvider,
+        mempool: Arc<CitreaMempool>,
         deposit_mempool: Arc<Mutex<DepositDataMempool>>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
+        backup_manager: Arc<BackupManager>,
         l2_force_block_rx: UnboundedReceiver<()>,
     ) -> anyhow::Result<Self> {
         let sov_tx_signer_priv_key = hex::decode(&config.private_key)?;
@@ -140,6 +139,7 @@ where
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
             soft_confirmation_tx,
+            backup_manager,
         })
     }
 
@@ -204,11 +204,10 @@ where
                                 let call_txs = CallMessage {
                                     txs: vec![rlp_tx.clone()],
                                 };
-                                let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
-                                    citrea_evm::Evm<C>,
-                                >>::encode_call(
-                                    call_txs
-                                );
+                                let raw_message =
+                                    <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
+                                        citrea_evm::Evm<DefaultContext>,
+                                    >>::encode_call(call_txs);
                                 let signed_blob = self.make_blob(
                                     raw_message.clone(),
                                     &mut working_set_to_discard,
@@ -415,10 +414,9 @@ where
                 let evm_txs_count = txs_to_run.len();
                 if evm_txs_count > 0 {
                     let call_txs = CallMessage { txs: txs_to_run };
-                    let raw_message =
-                        <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
-                            call_txs,
-                        );
+                    let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
+                        citrea_evm::Evm<DefaultContext>,
+                    >>::encode_call(call_txs);
                     let signed_blob = self.make_blob(
                         raw_message.clone(),
                         &mut working_set,
@@ -534,7 +532,7 @@ where
 
                 let tx_bodies = signed_soft_confirmation.blobs().to_owned();
                 let soft_confirmation_hash = signed_soft_confirmation.hash();
-                let receipt = soft_confirmation_to_receipt::<C, _, Da::Spec>(
+                let receipt = soft_confirmation_to_receipt::<DefaultContext, _, Da::Spec>(
                     signed_soft_confirmation,
                     active_fork_spec,
                 );
@@ -677,6 +675,7 @@ where
         let mut block_production_tick = tokio::time::interval(target_block_time);
         block_production_tick.tick().await;
 
+        let backup_manager = self.backup_manager.clone();
         loop {
             tokio::select! {
                 // Receive updates from DA layer worker.
@@ -706,6 +705,7 @@ where
                         missed_da_blocks_count = 0;
                     }
 
+                    let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l2_height, l1_block_number, state_diff)) => {
                             last_used_l1_height = l1_block_number;
@@ -737,7 +737,7 @@ where
                         missed_da_blocks_count = 0;
                     }
 
-
+                    let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l2_height, l1_block_number, state_diff)) => {
                             last_used_l1_height = l1_block_number;
@@ -796,7 +796,7 @@ where
     fn make_blob(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<C::Storage>,
+        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         spec_id: SpecId,
     ) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
@@ -815,12 +815,13 @@ where
             );
             borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
         } else {
-            let transaction: PreFork2Transaction<C> = PreFork2Transaction::<C>::new_signed_tx(
-                &self.sov_tx_signer_priv_key,
-                raw_message,
-                0,
-                nonce,
-            );
+            let transaction: PreFork2Transaction<DefaultContext> =
+                PreFork2Transaction::<DefaultContext>::new_signed_tx(
+                    &self.sov_tx_signer_priv_key,
+                    raw_message,
+                    0,
+                    nonce,
+                );
             borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
         }
     }
@@ -828,9 +829,9 @@ where
     fn sign_tx(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<C::Storage>,
+        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         spec_id: SpecId,
-    ) -> anyhow::Result<StfTransaction<C, Da::Spec, RT>> {
+    ) -> anyhow::Result<StfTransaction<Da::Spec>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
         let nonce = self.get_nonce(working_set, spec_id)?;
@@ -849,10 +850,11 @@ where
 
     fn sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
-        let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec>>> {
+        let digest =
+            soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
 
         let priv_key = K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
@@ -879,10 +881,11 @@ where
     /// Signs necessary info and returns a BlockTemplate
     fn pre_fork2_sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
-        let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec>>> {
+        let digest =
+            soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
         let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
 
@@ -911,11 +914,13 @@ where
     /// FIXME: ^
     fn pre_fork1_sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<Da::Spec>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<Da::Spec>>> {
         let unsigned_sc = UnsignedSoftConfirmationV1::from(soft_confirmation.clone());
-        let hash: [u8; 32] = unsigned_sc.hash::<<C as Spec>::Hasher>().into();
+        let hash: [u8; 32] = unsigned_sc
+            .hash::<<DefaultContext as Spec>::Hasher>()
+            .into();
 
         let raw = borsh::to_vec(&unsigned_sc).map_err(|e| anyhow!(e))?;
 
@@ -944,10 +949,10 @@ where
     /// Fetches nonce from state
     fn get_nonce(
         &self,
-        working_set: &mut WorkingSet<C::Storage>,
+        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         spec_id: SpecId,
     ) -> anyhow::Result<u64> {
-        let accounts = Accounts::<C>::default();
+        let accounts = Accounts::<DefaultContext>::default();
 
         let pub_key = if spec_id >= SpecId::Fork2 {
             borsh::to_vec(
@@ -1074,20 +1079,20 @@ where
 
     fn update_sequencer_authority(
         &mut self,
-        working_set: &mut WorkingSet<C::Storage>,
+        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         current_spec: SpecId,
     ) -> anyhow::Result<(Vec<u8>, Transaction)> {
         let k256_priv_key =
             K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
-        let new_address = k256_priv_key.to_address::<C::Address>();
+        let new_address = k256_priv_key.to_address::<<DefaultContext as Spec>::Address>();
 
-        let rule_enforcer_call_tx = RuleEnforcerCallMessage::ChangeAuthority::<C> {
+        let rule_enforcer_call_tx = RuleEnforcerCallMessage::ChangeAuthority::<DefaultContext> {
             new_authority: new_address,
         };
 
-        let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+        let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
             soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<
-                C,
+                DefaultContext,
                 <Da as DaService>::Spec,
             >,
         >>::encode_call(rule_enforcer_call_tx);

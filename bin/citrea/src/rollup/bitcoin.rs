@@ -6,6 +6,7 @@ use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
@@ -15,10 +16,10 @@ use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
-use citrea_stf::runtime::Runtime;
+use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
@@ -50,11 +51,6 @@ impl RollupBlueprint for BitcoinRollup {
     type DaConfig = BitcoinServiceConfig;
     type DaVerifier = BitcoinVerifier;
     type Vm = Risc0BonsaiHost;
-    type ZkContext = ZkDefaultContext;
-    type NativeContext = DefaultContext;
-
-    type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
-    type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -69,16 +65,16 @@ impl RollupBlueprint for BitcoinRollup {
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        backup_manager: &Arc<BackupManager>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
 
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
-            Self::NativeRuntime,
-            Self::NativeContext,
             Self::DaService,
-        >(storage, ledger_db, da_service, sov_sequencer)?;
+            CitreaRuntime<DefaultContext, Self::DaSpec>,
+        >(storage, ledger_db, sov_sequencer)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
@@ -90,6 +86,9 @@ impl RollupBlueprint for BitcoinRollup {
         )?;
 
         register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
+
+        let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
+        rpc_methods.merge(backup_methods)?;
 
         let da_methods = create_da_rpc_module(da_service.clone());
         rpc_methods.merge(da_methods)?;

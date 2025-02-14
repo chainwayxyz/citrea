@@ -146,12 +146,6 @@ pub trait StateTransitionFunction<Da: DaSpec> {
     /// State of the rollup after transition.
     type ChangeSet;
 
-    /// The contents of a transaction receipt. This is the data that is persisted in the database
-    type TxReceiptContents: Serialize + DeserializeOwned + Clone;
-
-    /// The contents of a batch receipt. This is the data that is persisted in the database
-    type BatchReceiptContents: Serialize + DeserializeOwned + Clone;
-
     /// Witness is a data that is produced during actual batch execution
     /// or validated together with proof during verification
     type Witness: Default

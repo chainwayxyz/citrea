@@ -1,0 +1,140 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
+use jsonrpsee::types::ErrorObjectOwned;
+use serde::{Deserialize, Serialize};
+use sov_db::ledger_db::LedgerDB;
+
+use super::{BackupManager, CreateBackupInfo};
+
+/// Response from backup validation request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationResponse {
+    /// Path that was validated
+    pub backup_path: PathBuf,
+    /// Whether the backup at the path is valid
+    pub is_valid: bool,
+    /// Error message if validation failed
+    pub message: Option<String>,
+}
+
+/// Information about a specific backup
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupInfoResponse {
+    /// Timestamp of the backup
+    pub timestamp: i64,
+    /// ID of the backup
+    pub backup_id: u32,
+    /// Size of the backup
+    pub size: u64,
+    /// Number of files related to the backup
+    pub num_files: u32,
+}
+
+#[rpc(client, server, namespace = "backup")]
+pub trait BackupRpc {
+    #[method(name = "create")]
+    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo>;
+
+    #[method(name = "validate")]
+    async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse>;
+
+    #[method(name = "info")]
+    async fn backup_info(
+        &self,
+        path: PathBuf,
+    ) -> RpcResult<HashMap<String, Vec<BackupInfoResponse>>>;
+}
+
+pub struct BackupRpcServerImpl {
+    backup_manager: Arc<BackupManager>,
+    ledger_db: LedgerDB,
+}
+
+impl BackupRpcServerImpl {
+    pub fn new(backup_manager: Arc<BackupManager>, ledger_db: LedgerDB) -> Self {
+        Self {
+            backup_manager,
+            ledger_db,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl BackupRpcServer for BackupRpcServerImpl {
+    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo> {
+        self.backup_manager
+            .create_backup(path, &self.ledger_db)
+            .await
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}")),
+                )
+            })
+    }
+
+    async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse> {
+        let res = match self.backup_manager.validate_backup(&path) {
+            Ok(()) => ValidationResponse {
+                backup_path: path,
+                is_valid: true,
+                message: None,
+            },
+            Err(e) => ValidationResponse {
+                backup_path: path,
+                is_valid: false,
+                message: Some(e.to_string()),
+            },
+        };
+        Ok(res)
+    }
+
+    async fn backup_info(
+        &self,
+        path: PathBuf,
+    ) -> RpcResult<HashMap<String, Vec<BackupInfoResponse>>> {
+        self.backup_manager
+            .get_backup_info(path)
+            .map(|info| {
+                info.into_iter()
+                    .map(|(k, v)| {
+                        (
+                            k,
+                            v.into_iter()
+                                .map(|v| BackupInfoResponse {
+                                    timestamp: v.timestamp,
+                                    backup_id: v.backup_id,
+                                    size: v.size,
+                                    num_files: v.num_files,
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect()
+            })
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}")),
+                )
+            })
+    }
+}
+
+pub fn create_backup_rpc_module(
+    ledger_db: LedgerDB,
+    backup_manager: Arc<BackupManager>,
+) -> jsonrpsee::RpcModule<BackupRpcServerImpl>
+where
+    BackupRpcServerImpl: BackupRpcServer,
+{
+    let server = BackupRpcServerImpl::new(backup_manager, ledger_db);
+    BackupRpcServer::into_rpc(server)
+}

@@ -48,7 +48,6 @@ pub const STATE_TABLES: &[&str] = &[
 /// A list of all tables used by Sequencer LedgerDB
 pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
-    SlotByHash::table_name(),
     SoftConfirmationByNumber::table_name(),
     SoftConfirmationByHash::table_name(),
     L2RangeByL1Height::table_name(),
@@ -58,10 +57,17 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
-    VerifiedBatchProofsBySlotNumber::table_name(),
-    ProverLastScannedSlot::table_name(),
     MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
+    // ########
+    // The following tables exist in the sequencer since they enable
+    // using the fullnode's backup as a sequencer database without having
+    // to remove these tables first as demonstrated by the
+    // `test_sequencer_crash_and_replace_full_node` test.
+    VerifiedBatchProofsBySlotNumber::table_name(),
+    ProverLastScannedSlot::table_name(),
+    SlotByHash::table_name(),
+    // ########
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -77,13 +83,10 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     SoftConfirmationByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
-    LastStateDiff::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
     ProverLastScannedSlot::table_name(),
     CommitmentsByNumber::table_name(),
-    MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
     VerifiedBatchProofsBySlotNumber::table_name(),
     #[cfg(test)]
@@ -119,9 +122,9 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     SlotByHash::table_name(),
+    SoftConfirmationByNumber::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
-    SoftConfirmationByNumber::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]

@@ -36,7 +36,8 @@ impl<Q> Clone for StateDB<Q> {
 }
 
 impl<Q> StateDB<Q> {
-    const DB_PATH_SUFFIX: &'static str = "state";
+    /// StateDB path suffix
+    pub const DB_PATH_SUFFIX: &'static str = "state";
     const DB_NAME: &'static str = "state-db";
 
     /// Initialize [`sov_schema_db::DB`] that should be used by snapshots.

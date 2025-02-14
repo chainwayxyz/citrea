@@ -43,7 +43,6 @@ pub trait TxHooks {
 /// Hooks that are executed before and after a soft confirmation is processed.
 pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     type Context: Context;
-    type SoftConfirmationResult;
 
     /// Runs at the beginning of apply_soft_confirmation.
     /// If this hook returns Err, batch is not applied

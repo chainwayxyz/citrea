@@ -18,19 +18,19 @@ use reth_transaction_pool::{
 
 pub use crate::db_provider::DbProvider;
 
-type CitreaMempoolImpl<C> = Pool<
-    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider<C>, EthPooledTransaction>>,
+type CitreaMempoolImpl = Pool<
+    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider, EthPooledTransaction>>,
     CoinbaseTipOrdering<EthPooledTransaction>,
     NoopBlobStore,
 >;
 
-type Transaction<C> = <CitreaMempoolImpl<C> as TransactionPool>::Transaction;
+type Transaction = <CitreaMempoolImpl as TransactionPool>::Transaction;
 
-pub struct CitreaMempool<C: sov_modules_api::Context>(CitreaMempoolImpl<C>);
+pub struct CitreaMempool(CitreaMempoolImpl);
 
-impl<C: sov_modules_api::Context> CitreaMempool<C> {
+impl CitreaMempool {
     pub(crate) fn new(
-        client: DbProvider<C>,
+        client: DbProvider,
         mempool_conf: SequencerMempoolConfig,
     ) -> anyhow::Result<Self> {
         let blob_store = NoopBlobStore::default();
@@ -110,14 +110,14 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
         self.0.add_external_transaction(transaction).await
     }
 
-    pub(crate) fn get(&self, hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Transaction<C>>>> {
+    pub(crate) fn get(&self, hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Transaction>>> {
         self.0.get(hash)
     }
 
     pub(crate) fn remove_transactions(
         &self,
         tx_hashes: Vec<TxHash>,
-    ) -> Vec<Arc<ValidPoolTransaction<Transaction<C>>>> {
+    ) -> Vec<Arc<ValidPoolTransaction<Transaction>>> {
         self.0.remove_transactions(tx_hashes)
     }
 
@@ -128,7 +128,7 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
     pub(crate) fn best_transactions_with_attributes(
         &self,
         best_transactions_attributes: BestTransactionsAttributes,
-    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Transaction<C>>>>> {
+    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Transaction>>>> {
         self.0
             .best_transactions_with_attributes(best_transactions_attributes)
     }

@@ -1,6 +1,7 @@
 //! Common crate provides helper methods that is shared across the workspace
 #![forbid(unsafe_code)]
 
+pub mod backup;
 pub mod cache;
 pub mod config;
 pub mod da;

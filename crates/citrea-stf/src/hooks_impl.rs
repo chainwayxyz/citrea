@@ -6,15 +6,15 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     AccessoryWorkingSet, Context, SoftConfirmationHookError, SpecId, WorkingSet,
 };
-use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_modules_stf_blueprint::RuntimeTxHook;
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
-use crate::runtime::Runtime;
+use crate::runtime::CitreaRuntime;
 
-impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
+impl<C: Context, Da: DaSpec> TxHooks for CitreaRuntime<C, Da> {
     type Context = C;
     type PreArg = RuntimeTxHook;
     type PreResult = C;
@@ -54,10 +54,8 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
+impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for CitreaRuntime<C, Da> {
     type Context = C;
-    type SoftConfirmationResult =
-        SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
 
     #[cfg_attr(
         feature = "native",
@@ -89,7 +87,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
+impl<C: Context, Da: DaSpec> SlotHooks<Da> for CitreaRuntime<C, Da> {
     type Context = C;
 
     fn begin_slot_hook(
@@ -103,7 +101,7 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
     fn end_slot_hook(&self, _working_set: &mut sov_modules_api::WorkingSet<C::Storage>) {}
 }
 
-impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da> {
+impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for CitreaRuntime<C, Da> {
     type Context = C;
 
     #[cfg_attr(
