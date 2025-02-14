@@ -8,7 +8,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
     CommitmentsByNumber, L2RangeByL1Height, L2Witness, LightClientProofBySlotNumber,
     ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs, SlotByHash, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus,
+    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::light_client_proof::{
     StoredLatestDaState, StoredLightClientProof, StoredLightClientProofOutput,
@@ -18,6 +18,7 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_db::state_db::StateDB;
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::mmr::MMRGuest;
+use sov_schema_db::DB;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
@@ -352,48 +353,47 @@ pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
         .is_some());
 }
 
-#[test]
-pub fn test_pruning_ledger_db_slots() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
-    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
-
-    let mut da_slot_height = 1;
-
-    for i in (1u64..=20).step_by(2) {
+fn prepare_slots_data(ledger_db: &DB) {
+    for da_slot_height in 2u64..=20 {
         ledger_db
             .put::<L2RangeByL1Height>(
                 &SlotNumber(da_slot_height),
-                &(SoftConfirmationNumber(i), SoftConfirmationNumber(i + 1)),
+                &(
+                    SoftConfirmationNumber(da_slot_height - 1),
+                    SoftConfirmationNumber(da_slot_height),
+                ),
             )
             .unwrap();
         ledger_db
-            .put::<CommitmentsByNumber>(&SlotNumber(i), &vec![])
+            .put::<CommitmentsByNumber>(&SlotNumber(da_slot_height), &vec![])
             .unwrap();
         ledger_db
-            .put::<ProofsBySlotNumber>(&SlotNumber(i), &vec![])
+            .put::<ProofsBySlotNumber>(&SlotNumber(da_slot_height), &vec![])
             .unwrap();
         ledger_db
-            .put::<ProofsBySlotNumberV2>(&SlotNumber(i), &vec![])
+            .put::<ProofsBySlotNumberV2>(&SlotNumber(da_slot_height), &vec![])
+            .unwrap();
+        ledger_db
+            .put::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(da_slot_height), &vec![])
             .unwrap();
         ledger_db
             .put::<LightClientProofBySlotNumber>(
-                &SlotNumber(i),
+                &SlotNumber(da_slot_height),
                 &StoredLightClientProof {
                     proof: vec![1; 32],
                     light_client_proof_output: StoredLightClientProofOutput {
                         state_root: [0u8; 32],
-                        light_client_proof_method_id: [1 as u32; 8],
+                        light_client_proof_method_id: [1u32; 8],
                         latest_da_state: StoredLatestDaState {
-                            block_hash: todo!(),
-                            block_height: todo!(),
-                            total_work: todo!(),
-                            current_target_bits: todo!(),
-                            epoch_start_time: todo!(),
-                            prev_11_timestamps: todo!(),
+                            block_hash: [0; 32],
+                            block_height: da_slot_height,
+                            total_work: [0; 32],
+                            current_target_bits: 0,
+                            epoch_start_time: 0,
+                            prev_11_timestamps: [0; 11],
                         },
                         unchained_batch_proofs_info: vec![],
-                        last_l2_height: i,
+                        last_l2_height: da_slot_height,
                         batch_proof_method_ids: vec![],
                         mmr_guest: MMRGuest::new(),
                     },
@@ -401,9 +401,358 @@ pub fn test_pruning_ledger_db_slots() {
             )
             .unwrap();
         ledger_db
-            .put::<SlotByHash>(&[da_slot_height as u8; 32], &SlotNumber(i))
+            .put::<SlotByHash>(&[da_slot_height as u8; 32], &SlotNumber(da_slot_height))
             .unwrap();
-
-        da_slot_height += 1;
     }
+
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+}
+
+#[test]
+pub fn test_pruning_ledger_db_fullnode_slots() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
+
+    prepare_slots_data(&ledger_db);
+
+    prune_ledger(PruningNodeType::FullNode, ledger_db.clone(), 10);
+
+    // SHOULD NOT CHANGE
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    // SHOULD BE PRUNED UP TO 10
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+}
+
+#[test]
+pub fn test_pruning_ledger_db_light_client_slots() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
+
+    prepare_slots_data(&ledger_db);
+
+    prune_ledger(PruningNodeType::LightClient, ledger_db.clone(), 10);
+
+    // SHOULD NOT CHANGE
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    // SHOULD BE PRUNED UP TO 10
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+}
+
+#[test]
+pub fn test_pruning_ledger_db_batch_prover_slots() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
+
+    prepare_slots_data(&ledger_db);
+
+    prune_ledger(PruningNodeType::BatchProver, ledger_db.clone(), 10);
+
+    // SHOULD NOT CHANGE
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    // SHOULD BE PRUNED UP TO 10
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<L2RangeByL1Height>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumber>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
+    assert!(ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
 }
