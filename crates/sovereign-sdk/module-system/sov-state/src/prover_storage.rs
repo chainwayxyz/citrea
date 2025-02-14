@@ -291,7 +291,6 @@ impl Storage for ProverStorage {
             is_snapshot: true,
         }
     }
-
 }
 
 impl NativeStorage for ProverStorage {
