@@ -14,7 +14,7 @@ pub struct MmrDB {
 }
 
 impl MmrDB {
-    const DB_PATH_SUFFIX: &'static str = "mmr";
+    pub const DB_PATH_SUFFIX: &'static str = "mmr";
     const DB_NAME: &'static str = "mmr-db";
 
     /// Initialize [`sov_schema_db::DB`] that should be used by snapshots.
@@ -40,6 +40,11 @@ impl MmrDB {
         Ok(Self {
             db: Arc::new(inner),
         })
+    }
+
+    /// Reference to underlying sov DB
+    pub fn db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.db.clone()
     }
 }
 

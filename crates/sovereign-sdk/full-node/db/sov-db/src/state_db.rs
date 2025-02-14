@@ -22,7 +22,8 @@ pub struct StateDB {
 }
 
 impl StateDB {
-    const DB_PATH_SUFFIX: &'static str = "state";
+    /// StateDB path suffix
+    pub const DB_PATH_SUFFIX: &'static str = "state";
     const DB_NAME: &'static str = "state-db";
 
     /// Initialize [`DB`] that should be used by snapshots.

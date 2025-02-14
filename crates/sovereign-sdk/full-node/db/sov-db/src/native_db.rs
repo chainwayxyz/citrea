@@ -19,7 +19,8 @@ pub struct NativeDB {
 }
 
 impl NativeDB {
-    const DB_PATH_SUFFIX: &'static str = "native-db";
+    /// NativeDB path suffix
+    pub const DB_PATH_SUFFIX: &'static str = "native-db";
     const DB_NAME: &'static str = "native";
 
     /// Initialize [`sov_schema_db::DB`] that matches tables and columns for NativeDB

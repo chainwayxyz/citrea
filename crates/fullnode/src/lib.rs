@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
@@ -39,6 +40,7 @@ pub fn build_services<Da, DB, Vm>(
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
+    backup_manager: Arc<BackupManager>,
 ) -> Result<(
     CitreaFullnode<Da, DB>,
     L1BlockHandler<Vm, Da, DB>,
@@ -71,6 +73,7 @@ where
         storage_manager,
         fork_manager,
         soft_confirmation_tx,
+        backup_manager.clone(),
     )?;
 
     let l1_block_handler = L1BlockHandler::new(
@@ -81,6 +84,7 @@ where
         public_keys.prover_da_pub_key,
         code_commitments,
         Arc::new(Mutex::new(L1BlockCache::new())),
+        backup_manager,
     );
 
     Ok((runner, l1_block_handler, pruner))
