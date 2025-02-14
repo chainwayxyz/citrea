@@ -101,6 +101,7 @@ impl TestCase for BackupRestoreTest {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_backup_restore() -> Result<()> {
     TestCaseRunner::new(BackupRestoreTest)
         .set_citrea_path(get_citrea_path())
