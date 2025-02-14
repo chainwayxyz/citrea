@@ -283,7 +283,10 @@ impl Storage for ProverStorage {
     }
 
     fn clone_with_version(&self, version: Version) -> Self {
-        assert!(self.is_snapshot, "Clone with version should never be called with non-snapshot storage");
+        assert!(
+            self.is_snapshot,
+            "Clone with version should never be called with non-snapshot storage"
+        );
         Self {
             db: self.db.clone(),
             native_db: self.native_db.clone(),
