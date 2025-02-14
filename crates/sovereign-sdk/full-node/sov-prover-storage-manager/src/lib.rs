@@ -67,13 +67,7 @@ impl ProverStorageManager {
     /// Commits all the changes to `ProverStorage` to underlying database.
     /// If storage is a snapshot, nothing is committed, an false is returned.
     pub fn finalize_storage(&self, storage: ProverStorage) -> bool {
-        if storage.is_snapshot() {
-            tracing::debug!(
-                "Storage on version {} is a snapshot, skipping finalization",
-                storage.version()
-            );
-            return false;
-        }
+        assert!(!storage.is_snapshot(), "Snapshot storage should never be finalized");
 
         tracing::debug!("Finalizing storage on version {}", storage.version());
 
