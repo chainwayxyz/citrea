@@ -250,7 +250,14 @@ where
             .map_err(to_eth_rpc_error)
     }
 
-    // Implemented for Genesis and Fork1 only. Not for Fork2 yet.
+    // For account for fork1 we return:
+    //  fork1, account_proof, account_exists (y/n)
+    // For account for fork2 we return one of:
+    //  - fork2, index_proof, n
+    //  - fork2, index_proof, index (little endian, 8 bytes), account_proof, account_exists (y)
+    //
+    // For storages we return:
+    //  fork1/fork2, value_proof, value_exists (y/n)
     fn eth_get_proof(
         &self,
         address: Address,
