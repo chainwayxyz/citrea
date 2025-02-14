@@ -65,27 +65,25 @@ mod test {
             let storage_manager = ProverStorageManager::new(storage_config.clone()).unwrap();
             let prover_storage = storage_manager.create_latest_version_storage();
             for test in tests.clone() {
-                {
-                    let mut working_set = WorkingSet::new(prover_storage.clone());
+                let mut working_set = WorkingSet::new(prover_storage.clone());
 
-                    working_set.set(&test.key, test.value.clone());
-                    let (cache, mut witness) = working_set.checkpoint().freeze();
-                    prover_storage
-                        .validate_and_commit(cache, &mut witness)
-                        .expect("storage is valid");
-                    assert_eq!(
-                        test.value,
-                        prover_storage.get(&test.key, &mut witness).unwrap()
-                    );
-                }
+                working_set.set(&test.key, test.value.clone());
+                let (cache, mut witness) = working_set.checkpoint().freeze();
+                prover_storage
+                    .validate_and_commit(cache, &mut witness)
+                    .expect("storage is valid");
+                assert_eq!(
+                    test.value,
+                    prover_storage.get(&test.key, &mut witness).unwrap()
+                );
             }
             storage_manager.finalize_storage(prover_storage);
         }
 
         {
             let storage_manager = ProverStorageManager::new(storage_config).unwrap();
-            let storage = storage_manager.create_latest_version_storage();
-            for test in tests {
+            for (test, version) in tests.iter().zip(1..=tests.len()) {
+                let storage = storage_manager.create_storage_snapshot_on_version(version as u64);
                 assert_eq!(
                     test.value,
                     storage.get(&test.key, &mut Default::default()).unwrap()
