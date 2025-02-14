@@ -12,6 +12,7 @@ repository.workspace = true
 # Citrea Deps
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives" }
+citrea-stf = { path = "../citrea-stf" }
 citrea-storage-ops = { path = "../storage-ops" }
 
 # Sov SDK deps

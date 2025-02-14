@@ -7,10 +7,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{FullNodeConfig, ProverGuestRunConfig};
+use citrea_stf::runtime::CitreaRuntime;
 use prover_services::ParallelProverService;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_modules_api::{Context, DaSpec, Spec};
+use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::DaSpec;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::DaVerifier;
@@ -41,17 +43,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Host of a zkVM program.
     type Vm: ZkvmHost + Zkvm + Send + Sync + 'static;
-
-    /// Context for Zero Knowledge environment.
-    type ZkContext: Context;
-
-    /// Context for Native environment.
-    type NativeContext: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Sync + Send;
-
-    /// Runtime for the Zero Knowledge environment.
-    type ZkRuntime: RuntimeTrait<Self::ZkContext, Self::DaSpec> + Default;
-    /// Runtime for the Native environment.
-    type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
 
     /// Creates a new instance of the blueprint.
     fn new(network: Network) -> Self;
@@ -86,18 +77,21 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     #[allow(clippy::type_complexity)]
     fn create_genesis_config(
         &self,
-        rt_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
+        rt_genesis_paths: &<CitreaRuntime<DefaultContext, Self::DaSpec> as RuntimeTrait<
+            DefaultContext,
             Self::DaSpec,
         >>::GenesisPaths,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> anyhow::Result<
         GenesisParams<
-            <Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
+            <CitreaRuntime<DefaultContext, Self::DaSpec> as RuntimeTrait<
+                DefaultContext,
+                Self::DaSpec,
+            >>::GenesisConfig,
         >,
     > {
-        let rt_genesis = <Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
+        let rt_genesis = <CitreaRuntime<DefaultContext, Self::DaSpec> as RuntimeTrait<
+            DefaultContext,
             Self::DaSpec,
         >>::genesis_config(rt_genesis_paths)?;
 

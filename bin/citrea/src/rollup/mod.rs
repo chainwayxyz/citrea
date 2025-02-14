@@ -14,13 +14,13 @@ use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientP
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
     GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
@@ -39,8 +39,8 @@ pub use bitcoin::*;
 pub use mock::*;
 
 type GenesisParams<T> = StfGenesisParams<
-    <<T as RollupBlueprint>::NativeRuntime as RuntimeTrait<
-        <T as RollupBlueprint>::NativeContext,
+    <CitreaRuntime<DefaultContext, <T as RollupBlueprint>::DaSpec> as RuntimeTrait<
+        DefaultContext,
         <T as RollupBlueprint>::DaSpec,
     >>::GenesisConfig,
 >;
@@ -142,13 +142,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
-    ) -> Result<(
-        CitreaSequencer<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
-        RpcModule<()>,
-    )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
-    {
+    ) -> Result<(CitreaSequencer<Self::DaService, LedgerDB>, RpcModule<()>)> {
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
@@ -195,13 +189,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<(
-        CitreaFullnode<Self::DaService, Self::NativeContext, LedgerDB, Self::NativeRuntime>,
-        FullNodeL1BlockHandler<Self::NativeContext, Self::Vm, Self::DaService, LedgerDB>,
+        CitreaFullnode<Self::DaService, LedgerDB>,
+        FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
-    )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
-    {
+    )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let native_stf = StfBlueprint::new();
@@ -253,19 +244,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
     ) -> Result<(
-        CitreaBatchProver<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
-        BatchProverL1BlockHandler<
-            Self::Vm,
-            Self::DaService,
-            LedgerDB,
-            ArrayWitness,
-            Self::NativeContext,
-        >,
+        CitreaBatchProver<Self::DaService, LedgerDB>,
+        BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
         RpcModule<()>,
-    )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
-    {
+    )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let native_stf = StfBlueprint::new();
@@ -331,10 +313,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         CitreaLightClientProver,
         LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
-    )>
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
-    {
+    )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let current_l2_height = ledger_db
@@ -395,7 +374,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     fn init_chain(
         &self,
         genesis_config: GenesisParams<Self>,
-        stf: &StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
+        stf: &StfBlueprint<
+            DefaultContext,
+            Self::DaSpec,
+            CitreaRuntime<DefaultContext, Self::DaSpec>,
+        >,
         ledger_db: &LedgerDB,
         storage_manager: &mut ProverStorageManager<Self::DaSpec>,
         prover_storage: &ProverStorage<SnapshotManager>,

@@ -11,15 +11,17 @@ use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
-use sov_modules_api::{Context, SignedSoftConfirmation, Spec, SpecId};
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
+use sov_modules_api::{SignedSoftConfirmation, SpecId};
+use sov_modules_stf_blueprint::StfBlueprint;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
@@ -34,20 +36,18 @@ use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 
-type StfTransaction<C, Da, RT> =
-    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
+type StfTransaction<Da> =
+    <StfBlueprint<DefaultContext, Da, CitreaRuntime<DefaultContext, Da>> as StateTransitionFunction<Da>>::Transaction;
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Da, C, DB, RT>
+pub struct CitreaFullnode<Da, DB>
 where
     Da: DaService,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     DB: NodeLedgerOps + Clone,
-    RT: Runtime<C, Da::Spec>,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
-    stf: StfBlueprint<C, Da::Spec, RT>,
+    stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
     state_root: StorageRootHash,
@@ -55,7 +55,6 @@ where
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_k256_pub_key: Vec<u8>,
-    phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
@@ -63,12 +62,10 @@ where
     soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
-impl<Da, C, DB, RT> CitreaFullnode<Da, C, DB, RT>
+impl<Da, DB> CitreaFullnode<Da, DB>
 where
     Da: DaService<Error = anyhow::Error>,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
-    RT: Runtime<C, Da::Spec>,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -79,7 +76,7 @@ where
     pub fn new(
         runner_config: RunnerConfig,
         init_params: InitParams,
-        stf: StfBlueprint<C, Da::Spec, RT>,
+        stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
         ledger_db: DB,
@@ -103,7 +100,6 @@ where
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
-            phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
             sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
@@ -148,18 +144,18 @@ where
 
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
+        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction< Da::Spec>> =
             // TODO: Should this be >= Fork2?
             if current_spec >= SpecId::Kumquat {
                 let signed_soft_confirmation: SignedSoftConfirmation<
-                    StfTransaction<C, Da::Spec, RT>,
+                    StfTransaction<Da::Spec>,
                 > = soft_confirmation
                     .clone()
                     .try_into()
                     .context("Failed to parse transactions")?;
                 signed_soft_confirmation
             } else {
-                let signed_soft_confirmation: SignedSoftConfirmation<PreFork2Transaction<C>> =
+                let signed_soft_confirmation: SignedSoftConfirmation<PreFork2Transaction<DefaultContext>> =
                     soft_confirmation
                         .clone()
                         .try_into()
@@ -168,7 +164,7 @@ where
                     .txs()
                     .iter()
                     .map(|tx| {
-                        let tx: StfTransaction<C, Da::Spec, RT> = tx.clone().into();
+                        let tx: StfTransaction<Da::Spec> = tx.clone().into();
                         tx
                     })
                     .collect::<Vec<_>>();
@@ -230,8 +226,10 @@ where
             None
         };
 
-        let receipt =
-            soft_confirmation_to_receipt::<C, _, Da::Spec>(signed_soft_confirmation, current_spec);
+        let receipt = soft_confirmation_to_receipt::<DefaultContext, _, Da::Spec>(
+            signed_soft_confirmation,
+            current_spec,
+        );
 
         self.ledger_db
             .commit_soft_confirmation(next_state_root.as_ref(), receipt, tx_bodies)?;

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 pub use citrea_common::SequencerConfig;
 use citrea_common::{InitParams, RollupPublicKeys};
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
@@ -11,8 +12,7 @@ use parking_lot::Mutex;
 pub use rpc::SequencerRpcClient;
 pub use runner::CitreaSequencer;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_modules_api::{Context, Spec};
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
@@ -31,10 +31,14 @@ mod runner;
 mod utils;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn build_services<C, Da, DB, RT>(
+pub fn build_services<Da, DB>(
     sequencer_config: SequencerConfig,
     init_params: InitParams,
-    native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
+    native_stf: StfBlueprint<
+        DefaultContext,
+        <Da as DaService>::Spec,
+        CitreaRuntime<DefaultContext, <Da as DaService>::Spec>,
+    >,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     ledger_db: DB,
@@ -43,12 +47,10 @@ pub fn build_services<C, Da, DB, RT>(
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     rpc_module: RpcModule<()>,
-) -> Result<(CitreaSequencer<C, Da, DB, RT>, RpcModule<()>)>
+) -> Result<(CitreaSequencer<Da, DB>, RpcModule<()>)>
 where
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
-    RT: Runtime<C, Da::Spec>,
 {
     let (l2_force_block_tx, l2_force_block_rx) = unbounded_channel();
     // used as client of reth's mempool
@@ -67,7 +69,7 @@ where
         ledger_db.clone(),
         sequencer_config.test_mode,
     );
-    let rpc_module = rpc::register_rpc_methods::<C, DB>(rpc_context, rpc_module)?;
+    let rpc_module = rpc::register_rpc_methods::<DB>(rpc_context, rpc_module)?;
 
     let seq = CitreaSequencer::new(
         da_service,
