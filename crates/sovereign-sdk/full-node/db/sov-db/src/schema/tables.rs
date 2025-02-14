@@ -59,6 +59,15 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
     MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
+    // ########
+    // The following tables exist in the sequencer since they enable
+    // using the fullnode's backup as a sequencer database without having
+    // to remove these tables first as demonstrated by the
+    // `test_sequencer_crash_and_replace_full_node` test.
+    VerifiedBatchProofsBySlotNumber::table_name(),
+    ProverLastScannedSlot::table_name(),
+    SlotByHash::table_name(),
+    // ########
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
