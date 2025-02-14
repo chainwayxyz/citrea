@@ -335,7 +335,7 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (StorageRootHash, Self::ChangeSet) {
-        let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
+        let mut working_set = WorkingSet::new(pre_state.clone());
 
         self.runtime.genesis(&params.runtime, &mut working_set);
 
