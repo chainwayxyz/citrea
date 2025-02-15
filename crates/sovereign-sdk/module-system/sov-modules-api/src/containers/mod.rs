@@ -63,7 +63,7 @@ mod test {
         };
         {
             let storage_manager = ProverStorageManager::new(storage_config.clone()).unwrap();
-            let prover_storage = storage_manager.create_latest_version_storage();
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
             for test in tests.clone() {
                 let mut working_set = WorkingSet::new(prover_storage.clone());
 
@@ -83,7 +83,7 @@ mod test {
         {
             let storage_manager = ProverStorageManager::new(storage_config).unwrap();
             for (test, version) in tests.iter().zip(1..=tests.len()) {
-                let storage = storage_manager.create_storage_snapshot_on_version(version as u64);
+                let storage = storage_manager.create_storage_for_l2_height(version as u64);
                 assert_eq!(
                     test.value,
                     storage.get(&test.key, &mut Default::default()).unwrap()
@@ -101,7 +101,7 @@ mod test {
         };
         {
             let storage_manager = ProverStorageManager::new(storage_config.clone()).unwrap();
-            let prover_storage = storage_manager.create_latest_version_storage();
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
             assert!(prover_storage.is_empty());
         }
 
@@ -110,7 +110,7 @@ mod test {
         // First restart
         {
             let storage_manager = ProverStorageManager::new(storage_config.clone()).unwrap();
-            let prover_storage = storage_manager.create_latest_version_storage();
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
             assert!(prover_storage.is_empty());
             let mut storage = WorkingSet::new(prover_storage.clone());
             storage.set(&key, value.clone());
@@ -124,7 +124,7 @@ mod test {
         // Correctly restart from disk
         {
             let storage_manager = ProverStorageManager::new(storage_config.clone()).unwrap();
-            let prover_storage = storage_manager.create_latest_version_storage();
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
             assert!(!prover_storage.is_empty());
             assert_eq!(
                 value,

@@ -23,6 +23,7 @@ use crate::{DefaultHasher, DefaultWitness};
 pub struct ProverStorage {
     db: StateDB,
     native_db: NativeDB,
+    init_version: u64,
     version: Arc<AtomicU64>,
     committable: bool,
 }
@@ -35,6 +36,7 @@ impl ProverStorage {
         Self {
             db,
             native_db,
+            init_version: version,
             version: Arc::new(AtomicU64::new(version)),
             committable: true,
         }
@@ -46,6 +48,7 @@ impl ProverStorage {
         Self {
             db,
             native_db,
+            init_version: version,
             version: Arc::new(AtomicU64::new(version)),
             committable: false,
         }
@@ -283,6 +286,7 @@ impl Storage for ProverStorage {
         Self {
             db: self.db.clone(),
             native_db: self.native_db.clone(),
+            init_version: self.init_version,
             version: Arc::new(AtomicU64::new(version)),
             // version change on the current storage should never be committed
             // as it will introduce weird cache problems
@@ -294,6 +298,10 @@ impl Storage for ProverStorage {
 impl NativeStorage for ProverStorage {
     fn version(&self) -> u64 {
         self.version.load(Ordering::SeqCst)
+    }
+
+    fn init_version(&self) -> u64 {
+        self.init_version
     }
 
     fn get_with_proof(&self, key: StorageKey, version: Version) -> StorageProof {

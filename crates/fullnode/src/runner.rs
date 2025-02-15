@@ -138,7 +138,7 @@ where
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
-        let pre_state = self.storage_manager.create_latest_version_storage();
+        let pre_state = self.storage_manager.create_storage_for_next_l2_height();
 
         // Register this new block with the fork manager to active
         // the new fork on the next block.

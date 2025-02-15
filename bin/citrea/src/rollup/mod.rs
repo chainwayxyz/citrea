@@ -385,7 +385,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         ledger_db: &LedgerDB,
         storage_manager: &ProverStorageManager,
     ) -> anyhow::Result<InitParams> {
-        let prover_storage = storage_manager.create_latest_version_storage();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
         if let Some((number, soft_confirmation)) = ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed

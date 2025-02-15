@@ -308,6 +308,10 @@ impl From<&str> for StorageValue {
 pub trait NativeStorage: Storage {
     /// Return current version (0 if empty).
     fn version(&self) -> u64;
+
+    /// Return initialized version (0 if empty).
+    fn init_version(&self) -> u64;
+
     /// Returns the value corresponding to the key or None if key is absent and a proof to
     /// get the value.
     fn get_with_proof(&self, key: StorageKey, version: Version) -> StorageProof;

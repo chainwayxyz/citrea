@@ -29,25 +29,27 @@ impl ProverStorageManager {
         Ok(Self::with_db_handles(state_db, native_db))
     }
 
-    /// Creates a new [`ProverStorage`] with version as a snapshot. Created storage can not be committed
+    /// Creates a new [`ProverStorage`] to run the provided `l2_height` updates. Created storage is uncommittable
     /// to underlying rocksdb when [`ProverStorageManager::finalize_storage`] method is called.
-    pub fn create_storage_snapshot_on_version(&self, version: u64) -> ProverStorage {
+    pub fn create_storage_for_l2_height(&self, l2_height: u64) -> ProverStorage {
+        let version = l2_height;
+
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
 
         let storage = ProverStorage::uncommittable_with_version(state_db, native_db, version);
-        tracing::debug!("Created storage on version {}", version);
+        tracing::debug!("Created uncommittable storage for l2 height {}", l2_height);
 
         storage
     }
 
-    /// Creates a new [`ProverStorage`] with latest version.
-    pub fn create_latest_version_storage(&self) -> ProverStorage {
+    /// Creates a new [`ProverStorage`] to run the next `l2_height`.
+    pub fn create_storage_for_next_l2_height(&self) -> ProverStorage {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
 
         let storage = ProverStorage::committable_latest_version(state_db, native_db);
-        tracing::debug!("Created storage on latest version {}", storage.version());
+        tracing::debug!("Created storage for next l2 height {}", storage.version());
 
         storage
     }
@@ -73,7 +75,7 @@ impl ProverStorageManager {
             "Uncommittable storage should never be finalized"
         );
 
-        tracing::debug!("Finalizing storage on version {}", storage.version());
+        tracing::debug!("Finalizing storage on l2 height {}", storage.init_version());
 
         let (state_batch, native_batch) = storage.freeze().expect("Storage freeze must not fail");
 

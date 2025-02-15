@@ -370,7 +370,7 @@ where
             timestamp,
         };
 
-        let prestate = self.storage_manager.create_latest_version_storage();
+        let prestate = self.storage_manager.create_storage_for_next_l2_height();
         debug!(
             "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
@@ -392,7 +392,7 @@ where
             )
             .await?;
 
-        let prestate = self.storage_manager.create_latest_version_storage();
+        let prestate = self.storage_manager.create_storage_for_next_l2_height();
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
