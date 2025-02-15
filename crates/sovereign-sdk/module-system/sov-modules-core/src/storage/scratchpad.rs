@@ -20,6 +20,10 @@ pub trait StateReaderAndWriter {
     /// Get a value from the storage.
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue>;
 
+    /// Get a value from the storage with cache info.
+    /// true if the value is read from the cache, false otherwise.
+    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool);
+
     /// Replaces a storage value.
     fn set(&mut self, key: &StorageKey, value: StorageValue);
 
@@ -86,6 +90,32 @@ pub trait StateReaderAndWriter {
     {
         let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
         self.get_decoded(&storage_key, codec)
+    }
+
+    /// Same thing as `get_value`, but also verifies the value with a given function only when the
+    /// value is not found in the cache and read from the storage.
+    fn get_value_with_cache_info<Q, K, V, Codec>(
+        &mut self,
+        prefix: &Prefix,
+        storage_key: &Q,
+        codec: &Codec,
+    ) -> (Option<V>, bool)
+    where
+        Q: ?Sized,
+        Codec: StateCodec,
+        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Codec::ValueCodec: StateValueCodec<V>,
+    {
+        let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
+        let (storage_value, read_from_cache) = self.get_with_cache_info(&storage_key);
+
+        let value = storage_value.map(|storage_value| {
+            codec
+                .value_codec()
+                .decode_value_unwrap(storage_value.value())
+        });
+
+        (value, read_from_cache)
     }
 
     /// Get a singleton value from the storage. For more information, check [StorageKey::singleton].
@@ -234,6 +264,10 @@ impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
         self.uncommitted_writes
             .insert(key.to_cache_key_version(self.version), None);
     }
+
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!("Only Offchain state supports get_with_cache_info")
+    }
 }
 
 struct AccessoryDelta<S: Storage> {
@@ -298,6 +332,10 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
     fn delete(&mut self, key: &StorageKey) {
         self.uncommitted_writes
             .insert(key.to_cache_key_version(self.version), None);
+    }
+
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!("Only Offchain state supports get_with_cache_info")
     }
 }
 
@@ -385,6 +423,30 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
     fn delete(&mut self, key: &StorageKey) {
         self.uncommitted_writes
             .insert(key.to_cache_key_version(self.version), None);
+    }
+
+    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+        let cache_key = key.to_cache_key_version(self.version);
+
+        if let Some(value) = self.uncommitted_writes.get(&cache_key) {
+            return (value.as_ref().cloned().map(Into::into), true);
+        }
+
+        match self.cache_log.get_value(&cache_key) {
+            ValueExists::Yes(value) => (value.map(Into::into), true),
+            ValueExists::No => {
+                let storage_value = self
+                    .storage
+                    .get_offchain(key, self.version, &mut self.witness);
+                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
+
+                self.cache_log
+                    .add_read(cache_key, cache_value)
+                    .expect("Read from CacheLog failed");
+
+                (storage_value, false)
+            }
+        }
     }
 }
 
@@ -596,6 +658,10 @@ impl<S: Storage> StateReaderAndWriter for WorkingSet<S> {
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
         }
     }
+
+    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!("Only Offchain state supports get_with_cache_info")
+    }
 }
 
 /// A wrapper over [`WorkingSet`] that only allows access to the accessory
@@ -629,6 +695,10 @@ impl<'a, S: Storage> StateReaderAndWriter for AccessoryWorkingSet<'a, S> {
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
         }
     }
+
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!()
+    }
 }
 
 /// A wrapper over [`WorkingSet`] that only allows access to the accessory
@@ -656,6 +726,13 @@ impl<'a, S: Storage> StateReaderAndWriter for OffchainWorkingSet<'a, S> {
         match &mut self.ws.archival_offchain_working_set {
             None => self.ws.offchain_delta.delete(key),
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
+        }
+    }
+
+    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.get_with_cache_info(key),
+            Some(ref mut archival_working_set) => archival_working_set.get_with_cache_info(key),
         }
     }
 }
@@ -704,6 +781,10 @@ pub mod archival_state {
         fn delete(&mut self, key: &StorageKey) {
             self.delta.delete(key)
         }
+
+        fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+            unimplemented!("Only Offchain state supports get_with_cache_info")
+        }
     }
 
     impl<S: Storage> StateReaderAndWriter for ArchivalAccessoryWorkingSet<S> {
@@ -721,6 +802,10 @@ pub mod archival_state {
 
         fn delete(&mut self, key: &StorageKey) {
             self.delta.delete(key)
+        }
+
+        fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+            unimplemented!("Only Offchain state supports get_with_cache_info")
         }
     }
 
@@ -753,6 +838,10 @@ pub mod archival_state {
 
         fn delete(&mut self, key: &StorageKey) {
             self.delta.delete(key)
+        }
+
+        fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+            self.delta.get_with_cache_info(key)
         }
     }
 }
