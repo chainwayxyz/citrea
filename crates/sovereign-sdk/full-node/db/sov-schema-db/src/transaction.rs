@@ -51,16 +51,9 @@ impl DbTransaction {
         cache.merge(batch);
         Ok(())
     }
-}
 
-impl DbTransaction {
     /// Get a value from current transaction or underlying database
     pub fn read<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
-        // Some(Operation) means that key was touched,
-        // but in case of deletion we early return None
-        // Only in case of not finding operation for key,
-        // we go deeper
-
         // Hold local cache lock explicitly, so reads are atomic
         let local_cache = self
             .cache
