@@ -3,7 +3,7 @@
 use alloy_primitives::{B256, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CompressionAdd {
     pub diff: U256,
     pub size: usize,
@@ -23,7 +23,7 @@ impl CompressionAdd {
 }
 
 /// A special case when Add(x) for x <= 31 to fit into 1 serialized byte
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CompressionAddInlined {
     pub diff: u8,
 }
@@ -41,7 +41,7 @@ impl CompressionAddInlined {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CompressionSub {
     pub diff: U256,
     pub size: usize,
@@ -61,7 +61,7 @@ impl CompressionSub {
 }
 
 /// Only try to remove leading zeroes.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CompressionTransform {
     pub diff: U256,
     pub size: usize,
@@ -80,22 +80,21 @@ impl CompressionTransform {
     }
 }
 
-#[derive(Debug)]
+/// It's a special case when we store diff as is (32 bytes)
+#[derive(Debug, PartialEq, Eq)]
 pub struct CompressionAbsent {
     pub diff: U256,
-    pub size: usize,
 }
 
 impl CompressionAbsent {
     fn new(new_value: U256) -> Self {
         let diff = new_value;
-        let size = 32;
 
-        Self { diff, size }
+        Self { diff }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SlotChange {
     Add(CompressionAdd),
     AddInlined(CompressionAddInlined),
@@ -107,20 +106,20 @@ pub enum SlotChange {
 impl SlotChange {
     fn output_size(&self) -> usize {
         match self {
-            SlotChange::Add(add) => add.size,
+            SlotChange::Add(op) => op.size,
             SlotChange::AddInlined(_) => 0,
-            SlotChange::Sub(sub) => sub.size,
-            SlotChange::Transform(transform) => transform.size,
-            SlotChange::NoCompression(no) => no.size,
+            SlotChange::Sub(op) => op.size,
+            SlotChange::Transform(op) => op.size,
+            SlotChange::NoCompression(_) => 32,
         }
     }
     fn compressed(&self) -> &[u8] {
         let (bytes, size) = match self {
-            SlotChange::Add(add) => (add.diff.as_le_slice(), add.size),
+            SlotChange::Add(op) => (op.diff.as_le_slice(), op.size),
             SlotChange::AddInlined(_) => return &[], // data stored in metadata
-            SlotChange::Sub(sub) => (sub.diff.as_le_slice(), sub.size),
-            SlotChange::Transform(transform) => (transform.diff.as_le_slice(), transform.size),
-            SlotChange::NoCompression(no) => (no.diff.as_le_slice(), no.size),
+            SlotChange::Sub(op) => (op.diff.as_le_slice(), op.size),
+            SlotChange::Transform(op) => (op.diff.as_le_slice(), op.size),
+            SlotChange::NoCompression(no) => (no.diff.as_le_slice(), 32),
         };
         &bytes[..size]
     }
@@ -168,16 +167,13 @@ impl BorshDeserialize for SlotChange {
             ));
         }
 
+        // handle a special case for AddInlined
         if id == 4 {
             return Ok(SlotChange::AddInlined(CompressionAddInlined { diff: size }));
         }
 
-        if size > 32 {
-            return Err(borsh::io::Error::new(
-                borsh::io::ErrorKind::InvalidData,
-                "Unexpected size of operation",
-            ));
-        }
+        // handle a special case for NoCompression
+        let size = if id == 0 { 32 } else { size };
 
         let size = size as usize;
         let mut d_buff = [0u8; 32];
@@ -187,7 +183,7 @@ impl BorshDeserialize for SlotChange {
         let diff = U256::from_le_slice(bytes);
 
         let slot_change = match id {
-            0 => SlotChange::NoCompression(CompressionAbsent { diff, size }),
+            0 => SlotChange::NoCompression(CompressionAbsent { diff }),
             1 => SlotChange::Add(CompressionAdd { diff, size }),
             2 => SlotChange::Sub(CompressionSub { diff, size }),
             3 => SlotChange::Transform(CompressionTransform { diff, size }),
@@ -308,6 +304,43 @@ pub fn compress_one_code_hash(new_value: Option<B256>) -> CodeHashChange {
         CodeHashChange::Set(value)
     } else {
         CodeHashChange::Removed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::U256;
+
+    use crate::stateful_statediff::compression::CompressionTransform;
+
+    use super::{
+        CompressionAbsent, CompressionAdd, CompressionAddInlined, CompressionSub, SlotChange,
+    };
+
+    #[test]
+    fn borsh() {
+        let cases = [
+            SlotChange::Add(CompressionAdd {
+                diff: U256::from(257),
+                size: 2,
+            }),
+            SlotChange::AddInlined(CompressionAddInlined { diff: 31 }),
+            SlotChange::Sub(CompressionSub {
+                diff: U256::from(257),
+                size: 2,
+            }),
+            SlotChange::Transform(CompressionTransform {
+                diff: U256::from(123456),
+                size: 3,
+            }),
+            SlotChange::NoCompression(CompressionAbsent { diff: U256::MAX }),
+        ];
+
+        for slot_change in cases {
+            let serialized = borsh::to_vec(&slot_change).unwrap();
+            let deserialized: SlotChange = borsh::from_slice(&serialized).unwrap();
+            assert_eq!(deserialized, slot_change);
+        }
     }
 }
 
