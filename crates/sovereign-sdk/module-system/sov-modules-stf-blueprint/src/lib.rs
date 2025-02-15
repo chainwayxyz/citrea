@@ -379,7 +379,8 @@ where
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, *pre_state_root, current_spec);
 
-        let mut working_set = WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness);
+        let mut working_set =
+            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness);
 
         native_debug!("Applying soft confirmation in STF Blueprint");
 
