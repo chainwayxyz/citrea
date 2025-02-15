@@ -124,7 +124,6 @@ impl Storage for ProverStorage {
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
         // Handle empty jmt
-        // TODO: Fix this before introducing snapshots!
         if jmt.get_root_hash_option(version)?.is_none() {
             assert_eq!(version, 0);
             let (_, tree_update) = jmt
