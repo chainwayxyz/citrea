@@ -54,12 +54,12 @@ impl ProverStorageManager {
 
     /// Creates a new [`ProverStorage`] that always has the latest view of the state,
     /// and can not be committed.
-    pub fn create_latest_view_storage(&self) -> ProverStorage {
+    pub fn create_always_latest_view_storage(&self) -> ProverStorage {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
 
         let storage = ProverStorage::uncommittable_with_version(state_db, native_db, u64::MAX);
-        tracing::debug!("Created storage on latest view");
+        tracing::debug!("Created always latest view storage");
 
         storage
     }
