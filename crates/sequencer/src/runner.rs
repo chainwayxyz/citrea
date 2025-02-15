@@ -42,6 +42,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
@@ -393,6 +394,11 @@ where
             .await?;
 
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
+        assert_eq!(
+            prestate.version(),
+            l2_height,
+            "Prover storage version is corrupted"
+        );
 
         let mut working_set = WorkingSet::new(prestate.clone());
 

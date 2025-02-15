@@ -29,6 +29,7 @@ use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_state::storage::NativeStorage;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -139,6 +140,11 @@ where
         }
 
         let pre_state = self.storage_manager.create_storage_for_next_l2_height();
+        assert_eq!(
+            pre_state.version(),
+            l2_height,
+            "Prover storage version is corrupted"
+        );
 
         // Register this new block with the fork manager to active
         // the new fork on the next block.

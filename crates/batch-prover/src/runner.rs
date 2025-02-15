@@ -22,6 +22,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SignedSoftConfirmation, SlotData, SpecId};
+use sov_modules_core::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -220,6 +221,11 @@ where
         }
 
         let pre_state = self.storage_manager.create_storage_for_next_l2_height();
+        assert_eq!(
+            pre_state.version(),
+            l2_height,
+            "Prover storage version is corrupted"
+        );
 
         // Register this new block with the fork manager to active
         // the new fork on the next block
