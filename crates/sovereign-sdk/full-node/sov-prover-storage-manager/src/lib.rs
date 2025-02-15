@@ -53,7 +53,8 @@ impl ProverStorageManager {
     }
 
     /// Creates a new [`ProverStorage`] that always has the latest view of the state,
-    /// and can not be committed.
+    /// and can not be committed. If needed, use [`ProverStorage::clone_with_version`]
+    /// to create a storage with different version without overriding existing one.
     pub fn create_always_latest_view_storage(&self) -> ProverStorage {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
