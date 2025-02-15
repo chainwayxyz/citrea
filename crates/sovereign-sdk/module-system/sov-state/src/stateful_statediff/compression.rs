@@ -244,7 +244,7 @@ pub fn compress_one_best_strategy(new_value: U256) -> SlotChange {
     )
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CodeHashChange {
     Same,
     Removed,
@@ -309,16 +309,12 @@ pub fn compress_one_code_hash(new_value: Option<B256>) -> CodeHashChange {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U256;
+    use alloy_primitives::{b256, U256};
 
-    use crate::stateful_statediff::compression::CompressionTransform;
-
-    use super::{
-        CompressionAbsent, CompressionAdd, CompressionAddInlined, CompressionSub, SlotChange,
-    };
+    use super::*;
 
     #[test]
-    fn borsh() {
+    fn borsh_slot_change() {
         let cases = [
             SlotChange::Add(CompressionAdd {
                 diff: U256::from(257),
@@ -333,6 +329,10 @@ mod tests {
                 diff: U256::from(123456),
                 size: 3,
             }),
+            SlotChange::Transform(CompressionTransform {
+                diff: U256::from(0),
+                size: 0,
+            }),
             SlotChange::NoCompression(CompressionAbsent { diff: U256::MAX }),
         ];
 
@@ -341,6 +341,106 @@ mod tests {
             let deserialized: SlotChange = borsh::from_slice(&serialized).unwrap();
             assert_eq!(deserialized, slot_change);
         }
+    }
+
+    #[test]
+    fn borsh_code_hash_change() {
+        let cases = [
+            CodeHashChange::Same,
+            CodeHashChange::Removed,
+            CodeHashChange::Set(b256!(
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            )),
+        ];
+
+        for code_hash_change in cases {
+            let serialized = borsh::to_vec(&code_hash_change).unwrap();
+            let deserialized: CodeHashChange = borsh::from_slice(&serialized).unwrap();
+            assert_eq!(deserialized, code_hash_change);
+        }
+    }
+
+    #[test]
+    fn compress_one_slot() {
+        // Transform
+        assert_eq!(
+            compress_one_best_strategy(U256::from(257usize)),
+            SlotChange::Transform(CompressionTransform {
+                diff: U256::from(257usize),
+                size: 2
+            })
+        );
+        // NoCompression
+        assert_eq!(
+            compress_one_best_strategy(U256::MAX),
+            SlotChange::NoCompression(CompressionAbsent { diff: U256::MAX })
+        );
+    }
+
+    #[test]
+    fn compress_two_slot() {
+        // AddInlined
+        assert_eq!(
+            compress_two_best_strategy(U256::from(3usize), U256::from(34usize)),
+            SlotChange::AddInlined(CompressionAddInlined { diff: 31 })
+        );
+        // Add
+        assert_eq!(
+            compress_two_best_strategy(U256::from(255usize), U256::from(287usize)),
+            SlotChange::Add(CompressionAdd {
+                diff: U256::from(32usize),
+                size: 1
+            })
+        );
+        // Sub
+        assert_eq!(
+            compress_two_best_strategy(U256::from(297usize), U256::from(265usize)),
+            SlotChange::Sub(CompressionSub {
+                diff: U256::from(32usize),
+                size: 1
+            })
+        );
+        // Transform
+        assert_eq!(
+            compress_two_best_strategy(U256::from(297usize), U256::from(0usize)),
+            SlotChange::Transform(CompressionTransform {
+                diff: U256::from(0usize),
+                size: 0
+            })
+        );
+        // NoCompression
+        assert_eq!(
+            compress_two_best_strategy(
+                U256::from_limbs([2, 2, 2, 2]),
+                U256::from_limbs([u64::MAX / 2, u64::MAX / 2, u64::MAX / 2, u64::MAX / 2])
+            ),
+            SlotChange::NoCompression(CompressionAbsent {
+                diff: U256::from_limbs([u64::MAX / 2, u64::MAX / 2, u64::MAX / 2, u64::MAX / 2]),
+            })
+        );
+    }
+
+    #[test]
+    fn compress_two_code() {
+        let a = b256!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        let b = b256!("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+        // Same
+        assert_eq!(compress_two_code_hash(None, None), CodeHashChange::Same,);
+        // Removed
+        assert_eq!(
+            compress_two_code_hash(Some(a), None),
+            CodeHashChange::Removed,
+        );
+        // Set
+        assert_eq!(
+            compress_two_code_hash(Some(a), Some(b)),
+            CodeHashChange::Set(b),
+        );
+        // Set
+        assert_eq!(
+            compress_two_code_hash(None, Some(b)),
+            CodeHashChange::Set(b),
+        );
     }
 }
 
