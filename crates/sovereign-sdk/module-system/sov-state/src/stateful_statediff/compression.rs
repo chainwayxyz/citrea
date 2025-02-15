@@ -22,6 +22,25 @@ impl CompressionAdd {
     }
 }
 
+/// A special case when Add(x) for x <= 31 to fit into 1 serialized byte
+#[derive(Debug)]
+pub struct CompressionAddInlined {
+    pub diff: u8,
+}
+
+impl CompressionAddInlined {
+    fn new(prev_value: U256, new_value: U256) -> Option<Self> {
+        let (diff, _overflowed) = new_value.overflowing_sub(prev_value);
+
+        if let Ok(diff) = diff.try_into() {
+            if diff <= 31 {
+                return Some(Self { diff });
+            }
+        }
+        None
+    }
+}
+
 #[derive(Debug)]
 pub struct CompressionSub {
     pub diff: U256,
@@ -79,6 +98,7 @@ impl CompressionAbsent {
 #[derive(Debug)]
 pub enum SlotChange {
     Add(CompressionAdd),
+    AddInlined(CompressionAddInlined),
     Sub(CompressionSub),
     Transform(CompressionTransform),
     NoCompression(CompressionAbsent),
@@ -88,6 +108,7 @@ impl SlotChange {
     fn output_size(&self) -> usize {
         match self {
             SlotChange::Add(add) => add.size,
+            SlotChange::AddInlined(_) => 0,
             SlotChange::Sub(sub) => sub.size,
             SlotChange::Transform(transform) => transform.size,
             SlotChange::NoCompression(no) => no.size,
@@ -96,6 +117,7 @@ impl SlotChange {
     fn compressed(&self) -> &[u8] {
         let (bytes, size) = match self {
             SlotChange::Add(add) => (add.diff.as_le_slice(), add.size),
+            SlotChange::AddInlined(_) => return &[], // data stored in metadata
             SlotChange::Sub(sub) => (sub.diff.as_le_slice(), sub.size),
             SlotChange::Transform(transform) => (transform.diff.as_le_slice(), transform.size),
             SlotChange::NoCompression(no) => (no.diff.as_le_slice(), no.size),
@@ -119,6 +141,11 @@ impl BorshSerialize for SlotChange {
             SlotChange::Sub(_) => 2,
             SlotChange::Transform(_) => 3,
             SlotChange::NoCompression(_) => 0,
+            SlotChange::AddInlined(op) => {
+                // a special case when we put data into metadata byte
+                let metadata = metadata_byte(op.diff as usize, 4);
+                return writer.write_all(&[metadata]);
+            }
         };
         let metadata = metadata_byte(self.output_size(), operation_id);
         writer.write_all(&[metadata])?;
@@ -132,13 +159,17 @@ impl BorshDeserialize for SlotChange {
         reader.read_exact(&mut m_buf)?;
         let metadata = m_buf[0];
         let id = metadata & 7;
-        let size = (metadata >> 3) as usize;
+        let size = metadata >> 3;
 
-        if !(id == 0 || id == 1 || id == 2 || id == 3) {
+        if id > 4 {
             return Err(borsh::io::Error::new(
                 borsh::io::ErrorKind::InvalidData,
                 "Unexpected type of operation",
             ));
+        }
+
+        if id == 4 {
+            return Ok(SlotChange::AddInlined(CompressionAddInlined { diff: size }));
         }
 
         if size > 32 {
@@ -148,6 +179,7 @@ impl BorshDeserialize for SlotChange {
             ));
         }
 
+        let size = size as usize;
         let mut d_buff = [0u8; 32];
         let bytes = &mut d_buff[..size];
         reader.read_exact(bytes)?;
@@ -184,6 +216,7 @@ fn select_best_strategy(
 /// efficient one.
 pub fn compress_two_best_strategy(prev_value: U256, new_value: U256) -> SlotChange {
     let add = CompressionAdd::new(prev_value, new_value);
+    let add_inlined = CompressionAddInlined::new(prev_value, new_value);
     let sub = CompressionSub::new(prev_value, new_value);
     let transform = CompressionTransform::new(new_value);
     let no_compression = CompressionAbsent::new(new_value);
@@ -191,6 +224,7 @@ pub fn compress_two_best_strategy(prev_value: U256, new_value: U256) -> SlotChan
     let compressors = [
         transform.map(SlotChange::Transform),
         add.map(SlotChange::Add),
+        add_inlined.map(SlotChange::AddInlined),
         sub.map(SlotChange::Sub),
     ];
 
