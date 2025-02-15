@@ -147,6 +147,6 @@ where
     }
 
     fn clone_with_version(&self, _version: jmt::Version) -> Self {
-        Self::new()
+        unimplemented!("ZkStorage::clone_with_version should never be called")
     }
 }
