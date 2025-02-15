@@ -100,13 +100,13 @@ where
             working_set.get_value_with_cache_info(self.prefix(), key, self.codec());
 
         if read_from_cache {
-            return val;
+            val
         } else {
             if !verification_fn_on_no_cache(&val) {
                 panic!("Verification failed for given key");
             }
 
-            return val;
+            val
         }
     }
 
