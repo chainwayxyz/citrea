@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
-use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
@@ -12,7 +11,7 @@ use tokio::sync::broadcast;
 // register ethereum methods.
 pub(crate) fn register_ethereum<Da: DaService>(
     da_service: Arc<Da>,
-    storage: ProverStorage<SnapshotManager>,
+    storage: ProverStorage,
     ledger_db: LedgerDB,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,

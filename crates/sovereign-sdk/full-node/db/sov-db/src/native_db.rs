@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use sov_schema_db::snapshot::{DbSnapshot, QueryManager, ReadOnlyDbSnapshot};
-use sov_schema_db::SchemaBatch;
+use sov_schema_db::transaction::DbTransaction;
+use sov_schema_db::{SchemaBatch, DB};
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{ModuleAccessoryState, NATIVE_TABLES};
@@ -12,21 +12,13 @@ pub type Version = u64;
 
 /// Typesafe wrapper for Data, that is not part of the provable state
 /// TODO: Rename to AccessoryDb
-#[derive(Debug)]
-pub struct NativeDB<Q> {
-    /// Pointer to [`DbSnapshot`] for up to date state
-    db: Arc<DbSnapshot<Q>>,
+#[derive(Debug, Clone)]
+pub struct NativeDB {
+    /// Pointer to [`DbTransaction`] for up to date state
+    db: Arc<DbTransaction>,
 }
 
-impl<Q> Clone for NativeDB<Q> {
-    fn clone(&self) -> Self {
-        NativeDB {
-            db: self.db.clone(),
-        }
-    }
-}
-
-impl<Q> NativeDB<Q> {
+impl NativeDB {
     /// NativeDB path suffix
     pub const DB_PATH_SUFFIX: &'static str = "native-db";
     const DB_NAME: &'static str = "native";
@@ -42,22 +34,21 @@ impl<Q> NativeDB<Q> {
             &raw_options,
         )
     }
-    /// Convert it to [`ReadOnlyDbSnapshot`] which cannot be edited anymore
-    pub fn freeze(self) -> anyhow::Result<ReadOnlyDbSnapshot> {
+    /// Convert it to [`SchmeaBatch`] which cannot be edited anymore
+    pub fn freeze(self) -> anyhow::Result<SchemaBatch> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
-            "NativeDB underlying DbSnapshot has more than 1 strong references"
+            "NativeDB underlying DbTransaction has more than 1 strong references"
         ))?;
-        Ok(ReadOnlyDbSnapshot::from(inner))
+        Ok(inner.into())
     }
 }
 
-impl<Q: QueryManager> NativeDB<Q> {
-    /// Create instance of [`NativeDB`] from [`DbSnapshot`]
-    pub fn with_db_snapshot(db_snapshot: DbSnapshot<Q>) -> anyhow::Result<Self> {
-        // We keep Result type, just for future archival state integration
-        Ok(Self {
-            db: Arc::new(db_snapshot),
-        })
+impl NativeDB {
+    /// Creating instance of [`NativeDB`] from [`Arc<DB>`]
+    pub fn new(db: Arc<DB>) -> Self {
+        Self {
+            db: Arc::new(DbTransaction::new(db)),
+        }
     }
 
     /// Queries for a value in the [`NativeDB`], given a key.
@@ -99,16 +90,12 @@ impl<Q: QueryManager> NativeDB<Q> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::RwLock;
-
-    use sov_schema_db::snapshot::{NoopQueryManager, ReadOnlyLock};
-
     use super::*;
 
-    fn setup_db() -> NativeDB<NoopQueryManager> {
-        let manager = ReadOnlyLock::new(Arc::new(RwLock::new(Default::default())));
-        let db_snapshot = DbSnapshot::<NoopQueryManager>::new(0, manager);
-        NativeDB::with_db_snapshot(db_snapshot).unwrap()
+    fn setup_db() -> NativeDB {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = NativeDB::setup_schema_db(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
+        NativeDB::new(Arc::new(db))
     }
 
     #[test]

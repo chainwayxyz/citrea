@@ -22,7 +22,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
@@ -60,7 +60,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_rpc_methods(
         &self,
-        storage: &ProverStorage<SnapshotManager>,
+        storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
@@ -70,15 +70,14 @@ impl RollupBlueprint for BitcoinRollup {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
 
-        #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage, ledger_db, sov_sequencer)?;
+        >(storage.clone(), ledger_db, sov_sequencer)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
-            storage.clone(),
+            storage,
             ledger_db.clone(),
             &mut rpc_methods,
             sequencer_client_url,
@@ -100,7 +99,7 @@ impl RollupBlueprint for BitcoinRollup {
     fn create_storage_manager(
         &self,
         rollup_config: &citrea_common::FullNodeConfig<Self::DaConfig>,
-    ) -> Result<ProverStorageManager<Self::DaSpec>, anyhow::Error> {
+    ) -> Result<ProverStorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
             db_max_open_files: rollup_config.storage.db_max_open_files,

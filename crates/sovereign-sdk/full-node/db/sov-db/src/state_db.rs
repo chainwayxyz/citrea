@@ -1,46 +1,32 @@
 use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use jmt::storage::{HasPreimage, StaleNodeIndex, TreeReader, TreeWriter};
 use jmt::{KeyHash, Version};
-use sov_schema_db::snapshot::{DbSnapshot, QueryManager, ReadOnlyDbSnapshot};
-use sov_schema_db::SchemaBatch;
+use sov_schema_db::transaction::DbTransaction;
+use sov_schema_db::{SchemaBatch, DB};
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes, STATE_TABLES};
 use crate::schema::types::StateKey;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
-/// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized snapshots
+/// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized writes.
 ///
 /// StateDB implements several convenience functions for state storage -
 /// notably the [`TreeReader`] and [`TreeWriter`] traits.
-#[derive(Debug)]
-pub struct StateDB<Q> {
-    /// The underlying [`DbSnapshot`] that plays as local cache and pointer to previous snapshots and/or [`sov_schema_db::DB`]
-    db: Arc<DbSnapshot<Q>>,
-    /// The [`Version`] that will be used for the next batch of writes to the DB
-    /// This [`Version`] is also used for querying data,
-    /// so if this instance of StateDB is used as read only, it won't see newer data.
-    next_version: Arc<Mutex<Version>>,
+#[derive(Debug, Clone)]
+pub struct StateDB {
+    /// The underlying [`DbTransaction`] that plays as local cache and pointer to [`sov_schema_db::DB`]
+    db: Arc<DbTransaction>,
 }
 
-// Manual implementation of [`Clone`] to satisfy compiler
-impl<Q> Clone for StateDB<Q> {
-    fn clone(&self) -> Self {
-        StateDB {
-            db: self.db.clone(),
-            next_version: self.next_version.clone(),
-        }
-    }
-}
-
-impl<Q> StateDB<Q> {
+impl StateDB {
     /// StateDB path suffix
     pub const DB_PATH_SUFFIX: &'static str = "state";
     const DB_NAME: &'static str = "state-db";
 
-    /// Initialize [`sov_schema_db::DB`] that should be used by snapshots.
+    /// Initialize [`DB`] that should be globally used
     pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
         let raw_options = cfg.as_raw_options(false);
         let state_db_path = cfg.path.join(Self::DB_PATH_SUFFIX);
@@ -52,23 +38,35 @@ impl<Q> StateDB<Q> {
         )
     }
 
-    /// Convert it to [`ReadOnlyDbSnapshot`] which cannot be edited anymore
-    pub fn freeze(self) -> anyhow::Result<ReadOnlyDbSnapshot> {
+    /// Convert it to [`SchemaBatch`] which cannot be edited anymore
+    pub fn freeze(self) -> anyhow::Result<SchemaBatch> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
-            "StateDB underlying DbSnapshot has more than 1 strong references"
+            "StateDB underlying DbTransaction has more than 1 strong references"
         ))?;
-        Ok(ReadOnlyDbSnapshot::from(inner))
+        Ok(inner.into())
+    }
+
+    /// Returns the next expected version from the state storage. Starts from 1.
+    pub fn next_version(&self) -> Version {
+        let last_key_value = self
+            .db
+            .get_largest::<JmtNodes>()
+            .expect("Get largest db call should not fail");
+        let largest_version = last_key_value.map(|(k, _)| k.version());
+
+        largest_version
+            .unwrap_or_default()
+            .checked_add(1)
+            .expect("JMT Version overflow. It is over.")
     }
 }
 
-impl<Q: QueryManager> StateDB<Q> {
-    /// Creating instance of [`StateDB`] from [`DbSnapshot`]
-    pub fn with_db_snapshot(db_snapshot: DbSnapshot<Q>) -> anyhow::Result<Self> {
-        let next_version = Self::next_version_from(&db_snapshot)?;
-        Ok(Self {
-            db: Arc::new(db_snapshot),
-            next_version: Arc::new(Mutex::new(next_version)),
-        })
+impl StateDB {
+    /// Creating instance of [`StateDB`] from [`Arc<DB>`]
+    pub fn new(db: Arc<DB>) -> Self {
+        Self {
+            db: Arc::new(DbTransaction::new(db)),
+        }
     }
 
     /// Put the preimage of a hashed key into the database. Note that the preimage is not checked for correctness,
@@ -114,37 +112,9 @@ impl<Q: QueryManager> StateDB<Q> {
         self.db.write_many(batch)?;
         Ok(())
     }
-
-    /// Increment the `next_version` counter by 1.
-    pub fn inc_next_version(&self) {
-        let mut version = self.next_version.lock().unwrap();
-        *version += 1;
-    }
-
-    /// Get the current value of the `next_version` counter
-    pub fn get_next_version(&self) -> Version {
-        let version = self.next_version.lock().unwrap();
-        *version
-    }
-
-    /// Used to always query for latest possible version!
-    pub fn max_out_next_version(&self) {
-        let mut version = self.next_version.lock().unwrap();
-        *version = u64::MAX - 1;
-    }
-
-    fn next_version_from(db_snapshot: &DbSnapshot<Q>) -> anyhow::Result<Version> {
-        let last_key_value = db_snapshot.get_largest::<JmtNodes>()?;
-        let largest_version = last_key_value.map(|(k, _)| k.version());
-        let next_version = largest_version
-            .unwrap_or_default()
-            .checked_add(1)
-            .expect("JMT Version overflow. Is is over");
-        Ok(next_version)
-    }
 }
 
-impl<Q: QueryManager> TreeReader for StateDB<Q> {
+impl TreeReader for StateDB {
     fn get_node_option(
         &self,
         node_key: &jmt::storage::NodeKey,
@@ -171,7 +141,7 @@ impl<Q: QueryManager> TreeReader for StateDB<Q> {
     }
 }
 
-impl<Q: QueryManager> TreeWriter for StateDB<Q> {
+impl TreeWriter for StateDB {
     fn write_node_batch(&self, node_batch: &jmt::storage::NodeBatch) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         for (node_key, node) in node_batch.nodes() {
@@ -192,7 +162,7 @@ impl<Q: QueryManager> TreeWriter for StateDB<Q> {
     }
 }
 
-impl<Q: QueryManager> HasPreimage for StateDB<Q> {
+impl HasPreimage for StateDB {
     fn preimage(&self, key_hash: KeyHash) -> anyhow::Result<Option<Vec<u8>>> {
         self.db.read::<KeyHashToKey>(&key_hash.0)
     }
@@ -200,19 +170,20 @@ impl<Q: QueryManager> HasPreimage for StateDB<Q> {
 
 #[cfg(test)]
 mod state_db_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use jmt::storage::{NodeBatch, TreeReader, TreeWriter};
     use jmt::KeyHash;
-    use sov_schema_db::snapshot::{DbSnapshot, NoopQueryManager, ReadOnlyLock};
 
     use super::StateDB;
+    use crate::rocks_db_config::RocksdbConfig;
 
     #[test]
     fn test_simple() {
-        let manager = ReadOnlyLock::new(Arc::new(RwLock::new(Default::default())));
-        let db_snapshot = DbSnapshot::<NoopQueryManager>::new(0, manager);
-        let db = StateDB::with_db_snapshot(db_snapshot).unwrap();
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = StateDB::setup_schema_db(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
+
+        let db = StateDB::new(Arc::new(db));
         let key_hash = KeyHash([1u8; 32]);
         let key = vec![2u8; 100];
         let value = [8u8; 150];

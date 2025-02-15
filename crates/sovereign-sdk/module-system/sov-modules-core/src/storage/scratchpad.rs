@@ -240,7 +240,7 @@ impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
         match self.cache_log.get_value(&cache_key) {
             ValueExists::Yes(value) => value.map(Into::into),
             ValueExists::No => {
-                let storage_value = self.storage.get(key, self.version, &mut self.witness);
+                let storage_value = self.storage.get(key, &mut self.witness);
                 let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
                 self.cache_log
@@ -319,7 +319,7 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
             return value.as_ref().cloned().map(Into::into);
         }
 
-        self.storage.get_accessory(key, self.version)
+        self.storage.get_accessory(key)
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
@@ -399,9 +399,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
         match self.cache_log.get_value(&cache_key) {
             ValueExists::Yes(value) => value.map(Into::into),
             ValueExists::No => {
-                let storage_value = self
-                    .storage
-                    .get_offchain(key, self.version, &mut self.witness);
+                let storage_value = self.storage.get_offchain(key, &mut self.witness);
                 let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
                 self.cache_log
@@ -570,17 +568,20 @@ impl<S: Storage> WorkingSet<S> {
 
     /// Returns a handler for the archival state (JMT state).
     fn archival_state(&mut self, version: Version) -> ArchivalJmtWorkingSet<S> {
-        ArchivalJmtWorkingSet::new(&self.delta.storage, version)
+        let storage = self.delta.storage.clone_with_version(version);
+        ArchivalJmtWorkingSet::new(storage, version)
     }
 
     /// Returns a handler for the archival offchain state.
     fn archival_offchain_state(&mut self, version: Version) -> ArchivalOffchainWorkingSet<S> {
-        ArchivalOffchainWorkingSet::new(&self.offchain_delta.storage, version)
+        let storage = self.offchain_delta.storage.clone_with_version(version);
+        ArchivalOffchainWorkingSet::new(storage, version)
     }
 
     /// Returns a handler for the archival accessory state (non-JMT state).
     fn archival_accessory_state(&mut self, version: Version) -> ArchivalAccessoryWorkingSet<S> {
-        ArchivalAccessoryWorkingSet::new(&self.accessory_delta.storage, version)
+        let storage = self.accessory_delta.storage.clone_with_version(version);
+        ArchivalAccessoryWorkingSet::new(storage, version)
     }
 
     /// Sets archival version for a working set
@@ -748,9 +749,9 @@ pub mod archival_state {
 
     impl<S: Storage> ArchivalJmtWorkingSet<S> {
         /// create a new instance of ArchivalJmtWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: StateDelta::new(inner.clone(), Some(version)),
+                delta: StateDelta::new(inner, Some(version)),
             }
         }
     }
@@ -762,9 +763,9 @@ pub mod archival_state {
 
     impl<S: Storage> ArchivalAccessoryWorkingSet<S> {
         /// create a new instance of ArchivalAccessoryWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: AccessoryDelta::new(inner.clone(), Some(version)),
+                delta: AccessoryDelta::new(inner, Some(version)),
             }
         }
     }
@@ -816,9 +817,9 @@ pub mod archival_state {
 
     impl<S: Storage> ArchivalOffchainWorkingSet<S> {
         /// create a new instance of ArchivalOffchainWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: OffchainDelta::new(inner.clone(), Some(version)),
+                delta: OffchainDelta::new(inner, Some(version)),
             }
         }
     }

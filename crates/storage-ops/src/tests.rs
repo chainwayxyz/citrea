@@ -16,7 +16,6 @@ use sov_db::schema::types::light_client_proof::{
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_db::state_db::StateDB;
-use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_schema_db::DB;
 use tokio::sync::broadcast;
@@ -35,8 +34,8 @@ async fn test_pruning_simple_run() {
 
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
-    let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config).unwrap();
-    let state_db = StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config).unwrap();
+    let native_db = NativeDB::setup_schema_db(&rocksdb_config).unwrap();
+    let state_db = StateDB::setup_schema_db(&rocksdb_config).unwrap();
 
     let pruner = Pruner::new(
         PruningConfig { distance: 5 },

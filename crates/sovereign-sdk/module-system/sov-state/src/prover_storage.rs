@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use jmt::storage::{NodeBatch, StaleNodeIndex, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::native_db::NativeDB;
-use sov_db::schema::{QueryManager, ReadOnlyDbSnapshot};
 use sov_db::state_db::StateDB;
 use sov_modules_core::{
     CacheKey, NativeStorage, OrderedReadsAndWrites, Storage, StorageKey, StorageProof,
@@ -12,52 +12,68 @@ use sov_modules_core::{
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_schema_db::SchemaBatch;
 
 use crate::config::Config;
 use crate::{DefaultHasher, DefaultWitness};
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
-pub struct ProverStorage<Q> {
-    db: StateDB<Q>,
-    native_db: NativeDB<Q>,
+#[derive(Clone)]
+pub struct ProverStorage {
+    db: StateDB,
+    native_db: NativeDB,
+    init_version: u64,
+    version: Arc<AtomicU64>,
+    committable: bool,
 }
 
-impl<Q> Clone for ProverStorage<Q> {
-    fn clone(&self) -> Self {
+impl ProverStorage {
+    /// Creates a new [`ProverStorage`] instance from specified db handles.
+    /// Gets latest version from [`StateDB`].
+    pub fn committable_latest_version(db: StateDB, native_db: NativeDB) -> Self {
+        let version = db.next_version() - 1;
         Self {
-            db: self.db.clone(),
-            native_db: self.native_db.clone(),
+            db,
+            native_db,
+            init_version: version,
+            version: Arc::new(AtomicU64::new(version)),
+            committable: true,
         }
     }
-}
 
-impl<Q> ProverStorage<Q> {
-    /// Creates a new [`ProverStorage`] instance from specified db handles
-    pub fn with_db_handles(db: StateDB<Q>, native_db: NativeDB<Q>) -> Self {
-        Self { db, native_db }
+    /// Creates a new [`ProverStorage`] instace from specified db handles and version.
+    /// Storage is marked as uncommittable when created using this method.
+    pub fn uncommittable_with_version(db: StateDB, native_db: NativeDB, version: Version) -> Self {
+        Self {
+            db,
+            native_db,
+            init_version: version,
+            version: Arc::new(AtomicU64::new(version)),
+            committable: false,
+        }
     }
 
-    /// Converts it to pair of readonly [`ReadOnlyDbSnapshot`]s
+    /// Converts it to pair of readonly [`SchemaBatch`]s
     /// First is from [`StateDB`]
     /// Second is from [`NativeDB`]
-    pub fn freeze(self) -> anyhow::Result<(ReadOnlyDbSnapshot, ReadOnlyDbSnapshot)> {
+    pub fn freeze(self) -> anyhow::Result<(SchemaBatch, SchemaBatch)> {
         let ProverStorage { db, native_db, .. } = self;
         let state_db_snapshot = db.freeze()?;
         let native_db_snapshot = native_db.freeze()?;
         Ok((state_db_snapshot, native_db_snapshot))
     }
-}
 
-impl<Q> ProverStorage<Q>
-where
-    Q: QueryManager,
-{
-    fn read_value(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
-        let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
+    /// Whether the current storage is committable. Will be used
+    /// for manager to determine commit to db.
+    pub fn committable(&self) -> bool {
+        self.committable
+    }
+
+    fn read_value(&self, key: &StorageKey) -> Option<StorageValue> {
         match self
             .db
-            .get_value_option_by_key(version_to_use, key.as_ref())
+            .get_value_option_by_key(self.version(), key.as_ref())
         {
             Ok(value) => value.map(Into::into),
             // It is ok to panic here, we assume the db is available and consistent.
@@ -72,35 +88,21 @@ pub struct ProverStateUpdate {
     pub stale_state: BTreeSet<StaleNodeIndex>,
 }
 
-impl<Q> Storage for ProverStorage<Q>
-where
-    Q: QueryManager,
-{
+impl Storage for ProverStorage {
     type Witness = DefaultWitness;
     type RuntimeConfig = Config;
     type StateUpdate = ProverStateUpdate;
 
-    fn get(
-        &self,
-        key: &StorageKey,
-        version: Option<Version>,
-        witness: &mut Self::Witness,
-    ) -> Option<StorageValue> {
-        let val = self.read_value(key, version);
+    fn get(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
+        let val = self.read_value(key);
         witness.add_hint(&val);
         val
     }
 
-    fn get_offchain(
-        &self,
-        key: &StorageKey,
-        version: Option<Version>,
-        witness: &mut Self::Witness,
-    ) -> Option<StorageValue> {
-        let version_to_use = version.unwrap_or_else(|| self.version());
+    fn get_offchain(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
         let val = self
             .native_db
-            .get_value_option(key.as_ref(), version_to_use)
+            .get_value_option(key.as_ref(), self.version())
             .unwrap()
             .map(Into::into);
         witness.add_hint(&val);
@@ -108,10 +110,9 @@ where
     }
 
     #[cfg(feature = "native")]
-    fn get_accessory(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
-        let version_to_use = version.unwrap_or_else(|| self.version());
+    fn get_accessory(&self, key: &StorageKey) -> Option<StorageValue> {
         self.native_db
-            .get_value_option(key.as_ref(), version_to_use)
+            .get_value_option(key.as_ref(), self.version())
             .unwrap()
             .map(Into::into)
     }
@@ -121,15 +122,14 @@ where
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
-        let latest_version = self.version();
+        let version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
         // Handle empty jmt
-        // TODO: Fix this before introducing snapshots!
-        if jmt.get_root_hash_option(latest_version)?.is_none() {
-            assert_eq!(latest_version, 0);
+        if jmt.get_root_hash_option(version)?.is_none() {
+            assert_eq!(version, 0);
             let (_, tree_update) = jmt
-                .put_value_set([], latest_version)
+                .put_value_set([], version)
                 .expect("JMT update must succeed");
 
             self.db
@@ -137,7 +137,7 @@ where
                 .expect("db write must succeed");
         }
         let prev_root = jmt
-            .get_root_hash(latest_version)
+            .get_root_hash(version)
             .expect("Previous root hash was just populated");
         witness.add_hint(&prev_root.0);
 
@@ -145,7 +145,7 @@ where
         for (key, read_value) in state_accesses.ordered_reads {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
-            let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
+            let (result, proof) = jmt.get_with_proof(key_hash, version)?;
             if result.as_ref() != read_value.as_ref().map(|f| f.value.as_ref()) {
                 anyhow::bail!("Bug! Incorrect value read from jmt");
             }
@@ -174,7 +174,7 @@ where
                 (key_hash, value_bytes)
             });
 
-        let next_version = self.db.get_next_version();
+        let next_version = version + 1;
 
         let (new_root, update_proof, tree_update) = jmt
             .put_value_set_with_proof(batch, next_version)
@@ -208,7 +208,16 @@ where
         accessory_writes: &OrderedReadsAndWrites,
         offchain_writes: &OrderedReadsAndWrites,
     ) {
-        let latest_version = self.version();
+        let next_version = self.version() + 1;
+
+        // Integrity check
+        for (version, _) in state_update.node_batch.values().keys() {
+            assert_eq!(
+                *version, next_version,
+                "State update must be for next version"
+            );
+        }
+
         self.db
             .put_preimages(
                 state_update
@@ -224,7 +233,7 @@ where
                     .ordered_writes
                     .iter()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
-                latest_version,
+                next_version,
             )
             .expect("native db write must succeed");
 
@@ -234,7 +243,7 @@ where
                     .ordered_writes
                     .iter()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
-                latest_version,
+                next_version,
             )
             .expect("native db write must succeed");
 
@@ -250,8 +259,7 @@ where
             .set_stale_nodes(&state_update.stale_state)
             .expect("db set stale nodes must succeed");
 
-        // Finally, update our in-memory view of the current item numbers
-        self.db.inc_next_version();
+        self.version.fetch_add(1, Ordering::SeqCst);
     }
 
     fn open_proof(
@@ -271,19 +279,33 @@ where
 
     // Based on assumption `validate_and_commit` increments version.
     fn is_empty(&self) -> bool {
-        self.db.get_next_version() <= 1
+        self.version() == 0
+    }
+
+    fn clone_with_version(&self, version: Version) -> Self {
+        Self {
+            db: self.db.clone(),
+            native_db: self.native_db.clone(),
+            init_version: self.init_version,
+            version: Arc::new(AtomicU64::new(version)),
+            // version change on the current storage should never be committed
+            // as it will introduce weird cache problems
+            committable: false,
+        }
     }
 }
 
-impl<Q> NativeStorage for ProverStorage<Q>
-where
-    Q: QueryManager,
-{
+impl NativeStorage for ProverStorage {
     fn version(&self) -> u64 {
-        self.db.get_next_version().saturating_sub(1)
+        self.version.load(Ordering::SeqCst)
     }
+
+    fn init_version(&self) -> u64 {
+        self.init_version
+    }
+
     fn get_with_proof(&self, key: StorageKey, version: Version) -> StorageProof {
-        let merkle = JellyfishMerkleTree::<StateDB<Q>, DefaultHasher>::new(&self.db);
+        let merkle = JellyfishMerkleTree::<StateDB, DefaultHasher>::new(&self.db);
         let (val_opt, proof) = merkle
             .get_with_proof(KeyHash::with::<DefaultHasher>(key.as_ref()), version)
             .unwrap();
@@ -295,7 +317,7 @@ where
     }
 
     fn get_root_hash(&self, version: Version) -> anyhow::Result<StorageRootHash> {
-        let temp_merkle: JellyfishMerkleTree<'_, StateDB<Q>, DefaultHasher> =
+        let temp_merkle: JellyfishMerkleTree<'_, StateDB, DefaultHasher> =
             JellyfishMerkleTree::new(&self.db);
         temp_merkle.get_root_hash(version).map(Into::into)
     }

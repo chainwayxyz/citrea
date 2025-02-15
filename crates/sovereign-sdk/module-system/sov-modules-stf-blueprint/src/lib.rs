@@ -16,7 +16,7 @@ use sov_modules_api::hooks::{
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
     native_debug, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature,
-    Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
+    Spec, UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::DaDataBatchProof;
 use sov_rollup_interface::fork::ForkManager;
@@ -335,7 +335,7 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (StorageRootHash, Self::ChangeSet) {
-        let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
+        let mut working_set = WorkingSet::new(pre_state.clone());
 
         self.runtime.genesis(&params.runtime, &mut working_set);
 
@@ -379,9 +379,8 @@ where
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, *pre_state_root, current_spec);
 
-        let checkpoint =
-            StateCheckpoint::with_witness(pre_state.clone(), state_witness, offchain_witness);
-        let mut working_set = checkpoint.to_revertable();
+        let mut working_set =
+            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness);
 
         native_debug!("Applying soft confirmation in STF Blueprint");
 

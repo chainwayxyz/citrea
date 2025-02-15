@@ -1889,7 +1889,6 @@ dependencies = [
  "citrea-storage-ops",
  "clap",
  "sov-db",
- "sov-prover-storage-manager",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.19",
@@ -2189,7 +2188,6 @@ dependencies = [
  "jmt",
  "serde",
  "sov-db",
- "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-schema-db",
  "tempfile",
@@ -7966,7 +7964,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "sov-db",
- "sov-mock-da",
  "sov-modules-api",
  "sov-modules-core",
  "sov-modules-macros",
@@ -8065,10 +8062,8 @@ name = "sov-prover-storage-manager"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "criterion",
  "rand",
  "sov-db",
- "sov-mock-da",
  "sov-rollup-interface",
  "sov-schema-db",
  "sov-state",
@@ -8132,6 +8127,7 @@ dependencies = [
  "sov-db",
  "sov-modules-core",
  "sov-rollup-interface",
+ "sov-schema-db",
  "tempfile",
 ]
 

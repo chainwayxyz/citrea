@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::*;
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{ArrayWitness, DefaultWitness, Prefix, ProverStorage, Storage, ZkStorage};
 
 enum Operation {
@@ -76,7 +76,7 @@ fn create_storage_operations() -> Vec<(StorageOperation, StorageOperation)> {
 fn create_state_map(
     key: u32,
     value: u32,
-    working_set: &mut WorkingSet<ProverStorage<SnapshotManager>>,
+    working_set: &mut WorkingSet<ProverStorage>,
 ) -> StateMap<u32, u32> {
     let state_map = StateMap::new(Prefix::new(vec![0]));
     state_map.set(&key, &value, working_set);
@@ -119,10 +119,7 @@ fn test_state_map_with_delete() {
     }
 }
 
-fn create_state_value(
-    value: u32,
-    working_set: &mut WorkingSet<ProverStorage<SnapshotManager>>,
-) -> StateValue<u32> {
+fn create_state_value(value: u32, working_set: &mut WorkingSet<ProverStorage>) -> StateValue<u32> {
     let state_value = StateValue::new(Prefix::new(vec![0]));
     state_value.set(&value, working_set);
     state_value
@@ -200,7 +197,7 @@ fn test_witness_round_trip() {
 
 fn create_state_vec<T: BorshDeserialize + BorshSerialize>(
     values: Vec<T>,
-    working_set: &mut WorkingSet<ProverStorage<SnapshotManager>>,
+    working_set: &mut WorkingSet<ProverStorage>,
 ) -> StateVec<T> {
     let state_vec = StateVec::new(Prefix::new(vec![0]));
     state_vec.set_all(values, working_set);

@@ -1,12 +1,12 @@
 // Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use rocksdb::{ReadOptions, DEFAULT_COLUMN_FAMILY_NAME};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
-use sov_schema_db::snapshot::{DbSnapshot, ReadOnlyLock, SingleSnapshotQueryManager};
 use sov_schema_db::test::{KeyPrefix1, KeyPrefix2, TestCompositeField, TestField};
+use sov_schema_db::transaction::DbTransaction;
 use sov_schema_db::{
     define_schema, Operation, RawRocksdbOptions, ScanDirection, Schema, SchemaBatch,
     SchemaIterator, SeekKeyEncoder, DB,
@@ -365,20 +365,22 @@ fn test_schema_batch_iter_range() {
 }
 
 #[test]
-fn test_db_snapshot_get_last_value() {
-    let manager = Arc::new(RwLock::new(SingleSnapshotQueryManager::default()));
+fn test_db_transaction_get_last_value() {
+    let db = Arc::new(DB::open_temp(
+        "test-db-transaction",
+        vec![S::COLUMN_FAMILY_NAME],
+    ));
+    let transaction_1 = DbTransaction::new(db.clone());
 
-    let snapshot_1 = DbSnapshot::new(0, ReadOnlyLock::new(manager.clone()));
-
-    assert!(snapshot_1.get_largest::<S>().unwrap().is_none());
+    assert!(transaction_1.get_largest::<S>().unwrap().is_none());
 
     let key_1 = TestCompositeField(8, 2, 3);
     let value_1 = TestField(6);
 
-    snapshot_1.put::<S>(&key_1, &value_1).unwrap();
+    transaction_1.put::<S>(&key_1, &value_1).unwrap();
 
     {
-        let (latest_key, latest_value) = snapshot_1
+        let (latest_key, latest_value) = transaction_1
             .get_largest::<S>()
             .unwrap()
             .expect("largest key-value pair should be found");
@@ -386,15 +388,12 @@ fn test_db_snapshot_get_last_value() {
         assert_eq!(value_1, latest_value);
     }
 
-    {
-        let mut manager = manager.write().unwrap();
-        manager.add_snapshot(snapshot_1.into());
-    }
+    db.write_schemas(transaction_1.into()).unwrap();
 
-    let snapshot_2 = DbSnapshot::new(1, ReadOnlyLock::new(manager.clone()));
+    let transaction_2 = DbTransaction::new(db);
 
     {
-        let (latest_key, latest_value) = snapshot_2
+        let (latest_key, latest_value) = transaction_2
             .get_largest::<S>()
             .unwrap()
             .expect("largest key-value pair should be found");
@@ -404,9 +403,9 @@ fn test_db_snapshot_get_last_value() {
 
     let key_2 = TestCompositeField(8, 1, 3);
     let value_2 = TestField(7);
-    snapshot_2.put::<S>(&key_2, &value_2).unwrap();
+    transaction_2.put::<S>(&key_2, &value_2).unwrap();
     {
-        let (latest_key, latest_value) = snapshot_2
+        let (latest_key, latest_value) = transaction_2
             .get_largest::<S>()
             .unwrap()
             .expect("largest key-value pair should be found");
@@ -417,9 +416,9 @@ fn test_db_snapshot_get_last_value() {
     // Largest value from local is picked up
     let key_3 = TestCompositeField(8, 3, 1);
     let value_3 = TestField(8);
-    snapshot_2.put::<S>(&key_3, &value_3).unwrap();
+    transaction_2.put::<S>(&key_3, &value_3).unwrap();
     {
-        let (latest_key, latest_value) = snapshot_2
+        let (latest_key, latest_value) = transaction_2
             .get_largest::<S>()
             .unwrap()
             .expect("largest key-value pair should be found");
@@ -428,9 +427,9 @@ fn test_db_snapshot_get_last_value() {
     }
 
     // Deletion: Previous "largest" value is returned
-    snapshot_2.delete::<S>(&key_3).unwrap();
+    transaction_2.delete::<S>(&key_3).unwrap();
     {
-        let (latest_key, latest_value) = snapshot_2
+        let (latest_key, latest_value) = transaction_2
             .get_largest::<S>()
             .unwrap()
             .expect("large key-value pair should be found");
@@ -440,102 +439,99 @@ fn test_db_snapshot_get_last_value() {
 }
 
 #[test]
-fn test_db_snapshot_get_prev_value() {
-    let manager = Arc::new(RwLock::new(SingleSnapshotQueryManager::default()));
+fn test_db_transaction_get_prev_value() {
+    let db = Arc::new(DB::open_temp(
+        "test-db-transaction",
+        vec![S::COLUMN_FAMILY_NAME],
+    ));
 
-    // Snapshots 1 and 2 are to black box usages of parents iterator
-    let snapshot_1 = DbSnapshot::new(0, ReadOnlyLock::new(manager.clone()));
+    // Transaction 1 and 2 are to black box usages of parents iterator
+    let transaction_1 = DbTransaction::new(db.clone());
 
     let key_1 = TestCompositeField(8, 2, 3);
     let key_2 = TestCompositeField(8, 2, 0);
     let key_3 = TestCompositeField(8, 3, 2);
 
-    assert!(snapshot_1.get_prev::<S>(&key_1).unwrap().is_none());
+    assert!(transaction_1.get_prev::<S>(&key_1).unwrap().is_none());
 
-    snapshot_1.put::<S>(&key_2, &TestField(10)).unwrap();
-    snapshot_1.put::<S>(&key_1, &TestField(1)).unwrap();
-    snapshot_1
+    transaction_1.put::<S>(&key_2, &TestField(10)).unwrap();
+    transaction_1.put::<S>(&key_1, &TestField(1)).unwrap();
+    transaction_1
         .put::<S>(&TestCompositeField(8, 1, 3), &TestField(11))
         .unwrap();
-    snapshot_1
+    transaction_1
         .put::<S>(&TestCompositeField(7, 2, 3), &TestField(12))
         .unwrap();
-    snapshot_1
+    transaction_1
         .put::<S>(&TestCompositeField(8, 2, 5), &TestField(13))
         .unwrap();
-    snapshot_1.put::<S>(&key_3, &TestField(14)).unwrap();
+    transaction_1.put::<S>(&key_3, &TestField(14)).unwrap();
 
     // Equal:
     assert_eq!(
         (key_1.clone(), TestField(1)),
-        snapshot_1.get_prev::<S>(&key_1).unwrap().unwrap()
+        transaction_1.get_prev::<S>(&key_1).unwrap().unwrap()
     );
     // Previous: value from 8.2.0
     assert_eq!(
         (key_2.clone(), TestField(10)),
-        snapshot_1
+        transaction_1
             .get_prev::<S>(&TestCompositeField(8, 2, 1))
             .unwrap()
             .unwrap()
     );
 
-    {
-        let mut manager = manager.write().unwrap();
-        manager.add_snapshot(snapshot_1.into());
-    }
+    db.write_schemas(transaction_1.into()).unwrap();
 
-    let snapshot_2 = DbSnapshot::new(1, ReadOnlyLock::new(manager.clone()));
+    let transaction_2 = DbTransaction::new(db.clone());
     // Equal:
     assert_eq!(
         (key_1.clone(), TestField(1)),
-        snapshot_2.get_prev::<S>(&key_1).unwrap().unwrap()
+        transaction_2.get_prev::<S>(&key_1).unwrap().unwrap()
     );
     // Previous: value from 8.2.0
     assert_eq!(
         (key_2.clone(), TestField(10)),
-        snapshot_2
+        transaction_2
             .get_prev::<S>(&TestCompositeField(8, 2, 1))
             .unwrap()
             .unwrap()
     );
-    snapshot_2.put::<S>(&key_2, &TestField(20)).unwrap();
-    snapshot_2.put::<S>(&key_1, &TestField(2)).unwrap();
+    transaction_2.put::<S>(&key_2, &TestField(20)).unwrap();
+    transaction_2.put::<S>(&key_1, &TestField(2)).unwrap();
     // Updated values are higher priority
     assert_eq!(
         (key_1.clone(), TestField(2)),
-        snapshot_2.get_prev::<S>(&key_1).unwrap().unwrap()
+        transaction_2.get_prev::<S>(&key_1).unwrap().unwrap()
     );
     assert_eq!(
         (key_2.clone(), TestField(20)),
-        snapshot_2
+        transaction_2
             .get_prev::<S>(&TestCompositeField(8, 2, 1))
             .unwrap()
             .unwrap()
     );
-    snapshot_2.delete::<S>(&key_1).unwrap();
+    transaction_2.delete::<S>(&key_1).unwrap();
     assert_eq!(
         (key_2.clone(), TestField(20)),
-        snapshot_2.get_prev::<S>(&key_1).unwrap().unwrap()
+        transaction_2.get_prev::<S>(&key_1).unwrap().unwrap()
     );
-    {
-        let mut manager = manager.write().unwrap();
-        manager.add_snapshot(snapshot_2.into());
-    }
-    let snapshot_3 = DbSnapshot::new(2, ReadOnlyLock::new(manager.clone()));
+    db.write_schemas(transaction_2.into()).unwrap();
+    let transaction_3 = DbTransaction::new(db);
     assert_eq!(
         (key_2.clone(), TestField(20)),
-        snapshot_3
+        transaction_3
             .get_prev::<S>(&TestCompositeField(8, 2, 1))
             .unwrap()
             .unwrap()
     );
     assert_eq!(
         (key_2.clone(), TestField(20)),
-        snapshot_3.get_prev::<S>(&key_1).unwrap().unwrap()
+        transaction_3.get_prev::<S>(&key_1).unwrap().unwrap()
     );
     assert_eq!(
         (key_3, TestField(14)),
-        snapshot_3
+        transaction_3
             .get_prev::<S>(&TestCompositeField(8, 3, 4))
             .unwrap()
             .unwrap()

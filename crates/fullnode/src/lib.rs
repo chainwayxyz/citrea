@@ -36,7 +36,7 @@ pub fn build_services<Da, DB, Vm>(
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     ledger_db: DB,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    storage_manager: ProverStorageManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,

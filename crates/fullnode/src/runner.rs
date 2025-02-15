@@ -29,6 +29,7 @@ use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_state::storage::NativeStorage;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -49,7 +50,7 @@ where
     start_l2_height: u64,
     da_service: Arc<Da>,
     stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    storage_manager: ProverStorageManager,
     ledger_db: DB,
     state_root: StorageRootHash,
     soft_confirmation_hash: SoftConfirmationHash,
@@ -82,7 +83,7 @@ where
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
         ledger_db: DB,
-        storage_manager: ProverStorageManager<Da::Spec>,
+        storage_manager: ProverStorageManager,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
@@ -138,9 +139,12 @@ where
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
-        let pre_state = self
-            .storage_manager
-            .create_storage_on_l2_height(l2_height)?;
+        let pre_state = self.storage_manager.create_storage_for_next_l2_height();
+        assert_eq!(
+            pre_state.version(),
+            l2_height,
+            "Prover storage version is corrupted"
+        );
 
         // Register this new block with the fork manager to active
         // the new fork on the next block.
@@ -220,9 +224,7 @@ where
         }
 
         self.storage_manager
-            .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
-
-        self.storage_manager.finalize_l2(l2_height)?;
+            .finalize_storage(soft_confirmation_result.change_set);
 
         let tx_bodies = if self.include_tx_body {
             Some(signed_soft_confirmation.blobs().to_owned())

@@ -17,7 +17,6 @@ citrea-storage-ops = { path = "../../crates/storage-ops" }
 
 # Sovereign-SDK deps
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
-sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager" }
 
 # 3rd-party deps
 anyhow = { workspace = true }

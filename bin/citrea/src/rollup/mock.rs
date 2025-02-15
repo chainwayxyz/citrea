@@ -46,7 +46,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn create_rpc_methods(
         &self,
-        storage: &<DefaultContext as Spec>::Storage,
+        storage: <DefaultContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
@@ -59,11 +59,11 @@ impl RollupBlueprint for MockDemoRollup {
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage, ledger_db, sequencer)?;
+        >(storage.clone(), ledger_db, sequencer)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
-            storage.clone(),
+            storage,
             ledger_db.clone(),
             &mut rpc_methods,
             sequencer_client_url,
@@ -157,7 +157,7 @@ impl RollupBlueprint for MockDemoRollup {
     fn create_storage_manager(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> anyhow::Result<ProverStorageManager<Self::DaSpec>> {
+    ) -> anyhow::Result<ProverStorageManager> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
             db_max_open_files: rollup_config.storage.db_max_open_files,

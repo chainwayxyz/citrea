@@ -26,8 +26,8 @@ impl BackupConfig {
     fn new(node_kind: &str) -> Self {
         let mut backup_dirs = vec![
             LEDGER_DB_PATH_SUFFIX.to_string(),
-            StateDB::<()>::DB_PATH_SUFFIX.to_string(),
-            NativeDB::<()>::DB_PATH_SUFFIX.to_string(),
+            StateDB::DB_PATH_SUFFIX.to_string(),
+            NativeDB::DB_PATH_SUFFIX.to_string(),
         ];
 
         if node_kind == "light-client-prover" {
