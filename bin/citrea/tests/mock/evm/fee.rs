@@ -36,6 +36,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });

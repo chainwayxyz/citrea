@@ -44,6 +44,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });

@@ -89,6 +89,7 @@ async fn test_all_flow() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -118,6 +119,7 @@ async fn test_all_flow() {
             None,
             rollup_config,
             None,
+            None,
         )
         .await;
     });
@@ -142,6 +144,7 @@ async fn test_all_flow() {
             None,
             None,
             rollup_config,
+            None,
             None,
         )
         .await;
@@ -406,6 +409,7 @@ async fn test_ledger_get_head_soft_confirmation() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -475,6 +479,7 @@ async fn initialize_test(
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -498,6 +503,7 @@ async fn initialize_test(
             None,
             None,
             rollup_config,
+            None,
             None,
         )
         .await;
@@ -630,6 +636,7 @@ async fn test_offchain_contract_storage() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });

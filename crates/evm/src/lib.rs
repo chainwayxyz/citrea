@@ -82,7 +82,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account address to account id.
     #[state(rename = "i")]
-    pub(crate) account_idxs: sov_modules_api::StateMap<Address, AccountId, BcsCodec>,
+    pub account_idxs: sov_modules_api::StateMap<Address, AccountId, BcsCodec>,
 
     /// Mapping from account address to account state.
     #[state(rename = "a")]

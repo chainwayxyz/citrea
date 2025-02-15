@@ -57,6 +57,7 @@ pub async fn start_rollup(
     light_client_prover_config: Option<LightClientProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
+    network: Option<Network>,
 ) -> TaskManager<()> {
     // create rollup config default creator function and use them here for the configs
 
@@ -64,7 +65,7 @@ pub async fn start_rollup(
     // Fake receipts are receipts without the proof, they only include the journal, which makes them suitable for testing and development
     std::env::set_var("RISC0_DEV_MODE", "1");
 
-    let mock_demo_rollup = MockDemoRollup::new(Network::Nightly);
+    let mock_demo_rollup = MockDemoRollup::new(network.unwrap_or(Network::Nightly));
 
     if sequencer_config.is_some() && rollup_prover_config.is_some() {
         panic!("Both sequencer and batch prover config cannot be set at the same time");

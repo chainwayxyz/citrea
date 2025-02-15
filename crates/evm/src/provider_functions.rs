@@ -33,7 +33,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
     }
 
-    fn account_info_prefork2(
+    /// Get account info < Fork2
+    pub fn account_info_prefork2(
         &self,
         address: &Address,
         working_set: &mut WorkingSet<C::Storage>,
@@ -41,7 +42,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         self.accounts_prefork2.get(address, working_set)
     }
 
-    fn account_info_postfork2(
+    /// Get account info >= Fork2
+    pub fn account_info_postfork2(
         &self,
         address: &Address,
         working_set: &mut WorkingSet<C::Storage>,
@@ -131,14 +133,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Get the address of a storage key for the given account
-    fn get_storage_address(account: &Address, key: &U256) -> U256 {
+    pub fn get_storage_address(account: &Address, key: &U256) -> U256 {
         let mut hasher: sha2::Sha256 = sha2::Digest::new_with_prefix(account.as_slice());
         hasher.update(key.as_le_slice());
         let arr = hasher.finalize();
         U256::from_le_slice(&arr)
     }
 
-    fn storage_get_prefork2(
+    /// Get storage value < Fork2
+    pub fn storage_get_prefork2(
         &self,
         account: &Address,
         key: &U256,
@@ -148,7 +151,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         db_account.storage.get(key, working_set)
     }
 
-    fn storage_get_postfork2(
+    /// Get storage value >= Fork2
+    pub fn storage_get_postfork2(
         &self,
         account: &Address,
         key: &U256,
