@@ -54,7 +54,7 @@ where
 {
     let (l2_force_block_tx, l2_force_block_rx) = unbounded_channel();
     // used as client of reth's mempool
-    let db_provider_storage = storage_manager.create_always_latest_view_storage();
+    let db_provider_storage = storage_manager.create_final_view_storage();
     let db_provider = DbProvider::new(db_provider_storage);
     let mempool = Arc::new(CitreaMempool::new(
         db_provider.clone(),
@@ -62,7 +62,7 @@ where
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
-    let rpc_storage = storage_manager.create_always_latest_view_storage();
+    let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_context = rpc::create_rpc_context(
         mempool.clone(),
         deposit_mempool.clone(),

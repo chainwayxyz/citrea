@@ -211,7 +211,7 @@ where
         _ => None,
     };
 
-    let rpc_storage = storage_manager.create_always_latest_view_storage();
+    let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_module = rollup_blueprint.setup_rpc(
         rpc_storage,
         ledger_db.clone(),

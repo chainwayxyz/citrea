@@ -155,7 +155,7 @@ pub async fn start_rollup(
         None
     };
 
-    let rpc_storage = storage_manager.create_always_latest_view_storage();
+    let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_module = mock_demo_rollup
         .setup_rpc(
             rpc_storage,
