@@ -35,7 +35,7 @@ impl ProverStorageManager {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
 
-        let storage = ProverStorage::with_version_snapshot(state_db, native_db, version);
+        let storage = ProverStorage::uncommittable_with_version(state_db, native_db, version);
         tracing::debug!("Created storage on version {}", version);
 
         storage
@@ -46,7 +46,7 @@ impl ProverStorageManager {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
 
-        let storage = ProverStorage::with_latest_version(state_db, native_db);
+        let storage = ProverStorage::committable_latest_version(state_db, native_db);
         tracing::debug!("Created storage on latest version {}", storage.version());
 
         storage
@@ -58,7 +58,7 @@ impl ProverStorageManager {
         let state_db = StateDB::new(self.state_db.clone());
         let native_db = NativeDB::new(self.native_db.clone());
 
-        let storage = ProverStorage::with_version_snapshot(state_db, native_db, u64::MAX);
+        let storage = ProverStorage::uncommittable_with_version(state_db, native_db, u64::MAX);
         tracing::debug!("Created storage on latest view");
 
         storage
@@ -68,8 +68,8 @@ impl ProverStorageManager {
     /// If storage is a snapshot, nothing is committed, an false is returned.
     pub fn finalize_storage(&self, storage: ProverStorage) {
         assert!(
-            !storage.is_snapshot(),
-            "Snapshot storage should never be finalized"
+            storage.committable(),
+            "Uncommittable storage should never be finalized"
         );
 
         tracing::debug!("Finalizing storage on version {}", storage.version());
@@ -101,5 +101,7 @@ pub fn new_orphan_storage(path: impl AsRef<std::path::Path>) -> anyhow::Result<P
     let state_db = StateDB::new(Arc::new(state_db_raw));
     let native_db_raw = NativeDB::setup_schema_db(&RocksdbConfig::new(path.as_ref(), None, None))?;
     let native_db = NativeDB::new(Arc::new(native_db_raw));
-    Ok(ProverStorage::with_latest_version(state_db, native_db))
+    Ok(ProverStorage::committable_latest_version(
+        state_db, native_db,
+    ))
 }

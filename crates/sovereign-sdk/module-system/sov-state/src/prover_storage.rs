@@ -24,35 +24,34 @@ pub struct ProverStorage {
     db: StateDB,
     native_db: NativeDB,
     version: Arc<AtomicU64>,
-    is_snapshot: bool,
+    committable: bool,
 }
 
 impl ProverStorage {
     /// Creates a new [`ProverStorage`] instance from specified db handles.
     /// Gets latest version from [`StateDB`].
-    pub fn with_latest_version(db: StateDB, native_db: NativeDB) -> Self {
+    pub fn committable_latest_version(db: StateDB, native_db: NativeDB) -> Self {
         let version = db.next_version() - 1;
         Self {
             db,
             native_db,
             version: Arc::new(AtomicU64::new(version)),
-            is_snapshot: false,
+            committable: true,
         }
     }
 
     /// Creates a new [`ProverStorage`] instace from specified db handles and version.
-    /// When created using this method, storage is marked as snapshot and won't be committed
-    /// to underlying database.
-    pub fn with_version_snapshot(db: StateDB, native_db: NativeDB, version: Version) -> Self {
+    /// Storage is marked as uncommittable when created using this method.
+    pub fn uncommittable_with_version(db: StateDB, native_db: NativeDB, version: Version) -> Self {
         Self {
             db,
             native_db,
             version: Arc::new(AtomicU64::new(version)),
-            is_snapshot: true,
+            committable: false,
         }
     }
 
-    /// Converts it to pair of readonly [`ReadOnlyDbSnapshot`]s
+    /// Converts it to pair of readonly [`SchemaBatch`]s
     /// First is from [`StateDB`]
     /// Second is from [`NativeDB`]
     pub fn freeze(self) -> anyhow::Result<(SchemaBatch, SchemaBatch)> {
@@ -62,10 +61,10 @@ impl ProverStorage {
         Ok((state_db_snapshot, native_db_snapshot))
     }
 
-    /// Whether the current storage is a snapshot. Will be used
+    /// Whether the current storage is committable. Will be used
     /// for manager to determine commit to db.
-    pub fn is_snapshot(&self) -> bool {
-        self.is_snapshot
+    pub fn committable(&self) -> bool {
+        self.committable
     }
 
     fn read_value(&self, key: &StorageKey) -> Option<StorageValue> {
@@ -285,8 +284,9 @@ impl Storage for ProverStorage {
             db: self.db.clone(),
             native_db: self.native_db.clone(),
             version: Arc::new(AtomicU64::new(version)),
-            // version change on the current storage is always a snapshot
-            is_snapshot: true,
+            // version change on the current storage should never be committed
+            // as it will introduce weird cache problems
+            committable: false,
         }
     }
 }
