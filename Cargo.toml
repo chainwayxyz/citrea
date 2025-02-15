@@ -113,12 +113,12 @@ tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
-risc0-binfmt = "1.2.1"
-risc0-zkvm = { version = "1.2.1", default-features = false }
-risc0-zkvm-platform = "1.2.1"
-risc0-zkp = "1.2.1"
-risc0-circuit-rv32im = "1.2.1"
-risc0-build = "1.2.1"
+risc0-binfmt = "1.2.3"
+risc0-zkvm = { version = "1.2.3", default-features = false }
+risc0-zkvm-platform = "1.2.3"
+risc0-zkp = "1.2.3"
+risc0-circuit-rv32im = "1.2.3"
+risc0-build = "1.2.3"
 
 # EVM dependencies
 revm-inspectors = { version = "=0.8.1", default-features = false }
