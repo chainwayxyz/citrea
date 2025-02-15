@@ -433,9 +433,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
         match self.cache_log.get_value(&cache_key) {
             ValueExists::Yes(value) => (value.map(Into::into), true),
             ValueExists::No => {
-                let storage_value = self
-                    .storage
-                    .get_offchain(key, self.version, &mut self.witness);
+                let storage_value = self.storage.get_offchain(key, &mut self.witness);
                 let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
                 self.cache_log
@@ -660,7 +658,7 @@ impl<S: Storage> StateReaderAndWriter for WorkingSet<S> {
         }
     }
 
-    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
         unimplemented!("Only Offchain state supports get_with_cache_info")
     }
 }
@@ -783,7 +781,7 @@ pub mod archival_state {
             self.delta.delete(key)
         }
 
-        fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+        fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
             unimplemented!("Only Offchain state supports get_with_cache_info")
         }
     }
@@ -805,7 +803,7 @@ pub mod archival_state {
             self.delta.delete(key)
         }
 
-        fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+        fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
             unimplemented!("Only Offchain state supports get_with_cache_info")
         }
     }
