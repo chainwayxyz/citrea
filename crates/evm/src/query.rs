@@ -303,6 +303,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<U256> {
         let block_number = self.block_number_from_state(block_id, working_set)?;
 
+        if let Some(last_pruned_l2_height) = working_set.get_last_pruned_l2_height().expect("Failed to get last pruned l2 height"){
+            if block_number < last_pruned_l2_height {
+                return Err(EthApiError::from(ProviderError::StateAtBlockPruned(block_number)).into());
+            }
+        }
+
         let citrea_spec = fork_from_block_number(block_number).spec_id;
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
