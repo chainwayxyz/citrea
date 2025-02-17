@@ -12,7 +12,6 @@ use sov_db::schema::tables::{
     SEQUENCER_LEDGER_TABLES,
 };
 use sov_db::state_db::StateDB;
-use sov_prover_storage_manager::SnapshotManager;
 use tracing::{debug, info};
 
 #[derive(Copy, Clone, ValueEnum)]
@@ -50,8 +49,8 @@ pub(crate) async fn prune(
 
     let rocksdb_config = RocksdbConfig::new(&db_path, None, Some(column_families.to_vec()));
     let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
-    let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
-    let state_db = StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
+    let native_db = NativeDB::setup_schema_db(&rocksdb_config)?;
+    let state_db = StateDB::setup_schema_db(&rocksdb_config)?;
 
     let Some(soft_confirmation_number) = ledger_db.get_head_soft_confirmation_height()? else {
         return Ok(());

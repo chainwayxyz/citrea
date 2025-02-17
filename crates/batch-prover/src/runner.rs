@@ -22,6 +22,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SignedSoftConfirmation, SlotData, SpecId};
+use sov_modules_core::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -52,14 +53,13 @@ pub(crate) type StfWitness<Da> = <StfBlueprint<
 
 pub struct CitreaBatchProver<Da, DB>
 where
-    // C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
     DB: BatchProverLedgerOps + Clone,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
     stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    storage_manager: ProverStorageManager,
     ledger_db: DB,
     state_root: StorageRootHash,
     soft_confirmation_hash: SoftConfirmationHash,
@@ -91,7 +91,7 @@ where
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
         ledger_db: DB,
-        storage_manager: ProverStorageManager<Da::Spec>,
+        storage_manager: ProverStorageManager,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
@@ -220,9 +220,13 @@ where
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
-        let pre_state = self
-            .storage_manager
-            .create_storage_on_l2_height(l2_height)?;
+        let pre_state = self.storage_manager.create_storage_for_next_l2_height();
+        assert_eq!(
+            pre_state.version(),
+            l2_height,
+            "Prover storage version is corrupted"
+        );
+
         // Register this new block with the fork manager to active
         // the new fork on the next block
         self.fork_manager.register_block(l2_height)?;
@@ -315,9 +319,7 @@ where
         )?;
 
         self.storage_manager
-            .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
-
-        self.storage_manager.finalize_l2(l2_height)?;
+            .finalize_storage(soft_confirmation_result.change_set);
 
         let receipt = soft_confirmation_to_receipt::<DefaultContext, _, Da::Spec>(
             signed_soft_confirmation,

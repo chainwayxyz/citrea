@@ -36,12 +36,13 @@ use sov_modules_api::{
     UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
@@ -81,7 +82,7 @@ where
     config: SequencerConfig,
     stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    storage_manager: ProverStorageManager,
     state_root: StorageRootHash,
     soft_confirmation_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
@@ -108,7 +109,7 @@ where
         config: SequencerConfig,
         init_params: InitParams,
         stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
-        storage_manager: ProverStorageManager<Da::Spec>,
+        storage_manager: ProverStorageManager,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         db_provider: DbProvider,
@@ -150,7 +151,7 @@ where
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
-        prestate: ProverStorage<SnapshotManager>,
+        prestate: ProverStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
@@ -370,9 +371,7 @@ where
             timestamp,
         };
 
-        let prestate = self
-            .storage_manager
-            .create_storage_on_l2_height(l2_height)?;
+        let prestate = self.storage_manager.create_storage_for_next_l2_height();
         debug!(
             "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
@@ -394,9 +393,12 @@ where
             )
             .await?;
 
-        let prestate = self
-            .storage_manager
-            .create_storage_on_l2_height(l2_height)?;
+        let prestate = self.storage_manager.create_storage_for_next_l2_height();
+        assert_eq!(
+            prestate.version(),
+            l2_height,
+            "Prover storage version is corrupted"
+        );
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
@@ -522,13 +524,7 @@ where
                 let next_state_root = state_root_transition.final_root;
 
                 self.storage_manager
-                    .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
-
-                // TODO: this will only work for mock da
-                // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
-                // is merged, rpc will access up to date storage then we won't need to finalize right away.
-                // however we need much better DA + finalization logic here
-                self.storage_manager.finalize_l2(l2_height)?;
+                    .finalize_storage(soft_confirmation_result.change_set);
 
                 let tx_bodies = signed_soft_confirmation.blobs().to_owned();
                 let soft_confirmation_hash = signed_soft_confirmation.hash();

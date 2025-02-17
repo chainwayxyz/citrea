@@ -129,7 +129,6 @@ pub async fn start_rollup(
     let Storage {
         ledger_db,
         storage_manager,
-        prover_storage,
     } = mock_demo_rollup
         .setup_storage(&rollup_config, &rocksdb_config, &backup_manager)
         .expect("Storage setup should work");
@@ -155,9 +154,11 @@ pub async fn start_rollup(
     } else {
         None
     };
+
+    let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_module = mock_demo_rollup
         .setup_rpc(
-            &prover_storage,
+            rpc_storage,
             ledger_db.clone(),
             da_service.clone(),
             sequencer_client_url,
@@ -183,7 +184,6 @@ pub async fn start_rollup(
             da_service,
             ledger_db,
             storage_manager,
-            prover_storage,
             soft_confirmation_channel.0,
             rpc_module,
             backup_manager,
@@ -216,7 +216,6 @@ pub async fn start_rollup(
                 da_service,
                 ledger_db.clone(),
                 storage_manager,
-                prover_storage,
                 soft_confirmation_channel.0,
                 rpc_module,
                 backup_manager,
@@ -310,7 +309,6 @@ pub async fn start_rollup(
             da_service,
             ledger_db.clone(),
             storage_manager,
-            prover_storage,
             soft_confirmation_channel.0,
             backup_manager,
         )

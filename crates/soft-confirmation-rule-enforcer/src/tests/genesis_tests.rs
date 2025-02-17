@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{DaSpec, Module, Spec, StateValueAccessor, WorkingSet};
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::ProverStorage;
 
 use crate::{SoftConfirmationRuleEnforcer, SoftConfirmationRuleEnforcerConfig};
@@ -50,7 +50,7 @@ pub(crate) fn get_soft_confirmation_rule_enforcer<Da: DaSpec>(
     config: &SoftConfirmationRuleEnforcerConfig<C>,
 ) -> (
     SoftConfirmationRuleEnforcer<C, Da>,
-    WorkingSet<ProverStorage<SnapshotManager>>,
+    WorkingSet<ProverStorage>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
