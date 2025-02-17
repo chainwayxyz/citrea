@@ -67,6 +67,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     VerifiedBatchProofsBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
     SlotByHash::table_name(),
+    CommitmentMerkleRoots::table_name(),
     // ########
     #[cfg(test)]
     TestTableOld::table_name(),
