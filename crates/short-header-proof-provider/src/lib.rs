@@ -13,7 +13,7 @@ use sov_rollup_interface::services::da::DaService;
 /// for full nodes and provers to verify sequencer set block info system transaction parameters
 pub trait ShortHeaderProofProvider {
     /// Returns short header proof by the l1 hash
-    fn get_short_header_proof_by_l1_hash(&self, l1_hash: [u8; 32]) -> bool;
+    fn get_and_verify_short_header_proof_by_l1_hash(&self, l1_hash: [u8; 32]) -> bool;
 }
 
 pub const SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvider>> =
@@ -33,7 +33,7 @@ impl<Da: DaService> NativeShortHeaderProofProviderService<Da> {
 
 #[cfg(feature = "native")]
 impl<Da: DaService> ShortHeaderProofProvider for NativeShortHeaderProofProviderService<Da> {
-    fn get_short_header_proof_by_l1_hash(&self, block_hash: [u8; 32]) -> bool {
+    fn get_and_verify_short_header_proof_by_l1_hash(&self, block_hash: [u8; 32]) -> bool {
         // let block = self.da_service.get_block_at(block_height)?;
         let block = block_on(self.da_service.get_block_by_hash(block_hash.into())).unwrap();
         let shp = Da::block_to_short_header_proof(block);
@@ -51,7 +51,7 @@ impl ZkShortHeaderProofProviderService {
     }
 }
 impl ShortHeaderProofProvider for ZkShortHeaderProofProviderService {
-    fn get_short_header_proof_by_l1_hash(&self, block_hash: [u8; 32]) -> bool {
+    fn get_and_verify_short_header_proof_by_l1_hash(&self, block_hash: [u8; 32]) -> bool {
         // TODO: Implement getter for Zkvm
         unimplemented!()
     }

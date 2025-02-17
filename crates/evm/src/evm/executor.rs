@@ -103,10 +103,14 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
         let input = tx.input();
 
         if tx.signer() == SYSTEM_SIGNER {
-            let shp = SHORT_HEADER_PROOF_PROVIDER;
-            let my_shp = shp.get().expect("Short header proof provider not set");
+            let shp_provider = SHORT_HEADER_PROOF_PROVIDER;
+            let shp_provider_box = shp_provider
+                .get()
+                .expect("Short header proof provider not set");
+            // TODO: Check if this is the set_block_info tx, if so:
+            // TODO: Get this and other params from input
             let l1_hash = [0u8; 32];
-            if !my_shp.get_short_header_proof_by_l1_hash(l1_hash) {
+            if !shp_provider_box.get_and_verify_short_header_proof_by_l1_hash(l1_hash) {
                 // Failed to verify shp
                 native_error!("Failed to verify short header proof");
             }
