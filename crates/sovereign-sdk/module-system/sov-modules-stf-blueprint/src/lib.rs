@@ -376,6 +376,7 @@ where
         sequencer_public_key: &[u8],
         pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
+        cumulative_state_log: Option<Self::StateLog>,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         // the header hash does not need to be verified here because the full
@@ -389,8 +390,16 @@ where
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, *pre_state_root, current_spec);
 
-        let mut working_set =
-            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness);
+        let mut working_set = if let Some(state_log) = cumulative_state_log {
+            WorkingSet::with_witness_and_log(
+                pre_state.clone(),
+                state_witness,
+                offchain_witness,
+                state_log,
+            )
+        } else {
+            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness)
+        };
 
         native_debug!("Applying soft confirmation in STF Blueprint");
 
@@ -667,6 +676,7 @@ where
                         sequencer_pub_key,
                         &current_state_root,
                         pre_state.clone(),
+                        None,
                         state_witness,
                         offchain_witness,
                         &da_block_headers[index_headers],

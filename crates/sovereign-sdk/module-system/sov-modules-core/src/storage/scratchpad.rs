@@ -202,6 +202,22 @@ impl<S: Storage> StateDelta<S> {
         }
     }
 
+    fn with_witness_and_log(
+        storage: S,
+        witness: S::Witness,
+        state_log: ReadWriteLog,
+        version: Option<Version>,
+    ) -> Self {
+        Self {
+            storage,
+            cache_log: state_log.into_cache_log(),
+            uncommitted_writes: BTreeMap::default(),
+            ordered_storage_reads: Vec::default(),
+            witness,
+            version,
+        }
+    }
+
     fn commit(mut self) -> Self {
         let writes = mem::take(&mut self.uncommitted_writes);
         for (key, value) in writes {
@@ -473,6 +489,21 @@ impl<S: Storage> StateCheckpoint<S> {
         }
     }
 
+    /// Creates a new [`StateCheckpoint`] instance without any changes, backed
+    /// by the given [`Storage`], witness, and prepopulated state cache log.
+    pub fn with_witness_and_log(
+        inner: S,
+        state_witness: S::Witness,
+        offchain_witness: S::Witness,
+        state_log: ReadWriteLog,
+    ) -> Self {
+        Self {
+            delta: StateDelta::with_witness_and_log(inner.clone(), state_witness, state_log, None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
+        }
+    }
+
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
     pub fn to_revertable(self) -> WorkingSet<S> {
         WorkingSet {
@@ -541,6 +572,18 @@ impl<S: Storage> WorkingSet<S> {
     /// and a custom witness value.
     pub fn with_witness(inner: S, state_witness: S::Witness, offchain_witness: S::Witness) -> Self {
         StateCheckpoint::with_witness(inner, state_witness, offchain_witness).to_revertable()
+    }
+
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`],
+    /// a custom witness value and a prepopulated state log to use as cache.
+    pub fn with_witness_and_log(
+        inner: S,
+        state_witness: S::Witness,
+        offchain_witness: S::Witness,
+        state_log: ReadWriteLog,
+    ) -> Self {
+        StateCheckpoint::with_witness_and_log(inner, state_witness, offchain_witness, state_log)
+            .to_revertable()
     }
 
     /// Returns a handler for the accessory state (non-JMT state).

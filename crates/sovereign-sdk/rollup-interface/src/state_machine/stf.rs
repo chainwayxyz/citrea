@@ -191,6 +191,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         sequencer_public_key: &[u8],
         pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
+        cumulative_state_log: Option<Self::StateLog>,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
