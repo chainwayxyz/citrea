@@ -81,6 +81,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     SoftConfirmationByNumber::table_name(),
     SoftConfirmationByHash::table_name(),
+    ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
     LastSequencerCommitmentSent::table_name(),
@@ -101,6 +102,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     SoftConfirmationByNumber::table_name(),
     SoftConfirmationByHash::table_name(),
+    ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
@@ -335,6 +337,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// A "secondary index" for soft confirmation data by hash
     (SoftConfirmationByHash) DbHash => SoftConfirmationNumber
+);
+
+define_table_with_default_codec!(
+    /// A "secondary index" for soft confirmation data by hash
+    (ShortHeaderProofBySlotHash) DbHash => Vec<u8>
 );
 
 define_table_with_default_codec!(

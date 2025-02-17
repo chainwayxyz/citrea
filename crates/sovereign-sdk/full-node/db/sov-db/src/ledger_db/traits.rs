@@ -128,6 +128,16 @@ pub trait SharedLedgerOps {
 
     /// Put a pending commitment l2 range
     fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()>;
+
+    /// Stores a short header proof by l1 hash
+    fn put_short_header_proof_by_l1_hash(
+        &self,
+        hash: [u8; 32],
+        short_header_proof: Vec<u8>,
+    ) -> anyhow::Result<()>;
+
+    /// Returns stored short header proof by l1 hash
+    fn get_short_header_proof_by_l1_hash(&self, hash: [u8; 32]) -> anyhow::Result<Option<Vec<u8>>>;
 }
 
 /// Node ledger operations

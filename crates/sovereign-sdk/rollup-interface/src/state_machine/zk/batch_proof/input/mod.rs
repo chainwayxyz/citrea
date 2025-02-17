@@ -55,6 +55,8 @@ pub struct BatchProofCircuitInput<'txs, Witness, Da: DaSpec, Tx: Clone> {
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
+    /// Short header proofs for verifying system transactions
+    pub short_header_proofs: Vec<([u8; 32], Vec<u8>)>,
 }
 
 impl<'txs, Witness, Da, Tx> BatchProofCircuitInput<'txs, Witness, Da, Tx>
@@ -168,6 +170,7 @@ where
                 preproven_commitments: self.preproven_commitments,
                 da_block_headers_of_soft_confirmations: self.da_block_headers_of_soft_confirmations,
                 sequencer_commitments_range: self.sequencer_commitments_range,
+                short_header_proofs: self.short_header_proofs,
             },
             BatchProofCircuitInputV3Part2(x),
         )

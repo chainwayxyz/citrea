@@ -1819,6 +1819,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "short-header-proof-provider",
  "soft-confirmation-rule-enforcer",
  "sov-db",
  "sov-ledger-rpc",
@@ -2027,7 +2028,6 @@ dependencies = [
  "metrics-derive",
  "once_cell",
  "rs_merkle",
- "short-header-proof-provider",
  "sov-db",
  "sov-ledger-rpc",
  "sov-modules-api",
@@ -2171,6 +2171,7 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
+ "short-header-proof-provider",
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
@@ -7761,8 +7762,10 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 name = "short-header-proof-provider"
 version = "0.6.0"
 dependencies = [
+ "borsh",
  "futures",
  "once_cell",
+ "sov-db",
  "sov-modules-api",
  "sov-rollup-interface",
 ]

@@ -20,6 +20,7 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
+short-header-proof-provider = { path = "../short-header-proof-provider" }
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
@@ -32,6 +33,7 @@ soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" 
 [features]
 default = []
 native = [
+  "short-header-proof-provider/native",
   "sov-accounts/native",
   "sov-modules-api/native",
   "sov-rollup-interface/native",

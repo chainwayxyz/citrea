@@ -1,9 +1,16 @@
+use std::marker::PhantomData;
 #[cfg(feature = "native")]
 use std::sync::Arc;
 
+use borsh::BorshDeserialize;
 #[cfg(feature = "native")]
 use futures::executor::block_on;
 use once_cell::sync::OnceCell;
+#[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB;
+#[cfg(feature = "native")]
+use sov_db::ledger_db::SharedLedgerOps;
+use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::VerifableShortHeaderProof;
 #[cfg(feature = "native")]
 use sov_rollup_interface::services::da::DaService;
@@ -22,21 +29,27 @@ pub const SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvider
 #[cfg(feature = "native")]
 pub struct NativeShortHeaderProofProviderService<Da: DaService> {
     pub da_service: Arc<Da>,
+    pub ledger_db: Arc<LedgerDB>,
 }
 
 #[cfg(feature = "native")]
 impl<Da: DaService> NativeShortHeaderProofProviderService<Da> {
-    pub fn new(da_service: Arc<Da>) -> Self {
-        Self { da_service }
+    pub fn new(da_service: Arc<Da>, ledger_db: Arc<LedgerDB>) -> Self {
+        Self {
+            da_service,
+            ledger_db,
+        }
     }
 }
 
 #[cfg(feature = "native")]
 impl<Da: DaService> ShortHeaderProofProvider for NativeShortHeaderProofProviderService<Da> {
     fn get_and_verify_short_header_proof_by_l1_hash(&self, block_hash: [u8; 32]) -> bool {
-        // let block = self.da_service.get_block_at(block_height)?;
         let block = block_on(self.da_service.get_block_by_hash(block_hash.into())).unwrap();
         let shp = Da::block_to_short_header_proof(block);
+        self.ledger_db
+            .put_short_header_proof_by_l1_hash(block_hash, borsh::to_vec(&shp).unwrap())
+            .unwrap();
         match shp.verify() {
             Ok(_) => true,
             Err(_) => false,
@@ -44,15 +57,31 @@ impl<Da: DaService> ShortHeaderProofProvider for NativeShortHeaderProofProviderS
     }
 }
 
-pub struct ZkShortHeaderProofProviderService {}
-impl ZkShortHeaderProofProviderService {
-    pub fn new() -> Self {
-        Self {}
+pub struct ZkShortHeaderProofProviderService<Da: DaSpec> {
+    short_header_proofs: Vec<([u8; 32], Vec<u8>)>,
+    phantom: PhantomData<Da>,
+}
+impl<Da: DaSpec> ZkShortHeaderProofProviderService<Da> {
+    pub fn new(short_header_proofs: Vec<([u8; 32], Vec<u8>)>) -> Self {
+        Self {
+            short_header_proofs,
+            phantom: PhantomData,
+        }
     }
 }
-impl ShortHeaderProofProvider for ZkShortHeaderProofProviderService {
+impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<Da> {
     fn get_and_verify_short_header_proof_by_l1_hash(&self, block_hash: [u8; 32]) -> bool {
-        // TODO: Implement getter for Zkvm
-        unimplemented!()
+        for (l1_hash, proof) in self.short_header_proofs.iter() {
+            if l1_hash != &block_hash {
+                continue;
+            }
+            let shp = Da::ShortHeaderProof::try_from_slice(&proof).unwrap();
+            if shp.verify().is_ok() {
+                return true;
+            }
+            return false;
+        }
+        // If proof not found also return false
+        false
     }
 }

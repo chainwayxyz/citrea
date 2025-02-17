@@ -142,6 +142,7 @@ where
         );
 
         let (
+            short_header_proofs,
             state_transition_witnesses,
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
@@ -204,6 +205,7 @@ where
             sequencer_da_public_key: sequencer_da_pub_key.clone(),
             final_state_root,
             prev_soft_confirmation_hash: initial_soft_confirmation_hash,
+            short_header_proofs,
         };
 
         batch_proof_circuit_inputs.push(input);

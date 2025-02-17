@@ -953,6 +953,7 @@ dependencies = [
  "borsh",
  "citrea-evm",
  "serde",
+ "short-header-proof-provider",
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
@@ -3081,6 +3082,7 @@ dependencies = [
 name = "short-header-proof-provider"
 version = "0.6.0"
 dependencies = [
+ "borsh",
  "once_cell",
  "sov-modules-api",
  "sov-rollup-interface",

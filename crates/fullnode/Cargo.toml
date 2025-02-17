@@ -14,7 +14,6 @@ citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf" }
 citrea-storage-ops = { path = "../storage-ops" }
-short-header-proof-provider = { path = "../short-header-proof-provider", features = ["native"] }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }

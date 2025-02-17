@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -38,6 +38,7 @@ use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
 type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
+    Vec<([u8; 32], Vec<u8>)>,
     VecDeque<Vec<(Witness, Witness)>>,
     VecDeque<Vec<SignedSoftConfirmation<'txs, Tx>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
@@ -321,6 +322,10 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     let mut da_block_headers_of_soft_confirmations: VecDeque<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
     > = VecDeque::with_capacity(sequencer_commitments.len());
+
+    let mut short_header_proofs_set = HashSet::new();
+    let mut short_header_proofs = Vec::new();
+
     for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
         let mut witnesses = Vec::with_capacity(
@@ -345,6 +350,16 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
+            match ledger_db.get_short_header_proof_by_l1_hash(soft_confirmation.da_slot_hash)? {
+                Some(shp) => {
+                    // If first time, insert and push to the vector
+                    if short_header_proofs_set.insert(shp.clone()) {
+                        short_header_proofs.push((soft_confirmation.da_slot_hash, shp));
+                    }
+                }
+                None => {}
+            }
+
             if da_block_headers_to_push.is_empty()
                 || da_block_headers_to_push.last().unwrap().height()
                     != soft_confirmation.da_slot_height
@@ -423,6 +438,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     }
 
     Ok((
+        short_header_proofs,
         state_transition_witnesses,
         soft_confirmations,
         da_block_headers_of_soft_confirmations,

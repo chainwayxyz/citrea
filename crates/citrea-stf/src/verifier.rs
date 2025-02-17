@@ -1,3 +1,6 @@
+use core::panic;
+
+use short_header_proof_provider::{ZkShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{DaNamespace, DaVerifier};
@@ -39,6 +42,15 @@ where
         println!("Running sequencer commitments in DA slot");
 
         let data: BatchProofCircuitInputV3Part1<Da::Spec> = guest.read_from_host();
+
+        let short_header_proof_provider: ZkShortHeaderProofProviderService<Da::Spec> =
+            ZkShortHeaderProofProviderService::new(data.short_header_proofs);
+        if SHORT_HEADER_PROOF_PROVIDER
+            .set(Box::new(short_header_proof_provider))
+            .is_err()
+        {
+            panic!("Short header proof provider already set");
+        }
 
         if !data.da_block_header_of_commitments.verify_hash() {
             panic!("Invalid hash of DA block header of commitments");
