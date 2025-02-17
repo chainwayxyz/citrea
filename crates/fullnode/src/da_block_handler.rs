@@ -384,7 +384,7 @@ where
                 .get_l2_range_by_commitment_merkle_root(root)?
                 .ok_or(SyncError::SequencerCommitmentNotFound(root))?;
 
-            let l2_height_before_comm_range = seq_comm_range.0 .0;
+            let l2_height_before_comm_range = seq_comm_range.0 .0 - 1;
             let prior_soft_confirmation_post_state_root = self
                 .ledger_db
                 .get_l2_state_root(l2_height_before_comm_range)?
