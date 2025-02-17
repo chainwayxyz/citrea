@@ -3,6 +3,7 @@ use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
+use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_modules_api::{
     native_error, native_trace, SoftConfirmationModuleCallError, SpecId as CitreaSpecId,
 };
@@ -99,7 +100,16 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             trace_span!("Processing tx", i = _i, signer = %tx.signer(), tx_hash = %tx.hash())
                 .entered();
 
+        let input = tx.input();
+
         if tx.signer() == SYSTEM_SIGNER {
+            let shp = SHORT_HEADER_PROOF_PROVIDER;
+            let my_shp = shp.get().expect("Short header proof provider not set");
+            let l1_hash = [0u8; 32];
+            if !my_shp.get_short_header_proof_by_l1_hash(l1_hash) {
+                // Failed to verify shp
+                native_error!("Failed to verify short header proof");
+            }
             native_error!("System transaction found in user txs");
             return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
         }

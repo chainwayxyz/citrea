@@ -17,6 +17,7 @@ members = [
   "crates/storage-ops",
   "crates/risc0",
   "crates/sequencer",
+  "crates/short-header-proof-provider",
   "crates/soft-confirmation-rule-enforcer",
   # "crates/sp1",
   # Sovereign sdk

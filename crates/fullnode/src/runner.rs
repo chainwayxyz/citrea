@@ -15,6 +15,9 @@ use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use short_header_proof_provider::{
+    NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
+};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -91,6 +94,14 @@ where
         let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
         info!("Starting L2 height: {}", start_l2_height);
+        // TODO: Rename to verifier
+        // Set the short header proof provider
+        match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::new(
+            da_service.clone(),
+        ))) {
+            Ok(_) => info!("Short header proof provider set"),
+            Err(_) => bail!("Short header proof provider already set"),
+        }
 
         Ok(Self {
             start_l2_height,

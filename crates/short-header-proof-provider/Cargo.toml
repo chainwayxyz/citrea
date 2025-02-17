@@ -1,0 +1,26 @@
+[package]
+name = "short-header-proof-provider"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+resolver = "2"
+
+[dependencies]
+futures = { workspace = true, optional = true }
+once_cell = { workspace = true, default-features = false }
+
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", default-features = false }
+
+[features]
+native = [
+    "sov-modules-api/native",
+    "sov-rollup-interface/native",
+
+    "dep:futures",
+]
