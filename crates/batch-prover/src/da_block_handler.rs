@@ -294,6 +294,7 @@ where
             self.ledger_db.clone(),
             txs_and_proofs,
             self.code_commitments_by_spec.clone(),
+            0, // TODO: since we don't support session recovery any more put in 0 to make it work
         )
         .await?;
 
