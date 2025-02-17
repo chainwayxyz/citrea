@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 
 use borsh::BorshDeserialize;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
 use citrea_common::LightClientProverConfig;
@@ -11,7 +12,9 @@ use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
-use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, DaSpec, Zkvm};
+use sov_modules_api::{
+    BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, Zkvm,
+};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -50,6 +53,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     mmr_native: MMRNative<MmrDB>,
+    backup_manager: Arc<BackupManager>,
 }
 
 impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
@@ -69,6 +73,7 @@ where
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         mmr_db: MmrDB,
+        backup_manager: Arc<BackupManager>,
     ) -> Self {
         let mmr_native = MMRNative::new(mmr_db);
         Self {
@@ -83,6 +88,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             mmr_native,
+            backup_manager,
         }
     }
 
@@ -114,6 +120,8 @@ where
         );
         tokio::pin!(l1_sync_worker);
 
+        let backup_manager = self.backup_manager.clone();
+
         let mut interval = tokio::time::interval(Duration::from_secs(2));
         interval.tick().await;
         loop {
@@ -124,6 +132,7 @@ where
                 }
                 _ = &mut l1_sync_worker => {},
                 _ = interval.tick() => {
+                    let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_queued_l1_blocks().await {
                         error!("Could not process queued L1 blocks and generate proof: {:?}", e);
                     }
@@ -380,18 +389,24 @@ where
         proof: &Vec<u8>,
         light_client_l2_height: u64,
     ) -> anyhow::Result<bool> {
-        let batch_proof_last_l2_height = match Vm::extract_output::<BatchProofCircuitOutputV2>(
+        let batch_proof_last_l2_height = match Vm::extract_output::<BatchProofCircuitOutputV3>(
             proof,
         ) {
             Ok(output) => output.last_l2_height,
             Err(e) => {
-                warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                if Vm::extract_output::<BatchProofCircuitOutputV1>(proof).is_err() {
-                    return Err(anyhow::anyhow!(
-                        "Failed to extract both pre-fork1 and fork1 output from proof"
-                    ));
+                warn!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<BatchProofCircuitOutputV2>(proof) {
+                    Ok(output) => output.last_l2_height,
+                    Err(e) => {
+                        warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                        if Vm::extract_output::<BatchProofCircuitOutputV1>(proof).is_err() {
+                            return Err(anyhow::anyhow!(
+                                "Failed to extract both pre-fork1 and fork1 output from proof"
+                            ));
+                        }
+                        0
+                    }
                 }
-                0
             }
         };
 

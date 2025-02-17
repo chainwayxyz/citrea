@@ -85,6 +85,7 @@ fn test_helper(test_queries: Vec<TestExpect>, l2_blocks: Vec<L2Block<'_, [u8; 32
             batch_requests_limit: 50,
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
+            api_key: None,
         };
 
         queries_test_runner(test_queries, rpc_config).await;

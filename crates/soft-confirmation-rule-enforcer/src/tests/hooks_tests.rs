@@ -21,7 +21,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
     };
 
     let sender_address = <DefaultContext as Spec>::Address::from_str(
-        "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+        "sov1kqrxxkwkf7t7kfuegllwkzp6jc6r6h66pgkfe7pggtm0gayl756qku2u5p",
     )
     .unwrap();
 

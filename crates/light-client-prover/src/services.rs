@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
+use citrea_common::backup::BackupManager;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RunnerConfig};
 use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
@@ -29,6 +30,7 @@ pub fn build_services<Vm, Da, DB>(
     light_client_prover_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_prover_elfs: HashMap<SpecId, Vec<u8>>,
     rpc_module: RpcModule<()>,
+    backup_manager: Arc<BackupManager>,
 ) -> Result<(
     CitreaLightClientProver,
     L1BlockHandler<Vm, Da, DB>,
@@ -43,6 +45,8 @@ where
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
     let mmr_db = MmrDB::new(rocksdb_config)?;
+    backup_manager.register_database(MmrDB::DB_PATH_SUFFIX.to_string(), mmr_db.db_handle())?;
+
     let l1_block_handler = L1BlockHandler::new(
         prover_config,
         prover_service,
@@ -53,6 +57,7 @@ where
         light_client_prover_code_commitments,
         light_client_prover_elfs,
         mmr_db,
+        backup_manager,
     );
 
     let prover = CitreaLightClientProver::new(runner_config)?;

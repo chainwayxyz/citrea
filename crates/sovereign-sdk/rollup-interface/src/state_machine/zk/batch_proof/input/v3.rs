@@ -7,12 +7,14 @@ use crate::da::DaSpec;
 use crate::soft_confirmation::L2Block;
 use crate::zk::StorageRootHash;
 
+type InputV3Part2<'txs, Tx, Witness> = VecDeque<Vec<(u64, L2Block<'txs, Tx>, Witness, Witness)>>;
+
 #[derive(BorshDeserialize, BorshSerialize)]
-/// Second part of the Kumquat elf input
+/// Second part of the Fork2 elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
 pub struct BatchProofCircuitInputV3Part2<'txs, Witness, Tx: Clone + BorshSerialize>(
-    pub VecDeque<Vec<(L2Block<'txs, Tx>, Witness, Witness)>>,
+    pub InputV3Part2<'txs, Tx, Witness>,
 );
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]

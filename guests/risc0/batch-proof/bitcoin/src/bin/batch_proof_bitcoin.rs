@@ -6,7 +6,7 @@ use citrea_primitives::forks::{
 };
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::guest::Risc0Guest;
-use citrea_stf::runtime::Runtime;
+use citrea_stf::runtime::CitreaRuntime;
 use citrea_stf::StfVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::Fork;
@@ -42,6 +42,25 @@ const SEQUENCER_PUBLIC_KEY: [u8; 32] = {
     match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("SEQUENCER_PUBLIC_KEY must be valid 32-byte hex string"),
+    }
+};
+
+const SEQUENCER_K256_PUBLIC_KEY: [u8; 33] = {
+    let hex_pub_key = match NETWORK {
+        Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364",
+        Network::Devnet => "03745871636b11562a7f2d7c0e883a960b54c7e2c0a5427d4b99ac403588530589",
+        Network::Nightly | Network::TestNetworkWithForks => {
+            match option_env!("SEQUENCER_K256_PUBLIC_KEY") {
+                Some(hex_pub_key) => hex_pub_key,
+                None => "036360e856310ce5d294e8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f7",
+            }
+        }
+    };
+
+    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("SEQUENCER_K256_PUBLIC_KEY must be valid 33-byte hex string"),
     }
 };
 
@@ -89,7 +108,7 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StfVerifier<_, ZkDefaultContext, Runtime<_, _>> = StfVerifier::new(
+    let mut stf_verifier: StfVerifier<_, ZkDefaultContext, CitreaRuntime<_, _>> = StfVerifier::new(
         stf,
         BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
@@ -102,6 +121,7 @@ pub fn main() {
             &guest,
             storage,
             &SEQUENCER_PUBLIC_KEY,
+            &SEQUENCER_K256_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
             get_forks(),
         )

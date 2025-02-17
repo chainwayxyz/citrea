@@ -7,15 +7,18 @@ use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_modules_api::da::BlockHeaderTrait;
+use sov_modules_api::default_signature::{
+    DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
+};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
     native_debug, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature,
-    Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
+    Spec, UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::DaDataBatchProof;
 use sov_rollup_interface::fork::ForkManager;
@@ -55,13 +58,8 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     + TxHooks<Context = C, PreArg = RuntimeTxHook, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
-    + ApplySoftConfirmationHooks<
-        Da,
-        Context = C,
-        SoftConfirmationResult = SequencerOutcome<
-            <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
-        >,
-    > + Default
+    + ApplySoftConfirmationHooks<Da, Context = C>
+    + Default
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
@@ -79,15 +77,6 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     fn genesis_config(
         genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error>;
-}
-
-/// The receipts of all the transactions in a batch.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum TxEffect {
-    /// Batch was reverted.
-    Reverted,
-    /// Batch was processed successfully.
-    Successful,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -208,15 +197,12 @@ where
                     ));
                 }
 
-                verify_genesis_signature::<C>(&raw, &l2_header.signature, sequencer_public_key)
+                verify_genesis_signature(&raw, &l2_header.signature, sequencer_public_key)
             }
-            _ => {
-                let expected_hash = if current_spec == SpecId::Kumquat {
-                    let unsigned = UnsignedSoftConfirmation::from(l2_block);
-                    Into::<[u8; 32]>::into(unsigned.compute_digest::<<C as Spec>::Hasher>())
-                } else {
-                    Into::<[u8; 32]>::into(l2_header.inner.compute_digest::<<C as Spec>::Hasher>())
-                };
+            SpecId::Kumquat => {
+                let unsigned = UnsignedSoftConfirmation::from(l2_block);
+                let expected_hash =
+                    Into::<[u8; 32]>::into(unsigned.compute_digest::<<C as Spec>::Hasher>());
 
                 if l2_block.hash() != expected_hash {
                     return Err(StateTransitionError::SoftConfirmationError(
@@ -224,7 +210,19 @@ where
                     ));
                 }
 
-                verify_soft_confirmation_signature::<C>(l2_header, sequencer_public_key)
+                verify_kumquat_signature(l2_header, sequencer_public_key)
+            }
+            _ => {
+                let expected_hash =
+                    Into::<[u8; 32]>::into(l2_header.inner.compute_digest::<<C as Spec>::Hasher>());
+
+                if l2_block.hash() != expected_hash {
+                    return Err(StateTransitionError::SoftConfirmationError(
+                        SoftConfirmationError::InvalidSoftConfirmationHash,
+                    ));
+                }
+
+                verify_soft_confirmation_signature(l2_header, sequencer_public_key)
             }
         }
         .map_err(|_| {
@@ -299,15 +297,11 @@ where
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
-    type Transaction = Transaction<C>;
+    type Transaction = Transaction;
 
     type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
     type ChangeSet = C::Storage;
-
-    type TxReceiptContents = TxEffect;
-
-    type BatchReceiptContents = ();
 
     type Witness = <C::Storage as Storage>::Witness;
 
@@ -316,7 +310,7 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (StorageRootHash, Self::ChangeSet) {
-        let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
+        let mut working_set = WorkingSet::new(pre_state.clone());
 
         self.runtime.genesis(&params.runtime, &mut working_set);
 
@@ -360,9 +354,8 @@ where
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(l2_block, *pre_state_root, current_spec);
 
-        let checkpoint =
-            StateCheckpoint::with_witness(pre_state.clone(), state_witness, offchain_witness);
-        let mut working_set = checkpoint.to_revertable();
+        let mut working_set =
+            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness);
 
         native_debug!("Applying soft confirmation in STF Blueprint");
 
@@ -394,6 +387,7 @@ where
         &mut self,
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
+        sequencer_k256_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &StorageRootHash,
         pre_state: Self::PreState,
@@ -504,11 +498,43 @@ where
             let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
 
             for _ in 0..state_change_count {
-                let (mut l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
-                    L2Block<Self::Transaction>,
-                    <C::Storage as Storage>::Witness,
-                    <C::Storage as Storage>::Witness,
-                )>();
+                let soft_confirmation_l2_height = guest.read_from_host::<u64>();
+                fork_manager
+                    .register_block(soft_confirmation_l2_height)
+                    .unwrap();
+
+                let spec_id = fork_manager.active_fork().spec_id;
+                let (mut l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat
+                {
+                    guest.read_from_host::<(
+                        L2Block<Self::Transaction>,
+                        <C::Storage as Storage>::Witness,
+                        <C::Storage as Storage>::Witness,
+                    )>()
+                } else {
+                    let (l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
+                        L2Block<PreFork2Transaction<C>>,
+                        <C::Storage as Storage>::Witness,
+                        <C::Storage as Storage>::Witness,
+                    )>();
+                    let parsed_txs = l2_block
+                        .txs
+                        .iter()
+                        .map(|tx| {
+                            let tx: Self::Transaction = tx.clone().into();
+                            tx
+                        })
+                        .collect::<Vec<_>>();
+
+                    let sc = L2Block::new(l2_block.header, parsed_txs.into());
+                    (sc, state_witness, offchain_witness)
+                };
+
+                assert_eq!(
+                    l2_block.l2_height(),
+                    l2_height,
+                    "Soft confirmation height is not equal to the expected height"
+                );
 
                 if let Some(hash) = prev_soft_confirmation_hash {
                     assert_eq!(
@@ -571,16 +597,16 @@ where
                     "Soft confirmation heights not sequential"
                 );
 
-                // Notify fork manager about the block so that the next spec / fork
-                // is transitioned into if criteria is met.
-                fork_manager
-                    .register_block(l2_height)
-                    .expect("Fork transition failed");
+                let sequencer_pub_key = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
+                    sequencer_k256_public_key
+                } else {
+                    sequencer_public_key
+                };
 
                 let result = self
                     .apply_soft_confirmation(
                         fork_manager.active_fork().spec_id,
-                        sequencer_public_key,
+                        sequencer_pub_key,
                         &current_state_root,
                         pre_state.clone(),
                         state_witness,
@@ -638,24 +664,41 @@ where
     }
 }
 
-fn verify_soft_confirmation_signature<C: Spec>(
+fn verify_soft_confirmation_signature(
     header: &SignedSoftConfirmationHeader,
     sequencer_public_key: &[u8],
-) -> anyhow::Result<()> {
-    let signature = C::Signature::try_from(&header.signature)?;
-    let public_key = C::PublicKey::try_from(sequencer_public_key)?;
+) -> Result<(), anyhow::Error> {
+    let signature = K256Signature::try_from(header.signature.as_slice())?;
 
-    signature.verify(&public_key, &header.hash)?;
+    signature.verify(
+        &K256PublicKey::try_from(sequencer_public_key)?,
+        &header.hash,
+    )?;
+
     Ok(())
 }
 
-fn verify_genesis_signature<C: Context>(
+fn verify_kumquat_signature(
+    header: &SignedSoftConfirmationHeader,
+    sequencer_public_key: &[u8],
+) -> Result<(), anyhow::Error> {
+    let signature = DefaultSignature::try_from(header.signature.as_slice())?;
+
+    signature.verify(
+        &DefaultPublicKey::try_from(sequencer_public_key)?,
+        &header.hash,
+    )?;
+
+    Ok(())
+}
+
+fn verify_genesis_signature(
     message: &[u8],
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> anyhow::Result<()> {
-    let signature = C::Signature::try_from(signature)?;
-    let public_key = C::PublicKey::try_from(sequencer_public_key)?;
+    let signature = DefaultSignature::try_from(signature)?;
+    let public_key = DefaultPublicKey::try_from(sequencer_public_key)?;
 
     signature.verify(&public_key, message)?;
     Ok(())

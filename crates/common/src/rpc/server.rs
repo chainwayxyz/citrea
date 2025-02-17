@@ -33,7 +33,10 @@ pub fn start_rpc_server(
     let middleware = tower::ServiceBuilder::new()
         .layer(super::get_cors_layer())
         .layer(super::get_healthcheck_proxy_layer());
-    let rpc_middleware = RpcServiceBuilder::new().layer_fn(super::Logger);
+
+    let rpc_middleware = RpcServiceBuilder::new()
+        .layer_fn(move |s| super::auth::Auth::new(s, rpc_config.api_key.clone()))
+        .layer_fn(super::Logger);
 
     task_manager.spawn(move |cancellation_token| async move {
         let server = ServerBuilder::default()

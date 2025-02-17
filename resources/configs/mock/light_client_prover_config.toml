@@ -2,3 +2,4 @@ initial_da_height = 1
 proving_mode = "execute"
 proof_sampling_number = 500
 enable_recovery = true
+initial_da_height = 0

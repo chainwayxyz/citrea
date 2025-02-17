@@ -7,6 +7,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::Proof;
 
 /// The on-disk format for a state transition.
@@ -16,6 +17,8 @@ pub enum StoredBatchProofOutput {
     V1(BatchProofCircuitOutputV1),
     /// V2 batch proof output wrapper
     V2(BatchProofCircuitOutputV2),
+    /// V3 batch proof output wrapper
+    V3(BatchProofCircuitOutputV3),
 }
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
@@ -48,6 +51,12 @@ impl From<BatchProofCircuitOutputV1> for StoredBatchProofOutput {
 impl From<BatchProofCircuitOutputV2> for StoredBatchProofOutput {
     fn from(value: BatchProofCircuitOutputV2) -> Self {
         Self::V2(value)
+    }
+}
+
+impl From<BatchProofCircuitOutputV3> for StoredBatchProofOutput {
+    fn from(value: BatchProofCircuitOutputV3) -> Self {
+        Self::V3(value)
     }
 }
 
@@ -96,6 +105,25 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 da_slot_hash: value.da_slot_hash,
                 sequencer_da_public_key: value.sequencer_da_public_key,
                 sequencer_public_key: value.sequencer_public_key,
+                sequencer_commitments_range: (
+                    U32::from(value.sequencer_commitments_range.0),
+                    U32::from(value.sequencer_commitments_range.1),
+                ),
+                preproven_commitments: value.preproven_commitments,
+                prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
+                final_soft_confirmation_hash: Some(SerializableHash(
+                    value.final_soft_confirmation_hash,
+                )),
+                last_l2_height: Some(U64::from(value.last_l2_height)),
+                last_active_spec_id: None,
+            },
+            StoredBatchProofOutput::V3(value) => Self {
+                initial_state_root: value.initial_state_root.to_vec(),
+                final_state_root: value.final_state_root.to_vec(),
+                state_diff: value.state_diff,
+                da_slot_hash: value.da_slot_hash,
+                sequencer_da_public_key: vec![],
+                sequencer_public_key: vec![],
                 sequencer_commitments_range: (
                     U32::from(value.sequencer_commitments_range.0),
                     U32::from(value.sequencer_commitments_range.1),

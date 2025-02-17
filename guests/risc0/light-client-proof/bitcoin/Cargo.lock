@@ -798,6 +798,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f55bf8e7b65898637379c1b74eb1551107c8294ed26d855ceb9fd1a09cfc9bc0"
 dependencies = [
  "const-oid",
+ "pem-rfc7468",
  "zeroize",
 ]
 
@@ -894,6 +895,7 @@ dependencies = [
  "digest",
  "elliptic-curve",
  "rfc6979",
+ "serdect",
  "signature",
  "spki",
 ]
@@ -944,9 +946,11 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
+ "pem-rfc7468",
  "pkcs8",
  "rand_core",
  "sec1",
+ "serdect",
  "subtle",
  "zeroize",
 ]
@@ -1204,6 +1208,7 @@ dependencies = [
  "elliptic-curve",
  "once_cell",
  "risc0-bigint2",
+ "serdect",
  "sha2",
  "signature",
 ]
@@ -1379,6 +1384,15 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pem-rfc7468"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
+dependencies = [
+ "base64ct",
+]
 
 [[package]]
 name = "pin-project-lite"
@@ -1587,9 +1601,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-binfmt"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2d38498a55589122b195aa5024d2c0b02231efdb01c090881b9d535660f97c9"
+checksum = "cc047ec0ec944104bf94cf55efa3a697aca63cff506cc949ec8d345c48ef0706"
 dependencies = [
  "anyhow",
  "borsh",
@@ -1602,9 +1616,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-build"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b178bec61b5a589feeddcc8f9987119dccfd32f17d98dfedf14921591b35bf4"
+checksum = "2336678ab6701f737522f153050c8c688860a2db29ef8fea7a42ae0a1de614d6"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -1621,9 +1635,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-circuit-keccak"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "723af53138c76e5c167f52c0396071ebd735a79561732de974dabb545ba2d1be"
+checksum = "2cc983c81ee51af9bde296eb1b4dff73501fb436c3401d30d5548e00b2c0a354"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1637,9 +1651,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-circuit-recursion"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13c7665d06d6dd42bff80dd7690fddecc49b664621336ad0542505e139a470ad"
+checksum = "c7d68e1a5344eb83553a6a465fcec5ceb4ab751e7b3b96c46a6c03b697f70856"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1652,9 +1666,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-circuit-rv32im"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53c44a97bf5f90a90a51fcc3667b12592a407431f7bab34dc5e77f097675699d"
+checksum = "8ca07c57b1b0eff21288a7b193a06b2b5943b3eceda6dafa0c087cbe0fcfcfa6"
 dependencies = [
  "anyhow",
  "metal",
@@ -1668,9 +1682,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-core"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09f45bab0bb477240e7d45a25e618603ef4196421728a115b6d4b7a6036535a5"
+checksum = "5a3ba5078ac767bb5cf35505e6d4da24eff76807fa73bb6ffb88e794654dd4dc"
 dependencies = [
  "bytemuck",
  "rand_core",
@@ -1678,9 +1692,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-groth16"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a73e92874649e10cbdd6b3069c4f0f6a7daab1251d18ba8b190ef9f99b39975c"
+checksum = "aa2df58accff2fde7e8bad9d144ae91cdfb5d0101addd3365f013fe3e33dccd8"
 dependencies = [
  "anyhow",
  "ark-bn254",
@@ -1699,9 +1713,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-zkp"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6f1990995a8933cdd1812dc9d8d0e5f04032a045cc47ef00557996b566e2194"
+checksum = "53e429d1cdb86a702eba04a02b3929bdd62a9a1859ec23b281ba2a8d0c6f418f"
 dependencies = [
  "anyhow",
  "blake2",
@@ -1723,9 +1737,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-zkvm"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7dd5caa549aa61f00a69f2b625b0d4e42e40595f3d0b29773c80856baa244fd"
+checksum = "e7ecc97ec255ad47e1de41b9691a8d92fa48efb779b611d28c3a1c4b7c79abd0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -1750,9 +1764,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-zkvm-platform"
-version = "1.2.1"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53b825852cf55c5f54f1f21d178055e6959fa5f4e839eab2ad56cfd377d2e7f8"
+checksum = "3707a298cacf4d665258b9e976d422401dcfe833f50794fa1e7c20d15ab45e7f"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -1863,6 +1877,7 @@ dependencies = [
  "der",
  "generic-array",
  "pkcs8",
+ "serdect",
  "subtle",
  "zeroize",
 ]
@@ -1939,6 +1954,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serdect"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a84f14a19e9a014bb9f4512488d9829a68e04ecabffb0f9904cd1ace94598177"
+dependencies = [
+ "base16ct",
+ "serde",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.8"
 source = "git+https://github.com/risc0/RustCrypto-hashes?tag=sha2-v0.10.8-risczero.0#244dc3b08788f7a4ccce14c66896ae3b4f24c166"
@@ -1996,6 +2021,7 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "jmt",
+ "k256",
  "serde",
  "sha2",
  "sov-modules-core",
@@ -2028,6 +2054,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "citrea-primitives",
  "hex",
  "itertools 0.13.0",
  "jmt",

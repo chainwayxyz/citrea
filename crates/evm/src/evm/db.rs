@@ -76,17 +76,6 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
             );
         }
     }
-
-    pub(crate) fn check_against_code_hash(
-        &self,
-        code: &Bytecode,
-        code_hash: &B256,
-    ) -> Result<(), DBError> {
-        if *code_hash != keccak256(code.original_byte_slice()) {
-            return Err(DBError::CodeHashMismatch);
-        }
-        Ok(())
-    }
 }
 
 impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
@@ -105,12 +94,18 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         // If CANCUN or later forks are activated, try to fetch code from offchain storage
         // first. This is to prevent slower lookups in `code`.
         if self.evm_spec.is_enabled_in(EvmSpecId::CANCUN) {
-            if let Some(code) = self
-                .evm
-                .offchain_code
-                .get(&code_hash, &mut self.working_set.offchain_state())
-            {
-                self.check_against_code_hash(&code, &code_hash)?;
+            if let Some(code) = self.evm.offchain_code.get_with_verification_on_no_cache(
+                &code_hash,
+                |val| {
+                    // if code is read as None,
+                    // we don't have code for the given code_hash
+                    // return true in that case so we return None from get_with_verification_on_no_cache
+                    val.as_ref().map_or(true, |code| {
+                        *code_hash == keccak256(code.original_byte_slice())
+                    })
+                },
+                &mut self.working_set.offchain_state(),
+            ) {
                 return Ok(code);
             }
         }

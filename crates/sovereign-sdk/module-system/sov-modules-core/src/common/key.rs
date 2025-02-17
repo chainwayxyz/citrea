@@ -48,12 +48,7 @@ pub trait PublicKey:
 /// A PrivateKey used in the Module System.
 #[cfg(feature = "native")]
 pub trait PrivateKey:
-    Debug
-    + Send
-    + Sync
-    + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + Serialize
-    + serde::de::DeserializeOwned
+    Debug + Send + Sync + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
 {
     /// The public key associated with the key pair.
     type PublicKey: PublicKey;

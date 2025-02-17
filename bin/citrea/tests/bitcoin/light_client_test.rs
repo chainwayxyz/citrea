@@ -25,7 +25,7 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -1352,15 +1352,7 @@ fn create_serialized_fake_receipt_batch_proof(
     state_diff: Option<BTreeMap<Vec<u8>, Option<Vec<u8>>>>,
     malformed_journal: bool,
 ) -> Vec<u8> {
-    let sequencer_da_public_key = vec![
-        2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71, 236, 37, 185, 161, 53, 187,
-        218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215, 125, 201,
-    ];
-    let sequencer_public_key = vec![
-        32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214,
-        80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
-    ];
-    let batch_proof_output = BatchProofCircuitOutputV2 {
+    let batch_proof_output = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         last_l2_height,
@@ -1369,8 +1361,6 @@ fn create_serialized_fake_receipt_batch_proof(
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
         sequencer_commitments_range: (0, 0),
-        sequencer_da_public_key,
-        sequencer_public_key,
         preproven_commitments: vec![],
     };
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();

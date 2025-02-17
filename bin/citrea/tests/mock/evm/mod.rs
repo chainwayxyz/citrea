@@ -11,7 +11,8 @@ use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContr
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{BlockId, BlockNumberOrTag};
-use sov_rollup_interface::CITREA_VERSION;
+use sha2::Digest;
+use sov_rollup_interface::{Network, CITREA_VERSION};
 use sov_state::KeyHash;
 use tokio::time::sleep;
 
@@ -57,6 +58,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequener_config),
+            None,
         )
         .await;
     });
@@ -118,6 +120,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -159,6 +162,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -201,6 +205,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
         )
         .await;
     });
@@ -256,70 +261,178 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
     let expected_root_hash = acc_proof.storage_hash.0.into();
 
     // construct account key/values to be verified
-    let account_key = [b"Evm/a/\x14", account_address.as_slice()].concat();
-    let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
-    let proved_account = if acc_proof.account_proof[1] == Bytes::from("y") {
-        // Account exists and it's serialized form is:
-        let code_hash_bytes = if acc_proof.code_hash != KECCAK_EMPTY {
-            // 1 for Some and 32 for length
-            [&[1, 32], acc_proof.code_hash.0.as_slice()].concat()
-        } else {
-            // 0 for None
-            vec![0]
-        };
-        let bytes = [
-            &[32], // balance length
-            acc_proof.balance.as_le_slice(),
-            &acc_proof.nonce.to_le_bytes(),
-            &code_hash_bytes,
-        ]
-        .concat();
-        Some(bytes)
-    } else {
-        // Account does not exist
-        None
-    };
-
-    let acc_storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-        borsh::from_slice(&acc_proof.account_proof[0]).unwrap();
-
-    acc_storage_proof
-        .verify(expected_root_hash, account_hash, proved_account)
-        .expect("Account proof must be valid");
-
-    for storage_proof in &acc_proof.storage_proof {
-        let storage_key = [
-            b"Evm/s/",
-            acc_proof.address.as_slice(),
-            &[32],
-            U256::from_le_slice(storage_proof.key.0.as_slice())
-                .to_be_bytes::<32>()
-                .as_slice(),
-        ]
-        .concat();
-        let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
-
-        let proved_value = if storage_proof.proof[1] == Bytes::from("y") {
-            // Storage value exists and it's serialized form is:
-            let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
+    if acc_proof.account_proof[0] == Bytes::from("fork1") {
+        dbg!("verify proof acc fork1");
+        let account_key = [b"Evm/a/\x14", account_address.as_slice()].concat();
+        let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
+        let proved_account = if acc_proof.account_proof[2] == Bytes::from("y") {
+            // Account exists and it's serialized form is:
+            let code_hash_bytes = if acc_proof.code_hash != KECCAK_EMPTY {
+                // 1 for Some and 32 for length
+                [&[1, 32], acc_proof.code_hash.0.as_slice()].concat()
+            } else {
+                // 0 for None
+                vec![0]
+            };
+            let bytes = [
+                &[32], // balance length
+                acc_proof.balance.as_le_slice(),
+                &acc_proof.nonce.to_le_bytes(),
+                &code_hash_bytes,
+            ]
+            .concat();
             Some(bytes)
         } else {
-            // Storage value does not exist
+            // Account does not exist
+            dbg!("fork1: acc does not exist");
             None
         };
 
-        let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-            borsh::from_slice(&storage_proof.proof[0]).unwrap();
+        let acc_storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+            borsh::from_slice(&acc_proof.account_proof[1]).unwrap();
 
-        storage_proof
-            .verify(expected_root_hash, key_hash, proved_value)
-            .expect("Account storage proof must be valid");
+        acc_storage_proof
+            .verify(expected_root_hash, account_hash, proved_account)
+            .expect("Account proof must be valid");
+    } else if acc_proof.account_proof[0] == Bytes::from("fork2") {
+        dbg!("verify proof acc fork2");
+        let account_key = [b"Evm/i/\x14", account_address.as_slice()].concat();
+        let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
+
+        if acc_proof.account_proof.len() == 3 {
+            // Neither account index nor account exist
+            assert_eq!(acc_proof.account_proof[2], Bytes::from("n"));
+
+            let acc_storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+                borsh::from_slice(&acc_proof.account_proof[1]).unwrap();
+
+            acc_storage_proof
+                .verify(expected_root_hash, account_hash, None::<Vec<u8>>)
+                .expect("Account proof must be valid");
+        } else {
+            // fork, index_proof, index_bytes, account_proof, account_exists
+            assert_eq!(acc_proof.account_proof.len(), 5);
+
+            let proved_index_value = acc_proof.account_proof[2].to_vec();
+            let account_idx = usize::from_le_bytes(
+                proved_index_value
+                    .clone()
+                    .try_into()
+                    .expect("Must be exactly 8 bytes"),
+            );
+
+            let acc_index_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+                borsh::from_slice(&acc_proof.account_proof[1]).unwrap();
+
+            acc_index_proof
+                .verify(expected_root_hash, account_hash, Some(proved_index_value))
+                .expect("Account proof index must be valid");
+
+            let proved_account = if acc_proof.account_proof[4] == Bytes::from("y") {
+                // Account exists and it's serialized form is:
+                let code_hash_bytes = if acc_proof.code_hash != KECCAK_EMPTY {
+                    // 1 for Some and 32 for length
+                    [&[1, 32], acc_proof.code_hash.0.as_slice()].concat()
+                } else {
+                    // 0 for None
+                    vec![0]
+                };
+                let bytes = [
+                    &[32], // balance length
+                    acc_proof.balance.as_le_slice(),
+                    &acc_proof.nonce.to_le_bytes(),
+                    &code_hash_bytes,
+                ]
+                .concat();
+                Some(bytes)
+            } else {
+                // Account does not exist
+                dbg!("fork2: acc does not exist");
+                None
+            };
+
+            let index_key = [b"Evm/t/", account_idx.to_le_bytes().as_slice()].concat();
+            let index_hash = KeyHash::with::<sha2::Sha256>(index_key.clone());
+
+            let acc_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+                borsh::from_slice(&acc_proof.account_proof[3]).unwrap();
+
+            acc_proof
+                .verify(expected_root_hash, index_hash, proved_account)
+                .expect("Account proof must be valid");
+        }
+    } else {
+        panic!("Unknown fork {}", acc_proof.account_proof[0]);
+    }
+
+    for storage_proof in &acc_proof.storage_proof {
+        if storage_proof.proof[0] == Bytes::from("fork1") {
+            let storage_key = [
+                b"Evm/s/".as_slice(),
+                acc_proof.address.as_slice(),
+                &[32],
+                U256::from_le_slice(storage_proof.key.0.as_slice())
+                    .to_be_bytes::<32>()
+                    .as_slice(),
+            ]
+            .concat();
+            let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
+
+            let proved_value = if storage_proof.proof[2] == Bytes::from("y") {
+                // Storage value exists and it's serialized form is:
+                let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
+                Some(bytes)
+            } else {
+                // Storage value does not exist
+                dbg!("fork1: storage does not exist");
+                None
+            };
+
+            let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+                borsh::from_slice(&storage_proof.proof[1]).unwrap();
+
+            storage_proof
+                .verify(expected_root_hash, key_hash, proved_value)
+                .expect("Account storage proof must be valid");
+        } else if storage_proof.proof[0] == Bytes::from("fork2") {
+            let kaddr = {
+                let mut hasher: sha2::Sha256 =
+                    sha2::Digest::new_with_prefix(account_address.as_slice());
+                hasher.update(storage_proof.key.0.as_slice());
+                let arr = hasher.finalize();
+                U256::from_le_slice(&arr)
+            };
+            let storage_key = [
+                b"Evm/s/".as_slice(),
+                &[32],
+                kaddr.to_be_bytes::<32>().as_slice(),
+            ]
+            .concat();
+            let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
+
+            let proved_value = if storage_proof.proof[2] == Bytes::from("y") {
+                // Storage value exists and it's serialized form is:
+                let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
+                Some(bytes)
+            } else {
+                // Storage value does not exist
+                dbg!("fork2: storage does not exist");
+                None
+            };
+
+            let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+                borsh::from_slice(&storage_proof.proof[1]).unwrap();
+
+            storage_proof
+                .verify(expected_root_hash, key_hash, proved_value)
+                .expect("Account storage proof must be valid");
+        } else {
+            panic!("Unknown fork {}", storage_proof.proof[0]);
+        }
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
-#[ignore]
-async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::error::Error>> {
     // citrea::initialize_logging(::tracing::Level::INFO);
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -338,7 +451,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         min_soft_confirmations_per_commitment: 123456,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
+    let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
@@ -346,6 +459,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
             None,
             rollup_config,
             Some(sequencer_config),
+            Some(network),
         )
         .await;
     });
@@ -388,8 +502,19 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap()
     );
 
+    let non_existing_field = U256::from(42);
+    let non_existing_value = seq_test_client
+        .eth_get_storage_at(contract_address, non_existing_field, None)
+        .await
+        .unwrap();
+    assert_eq!(non_existing_value, U256::ZERO);
+
     let acc_proof_latest = seq_test_client
-        .eth_get_proof(contract_address, vec![contract_field], None)
+        .eth_get_proof(
+            contract_address,
+            vec![contract_field, non_existing_field],
+            None,
+        )
         .await
         .unwrap();
 
@@ -413,7 +538,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     let acc_proof_1 = seq_test_client
         .eth_get_proof(
             contract_address,
-            vec![contract_field],
+            vec![contract_field, non_existing_field],
             Some(BlockNumberOrTag::Number(block_num)),
         )
         .await
@@ -422,7 +547,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     let acc_proof_2 = seq_test_client
         .eth_get_proof(
             contract_address,
-            vec![contract_field],
+            vec![contract_field, non_existing_field],
             Some(BlockNumberOrTag::Number(block_num - 1)),
         )
         .await
@@ -460,6 +585,16 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
 
     seq_task.abort();
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_eth_get_proof_fork0() -> Result<(), Box<dyn std::error::Error>> {
+    test_eth_get_proof_on(Network::Devnet).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_eth_get_proof_fork2() -> Result<(), Box<dyn std::error::Error>> {
+    test_eth_get_proof_on(Network::Nightly).await
 }
 
 #[allow(clippy::borrowed_box)]
