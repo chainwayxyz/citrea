@@ -281,7 +281,8 @@ where
         };
 
         let block_id_internal = evm.block_number_for_id(&block_number, &mut working_set)?;
-        evm.check_if_l2_block_pruned(block_id_internal, &mut working_set).map_err(EthApiError::from)?;
+        evm.check_if_l2_block_pruned(block_id_internal, &mut working_set)
+            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_from_block_number(block_id_internal).spec_id;
 
@@ -563,7 +564,8 @@ where
             ).into()),
         };
 
-        evm.check_if_l2_block_pruned(block_number, &mut working_set).map_err(EthApiError::from)?;
+        evm.check_if_l2_block_pruned(block_number, &mut working_set)
+            .map_err(EthApiError::from)?;
 
         debug_trace_by_block_number(
             block_number,

@@ -62,18 +62,25 @@ async fn test_pruning_simple_run() {
     // remove this part later
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    let storage_manager = sov_prover_storage_manager::ProverStorageManager::new(sov_state::Config { path: tmpdir.path().to_path_buf(), db_max_open_files: None }).unwrap();
+    let storage_manager =
+        sov_prover_storage_manager::ProverStorageManager::new(sov_state::Config {
+            path: tmpdir.path().to_path_buf(),
+            db_max_open_files: None,
+        })
+        .unwrap();
     let finalized_storage = storage_manager.create_final_view_storage();
 
     let native_height = finalized_storage
         .get_last_pruned_l2_height()
         .unwrap()
         .expect("Last pruned L2 height should be set");
-    let ledger_height = ledger_db.get_last_pruned_l2_height().unwrap().expect("Last pruned L2 height should be set");
+    let ledger_height = ledger_db
+        .get_last_pruned_l2_height()
+        .unwrap()
+        .expect("Last pruned L2 height should be set");
 
     assert_eq!(native_height, 5);
     assert_eq!(ledger_height, 5);
-
 }
 
 #[test]

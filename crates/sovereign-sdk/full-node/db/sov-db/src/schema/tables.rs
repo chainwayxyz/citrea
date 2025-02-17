@@ -551,7 +551,6 @@ define_table_without_codec!(
     (ModuleAccessoryState) (AccessoryKey, Version) => AccessoryStateValue
 );
 
-
 define_table_without_codec!(
     /// last pruned l2 height
     (LastPrunedL2Height) () => u64

@@ -63,7 +63,8 @@ impl Pruner {
         self.ledger_db
             .put::<LastPrunedBlock>(&(), &last_pruned_l2_height)?;
 
-        self.native_db.put::<LastPrunedL2Height>(&(), &last_pruned_l2_height)
+        self.native_db
+            .put::<LastPrunedL2Height>(&(), &last_pruned_l2_height)
     }
 
     pub(crate) fn should_prune(
