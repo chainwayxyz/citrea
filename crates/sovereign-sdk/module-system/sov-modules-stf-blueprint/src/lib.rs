@@ -267,7 +267,11 @@ where
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
-    ) -> SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness, ReadWriteLog> {
+    ) -> SoftConfirmationResult<
+        C::Storage,
+        <C::Storage as Storage>::Witness,
+        <Self as StateTransitionFunction<Da>>::StateLog,
+    > {
         native_debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} successfully applied",
             hex::encode(soft_confirmation.hash()),
@@ -379,7 +383,7 @@ where
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
-        SoftConfirmationResult<Self::ChangeSet, Self::Witness, ReadWriteLog>,
+        SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
         StateTransitionError,
     > {
         let soft_confirmation_info =
