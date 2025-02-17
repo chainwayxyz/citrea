@@ -93,6 +93,7 @@ where
                 let value_bytes = value
                     .map(|v| RefCount::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
 
+                // Seems like we can get rid of the extra clone here
                 diff.push((key_bytes, value_bytes.clone()));
 
                 (key_hash, value_bytes)

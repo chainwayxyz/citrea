@@ -69,7 +69,7 @@ where
                 da_txs,
                 data.sequencer_commitments_range,
                 data.da_block_headers_of_soft_confirmations,
-                data.preproven_commitments.clone(),
+                &data.preproven_commitments,
                 forks,
             );
 

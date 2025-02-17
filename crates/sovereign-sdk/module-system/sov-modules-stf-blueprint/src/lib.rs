@@ -427,7 +427,7 @@ where
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        preproven_commitment_indices: Vec<usize>,
+        preproven_commitment_indices: &[usize],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
@@ -485,7 +485,7 @@ where
             .enumerate()
             .filter(|(idx, _)| {
                 if let Some(preproven_idx) = preproven_commitments_iter.peek() {
-                    if preproven_idx == idx {
+                    if **preproven_idx == *idx {
                         preproven_commitments_iter.next();
                         return false;
                     }

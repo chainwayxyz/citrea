@@ -207,7 +207,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
-        preproven_commitment_indicies: Vec<usize>,
+        preproven_commitment_indicies: &[usize],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput;
 }
