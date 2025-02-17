@@ -42,7 +42,7 @@ impl fmt::Display for Prefix {
 
 impl Extend<u8> for Prefix {
     fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
-        self.prefix.extend(&iter.into_iter().collect::<Vec<u8>>())
+        self.prefix.extend(iter)
     }
 }
 
