@@ -28,7 +28,7 @@ use sov_rollup_interface::stf::{
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
-use sov_state::Storage;
+use sov_state::{ReadWriteLog, Storage};
 
 mod stf_blueprint;
 
@@ -267,14 +267,14 @@ where
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
-    ) -> SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness> {
+    ) -> SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness, ReadWriteLog> {
         native_debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} successfully applied",
             hex::encode(soft_confirmation.hash()),
             hex::encode(soft_confirmation.sequencer_pub_key()),
         );
 
-        let (state_root_transition, witness, offchain_witness, storage, state_diff) = {
+        let (state_root_transition, state_log, witness, offchain_witness, storage, state_diff) = {
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
@@ -299,6 +299,7 @@ where
 
             (
                 state_root_transition,
+                state_log,
                 witness,
                 offchain_witness,
                 pre_state,
@@ -308,6 +309,7 @@ where
 
         SoftConfirmationResult {
             state_root_transition,
+            state_log,
             change_set: storage,
             witness,
             offchain_witness,
@@ -327,6 +329,7 @@ where
     type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
     type ChangeSet = C::Storage;
+    type StateLog = ReadWriteLog;
 
     type Witness = <C::Storage as Storage>::Witness;
 
@@ -375,7 +378,10 @@ where
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness>, StateTransitionError> {
+    ) -> Result<
+        SoftConfirmationResult<Self::ChangeSet, Self::Witness, ReadWriteLog>,
+        StateTransitionError,
+    > {
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, *pre_state_root, current_spec);
 
