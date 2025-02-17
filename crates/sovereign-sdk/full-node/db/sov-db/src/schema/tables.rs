@@ -89,6 +89,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
     LastPrunedBlock::table_name(),
     VerifiedBatchProofsBySlotNumber::table_name(),
+    CommitmentMerkleRoots::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -112,6 +113,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
+    CommitmentMerkleRoots::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -125,6 +127,8 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     SoftConfirmationByNumber::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
+    // Don't know if this will be needed
+    CommitmentMerkleRoots::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -155,6 +159,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
+    CommitmentMerkleRoots::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -439,6 +444,11 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// Stores the MMR tree size
     (MMRTreeSize) () => u32
+);
+
+define_table_with_default_codec!(
+    /// Stores merkle hash of seuencer commitment => l2 range
+    (CommitmentMerkleRoots) [u8; 32] => L2HeightRange
 );
 
 #[cfg(test)]

@@ -26,8 +26,10 @@ pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
+    /// TODO: remove in this pr
     pub final_state_root: StorageRootHash,
     /// The hash before the state transition
+    /// TODO: remove in this pr
     pub prev_soft_confirmation_hash: [u8; 32],
     /// Sequencer commitments being proven
     /// Since `SequencerCommitment` does not have the sequencer's signature,
@@ -35,5 +37,6 @@ pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// when it is extracting the commitments from L1
     pub sequencer_commitments: Vec<SequencerCommitment>,
     /// DA block headers the soft confirmations was constructed on.
+    /// TODO: this is going to be replaced with erce's pr most probably
     pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
 }

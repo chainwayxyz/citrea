@@ -22,6 +22,7 @@ pub struct BatchProofCircuitOutputV3 {
     pub final_state_root: StorageRootHash,
     /// The hash of the last soft confirmation before the state transition
     /// This will be [0; 32] for pre fork 1 proofs
+    /// TODO: remove in this pr
     pub prev_soft_confirmation_hash: [u8; 32],
     /// The hash of the last soft confirmation in the state transition
     /// This will be [0; 32] for pre fork 1 proofs
