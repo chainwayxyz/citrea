@@ -77,7 +77,7 @@ impl Prefix {
     /// prefix with the given bytes.
     pub fn extended(&self, bytes: &[u8]) -> Self {
         let mut new_prefix = Vec::with_capacity(self.len() + bytes.len());
-        new_prefix.extend_from_slice(self.as_aligned_vec().as_ref());
+        new_prefix.extend_from_slice(self.as_vec());
         new_prefix.extend_from_slice(bytes);
 
         Self::new(new_prefix)
