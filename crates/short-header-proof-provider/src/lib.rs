@@ -18,12 +18,12 @@ use sov_rollup_interface::services::da::DaService;
 /// Short Header Proof Provider
 /// This trait is used to get the short header proof by the l1 hash
 /// for full nodes and provers to verify sequencer set block info system transaction parameters
-pub trait ShortHeaderProofProvider {
+pub trait ShortHeaderProofProvider: Send + Sync {
     /// Returns short header proof by the l1 hash
     fn get_and_verify_short_header_proof_by_l1_hash(&self, l1_hash: [u8; 32]) -> bool;
 }
 
-pub const SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvider>> =
+pub static SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvider>> =
     OnceCell::new();
 
 #[cfg(feature = "native")]
@@ -50,10 +50,10 @@ impl<Da: DaService> ShortHeaderProofProvider for NativeShortHeaderProofProviderS
         self.ledger_db
             .put_short_header_proof_by_l1_hash(block_hash, borsh::to_vec(&shp).unwrap())
             .unwrap();
-        match shp.verify() {
-            Ok(_) => true,
-            Err(_) => false,
+        if shp.verify().is_ok() {
+            return true;
         }
+        false
     }
 }
 
@@ -75,7 +75,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             if l1_hash != &block_hash {
                 continue;
             }
-            let shp = Da::ShortHeaderProof::try_from_slice(&proof).unwrap();
+            let shp = Da::ShortHeaderProof::try_from_slice(proof).unwrap();
             if shp.verify().is_ok() {
                 return true;
             }

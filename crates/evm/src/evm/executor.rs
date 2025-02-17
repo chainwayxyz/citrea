@@ -101,8 +101,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 .entered();
 
         if tx.signer() == SYSTEM_SIGNER {
-            let shp_provider = SHORT_HEADER_PROOF_PROVIDER;
-            let shp_provider_box = shp_provider
+            let shp_provider_box = SHORT_HEADER_PROOF_PROVIDER
                 .get()
                 .expect("Short header proof provider not set");
             // TODO: Check if this is the set_block_info tx, if so:

@@ -15,15 +15,15 @@ borsh = { workspace = true }
 futures = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = false }
 
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", default-features = false, optional = true}
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", default-features = false, optional = true }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", default-features = false }
 
 [features]
 native = [
-    "sov-modules-api/native",
-    "sov-rollup-interface/native",
-    
-    "dep:sov-db",
-    "dep:futures",
+  "sov-modules-api/native",
+  "sov-rollup-interface/native",
+
+  "dep:sov-db",
+  "dep:futures",
 ]
