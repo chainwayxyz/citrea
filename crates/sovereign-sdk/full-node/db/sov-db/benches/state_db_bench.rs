@@ -62,7 +62,7 @@ fn prepare_data(size: usize) -> TestData {
         let key = &chunk[0];
         let value = chunk[1].clone();
         let key_hash = KeyHash::with::<sha2::Sha256>(&key);
-        key_preimages.push((key_hash, key));
+        key_preimages.push((key_hash, key.as_slice()));
         batch.push((key_hash, Some(value)));
     }
 

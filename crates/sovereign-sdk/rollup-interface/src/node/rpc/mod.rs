@@ -13,6 +13,7 @@ use crate::mmr::MMRGuest;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::BatchProofInfo;
+use crate::RefCount;
 
 /// A struct containing enough information to uniquely specify single batch.
 
@@ -405,7 +406,7 @@ where
                     }
                     None => None,
                 };
-                btree_map.insert(key, value);
+                btree_map.insert(RefCount::from(key), value.map(RefCount::from));
             }
             Ok(btree_map)
         }

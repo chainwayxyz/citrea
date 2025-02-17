@@ -29,7 +29,7 @@ pub use scratchpad::*;
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
 )]
 pub struct StorageKey {
-    key: RefCount<Vec<u8>>,
+    key: RefCount<[u8]>,
 }
 
 impl From<CacheKey> for StorageKey {
@@ -40,7 +40,7 @@ impl From<CacheKey> for StorageKey {
 
 impl StorageKey {
     /// Returns a new [`RefCount`] reference to the bytes of this key.
-    pub fn key(&self) -> RefCount<Vec<u8>> {
+    pub fn key(&self) -> RefCount<[u8]> {
         self.key.clone()
     }
 
@@ -59,9 +59,9 @@ impl StorageKey {
             },
             Some(v) => {
                 let mut bytes = v.to_be_bytes().to_vec();
-                bytes.extend((*self.key).clone());
+                bytes.extend_from_slice(&self.key);
                 CacheKey {
-                    key: RefCount::new(bytes),
+                    key: RefCount::from(bytes),
                 }
             }
         }
@@ -73,8 +73,8 @@ impl StorageKey {
     }
 }
 
-impl AsRef<Vec<u8>> for StorageKey {
-    fn as_ref(&self) -> &Vec<u8> {
+impl AsRef<[u8]> for StorageKey {
+    fn as_ref(&self) -> &[u8] {
         &self.key
     }
 }
@@ -101,14 +101,14 @@ impl StorageKey {
         full_key.extend(&encoded_key);
 
         Self {
-            key: RefCount::new(full_key.into_inner()),
+            key: RefCount::from(full_key.into_inner()),
         }
     }
 
     /// Creates a new [`StorageKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            key: RefCount::new(prefix.as_aligned_vec().clone().into_inner()),
+            key: RefCount::from(prefix.as_aligned_vec().clone().into_inner()),
         }
     }
 }
@@ -121,7 +121,7 @@ impl StorageKey {
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
 )]
 pub struct StorageValue {
-    value: RefCount<Vec<u8>>,
+    value: RefCount<[u8]>,
 }
 
 impl From<CacheValue> for StorageValue {
@@ -135,7 +135,7 @@ impl From<CacheValue> for StorageValue {
 impl From<Vec<u8>> for StorageValue {
     fn from(value: Vec<u8>) -> Self {
         Self {
-            value: RefCount::new(value),
+            value: RefCount::from(value),
         }
     }
 }
@@ -148,7 +148,7 @@ impl StorageValue {
     {
         let encoded_value = codec.encode_value(value);
         Self {
-            value: RefCount::new(encoded_value),
+            value: RefCount::from(encoded_value),
         }
     }
 
@@ -289,7 +289,7 @@ pub trait Storage: Clone {
 impl From<&str> for StorageKey {
     fn from(key: &str) -> Self {
         Self {
-            key: RefCount::new(key.as_bytes().to_vec()),
+            key: RefCount::from(key.as_bytes()),
         }
     }
 }
@@ -298,7 +298,7 @@ impl From<&str> for StorageKey {
 impl From<&str> for StorageValue {
     fn from(value: &str) -> Self {
         Self {
-            value: RefCount::new(value.as_bytes().to_vec()),
+            value: RefCount::from(value.as_bytes()),
         }
     }
 }

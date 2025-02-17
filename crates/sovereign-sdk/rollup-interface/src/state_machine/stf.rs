@@ -16,6 +16,7 @@ use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
+use crate::RefCount;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;
@@ -84,7 +85,7 @@ pub struct SoftConfirmationReceipt<DS: DaSpec> {
 }
 
 /// A diff of the state, represented as a list of key-value pairs.
-pub type StateDiff = Vec<(Vec<u8>, Option<Vec<u8>>)>;
+pub type StateDiff = Vec<(RefCount<[u8]>, Option<RefCount<[u8]>>)>;
 
 /// Helper struct which contains initial and final state roots.
 pub struct StateRootTransition {
