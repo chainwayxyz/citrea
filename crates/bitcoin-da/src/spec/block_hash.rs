@@ -18,6 +18,12 @@ impl BorshSerialize for BlockHashWrapper {
     }
 }
 
+impl From<BlockHash> for BlockHashWrapper {
+    fn from(val: BlockHash) -> Self {
+        BlockHashWrapper(val)
+    }
+}
+
 impl BorshDeserialize for BlockHashWrapper {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
         let hash = BorshDeserialize::deserialize_reader(reader)?;
