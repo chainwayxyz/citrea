@@ -479,7 +479,7 @@ where
         // The preproven indices are sorted by the prover when originally passed.
         // Therefore, we can iterate of sequencer commitments and filter out
         // matching preproven indices.
-        let mut preproven_commitments_iter = preproven_commitment_indices.into_iter().peekable();
+        let mut preproven_commitments_iter = preproven_commitment_indices.iter().peekable();
         let sequencer_commitments_iter = sequencer_commitments
             .into_iter()
             .enumerate()

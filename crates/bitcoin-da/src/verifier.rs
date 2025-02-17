@@ -204,7 +204,7 @@ impl DaVerifier for BitcoinVerifier {
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
                 vec_merkle.extend_from_slice(&merkle_root);
-                vec_merkle.extend_from_slice(&input_witness_value);
+                vec_merkle.extend_from_slice(input_witness_value);
 
                 // check with sha256(sha256(<merkle root><witness value>))
                 let commitment = calculate_double_sha256(&vec_merkle);
