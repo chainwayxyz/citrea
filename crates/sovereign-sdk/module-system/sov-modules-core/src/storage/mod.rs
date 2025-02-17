@@ -11,7 +11,7 @@ use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::zk::{SparseMerkleProofSha2, StorageRootHash};
 use sov_rollup_interface::RefCount;
 
-use crate::common::{AlignedVec, Prefix, Version, Witness};
+use crate::common::{Prefix, Version, Witness};
 
 mod cache;
 mod codec;
@@ -93,22 +93,20 @@ impl StorageKey {
         Q: ?Sized,
     {
         let encoded_key = codec.encode_key_like(key);
-        let encoded_key = AlignedVec::new(encoded_key);
 
-        let full_key = Vec::<u8>::with_capacity(prefix.len() + encoded_key.len());
-        let mut full_key = AlignedVec::new(full_key);
-        full_key.extend(prefix.as_aligned_vec());
+        let mut full_key = Vec::<u8>::with_capacity(prefix.len() + encoded_key.len());
+        full_key.extend(prefix.as_vec());
         full_key.extend(&encoded_key);
 
         Self {
-            key: RefCount::new(full_key.into_inner()),
+            key: RefCount::new(full_key),
         }
     }
 
     /// Creates a new [`StorageKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            key: RefCount::new(prefix.as_aligned_vec().clone().into_inner()),
+            key: RefCount::new(prefix.to_vec()),
         }
     }
 }
