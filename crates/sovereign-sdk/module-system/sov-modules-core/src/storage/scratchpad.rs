@@ -6,12 +6,12 @@ use core::mem;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
-use super::CacheLog;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
+use crate::storage::cache::{CacheLog, OrderedWrites, ReadWriteLog};
 use crate::storage::{
-    CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
-    StateValueCodec, Storage, StorageKey, StorageProof, StorageValue,
+    CacheKey, CacheValue, EncodeKeyLike, NativeStorage, StateCodec, StateValueCodec, Storage,
+    StorageKey, StorageProof, StorageValue,
 };
 use crate::{ValueExists, Version};
 
@@ -215,17 +215,17 @@ impl<S: Storage> StateDelta<S> {
         self
     }
 
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    fn freeze(&mut self) -> (ReadWriteLog, S::Witness) {
         let ordered_reads = mem::take(&mut self.ordered_storage_reads);
-        let ordered_writes = mem::take(&mut self.cache_log).take_writes();
+        let cache_log = mem::take(&mut self.cache_log);
 
-        let ordered_reads_writes = OrderedReadsAndWrites {
+        let read_write_log = ReadWriteLog {
             ordered_reads,
-            ordered_writes,
+            cache_log,
         };
         let witness = mem::take(&mut self.witness);
 
-        (ordered_reads_writes, witness)
+        (read_write_log, witness)
     }
 }
 
@@ -297,13 +297,8 @@ impl<S: Storage> AccessoryDelta<S> {
         self
     }
 
-    fn freeze(&mut self) -> OrderedReadsAndWrites {
-        let ordered_writes = mem::take(&mut self.committed_writes).into_iter().collect();
-
-        OrderedReadsAndWrites {
-            ordered_reads: Vec::default(),
-            ordered_writes,
-        }
+    fn freeze(&mut self) -> OrderedWrites {
+        mem::take(&mut self.committed_writes).into_iter().collect()
     }
 }
 
@@ -375,16 +370,16 @@ impl<S: Storage> OffchainDelta<S> {
         self
     }
 
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
-        let ordered_writes = mem::take(&mut self.cache_log).take_writes();
+    fn freeze(&mut self) -> (ReadWriteLog, S::Witness) {
+        let cache_log = mem::take(&mut self.cache_log);
 
-        let ordered_reads_writes = OrderedReadsAndWrites {
+        let read_write_log = ReadWriteLog {
             ordered_reads: Vec::default(),
-            ordered_writes,
+            cache_log,
         };
         let witness = mem::take(&mut self.witness);
 
-        (ordered_reads_writes, witness)
+        (read_write_log, witness)
     }
 }
 
@@ -495,7 +490,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call [`Storage::validate_and_commit`] or some
     /// of the other related [`Storage`] methods. Note that this data is moved
     /// **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
-    pub fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    pub fn freeze(&mut self) -> (ReadWriteLog, S::Witness) {
         self.delta.freeze()
     }
 
@@ -505,7 +500,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call
     /// [`Storage::validate_and_commit_with_accessory_update`], together with
     /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
+    pub fn freeze_non_provable(&mut self) -> OrderedWrites {
         self.accessory_delta.freeze()
     }
 
@@ -515,7 +510,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call
     /// [`Storage::validate_and_commit_with_accessory_update`], together with
     /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_offchain(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    pub fn freeze_offchain(&mut self) -> (ReadWriteLog, S::Witness) {
         self.offchain_delta.freeze()
     }
 }

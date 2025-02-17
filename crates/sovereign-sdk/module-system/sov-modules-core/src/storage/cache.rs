@@ -238,16 +238,13 @@ impl CacheLog {
 }
 
 impl CacheLog {
-    /// Returns the owned set of key/value pairs of the cache.
-    pub fn take_writes(self) -> Vec<(CacheKey, Option<CacheValue>)> {
-        self.log
-            .into_iter()
-            .filter_map(|(k, v)| match v {
-                Access::Read(_) => None,
-                Access::ReadThenWrite { modified, .. } => Some((k, modified)),
-                Access::Write(write) => Some((k, write)),
-            })
-            .collect()
+    /// Iterate over key/value pairs of write cache
+    pub fn iter_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
+        self.log.iter().filter_map(|(k, v)| match v {
+            Access::Read(_) => None,
+            Access::ReadThenWrite { modified, .. } => Some((k, modified)),
+            Access::Write(write) => Some((k, write)),
+        })
     }
 
     /// Returns a value corresponding to the key.
@@ -288,6 +285,23 @@ impl CacheLog {
             }
             Entry::Vacant(vacancy) => {
                 vacancy.insert(Access::Write(value));
+            }
+        }
+    }
+
+    /// Marks all cache entries as read.
+    pub fn mark_all_as_read(&mut self) {
+        for (_, access) in self.log.iter_mut() {
+            match access {
+                Access::Write(val) => {
+                    let val = val.take();
+                    *access = Access::Read(val);
+                }
+                Access::ReadThenWrite { modified, .. } => {
+                    let val = modified.take();
+                    *access = Access::Read(val);
+                }
+                Access::Read(_) => {}
             }
         }
     }
@@ -356,14 +370,36 @@ impl CacheLog {
     }
 }
 
-/// A struct that contains the values read from the DB and the values to be written, both in
-/// deterministic order.
-#[derive(Debug, Default)]
-pub struct OrderedReadsAndWrites {
-    /// Ordered reads.
-    pub ordered_reads: Vec<(CacheKey, Option<CacheValue>)>,
-    /// Ordered writes.
-    pub ordered_writes: Vec<(CacheKey, Option<CacheValue>)>,
+/// Type alias which contains ordered storage reads
+pub type OrderedReads = Vec<(CacheKey, Option<CacheValue>)>;
+
+/// Type alias which contains ordered storage writes
+pub type OrderedWrites = Vec<(CacheKey, Option<CacheValue>)>;
+
+/// `ReadWriteLog` is a container structure for ordered reads and writes. It also
+/// holds on to the `CacheLog` to allow reuse.
+#[derive(Default)]
+pub struct ReadWriteLog {
+    pub(crate) ordered_reads: OrderedReads,
+    pub(crate) cache_log: CacheLog,
+}
+
+impl ReadWriteLog {
+    /// Returns slice of ordered reads
+    pub fn ordered_reads(&self) -> &[(CacheKey, Option<CacheValue>)] {
+        self.ordered_reads.as_slice()
+    }
+
+    /// Returns an iterator over ordered writes
+    pub fn iter_ordered_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
+        self.cache_log.iter_writes()
+    }
+
+    /// Converts this into a `CacheLog` for reuse. Marks all entries as `Access::Read` before returning.
+    pub fn into_cache_log(mut self) -> CacheLog {
+        self.cache_log.mark_all_as_read();
+        self.cache_log
+    }
 }
 
 #[cfg(test)]
