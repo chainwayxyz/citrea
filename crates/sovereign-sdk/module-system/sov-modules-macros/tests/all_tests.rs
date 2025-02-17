@@ -51,19 +51,6 @@ fn rpc_tests() {
 }
 
 #[test]
-fn cli_wallet_arg_tests() {
-    set_constants_manifest();
-    let t: trybuild::TestCases = trybuild::TestCases::new();
-
-    t.pass("tests/cli_wallet_arg/derive_enum_named_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_struct_unnamed_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_struct_named_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_enum_mixed_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_enum_unnamed_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_wallet.rs");
-}
-
-#[test]
 fn constants_from_manifests_test() {
     set_constants_manifest();
     let t: trybuild::TestCases = trybuild::TestCases::new();

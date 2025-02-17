@@ -13,11 +13,11 @@ resolver = "2"
 
 [dependencies]
 borsh = { workspace = true, features = ["rc"] }
+hex = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
-clap = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = [
     "macros",
     "client-core",
@@ -43,7 +43,6 @@ native = [
     "serde_json",
     "jsonrpsee",
     "schemars",
-    "clap",
     "sov-state/native",
     "sov-modules-api/native",
 ]

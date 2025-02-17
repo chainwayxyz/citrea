@@ -174,7 +174,7 @@ pub fn create_inscription_type_0(
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
     // Create reveal key
-    let key_pair = UntweakedKeypair::new(SECP256K1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let kind = TransactionKindLightClient::Complete;
@@ -335,7 +335,7 @@ pub fn create_inscription_type_1(
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
     // Create reveal key
-    let key_pair = UntweakedKeypair::new(SECP256K1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let mut commit_chunks: Vec<Transaction> = vec![];
@@ -676,7 +676,7 @@ pub fn create_inscription_type_2(
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
     // Create reveal key
-    let key_pair = UntweakedKeypair::new(SECP256K1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let kind = TransactionKindLightClient::BatchProofMethodId;

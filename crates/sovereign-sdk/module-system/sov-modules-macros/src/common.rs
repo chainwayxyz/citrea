@@ -1,7 +1,6 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, ToTokens};
-use syn::spanned::Spanned;
-use syn::{DataStruct, Fields, GenericParam, ImplGenerics, Meta, TypeGenerics};
+use syn::{DataStruct, GenericParam, ImplGenerics, Meta, TypeGenerics};
 
 #[derive(Clone)]
 pub(crate) struct StructNamedField {
@@ -9,16 +8,6 @@ pub(crate) struct StructNamedField {
     pub(crate) ty: syn::Type,
     pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) vis: syn::Visibility,
-}
-
-impl StructNamedField {
-    #[cfg_attr(not(feature = "native"), allow(unused))]
-    pub(crate) fn filter_attrs(&mut self, filter: impl FnMut(&syn::Attribute) -> bool) {
-        self.attrs = std::mem::take(&mut self.attrs)
-            .into_iter()
-            .filter(filter)
-            .collect();
-    }
 }
 
 impl ToTokens for StructNamedField {
@@ -58,43 +47,6 @@ impl StructFieldExtractor {
                 un.union_token,
                 format!("The {} macro supports structs only.", self.macro_name),
             )),
-        }
-    }
-
-    /// Extract the named fields from a struct, or generate named fields matching the fields of an unnamed struct.
-    /// Names follow the pattern `field0`, `field1`, etc.
-    #[cfg_attr(not(feature = "native"), allow(unused))]
-    pub(crate) fn get_or_generate_named_fields(fields: &Fields) -> Vec<StructNamedField> {
-        match fields {
-            Fields::Unnamed(unnamed_fields) => unnamed_fields
-                .unnamed
-                .iter()
-                .enumerate()
-                .map(|(i, field)| {
-                    let ident = Ident::new(&format!("field{}", i), field.span());
-                    let ty = &field.ty;
-                    StructNamedField {
-                        attrs: field.attrs.clone(),
-                        vis: field.vis.clone(),
-                        ident,
-                        ty: ty.clone(),
-                    }
-                })
-                .collect::<Vec<_>>(),
-            Fields::Named(fields_named) => fields_named
-                .named
-                .iter()
-                .map(|field| {
-                    let ty = &field.ty;
-                    StructNamedField {
-                        attrs: field.attrs.clone(),
-                        vis: field.vis.clone(),
-                        ident: field.ident.clone().expect("Named fields must have names!"),
-                        ty: ty.clone(),
-                    }
-                })
-                .collect::<Vec<_>>(),
-            Fields::Unit => Vec::new(),
         }
     }
 

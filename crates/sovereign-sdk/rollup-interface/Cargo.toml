@@ -15,19 +15,19 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
-anyhow = { workspace = true }
-async-trait = { workspace = true }
+anyhow = { workspace = true, features = ["default"]}
+async-trait = { workspace = true, optional = true }
 alloy-primitives = { workspace = true, features=["serde"], optional = true}
-borsh = { workspace = true }
-bytes = { workspace = true, optional = true, default-features = true }
-digest = { workspace = true }
+borsh = { workspace = true, features = ["default", "bytes"]}
+bytes = { workspace = true,  default-features = true }
+digest = { workspace = true, features = ["default"]}
 faster-hex = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
-hex = { workspace = true }
-jmt = { workspace = true, optional = true }
-serde = { workspace = true }
+hex = { workspace = true, optional = true, features = ["default"]}
+jmt = { workspace = true }
+serde = { workspace = true, features = ["default"]}
 sha2 = { workspace = true }
-thiserror = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true}
 # TODO: Remove tokio when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161 is resolved
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
@@ -37,17 +37,6 @@ risc0-zkp = { workspace = true, optional = true }
 serde_json = { workspace = true }
 
 [features]
-default = ["std"]
-native = ["alloy-primitives", "std", "tokio", "futures", "tracing", "risc0-zkp", "faster-hex"]
+default = []
+native = ["alloy-primitives", "tokio", "futures", "tracing", "risc0-zkp", "faster-hex", "async-trait", "thiserror", "hex"]
 testing = []
-std = [
-  "anyhow/default",
-  "borsh/default",
-  "borsh/bytes",
-  "bytes",
-  "digest/default",
-  "hex/default",
-  "jmt",
-  "serde/default",
-  "thiserror",
-]

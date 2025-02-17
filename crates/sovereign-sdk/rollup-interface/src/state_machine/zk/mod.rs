@@ -7,11 +7,7 @@
 //! [risc0 adapter](https://github.com/Sovereign-Labs/sovereign-sdk/tree/main/adapters/risc0)
 //! maintained by the Sovereign Labs team.
 
-extern crate alloc;
-
-use alloc::vec::Vec;
-use core::convert::Into;
-use core::fmt::Debug;
+use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
@@ -127,18 +123,8 @@ pub trait Matches<T> {
     fn matches(&self, other: &T) -> bool;
 }
 
-#[cfg(feature = "std")]
 /// A cryptographic commitment to the contents of this storage
-pub type StorageRootHash = jmt::RootHash;
+pub type StorageRootHash = [u8; 32];
 
-#[cfg(not(feature = "std"))]
-/// To bypass nostd builds.
-pub type StorageRootHash = Vec<u8>;
-
-#[cfg(feature = "std")]
 /// Alias to jmt::proof::SparseMerkleProof.
 pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;
-
-#[cfg(not(feature = "std"))]
-/// To bypass nostd builds.
-pub type SparseMerkleProofSha2 = Vec<u8>;

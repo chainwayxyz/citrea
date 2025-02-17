@@ -23,25 +23,26 @@ pub trait TxHooks {
     /// Runs just before a transaction is dispatched to an appropriate module.
     fn pre_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Context>,
+        tx: &Transaction,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
         arg: &Self::PreArg,
+        spec_id: SpecId,
     ) -> Result<Self::PreResult, SoftConfirmationHookError>;
 
     /// Runs after the tx is dispatched to an appropriate module.
     /// IF this hook returns error rollup panics
     fn post_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Context>,
+        tx: &Transaction,
         ctx: &Self::Context,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+        spec_id: SpecId,
     ) -> Result<(), SoftConfirmationHookError>;
 }
 
 /// Hooks that are executed before and after a soft confirmation is processed.
 pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     type Context: Context;
-    type SoftConfirmationResult;
 
     /// Runs at the beginning of apply_soft_confirmation.
     /// If this hook returns Err, batch is not applied
@@ -73,7 +74,7 @@ pub struct HookSoftConfirmationInfo {
     /// DA block transactions commitment
     pub da_slot_txs_commitment: [u8; 32],
     /// Previous batch's pre state root
-    pub pre_state_root: Vec<u8>,
+    pub pre_state_root: StorageRootHash,
     /// The current spec
     pub current_spec: SpecId,
     /// Public key of the sequencer
@@ -89,7 +90,7 @@ pub struct HookSoftConfirmationInfo {
 impl HookSoftConfirmationInfo {
     pub fn new<Tx: Clone>(
         signed_soft_confirmation: &SignedSoftConfirmation<Tx>,
-        pre_state_root: Vec<u8>,
+        pre_state_root: StorageRootHash,
         current_spec: SpecId,
     ) -> Self {
         HookSoftConfirmationInfo {
@@ -124,8 +125,8 @@ impl HookSoftConfirmationInfo {
     }
 
     /// Previous batch's pre state root
-    pub fn pre_state_root(&self) -> Vec<u8> {
-        self.pre_state_root.clone()
+    pub fn pre_state_root(&self) -> StorageRootHash {
+        self.pre_state_root
     }
 
     /// Active spec

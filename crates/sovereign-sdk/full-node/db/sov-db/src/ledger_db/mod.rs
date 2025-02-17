@@ -6,7 +6,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
@@ -21,11 +21,14 @@ use crate::schema::tables::{
     SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
     LEDGER_TABLES,
 };
-use crate::schema::types::{
-    L2HeightRange, SlotNumber, SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput,
-    StoredLightClientProof, StoredLightClientProofOutput, StoredSoftConfirmation,
-    StoredTransaction, StoredVerifiedProof,
+use crate::schema::types::batch_proof::{
+    StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
+use crate::schema::types::light_client_proof::{
+    StoredLightClientProof, StoredLightClientProofOutput,
+};
+use crate::schema::types::soft_confirmation::{StoredSoftConfirmation, StoredTransaction};
+use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -36,7 +39,8 @@ mod traits;
 
 pub use traits::*;
 
-const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
+/// LedgerDB path suffix
+pub const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
 
 #[derive(Clone, Debug)]
 /// A database which stores the ledger history (slots, transactions, events, etc).
@@ -135,12 +139,22 @@ impl LedgerDB {
             _ => Ok(None),
         }
     }
+
+    /// Reference to underlying sov DB
+    pub fn db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.db.clone()
+    }
 }
 
 impl SharedLedgerOps for LedgerDB {
     /// Returns the path of the DB
     fn path(&self) -> &Path {
         self.db.path()
+    }
+
+    /// Returns the inner DB instance
+    fn inner(&self) -> Arc<DB> {
+        self.db.clone()
     }
 
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
@@ -304,10 +318,7 @@ impl SharedLedgerOps for LedgerDB {
 
     /// Set the genesis state root
     #[instrument(level = "trace", skip_all, err, ret)]
-    fn set_l2_genesis_state_root<StateRoot: Serialize>(
-        &self,
-        state_root: &StateRoot,
-    ) -> anyhow::Result<()> {
+    fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()> {
         let buf = bincode::serialize(state_root)?;
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
@@ -319,10 +330,7 @@ impl SharedLedgerOps for LedgerDB {
 
     /// Get the state root by L2 height
     #[instrument(level = "trace", skip_all, err)]
-    fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>> {
+    fn get_l2_state_root(&self, l2_height: u64) -> anyhow::Result<Option<StorageRootHash>> {
         if l2_height == 0 {
             self.db
                 .get::<L2GenesisStateRoot>(&())?

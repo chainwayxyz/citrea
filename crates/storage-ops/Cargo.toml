@@ -1,0 +1,30 @@
+[package]
+name = "citrea-storage-ops"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Citrea dependencies
+
+# Sov SDK deps
+jmt = { workspace = true }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
+
+# 3rd-party dependencies
+anyhow = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["testing"] }
+tempfile = { workspace = true }

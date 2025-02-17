@@ -21,20 +21,18 @@ lazy_static! {
 #[test]
 fn genesis_data() {
     let config = get_evm_test_config();
-    let (evm, mut working_set) = get_evm(&config);
+    let (evm, mut working_set, spec_id) = get_evm(&config);
 
     let account = &config.data[0];
 
     let db_account = evm
-        .accounts
-        .get(&account.address, &mut working_set)
+        .account_info(&account.address, spec_id, &mut working_set)
         .unwrap();
 
     let contract = &config.data[1];
 
     let contract_account = evm
-        .accounts
-        .get(&contract.address, &mut working_set)
+        .account_info(&contract.address, spec_id, &mut working_set)
         .unwrap();
 
     let contract_storage1 = evm
@@ -91,7 +89,7 @@ fn genesis_data() {
 
 #[test]
 fn genesis_cfg() {
-    let (evm, mut working_set) = get_evm(&get_evm_test_config());
+    let (evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
 
     let cfg = evm.cfg.get(&mut working_set).unwrap();
     assert_eq!(
@@ -109,7 +107,7 @@ fn genesis_cfg() {
 
 #[test]
 fn genesis_block() {
-    let (evm, mut working_set) = get_evm(&get_evm_test_config());
+    let (evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
 
     let mut accessory_state = working_set.accessory_state();
 
@@ -163,7 +161,7 @@ fn genesis_block() {
 
 #[test]
 fn genesis_head() {
-    let (evm, mut working_set) = get_evm(&get_evm_test_config());
+    let (evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
     let head = evm.head_rlp.get(&mut working_set).unwrap();
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);
     let genesis_block = evm

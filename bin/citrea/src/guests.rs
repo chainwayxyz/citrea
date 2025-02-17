@@ -63,8 +63,7 @@ lazy_static! {
                 // this is ELF of genesis fork except for da namespace [1, 1] -> [1] and [2,2] -> [2]
                 (SpecId::Genesis, guest!("../../../resources/guests/risc0/genesis-batch-proof-0-short-prefix")),
                 (SpecId::Kumquat,
-                    (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+                    guest!("../../../resources/guests/risc0/genesis-batch-proof-1-short-prefix")
                 ),
                 (SpecId::Fork2,
                     (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),

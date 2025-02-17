@@ -1,7 +1,6 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
-use alloc::vec::Vec;
-use core::fmt::Debug;
+use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
@@ -158,6 +157,47 @@ pub trait DaSpec:
     /// The parameters of the rollup which are baked into the state-transition function.
     /// For example, this could include the namespace of the rollup on Celestia.
     type ChainParams: Send + Sync;
+
+    /// A verifiable proof that upon verification, returns the hash of the header,
+    /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
+    type ShortHeaderProof: VerifableShortHeaderProof + BorshDeserialize + BorshSerialize;
+}
+
+/// Information needed to update L1 light client system contract
+///
+/// (header hash, tx commitment (wtxid commitment in Bitcoin), hashes needed for the merkle inclusion proof)
+pub type L1UpdateSystemTransactionInfo = ([u8; 32], [u8; 32], u8);
+
+/// A trait for a verifiable short header proof
+pub trait VerifableShortHeaderProof {
+    /// Verifies the proof and returns the header hash, transaction commitment and coinbase transaction txid merkle proof
+    /// height.
+    ///
+    /// The proof only shows that for a claimed header hash, wtxid merkle root and coinbase txid merkle proof height,
+    /// are valid.
+    ///
+    /// These proofs will be used inside the batch proofs, and the hash is going to be committed to the output of the
+    /// proof. It will be upto the verifier to check if the hash is correct.
+    ///
+    /// In the light client proof, the circuit will extract the `l1_hashes` output and will check that the hashes are
+    /// included in the header chain.
+    fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError>;
+}
+
+#[derive(Debug, PartialEq, Eq)]
+/// Error that can arise from short form header proof
+pub enum ShortHeaderProofVerificationError {
+    /// Wrong coinbase was supplied
+    InvalidCoinbaseMerkleProof,
+    /// Tx commitment in `DaSpec::BlockHeader` was wrong
+    WrongTxCommitment {
+        /// The expected commitment
+        expected: [u8; 32],
+        /// The actual commitment
+        actual: [u8; 32],
+    },
+    /// Provided precomputed hash was incorrect
+    InvalidHeaderHash,
 }
 
 /// Latest da state to verify and apply da block changes
@@ -216,7 +256,6 @@ pub trait DaVerifier: Send + Sync {
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 }
 
-#[cfg(feature = "std")]
 #[derive(Debug, Clone, Serialize, Deserialize, BorshDeserialize, BorshSerialize, PartialEq)]
 /// Simple structure that implements the Read trait for a buffer and  counts the number of bytes read from the beginning.
 /// Useful for the partial blob reading optimization: we know for each blob how many bytes have been read from the beginning.
@@ -231,7 +270,6 @@ pub struct CountedBufReader<B: bytes::Buf> {
     accumulator: Vec<u8>,
 }
 
-#[cfg(feature = "std")]
 impl<B: bytes::Buf> CountedBufReader<B> {
     /// Creates a new buffer reader with counter from an objet that implements the buffer trait
     pub fn new(inner: B) -> Self {
@@ -362,7 +400,7 @@ pub struct Time {
 
 #[derive(Debug)]
 #[cfg_attr(
-    feature = "std",
+    feature = "native",
     derive(thiserror::Error),
     error("Only intervals less than one second may be represented as nanoseconds")
 )]
@@ -394,7 +432,6 @@ impl Time {
         }
     }
 
-    #[cfg(feature = "std")]
     /// Get the current time
     pub fn now() -> Self {
         let current_time = std::time::SystemTime::now()

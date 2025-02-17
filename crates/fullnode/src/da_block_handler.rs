@@ -1,52 +1,42 @@
+use core::panic;
 use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use borsh::{BorshDeserialize, BorshSerialize};
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
-use citrea_common::utils::check_l2_range_exists;
+use citrea_common::utils::check_l2_block_exists;
 use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::NodeLedgerOps;
-use sov_db::schema::types::{
-    SlotNumber, SoftConfirmationNumber, StoredBatchProofOutput, StoredSoftConfirmation,
-};
-use sov_modules_api::{Context, Zkvm};
+use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
+use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
 
-pub struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
+pub struct L1BlockHandler<Vm, Da, DB>
 where
-    C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
 {
     ledger_db: DB,
     da_service: Arc<Da>,
@@ -55,24 +45,15 @@ where
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
-    _context: PhantomData<C>,
-    _state_root: PhantomData<StateRoot>,
+    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    backup_manager: Arc<BackupManager>,
 }
 
-impl<C, Vm, Da, StateRoot, DB> L1BlockHandler<C, Vm, Da, StateRoot, DB>
+impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
 where
-    C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps + Clone,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -83,6 +64,7 @@ where
         prover_da_pub_key: Vec<u8>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+        backup_manager: Arc<BackupManager>,
     ) -> Self {
         Self {
             ledger_db,
@@ -92,9 +74,8 @@ where
             prover_da_pub_key,
             code_commitments_by_spec,
             l1_block_cache,
-            pending_l1_blocks: VecDeque::new(),
-            _context: PhantomData,
-            _state_root: PhantomData,
+            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            backup_manager,
         }
     }
 
@@ -102,11 +83,10 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            l1_tx,
+            self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             FULLNODE_METRICS.scan_l1_block.clone(),
         );
@@ -116,13 +96,9 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
-                    l1_rx.close();
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    self.pending_l1_blocks.push_back(l1_block);
-                },
                 _ = interval.tick() => {
                     self.process_l1_block().await
                 },
@@ -131,13 +107,13 @@ where
     }
 
     async fn process_l1_block(&mut self) {
-        if self.pending_l1_blocks.is_empty() {
+        let _l1_lock = self.backup_manager.start_l1_processing().await;
+        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
+
+        let Some(l1_block) = pending_l1_blocks.front() else {
             return;
-        }
-        let l1_block = self
-            .pending_l1_blocks
-            .front()
-            .expect("Just checked pending L1 blocks is not empty");
+        };
+
         let l1_height = l1_block.header().height();
         info!("Processing L1 block at height: {}", l1_height);
 
@@ -165,9 +141,8 @@ where
         if !sequencer_commitments.is_empty() {
             // If the L2 range does not exist, we break off the current process call
             // We retry the L1 block at a later tick.
-            if !check_l2_range_exists(
+            if !check_l2_block_exists(
                 &self.ledger_db,
-                sequencer_commitments[0].l2_start_block_number,
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
             ) {
                 warn!("L1 commitment received, but L2 range is not synced yet...");
@@ -218,7 +193,7 @@ where
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
-        self.pending_l1_blocks.pop_front();
+        pending_l1_blocks.pop_front();
     }
 
     async fn process_sequencer_commitment(
@@ -303,47 +278,72 @@ where
         );
         tracing::trace!("ZK proof: {:?}", proof);
 
-        let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
-        >(&proof)
-        {
+        let (
+            last_active_spec_id,
+            batch_proof_output,
+            da_slot_hash,
+            preproven_commitments,
+            sequencer_commitments_range,
+            initial_state_root,
+            sequencer_commitment_hashes,
+        ) = match Vm::extract_output::<BatchProofCircuitOutputV3>(&proof) {
             Ok(output) => (
                 fork_from_block_number(output.last_l2_height).spec_id,
-                output,
+                StoredBatchProofOutput::from(output.clone()),
+                None,
+                None,
+                None,
+                output.initial_state_root,
+                Some(output.sequencer_commitment_hashes),
             ),
             Err(e) => {
-                info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output = Vm::extract_output::<
-                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, StateRoot>,
-                >(&proof)
-                .expect("Should be able to extract either pre or post fork 1 output");
-                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec, StateRoot> {
-                    initial_state_root: output.initial_state_root,
-                    final_state_root: output.final_state_root,
-                    state_diff: output.state_diff,
-                    da_slot_hash: output.da_slot_hash,
-                    sequencer_commitments_range: output.sequencer_commitments_range,
-                    sequencer_public_key: output.sequencer_public_key,
-                    sequencer_da_public_key: output.sequencer_da_public_key,
-                    preproven_commitments: output.preproven_commitments,
-                    // We don't have these fields in pre fork 1
-                    // That's why we serve them as 0
-                    prev_soft_confirmation_hash: [0; 32],
-                    final_soft_confirmation_hash: [0; 32],
-                    last_l2_height: 0,
-                };
-                // If we got output of pre fork 1 that means we are in genesis
-                (SpecId::Genesis, batch_proof_output)
+                info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
+                    Ok(output) => {
+                        if output.sequencer_da_public_key != self.sequencer_da_pub_key
+                            || output.sequencer_public_key != self.sequencer_pub_key
+                        {
+                            return Err(anyhow!(
+                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+            ).into());
+                        }
+                        (
+                            fork_from_block_number(output.last_l2_height).spec_id,
+                            StoredBatchProofOutput::from(output.clone()),
+                            Some(output.da_slot_hash),
+                            Some(output.preproven_commitments),
+                            Some(output.sequencer_commitments_range),
+                            output.initial_state_root,
+                            None,
+                        )
+                    }
+                    Err(e) => {
+                        info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
+                        let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
+                            .expect("Should be able to extract either pre or post fork 1 output");
+                        if output.sequencer_da_public_key != self.sequencer_da_pub_key
+                            || output.sequencer_public_key != self.sequencer_pub_key
+                        {
+                            return Err(anyhow!(
+                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+            ).into());
+                        }
+                        // If we got output of pre fork 1 that means we are in genesis
+                        (
+                            SpecId::Genesis,
+                            StoredBatchProofOutput::from(output.clone()),
+                            Some(output.da_slot_hash),
+                            Some(output.preproven_commitments),
+                            Some(output.sequencer_commitments_range),
+                            output.initial_state_root,
+                            None,
+                        )
+                    }
+                }
             }
         };
 
-        if batch_proof_output.sequencer_da_public_key != self.sequencer_da_pub_key
-            || batch_proof_output.sequencer_public_key != self.sequencer_pub_key
-        {
-            return Err(anyhow!(
-                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
-            ).into());
-        }
+        // TODO: Do this check for v1 only
 
         let code_commitment = self
             .code_commitments_by_spec
@@ -352,106 +352,107 @@ where
         Vm::verify(proof.as_slice(), code_commitment)
             .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
-        let stored_batch_proof_output = StoredBatchProofOutput {
-            initial_state_root: batch_proof_output.initial_state_root.as_ref().to_vec(),
-            final_state_root: batch_proof_output.final_state_root.as_ref().to_vec(),
-            state_diff: batch_proof_output.state_diff,
-            da_slot_hash: batch_proof_output.da_slot_hash.clone().into(),
-            sequencer_commitments_range: batch_proof_output.sequencer_commitments_range,
-            sequencer_public_key: batch_proof_output.sequencer_public_key,
-            sequencer_da_public_key: batch_proof_output.sequencer_da_public_key,
-            preproven_commitments: batch_proof_output.preproven_commitments.clone(),
-            prev_soft_confirmation_hash: batch_proof_output.prev_soft_confirmation_hash,
-            final_soft_confirmation_hash: batch_proof_output.final_soft_confirmation_hash,
-            last_l2_height: batch_proof_output.last_l2_height,
-        };
+        match (
+            da_slot_hash,
+            preproven_commitments,
+            sequencer_commitments_range,
+            sequencer_commitment_hashes,
+        ) {
+            (None, None, None, Some(sequencer_commitment_hashes)) => {
+                todo!()
+            }
+            (
+                Some(da_slot_hash),
+                Some(preproven_commitments),
+                Some(sequencer_commitments_range),
+                None,
+            ) => {
+                let l1_hash = da_slot_hash;
 
-        let l1_hash = batch_proof_output.da_slot_hash.into();
-
-        // This is the l1 height where the sequencer commitment was read by the prover and proof generated by those commitments
-        // We need to get commitments in this l1 height and set them as proven
-        let l1_height = match self.ledger_db.get_l1_height_of_l1_hash(l1_hash)? {
-            Some(l1_height) => l1_height,
-            None => {
-                return Err(anyhow!(
+                // This is the l1 height where the sequencer commitment was read by the prover and proof generated by those commitments
+                // We need to get commitments in this l1 height and set them as proven
+                let l1_height = match self.ledger_db.get_l1_height_of_l1_hash(l1_hash)? {
+                    Some(l1_height) => l1_height,
+                    None => {
+                        return Err(anyhow!(
                     "Proof verification: L1 height not found for l1 hash: {:?}. Skipping proof.",
                     l1_hash
                 )
-                .into());
-            }
-        };
+                        .into());
+                    }
+                };
 
-        let mut commitments_on_da_slot =
-            match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
-                Some(commitments) => commitments,
-                None => {
-                    return Err(anyhow!(
+                let mut commitments_on_da_slot =
+                    match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
+                        Some(commitments) => commitments,
+                        None => {
+                            return Err(anyhow!(
                     "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
                     l1_height
                 )
-                    .into());
-                }
-            };
+                            .into());
+                        }
+                    };
 
-        commitments_on_da_slot.sort();
+                commitments_on_da_slot.sort();
 
-        let excluded_commitment_indices = batch_proof_output.preproven_commitments.clone();
-        let filtered_commitments: Vec<SequencerCommitment> = commitments_on_da_slot
-            .into_iter()
-            .enumerate()
-            .filter(|(index, _)| !excluded_commitment_indices.contains(index))
-            .map(|(_, commitment)| commitment.clone())
-            .collect();
+                let excluded_commitment_indices = preproven_commitments.clone();
+                let filtered_commitments: Vec<SequencerCommitment> = commitments_on_da_slot
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(index, _)| !excluded_commitment_indices.contains(index))
+                    .map(|(_, commitment)| commitment)
+                    .collect();
 
-        let l2_height = filtered_commitments
-            [batch_proof_output.sequencer_commitments_range.0 as usize]
-            .l2_start_block_number;
-        // Fetch the block prior to the one at l2_height so compare state roots
+                let l2_height = filtered_commitments[sequencer_commitments_range.0 as usize]
+                    .l2_start_block_number;
+                // Fetch the block prior to the one at l2_height so compare state roots
 
-        let prior_soft_confirmation_post_state_root = self
-            .ledger_db
-            .get_l2_state_root::<StateRoot>(l2_height - 1)?
-            .ok_or_else(|| {
-                anyhow!(
+                let prior_soft_confirmation_post_state_root = self
+                    .ledger_db
+                    .get_l2_state_root(l2_height - 1)?
+                    .ok_or_else(|| {
+                        anyhow!(
                 "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
                 l2_height - 1
             )
-            })?;
+                    })?;
 
-        if prior_soft_confirmation_post_state_root.as_ref()
-            != batch_proof_output.initial_state_root.as_ref()
-        {
-            return Err(anyhow!(
+                if prior_soft_confirmation_post_state_root.as_ref() != initial_state_root.as_ref() {
+                    return Err(anyhow!(
                     "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(&prior_soft_confirmation_post_state_root),
-                    hex::encode(&batch_proof_output.initial_state_root)
+                    hex::encode(prior_soft_confirmation_post_state_root),
+                    hex::encode(initial_state_root)
                 ).into());
-        }
+                }
 
-        for commitment in filtered_commitments
-            .iter()
-            .skip(batch_proof_output.sequencer_commitments_range.0 as usize)
-            .take(
-                (batch_proof_output.sequencer_commitments_range.1
-                    - batch_proof_output.sequencer_commitments_range.0
-                    + 1) as usize,
-            )
-        {
-            let l2_start_height = commitment.l2_start_block_number;
-            let l2_end_height = commitment.l2_end_block_number;
-            for i in l2_start_height..=l2_end_height {
-                self.ledger_db.put_soft_confirmation_status(
-                    SoftConfirmationNumber(i),
-                    SoftConfirmationStatus::Proven,
+                for commitment in filtered_commitments
+                    .iter()
+                    .skip(sequencer_commitments_range.0 as usize)
+                    .take(
+                        (sequencer_commitments_range.1 - sequencer_commitments_range.0 + 1)
+                            as usize,
+                    )
+                {
+                    let l2_start_height = commitment.l2_start_block_number;
+                    let l2_end_height = commitment.l2_end_block_number;
+                    for i in l2_start_height..=l2_end_height {
+                        self.ledger_db.put_soft_confirmation_status(
+                            SoftConfirmationNumber(i),
+                            SoftConfirmationStatus::Proven,
+                        )?;
+                    }
+                }
+                // store in ledger db
+                self.ledger_db.update_verified_proof_data(
+                    l1_block.header().height(),
+                    proof.clone(),
+                    batch_proof_output,
                 )?;
             }
-        }
-        // store in ledger db
-        self.ledger_db.update_verified_proof_data(
-            l1_block.header().height(),
-            proof.clone(),
-            stored_batch_proof_output,
-        )?;
+            (_, _, _, _) => panic!("Invalid proof output"),
+        };
+
         Ok(())
     }
 }

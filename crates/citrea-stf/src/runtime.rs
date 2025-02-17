@@ -41,24 +41,27 @@ use soft_confirmation_rule_enforcer::{
 use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
 #[cfg(feature = "native")]
 pub use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::macros::DefaultRuntime;
 #[cfg(feature = "native")]
-use sov_modules_api::macros::{expose_rpc, CliWallet};
+use sov_modules_api::macros::expose_rpc;
+use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
 
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
 
-/// The `demo-stf runtime`.
-#[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
+/// The Citrea runtime.
+
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-#[cfg_attr(feature = "serde", serialization(serde::Serialize, serde::Deserialize))]
-pub struct Runtime<C: Context, Da: DaSpec> {
+#[cfg_attr(
+    feature = "native",
+    expose_rpc,
+    serialization(serde::Serialize, serde::Deserialize)
+)]
+pub struct CitreaRuntime<C: Context, Da: DaSpec> {
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<C>,
-    #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: citrea_evm::Evm<C>,
     /// The soft confirmation rule enforcer module.
@@ -66,7 +69,7 @@ pub struct Runtime<C: Context, Da: DaSpec> {
         soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<C, Da>,
 }
 
-impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for Runtime<C, Da>
+impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for CitreaRuntime<C, Da>
 where
     C: Context,
     Da: DaSpec,

@@ -1,12 +1,9 @@
-use alloc::vec::Vec;
-use core::fmt::Debug;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use super::CumulativeStateDiff;
-use crate::da::DaSpec;
 use crate::spec::SpecId;
+use crate::zk::StorageRootHash;
 
 /// Because we removed validity condition from everywhere we need to keep it for compatibility
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
@@ -19,17 +16,17 @@ pub struct OldChainValidityCondition {
 
 /// The pre fork 1 batch proof circuit output
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub struct BatchProofCircuitOutputV1<Da: DaSpec, Root> {
+pub struct BatchProofCircuitOutputV1 {
     /// The state of the rollup before the transition
-    pub initial_state_root: Root,
+    pub initial_state_root: StorageRootHash,
     /// The state of the rollup after the transition
-    pub final_state_root: Root,
+    pub final_state_root: StorageRootHash,
     /// The hash before the state transition
     pub initial_batch_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
-    pub da_slot_hash: Da::SlotHash,
+    pub da_slot_hash: [u8; 32],
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),

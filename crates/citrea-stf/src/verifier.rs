@@ -1,5 +1,6 @@
+use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::fork::Fork;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
@@ -31,11 +32,12 @@ where
         guest: &impl ZkvmGuest,
         pre_state: Stf::PreState,
         sequencer_public_key: &[u8],
+        sequencer_k256_public_key: &[u8],
         forks: &[Fork],
-    ) -> Result<BatchProofCircuitOutputV3<Stf::StateRoot>, Da::Error> {
+    ) -> Result<BatchProofCircuitOutputV3, Da::Error> {
         println!("Running sequencer commitments in DA slot");
 
-        let data: BatchProofCircuitInputV3Part1<Stf::StateRoot, Da::Spec> = guest.read_from_host();
+        let data: BatchProofCircuitInputV3Part1<Da::Spec> = guest.read_from_host();
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let ApplySequencerCommitmentsOutput {
@@ -49,6 +51,7 @@ where
             .apply_soft_confirmations_from_sequencer_commitments(
                 guest,
                 sequencer_public_key,
+                sequencer_k256_public_key,
                 &data.initial_state_root,
                 pre_state,
                 data.sequencer_commitments,
@@ -64,7 +67,6 @@ where
             final_soft_confirmation_hash,
             state_diff,
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
-            sequencer_public_key: sequencer_public_key.to_vec(),
             last_l2_height,
             sequencer_commitment_hashes,
         };

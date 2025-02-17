@@ -185,6 +185,11 @@ impl DaVerifier for BitcoinVerifier {
         match commitment_idx {
             // If commitment does not exist
             None => {
+                // TODO: add this here? PR #1822
+                // if block_header.merkle_root() != block_header.txs_commitment() {
+                //     return Err()
+                // }
+
                 // Relevant txs should be empty if there is no witness data because data is inscribed in the witness
                 if !blobs.is_empty() {
                     return Err(ValidationError::InvalidBlock);
@@ -217,7 +222,7 @@ impl DaVerifier for BitcoinVerifier {
         let claimed_root = merkle_tree::BitcoinMerkleTree::calculate_root_with_merkle_proof(
             calculate_txid(&inclusion_proof.coinbase_tx),
             0,
-            inclusion_proof.coinbase_merkle_proof,
+            &inclusion_proof.coinbase_merkle_proof,
         );
 
         // Check that the tx root in the block header matches the tx root in the inclusion proof.

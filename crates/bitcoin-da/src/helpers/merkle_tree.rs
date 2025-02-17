@@ -86,7 +86,7 @@ impl BitcoinMerkleTree {
     pub fn calculate_root_with_merkle_proof(
         txid: [u8; 32],
         idx: u32,
-        merkle_proof: Vec<[u8; 32]>,
+        merkle_proof: &[[u8; 32]],
     ) -> [u8; 32] {
         let mut preimage: [u8; 64] = [0; 64];
         let mut combined_hash: [u8; 32] = txid;
@@ -128,7 +128,7 @@ mod tests {
         let root = tree.root();
         let idx_path = tree.get_idx_path(0);
         let calculated_root =
-            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[0], 0, idx_path);
+            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[0], 0, &idx_path);
         assert_eq!(root, calculated_root);
     }
 

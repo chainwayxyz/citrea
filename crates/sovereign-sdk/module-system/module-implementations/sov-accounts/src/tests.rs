@@ -1,6 +1,7 @@
+use borsh::BorshSerialize;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::{AddressBech32, PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{AddressBech32, PrivateKey, PublicKey, Spec, SpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::query::{self, Response};
@@ -14,8 +15,11 @@ fn test_config_account() {
     let init_pub_key = priv_key.pub_key();
     let init_pub_key_addr = init_pub_key.to_address::<<C as Spec>::Address>();
 
+    let mut init_pub_key_vec = vec![];
+    init_pub_key.serialize(&mut init_pub_key_vec).unwrap();
+
     let account_config = AccountConfig {
-        pub_keys: vec![init_pub_key.clone()],
+        pub_keys: vec![init_pub_key_vec.clone()],
     };
 
     let accounts = &mut Accounts::<C>::default();
@@ -24,7 +28,9 @@ fn test_config_account() {
 
     accounts.init_module(&account_config, working_set);
 
-    let query_response = accounts.get_account(init_pub_key, working_set).unwrap();
+    let query_response = accounts
+        .get_account(init_pub_key_vec, SpecId::Genesis, working_set)
+        .unwrap();
 
     assert_eq!(
         query_response,

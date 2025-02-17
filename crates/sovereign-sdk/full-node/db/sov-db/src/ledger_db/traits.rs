@@ -1,22 +1,28 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaBatch;
 
-use crate::schema::types::{
-    L2HeightRange, SlotNumber, SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput,
-    StoredLightClientProof, StoredLightClientProofOutput, StoredSoftConfirmation,
+use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::light_client_proof::{
+    StoredLightClientProof, StoredLightClientProofOutput,
 };
+use crate::schema::types::soft_confirmation::StoredSoftConfirmation;
+use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
     /// Return DB path
     fn path(&self) -> &Path;
+
+    /// Returns the inner DB instance
+    fn inner(&self) -> Arc<sov_schema_db::DB>;
 
     /// Put soft confirmation to db
     fn put_soft_confirmation(
@@ -69,16 +75,10 @@ pub trait SharedLedgerOps {
     ) -> Result<()>;
 
     /// Set the genesis state root
-    fn set_l2_genesis_state_root<StateRoot: Serialize>(
-        &self,
-        state_root: &StateRoot,
-    ) -> anyhow::Result<()>;
+    fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()>;
 
     /// Gets the L2 genesis state root
-    fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>>;
+    fn get_l2_state_root(&self, l2_height: u64) -> anyhow::Result<Option<StorageRootHash>>;
 
     /// Get the most recent committed soft confirmation, if any
     fn get_head_soft_confirmation(

@@ -14,11 +14,10 @@ use sov_modules_api::Context;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_rollup_interface::da::DaSpec;
 pub use sov_state::config::Config as StorageConfig;
-use sov_stf_runner::read_json_file;
 
+use crate::runtime::CitreaRuntime;
 /// Creates config for a rollup with some default settings, the config is used in demos and tests.
 use crate::runtime::GenesisConfig;
-use crate::runtime::Runtime;
 
 /// Paths pointing to genesis files.
 pub struct GenesisPaths {
@@ -50,22 +49,22 @@ impl GenesisPaths {
 /// Creates genesis configuration.
 pub fn get_genesis_config<C: Context, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
-) -> Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig, anyhow::Error> {
+) -> Result<<CitreaRuntime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig, anyhow::Error> {
     let genesis_config =
         create_genesis_config(genesis_paths).context("Unable to read genesis configuration")?;
     validate_config(genesis_config)
 }
 
 pub(crate) fn validate_config<C: Context, Da: DaSpec>(
-    genesis_config: <Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig,
-) -> Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig, anyhow::Error> {
+    genesis_config: <CitreaRuntime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig,
+) -> Result<<CitreaRuntime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig, anyhow::Error> {
     Ok(genesis_config)
 }
 
 fn create_genesis_config<C: Context, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
-) -> anyhow::Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig> {
-    let accounts_config: AccountConfig<C> = read_json_file(&genesis_paths.accounts_genesis_path)?;
+) -> anyhow::Result<<CitreaRuntime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig> {
+    let accounts_config: AccountConfig = read_json_file(&genesis_paths.accounts_genesis_path)?;
 
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 
@@ -77,4 +76,18 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
         evm_config,
         soft_confirmation_rule_enforcer_config,
     ))
+}
+
+/// Read genesis file
+pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(
+    path: P,
+) -> anyhow::Result<T> {
+    let path_str = path.as_ref().display();
+
+    let data = std::fs::read_to_string(&path)
+        .with_context(|| format!("Failed to read genesis from {}", path_str))?;
+    let config: T = serde_json::from_str(&data)
+        .with_context(|| format!("Failed to parse genesis from {}", path_str))?;
+
+    Ok(config)
 }

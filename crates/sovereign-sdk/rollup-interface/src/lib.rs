@@ -3,16 +3,13 @@
 //! DA layers and be proven with different zkVMS, all while retaining compatibility
 //! with the same basic full node implementation.
 
-#![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
-
-extern crate alloc;
 
 /// The current version of Citrea.
 ///
 /// Mostly used for web3_clientVersion RPC calls and might be used for other purposes.
 #[cfg(feature = "native")]
-pub const CITREA_VERSION: &str = "v0.6.2";
+pub const CITREA_VERSION: &str = "v0.6.3";
 
 /// Fork module
 pub mod fork;
@@ -23,10 +20,10 @@ mod node;
 pub mod spec;
 mod state_machine;
 
-#[cfg(not(target_has_atomic = "ptr"))]
-pub use alloc::rc::Rc as RefCount;
-#[cfg(target_has_atomic = "ptr")]
-pub use alloc::sync::Arc as RefCount;
+#[cfg(not(feature = "native"))]
+pub use std::rc::Rc as RefCount;
+#[cfg(feature = "native")]
+pub use std::sync::Arc as RefCount;
 
 pub use network::*;
 pub use node::*;
