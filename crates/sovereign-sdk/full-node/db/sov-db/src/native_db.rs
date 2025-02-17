@@ -5,6 +5,7 @@ use sov_schema_db::{SchemaBatch, DB};
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{ModuleAccessoryState, NATIVE_TABLES};
+use crate::schema::types::StateKeyRef;
 
 /// Specifies a particular version of the Accessory state.
 pub type Version = u64;
@@ -53,7 +54,7 @@ impl NativeDB {
     /// Queries for a value in the [`NativeDB`], given a key.
     pub fn get_value_option(
         &self,
-        key: &[u8],
+        key: StateKeyRef,
         version: Version,
     ) -> anyhow::Result<Option<Vec<u8>>> {
         let found = self

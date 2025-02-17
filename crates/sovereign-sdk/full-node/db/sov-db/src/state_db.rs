@@ -8,6 +8,7 @@ use sov_schema_db::{SchemaBatch, DB};
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes, STATE_TABLES};
+use crate::schema::types::StateKeyRef;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
 /// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized writes.
@@ -72,7 +73,7 @@ impl StateDB {
     /// since the DB is unaware of the hash function used by the JMT.
     pub fn put_preimages<'a>(
         &self,
-        items: impl IntoIterator<Item = (KeyHash, &'a [u8])>,
+        items: impl IntoIterator<Item = (KeyHash, StateKeyRef<'a>)>,
     ) -> Result<(), anyhow::Error> {
         let mut batch = SchemaBatch::new();
         for (key_hash, key) in items.into_iter() {
@@ -86,7 +87,7 @@ impl StateDB {
     pub fn get_value_option_by_key(
         &self,
         version: Version,
-        key: &[u8],
+        key: StateKeyRef,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
         let found = self.db.get_prev::<JmtValues>(&(&key, version))?;
         match found {
