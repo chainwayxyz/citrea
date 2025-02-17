@@ -1,5 +1,5 @@
 use sov_modules_api::fork::Fork;
-use sov_rollup_interface::da::DaVerifier;
+use sov_modules_api::DaSpec;
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
@@ -8,21 +8,24 @@ use sov_rollup_interface::zk::ZkvmGuest;
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da>
 where
-    Da: DaVerifier,
-    ST: StateTransitionFunction<Da::Spec>,
+    Da: DaSpec,
+    ST: StateTransitionFunction<Da>,
 {
     app: ST,
-    da_verifier: Da,
+    phantom: std::marker::PhantomData<Da>,
 }
 
 impl<Stf, Da> StateTransitionVerifier<Stf, Da>
 where
-    Da: DaVerifier,
-    Stf: StateTransitionFunction<Da::Spec>,
+    Da: DaSpec,
+    Stf: StateTransitionFunction<Da>,
 {
     /// Create a [`StateTransitionVerifier`]
-    pub fn new(app: Stf, da_verifier: Da) -> Self {
-        Self { app, da_verifier }
+    pub fn new(app: Stf) -> Self {
+        Self {
+            app,
+            phantom: Default::default(),
+        }
     }
 
     /// Verify the next block
@@ -33,10 +36,10 @@ where
         sequencer_public_key: &[u8],
         sequencer_k256_public_key: &[u8],
         forks: &[Fork],
-    ) -> Result<BatchProofCircuitOutputV3, Da::Error> {
+    ) -> BatchProofCircuitOutputV3 {
         println!("Running sequencer commitments in DA slot");
 
-        let data: BatchProofCircuitInputV3Part1<Da::Spec> = guest.read_from_host();
+        let data: BatchProofCircuitInputV3Part1<Da> = guest.read_from_host();
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let ApplySequencerCommitmentsOutput {
@@ -60,7 +63,7 @@ where
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");
 
-        let out = BatchProofCircuitOutputV3 {
+        BatchProofCircuitOutputV3 {
             initial_state_root: data.initial_state_root,
             final_state_root,
             final_soft_confirmation_hash,
@@ -68,8 +71,6 @@ where
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             last_l2_height,
             sequencer_commitment_hashes,
-        };
-
-        Ok(out)
+        }
     }
 }

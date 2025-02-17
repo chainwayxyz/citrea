@@ -421,6 +421,7 @@ where
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn process_pre_fork2_zk_proof(
         &self,
         l1_block: &Da::FilteredBlock,

@@ -14,8 +14,8 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
-    native_debug, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature,
-    Spec, UnsignedSoftConfirmation, WorkingSet,
+    native_debug, BasicAddress, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
+    UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;

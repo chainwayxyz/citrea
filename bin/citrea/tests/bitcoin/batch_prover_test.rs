@@ -243,7 +243,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None)
+        let _proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None)
             .await
             .unwrap();
 
@@ -314,9 +314,10 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         // Wait for the full node to see all process verify and store all batch proofs
         full_node.wait_for_l1_height(finalized_height, None).await?;
-        let proofs = wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(600)))
-            .await
-            .unwrap();
+        let _proofs =
+            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(600)))
+                .await
+                .unwrap();
 
         // TODO: this test will need refactor
         // assert_eq!(
