@@ -136,9 +136,11 @@ impl Prefix {
     /// Returns a new prefix allocated on the fly, by extending the current
     /// prefix with the given bytes.
     pub fn extended(&self, bytes: &[u8]) -> Self {
-        let mut prefix = self.clone();
-        prefix.extend(bytes.iter().copied());
-        prefix
+        let mut new_prefix = Vec::with_capacity(self.len() + bytes.len());
+        new_prefix.extend_from_slice(self.as_aligned_vec().as_ref());
+        new_prefix.extend_from_slice(bytes);
+
+        Self::new(new_prefix)
     }
 }
 
