@@ -149,6 +149,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     SoftConfirmationStatus::table_name(),
+    ShortHeaderProofBySlotHash::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
