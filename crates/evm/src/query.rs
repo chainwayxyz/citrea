@@ -302,12 +302,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<U256> {
         let block_number = self.block_number_from_state(block_id, working_set)?;
-
-        if let Some(last_pruned_l2_height) = working_set.get_last_pruned_l2_height().expect("Failed to get last pruned l2 height"){
-            if block_number < last_pruned_l2_height {
-                return Err(EthApiError::from(ProviderError::StateAtBlockPruned(block_number)).into());
-            }
-        }
+        self.check_if_l2_block_pruned(block_number, working_set).map_err(EthApiError::from)?;
 
         let citrea_spec = fork_from_block_number(block_number).spec_id;
 
@@ -351,6 +346,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
 
         let block_number = self.block_number_from_state(block_id, working_set)?;
+        self.check_if_l2_block_pruned(block_number, working_set)
+            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_fn(block_number).spec_id;
 
@@ -374,6 +371,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
 
         let block_number = self.block_number_from_state(block_id, working_set)?;
+        self.check_if_l2_block_pruned(block_number, working_set)
+            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_from_block_number(block_number).spec_id;
 
@@ -406,6 +405,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<Bytes> {
         let block_number = self.block_number_from_state(block_id, working_set)?;
+        self.check_if_l2_block_pruned(block_number, working_set) // offchain??
+            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_fn(block_number).spec_id;
 
@@ -494,6 +495,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Err(EthApiError::HeaderNotFound(_)) => return Ok(None),
             Err(err) => return Err(err.into()),
         };
+
+        self.check_if_l2_block_pruned(block_number, working_set)
+            .map_err(EthApiError::from)?;
 
         let block = self
             .blocks_rlp
@@ -900,7 +904,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for: `eth_estimateDiffSize`
-    #[rpc_method(name = "eth_estimateDiffSize", blocking)]
+    #[rpc_method(name = "eth_estimateDiffSize", blocking)] // done
     pub fn eth_estimate_diff_size(
         &self,
         request: TransactionRequest,
@@ -1637,10 +1641,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<Option<SealedBlock>, EthApiError> {
         // safe, finalized, and pending are not supported
         match block_number {
-            Some(BlockNumberOrTag::Number(block_number)) => Ok(self
+            Some(BlockNumberOrTag::Number(block_number)) => {
+                self.check_if_l2_block_pruned(block_number, working_set)?;
+
+                Ok(self
                 .blocks_rlp
-                .get(block_number as usize, &mut working_set.accessory_state())),
-            Some(BlockNumberOrTag::Earliest) => Ok(Some(
+                .get(block_number as usize, &mut working_set.accessory_state()))
+            },
+            Some(BlockNumberOrTag::Earliest) => Ok(Some( // no need to check if pruned, genesis block is never pruned
                 self.blocks_rlp
                     .get(0, &mut working_set.accessory_state())
                     .or_else(|| {
@@ -1727,6 +1735,20 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
+        Ok(())
+    }
+
+    /// Returns ProviderError::StateAtBlockPruned if the state at the given block number is pruned
+    pub fn check_if_l2_block_pruned(
+        &self,
+        block_number: u64,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<(), ProviderError> {
+        if let Some(last_pruned_l2_height) = working_set.get_last_pruned_l2_height().expect("Failed to get last pruned l2 height"){
+            if block_number <= last_pruned_l2_height {
+                return Err(ProviderError::StateAtBlockPruned(block_number));
+            }
+        }
         Ok(())
     }
 }
