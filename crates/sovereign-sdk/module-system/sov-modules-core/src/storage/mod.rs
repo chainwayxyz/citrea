@@ -214,7 +214,7 @@ pub trait Storage: Clone {
     #[allow(clippy::type_complexity)]
     fn compute_state_update(
         &self,
-        state_log: ReadWriteLog,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<
         (
@@ -236,7 +236,7 @@ pub trait Storage: Clone {
     /// A version of [`Storage::validate_and_commit`] that allows for "accessory" non-JMT updates.
     fn validate_and_commit_with_accessory_update(
         &self,
-        state_log: ReadWriteLog,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
         accessory_writes: &OrderedWrites,
         offchain_log: &ReadWriteLog,
@@ -254,7 +254,7 @@ pub trait Storage: Clone {
     /// `self.compute_state_update & self.commit`
     fn validate_and_commit(
         &self,
-        state_log: ReadWriteLog,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<StorageRootHash, anyhow::Error> {
         Self::validate_and_commit_with_accessory_update(

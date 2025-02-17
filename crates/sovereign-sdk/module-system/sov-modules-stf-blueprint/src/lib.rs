@@ -278,10 +278,10 @@ where
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
-            let (cache_log, mut witness) = checkpoint.freeze();
+            let (state_log, mut witness) = checkpoint.freeze();
 
             let (state_root_transition, state_update, state_diff) = pre_state
-                .compute_state_update(cache_log, &mut witness)
+                .compute_state_update(&state_log, &mut witness)
                 .expect("jellyfish merkle tree update must succeed");
 
             let mut working_set = checkpoint.to_revertable();
@@ -340,10 +340,10 @@ where
         self.runtime.genesis(&params.runtime, &mut working_set);
 
         let mut checkpoint = working_set.checkpoint();
-        let (log, mut witness) = checkpoint.freeze();
+        let (state_log, mut witness) = checkpoint.freeze();
 
         let (state_root_transition, state_update, _) = pre_state
-            .compute_state_update(log, &mut witness)
+            .compute_state_update(&state_log, &mut witness)
             .expect("Storage update must succeed");
         let genesis_hash = state_root_transition.final_root;
 

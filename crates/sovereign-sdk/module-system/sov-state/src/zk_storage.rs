@@ -59,7 +59,7 @@ where
 
     fn compute_state_update(
         &self,
-        state_log: ReadWriteLog,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();

@@ -119,7 +119,7 @@ impl Storage for ProverStorage {
 
     fn compute_state_update(
         &self,
-        state_log: ReadWriteLog,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let version = self.version();
