@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use borsh::BorshDeserialize;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -18,7 +17,7 @@ use sov_modules_api::{
     native_debug, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature,
     Spec, UnsignedSoftConfirmation, WorkingSet,
 };
-use sov_rollup_interface::da::{DaDataBatchProof, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, UnsignedSoftConfirmationV1};
 use sov_rollup_interface::spec::SpecId;

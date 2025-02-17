@@ -8,7 +8,6 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
-use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
@@ -323,9 +322,9 @@ where
 
                         self.process_pre_fork2_zk_proof(
                             l1_block,
-                            output.da_slot_hash.clone(),
+                            output.da_slot_hash,
                             output.preproven_commitments.clone(),
-                            output.sequencer_commitments_range.clone(),
+                            output.sequencer_commitments_range,
                             output.initial_state_root,
                             proof,
                             StoredBatchProofOutput::from(output),
@@ -354,9 +353,9 @@ where
 
                         self.process_pre_fork2_zk_proof(
                             l1_block,
-                            output.da_slot_hash.clone(),
+                            output.da_slot_hash,
                             output.preproven_commitments.clone(),
-                            output.sequencer_commitments_range.clone(),
+                            output.sequencer_commitments_range,
                             output.initial_state_root,
                             proof,
                             StoredBatchProofOutput::from(output),
