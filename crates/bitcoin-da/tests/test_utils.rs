@@ -251,7 +251,10 @@ pub async fn generate_mock_txs(
     // Write all txs to a block
     let block_hash = da_node.generate(1).await.unwrap()[0];
 
-    let block = da_service.get_block_by_hash(block_hash).await.unwrap();
+    let block = da_service
+        .get_block_by_hash(block_hash.into())
+        .await
+        .unwrap();
     assert_eq!(block.txdata.len(), 33);
 
     (block, valid_commitments, valid_proofs, valid_method_ids)

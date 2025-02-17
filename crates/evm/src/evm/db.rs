@@ -100,12 +100,16 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
                     // if code is read as None,
                     // we don't have code for the given code_hash
                     // return true in that case so we return None from get_with_verification_on_no_cache
-                    val.as_ref().map_or(true, |code| {
-                        *code_hash == keccak256(code.original_byte_slice())
+                    val.as_ref().map_or(Ok(()), |code| {
+                        if *code_hash == keccak256(code.original_byte_slice()) {
+                            Ok(())
+                        } else {
+                            Err(DBError::CodeHashMismatch)
+                        }
                     })
                 },
                 &mut self.working_set.offchain_state(),
-            ) {
+            )? {
                 return Ok(code);
             }
         }
