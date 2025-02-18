@@ -363,13 +363,9 @@ fn make_transition_data(
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
         preproven_commitments: vec![],
-<<<<<<< HEAD
-        final_state_root: [0u8; 32],
         short_header_proofs: VecDeque::new(),
-=======
         final_state_root: [0; 32],
         sequencer_commitments: vec![],
->>>>>>> nightly
     }
 }
 
