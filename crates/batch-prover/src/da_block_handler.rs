@@ -344,21 +344,13 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 || da_block_headers_to_push.last().unwrap().height()
                     != soft_confirmation.da_slot_height
             {
-                let filtered_block = match get_da_block_at_height(
+                let filtered_block = get_da_block_at_height(
                     da_service,
                     soft_confirmation.da_slot_height,
                     l1_block_cache.clone(),
                 )
                 .await
-                {
-                    Ok(block) => block,
-                    Err(_) => {
-                        return Err(anyhow!(
-                            "Error while fetching DA block at height: {}",
-                            soft_confirmation.da_slot_height
-                        ));
-                    }
-                };
+                .context("Error fetching DA block")?;
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
 
