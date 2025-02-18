@@ -1649,21 +1649,23 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .blocks_rlp
                     .get(block_number as usize, &mut working_set.accessory_state()))
             }
-            Some(BlockNumberOrTag::Earliest) => Ok(Some(
-                // no need to check if pruned, genesis block is never pruned
-                self.blocks_rlp
-                    .get(0, &mut working_set.accessory_state())
-                    .or_else(|| {
-                        // upgrading from v0.5.7 to v0.6+ requires a codec change
-                        // this only applies to the sequencer
-                        // which will only query the genesis block and the head block
-                        // right after the upgrade
-                        self.blocks
-                            .get(0, &mut working_set.accessory_state())
-                            .map(Into::into)
-                    })
-                    .expect("Genesis block must be set"),
-            )),
+            Some(BlockNumberOrTag::Earliest) => {
+                self.check_if_l2_block_pruned(0, working_set)?;
+                Ok(Some(
+                    self.blocks_rlp
+                        .get(0, &mut working_set.accessory_state())
+                        .or_else(|| {
+                            // upgrading from v0.5.7 to v0.6+ requires a codec change
+                            // this only applies to the sequencer
+                            // which will only query the genesis block and the head block
+                            // right after the upgrade
+                            self.blocks
+                                .get(0, &mut working_set.accessory_state())
+                                .map(Into::into)
+                        })
+                        .expect("Genesis block must be set"),
+                ))
+            }
             Some(BlockNumberOrTag::Latest) => Ok(Some(
                 self.blocks_rlp
                     .last(&mut working_set.accessory_state())
