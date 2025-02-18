@@ -64,11 +64,7 @@ impl Pruner {
             .put::<LastPrunedBlock>(&(), &last_pruned_l2_height)
     }
 
-    pub(crate) fn should_prune(
-        &self,
-        last_pruned_l2_height: u64,
-        current_l2_height: u64,
-    ) -> Option<u64> {
+    pub fn should_prune(&self, last_pruned_l2_height: u64, current_l2_height: u64) -> Option<u64> {
         self.criteria
             .should_prune(last_pruned_l2_height, current_l2_height)
     }

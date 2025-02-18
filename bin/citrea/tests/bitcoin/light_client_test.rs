@@ -26,6 +26,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -1307,7 +1308,7 @@ async fn test_verify_chunked_txs_in_light_client() -> Result<()> {
         .await
 }
 
-pub fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec<u8>>> {
+pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, Option<Arc<[u8]>>> {
     let mut rng = thread_rng();
     let mut map = BTreeMap::new();
     let mut total_size: u64 = 0;
@@ -1335,7 +1336,10 @@ pub fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec
         };
 
         // Add to the map
-        map.insert(key, value);
+        map.insert(
+            Arc::from(key.into_boxed_slice()),
+            value.map(|v| Arc::from(v.into_boxed_slice())),
+        );
 
         // Update the total size
         total_size += key_size + value_size;
@@ -1349,19 +1353,16 @@ fn create_serialized_fake_receipt_batch_proof(
     final_state_root: [u8; 32],
     last_l2_height: u64,
     method_id: [u32; 8],
-    state_diff: Option<BTreeMap<Vec<u8>, Option<Vec<u8>>>>,
+    state_diff: Option<CumulativeStateDiff>,
     malformed_journal: bool,
 ) -> Vec<u8> {
     let batch_proof_output = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         last_l2_height,
-        da_slot_hash: [0u8; 32],
-        prev_soft_confirmation_hash: [0u8; 32],
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
-        sequencer_commitments_range: (0, 0),
-        preproven_commitments: vec![],
+        sequencer_commitment_merkle_roots: vec![],
     };
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 
