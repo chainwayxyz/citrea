@@ -562,7 +562,6 @@ where
             ).into()),
         };
 
-
         debug_trace_by_block_number(
             block_number,
             None,
