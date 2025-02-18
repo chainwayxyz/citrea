@@ -101,7 +101,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) code: sov_modules_api::StateMap<B256, revm::primitives::Bytecode, BcsCodec>,
 
     /// Mapping from storage hash ( sha256(address | key) ) to storage value.
-    #[state(rename = "s")]
+    #[state(rename = "S")]
     pub storage: sov_modules_api::StateMap<U256, U256, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
