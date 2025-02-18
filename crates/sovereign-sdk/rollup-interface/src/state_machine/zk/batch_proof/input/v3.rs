@@ -43,5 +43,5 @@ pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
     /// Short header proofs for verifying system transactions
-    pub short_header_proofs: Vec<([u8; 32], Vec<u8>)>,
+    pub short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>,
 }

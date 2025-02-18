@@ -38,7 +38,7 @@ use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
 type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
-    Vec<([u8; 32], Vec<u8>)>,
+    VecDeque<([u8; 32], Vec<u8>)>,
     VecDeque<Vec<(Witness, Witness)>>,
     VecDeque<Vec<SignedSoftConfirmation<'txs, Tx>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
@@ -324,7 +324,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     > = VecDeque::with_capacity(sequencer_commitments.len());
 
     let mut l1_hash_set = HashSet::new();
-    let mut short_header_proofs = Vec::new();
+    let mut short_header_proofs = VecDeque::new();
 
     for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
@@ -355,7 +355,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             {
                 // If first time, insert and push to the vector
                 if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
-                    short_header_proofs.push((soft_confirmation.da_slot_hash, shp));
+                    short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
                 }
             }
 

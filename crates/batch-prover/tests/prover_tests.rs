@@ -364,7 +364,7 @@ fn make_transition_data(
         sequencer_da_public_key: vec![],
         preproven_commitments: vec![],
         final_state_root: [0u8; 32],
-        short_header_proofs: vec![],
+        short_header_proofs: VecDeque::new(),
     }
 }
 
