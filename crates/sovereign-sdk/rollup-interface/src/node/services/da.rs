@@ -50,9 +50,6 @@ pub trait DaService: Send + Sync + 'static {
     /// The error type for fallible methods.
     type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;
 
-    /// Use for get_block_by_hash retrieval
-    type BlockHash;
-
     /// Fetch the block at the given height, waiting for one to be mined if necessary.
     /// The returned block may not be final, and can be reverted without a consensus violation.
     /// Call it for the same height are allowed to return different results.
@@ -62,7 +59,7 @@ pub trait DaService: Send + Sync + 'static {
     /// Fetch block by hash.
     async fn get_block_by_hash(
         &self,
-        hash: Self::BlockHash,
+        hash: <Self::Spec as DaSpec>::SlotHash,
     ) -> Result<Self::FilteredBlock, Self::Error>;
 
     /// Fetch the [`DaSpec::BlockHeader`] of the last finalized block.

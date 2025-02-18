@@ -5,7 +5,7 @@ use sov_schema_db::{SchemaBatch, DB};
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{ModuleAccessoryState, NATIVE_TABLES};
-use crate::schema::types::AccessoryKey;
+use crate::schema::types::StateKeyRef;
 
 /// Specifies a particular version of the Accessory state.
 pub type Version = u64;
@@ -54,7 +54,7 @@ impl NativeDB {
     /// Queries for a value in the [`NativeDB`], given a key.
     pub fn get_value_option(
         &self,
-        key: &AccessoryKey,
+        key: StateKeyRef,
         version: Version,
     ) -> anyhow::Result<Option<Vec<u8>>> {
         let found = self
@@ -62,7 +62,7 @@ impl NativeDB {
             .get_prev::<ModuleAccessoryState>(&(key.to_vec(), version))?;
         match found {
             Some(((found_key, found_version), value)) => {
-                if &found_key == key {
+                if found_key == key {
                     anyhow::ensure!(found_version <= version, "Bug! iterator isn't returning expected values. expected a version <= {version:} but found {found_version:}");
                     Ok(value)
                 } else {
