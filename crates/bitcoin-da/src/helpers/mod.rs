@@ -114,7 +114,7 @@ pub fn calculate_txid(tx: &Transaction) -> [u8; 32] {
         + 9 // max varint size for the number of outputs
         + tx.output.len() * 40, // tx outputs
     );
-    // let mut enc = vec![];
+
     tx.version
         .consensus_encode(&mut enc)
         .expect("engines don't error");
