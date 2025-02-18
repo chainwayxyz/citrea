@@ -253,7 +253,7 @@ impl SharedLedgerOps for LedgerDB {
     fn put_short_header_proof_by_l1_hash(
         &self,
         hash: &[u8; 32],
-        short_header_proof: &[u8],
+        short_header_proof: Vec<u8>,
     ) -> anyhow::Result<()> {
         self.db
             .put::<ShortHeaderProofBySlotHash>(hash, &short_header_proof.to_vec())

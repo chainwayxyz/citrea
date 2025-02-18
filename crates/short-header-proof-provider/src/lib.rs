@@ -50,7 +50,7 @@ impl<Da: DaService> ShortHeaderProofProvider for NativeShortHeaderProofProviderS
         self.ledger_db
             .put_short_header_proof_by_l1_hash(
                 &block_hash,
-                &borsh::to_vec(&shp).expect("Should serialize short header proof"),
+                borsh::to_vec(&shp).expect("Should serialize short header proof"),
             )
             .expect("Should save short header proof");
         shp.verify().is_ok()
@@ -78,10 +78,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
         {
             let shp =
                 Da::ShortHeaderProof::try_from_slice(&self.short_header_proofs[pos].1).unwrap();
-            if shp.verify().is_ok() {
-                return true;
-            }
-            return false;
+            return shp.verify().is_ok();
         }
         // If proof not found also return false
         false
