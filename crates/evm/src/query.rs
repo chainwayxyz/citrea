@@ -1699,7 +1699,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockId::Number(block_num)) => {
                 match block_num {
                     BlockNumberOrTag::Number(num) => {
-                        if num != 0 { // state at genesis block is being preserved
+                        if num != 0 {
+                            // state at genesis block is being preserved
                             self.check_if_l2_block_pruned(num, working_set)?;
                         }
                         let curr_block_number = self
