@@ -3,10 +3,11 @@
 use alloy_primitives::{B256, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(Debug, PartialEq, Eq)]
+/// diff(a, b) = Add(a+b)
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CompressionAdd {
-    pub diff: U256,
-    pub size: u8,
+    diff: U256,
+    size: u8,
 }
 
 impl CompressionAdd {
@@ -14,7 +15,7 @@ impl CompressionAdd {
         let (diff, _overflowed) = new_value.overflowing_sub(prev_value);
         let size = diff.byte_len() as u8;
 
-        if size <= 30 {
+        if size < 31 {
             Some(Self { diff, size })
         } else {
             None
@@ -23,9 +24,9 @@ impl CompressionAdd {
 }
 
 /// A special case when Add(x) for x <= 31 to fit into 1 serialized byte
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CompressionAddInlined {
-    pub diff: u8,
+    diff: u8,
 }
 
 impl CompressionAddInlined {
@@ -41,10 +42,11 @@ impl CompressionAddInlined {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+/// diff(a, b) = Sub(a - b)
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CompressionSub {
-    pub diff: U256,
-    pub size: u8,
+    diff: U256,
+    size: u8,
 }
 
 impl CompressionSub {
@@ -52,7 +54,7 @@ impl CompressionSub {
         let (diff, _overflowed) = prev_value.overflowing_sub(new_value);
         let size = diff.byte_len() as u8;
 
-        if size <= 30 {
+        if size < 31 {
             Some(Self { diff, size })
         } else {
             None
@@ -61,10 +63,10 @@ impl CompressionSub {
 }
 
 /// Only try to remove leading zeroes.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CompressionTransform {
-    pub diff: U256,
-    pub size: u8,
+    diff: U256,
+    size: u8,
 }
 
 impl CompressionTransform {
@@ -72,7 +74,7 @@ impl CompressionTransform {
         let diff = new_value;
         let size = diff.byte_len() as u8;
 
-        if size <= 30 {
+        if size < 31 {
             Some(Self { diff, size })
         } else {
             None
@@ -81,9 +83,9 @@ impl CompressionTransform {
 }
 
 /// It's a special case when we store diff as is (32 bytes)
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CompressionAbsent {
-    pub diff: U256,
+    diff: U256,
 }
 
 impl CompressionAbsent {
@@ -94,12 +96,18 @@ impl CompressionAbsent {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+/// All possible diffs of a slot of U256
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SlotChange {
+    /// Add
     Add(CompressionAdd),
+    /// AddInlined
     AddInlined(CompressionAddInlined),
+    /// Sub
     Sub(CompressionSub),
+    /// Transform
     Transform(CompressionTransform),
+    /// NoCompression
     NoCompression(CompressionAbsent),
 }
 
@@ -122,6 +130,147 @@ impl SlotChange {
             SlotChange::NoCompression(no) => (no.diff.as_le_slice(), 32),
         };
         &bytes[..size as usize]
+    }
+
+    /// Combine two changes into one which gives the same affect.
+    pub fn combine(&self, right: &Self) -> Self {
+        match (self, right) {
+            (_left, right @ Self::Transform(_)) => *right,
+            (_left, right @ Self::NoCompression(_)) => *right,
+
+            // Transform(x) + Add/Sub(y) = Transform/NoCompression(x+-y)
+            (Self::Transform(left), Self::Add(right)) => {
+                let left = left.diff;
+                let (diff, _overflowed) = left.overflowing_add(right.diff);
+                let size = diff.byte_len() as u8;
+                if size < 31 {
+                    Self::Transform(CompressionTransform { diff, size })
+                } else {
+                    Self::NoCompression(CompressionAbsent { diff })
+                }
+            }
+            (Self::Transform(left), Self::Sub(right)) => {
+                let left = left.diff;
+                let (diff, _overflowed) = left.overflowing_sub(right.diff);
+                let size = diff.byte_len() as u8;
+                if size < 31 {
+                    Self::Transform(CompressionTransform { diff, size })
+                } else {
+                    Self::NoCompression(CompressionAbsent { diff })
+                }
+            }
+            (Self::Transform(left), Self::AddInlined(right)) => {
+                let left = left.diff;
+                let (diff, _overflowed) = left.overflowing_add(U256::from(right.diff));
+                let size = diff.byte_len() as u8;
+                if size < 31 {
+                    Self::Transform(CompressionTransform { diff, size })
+                } else {
+                    Self::NoCompression(CompressionAbsent { diff })
+                }
+            }
+
+            // NoCompression(x) + Add/Sub(y) = Transform/NoCompression(x+-y)
+            (Self::NoCompression(left), Self::Add(right)) => {
+                let left = left.diff;
+                let (diff, _overflowed) = left.overflowing_add(right.diff);
+                let size = diff.byte_len() as u8;
+                if size < 31 {
+                    Self::Transform(CompressionTransform { diff, size })
+                } else {
+                    Self::NoCompression(CompressionAbsent { diff })
+                }
+            }
+            (Self::NoCompression(left), Self::Sub(right)) => {
+                let left = left.diff;
+                let (diff, _overflowed) = left.overflowing_sub(right.diff);
+                let size = diff.byte_len() as u8;
+                if size < 31 {
+                    Self::Transform(CompressionTransform { diff, size })
+                } else {
+                    Self::NoCompression(CompressionAbsent { diff })
+                }
+            }
+            (Self::NoCompression(left), Self::AddInlined(right)) => {
+                let left = left.diff;
+                let (diff, _overflowed) = left.overflowing_add(U256::from(right.diff));
+                let size = diff.byte_len() as u8;
+                if size < 31 {
+                    Self::Transform(CompressionTransform { diff, size })
+                } else {
+                    Self::NoCompression(CompressionAbsent { diff })
+                }
+            }
+
+            // Add(x) + Add(y) = Add(x+y)
+            (Self::Add(left), Self::Add(right)) => {
+                let (diff, _overflowed) = left.diff.overflowing_add(right.diff);
+                if let Ok(diff) = diff.try_into() {
+                    if diff < 32 {
+                        return Self::AddInlined(CompressionAddInlined { diff });
+                    }
+                }
+                let size = diff.byte_len() as u8;
+                Self::Add(CompressionAdd { diff, size })
+            }
+            (Self::AddInlined(left), Self::AddInlined(right)) => {
+                let diff = left.diff + right.diff;
+                let diff = U256::from(diff);
+                if let Ok(diff) = diff.try_into() {
+                    if diff < 32 {
+                        return Self::AddInlined(CompressionAddInlined { diff });
+                    }
+                }
+                let size = diff.byte_len() as u8;
+                Self::Add(CompressionAdd { diff, size })
+            }
+            (Self::Add(big), Self::AddInlined(small))
+            | (Self::AddInlined(small), Self::Add(big)) => {
+                let (diff, _overflowed) = big.diff.overflowing_add(U256::from(small.diff));
+                if let Ok(diff) = diff.try_into() {
+                    if diff < 32 {
+                        return Self::AddInlined(CompressionAddInlined { diff });
+                    }
+                }
+                let size = diff.byte_len() as u8;
+                Self::Add(CompressionAdd { diff, size })
+            }
+
+            // Sub(x) + Sub(y) = Sub(x+y)
+            (Self::Sub(left), Self::Sub(right)) => {
+                let (diff, _overflowed) = left.diff.overflowing_add(right.diff);
+                // TODO SubInlined
+                let size = diff.byte_len() as u8;
+                Self::Sub(CompressionSub { diff, size })
+            }
+
+            // Add(x) + Sub(y) = Add(x-y)
+            (Self::Add(left), Self::Sub(right)) => {
+                let (diff, _overflowed) = left.diff.overflowing_sub(right.diff);
+                if let Ok(diff) = diff.try_into() {
+                    if diff < 32 {
+                        return Self::AddInlined(CompressionAddInlined { diff });
+                    }
+                }
+                let size = diff.byte_len() as u8;
+                Self::Add(CompressionAdd { diff, size })
+            }
+            // Sub(x) + Add(y) = Sub(x-y)
+            (Self::Sub(left), Self::Add(right)) => {
+                let (diff, _overflowed) = left.diff.overflowing_sub(right.diff);
+                // TODO SubInlined
+                let size = diff.byte_len() as u8;
+                Self::Sub(CompressionSub { diff, size })
+            }
+
+            (Self::Sub(big), Self::AddInlined(small))
+            | (Self::AddInlined(small), Self::Sub(big)) => {
+                let (diff, _overflowed) = big.diff.overflowing_sub(U256::from(small.diff));
+                // TODO SubInlined
+                let size = diff.byte_len() as u8;
+                Self::Sub(CompressionSub { diff, size })
+            }
+        }
     }
 }
 
@@ -217,10 +366,11 @@ pub fn compress_two_best_strategy(prev_value: U256, new_value: U256) -> SlotChan
     let no_compression = CompressionAbsent::new(new_value);
 
     let compressors = [
-        transform.map(SlotChange::Transform),
+        // transform.map(SlotChange::Transform),
         add.map(SlotChange::Add),
         add_inlined.map(SlotChange::AddInlined),
         sub.map(SlotChange::Sub),
+        transform.map(SlotChange::Transform),
     ];
 
     select_best_strategy(
@@ -243,10 +393,14 @@ pub fn compress_one_best_strategy(new_value: U256) -> SlotChange {
     )
 }
 
+/// All possible diffs of a slot of Option<B256>
 #[derive(Debug, PartialEq, Eq)]
 pub enum CodeHashChange {
+    /// Same
     Same,
+    /// Removed
     Removed,
+    /// Set
     Set(B256),
 }
 
@@ -288,6 +442,8 @@ impl BorshDeserialize for CodeHashChange {
     }
 }
 
+/// For a given previous value and new value, try each compression strategy selecting the most
+/// efficient one.
 pub fn compress_two_code_hash(prev_value: Option<B256>, new_value: Option<B256>) -> CodeHashChange {
     if prev_value == new_value {
         CodeHashChange::Same
@@ -298,6 +454,8 @@ pub fn compress_two_code_hash(prev_value: Option<B256>, new_value: Option<B256>)
     }
 }
 
+/// For a given one value, try each compression strategy selecting the most
+/// efficient one.
 pub fn compress_one_code_hash(new_value: Option<B256>) -> CodeHashChange {
     if let Some(value) = new_value {
         CodeHashChange::Set(value)
@@ -449,28 +607,66 @@ mod tests {
             CodeHashChange::Set(b),
         );
     }
+
+    // calc final change of a given slot value:
+    // - a1 a2 a3 a4...
+    // - change12 change23 change34...
+    // return change12.combine(change23).combine(change34)...
+    fn calc_final_change(slot_values: &[U256]) -> SlotChange {
+        let changes: Vec<_> = slot_values
+            .windows(2)
+            .map(|s| {
+                let [x, y] = s else {
+                    panic!("size must be exactly 2 elems")
+                };
+                compress_two_best_strategy(*x, *y)
+            })
+            .collect();
+        let final_change = changes.iter().fold(
+            SlotChange::AddInlined(CompressionAddInlined { diff: 0 }),
+            |init, elem| init.combine(elem),
+        );
+        final_change
+    }
+
+    fn apply_final_change(val: U256, change: SlotChange) -> U256 {
+        match change {
+            SlotChange::Add(op) => val.overflowing_add(op.diff).0,
+            SlotChange::AddInlined(op) => val.overflowing_add(U256::from(op.diff)).0,
+            SlotChange::Sub(op) => val.overflowing_sub(op.diff).0,
+            SlotChange::NoCompression(op) => op.diff,
+            SlotChange::Transform(op) => op.diff,
+        }
+    }
+
+    #[test]
+    fn compress_combination_1() {
+        let nums = vec![
+            U256::from(0),
+            U256::from(1),
+            U256::from(5),
+            U256::from(35),
+            U256::from(34),
+        ];
+        let final_change = calc_final_change(&nums);
+
+        let first = *nums.first().unwrap();
+        let last = *nums.last().unwrap();
+
+        assert_eq!(last, apply_final_change(first, final_change));
+    }
+
+    #[test]
+    fn compress_combination_2() {
+        let nums = vec![
+            U256::from_limbs([u64::MAX / 2, u64::MAX / 2, u64::MAX / 2, u64::MAX / 2]),
+            U256::from(135),
+        ];
+        let final_change = calc_final_change(&nums);
+
+        let first = *nums.first().unwrap();
+        let last = *nums.last().unwrap();
+
+        assert_eq!(last, apply_final_change(first, final_change));
+    }
 }
-
-/*
-fn main() {
-    // let x = U256::MAX - U256::from(1);
-    // let y = U256::from(0);
-    // let y = U256::from_limbs([98989898989, 4594895849584, 34546456, 4556756756]);
-
-    let x = U256::from(0);
-    let y = U256::from(257);
-    let z = compress_two_best_strategy(x, y);
-    dbg!(x, y, &z);
-
-    let serialized = borsh::to_vec(&z).unwrap();
-    dbg!(&serialized, serialized.len());
-
-    let deserialized: SlotChange = borsh::from_slice(&serialized).unwrap();
-    dbg!(deserialized);
-
-    // let b = U256::from(1);
-
-    // dbg!(x - b);
-    // dbg!(U256::MAX);
-}
-*/

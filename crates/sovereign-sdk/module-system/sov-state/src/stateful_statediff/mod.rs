@@ -1,3 +1,4 @@
+/// Compression primitives
 pub mod compression;
 
 use std::collections::BTreeMap;
@@ -111,19 +112,22 @@ pub(crate) fn build_post_state(ordered_writes: &[(CacheKey, Option<CacheValue>)]
     }
 }
 
+/// Reflects account change
 #[derive(BorshSerialize, Debug)]
 pub struct AccountChange {
-    pub balance: SlotChange,
-    pub nonce: SlotChange,
-    pub code_hash: CodeHashChange,
+    balance: SlotChange,
+    nonce: SlotChange,
+    code_hash: CodeHashChange,
 }
 
+/// Reflects storage change
 #[derive(BorshSerialize, Debug)]
 pub struct StorageChange {
     #[borsh(serialize_with = "borsh_ser_btree_u256")]
-    pub storage: BTreeMap<U256, Option<SlotChange>>,
+    storage: BTreeMap<U256, Option<SlotChange>>,
 }
 
+/// Reflects all state change
 #[derive(BorshSerialize, Debug)]
 pub struct StatefulStateDiff {
     #[borsh(serialize_with = "borsh_ser_btree_address")]
