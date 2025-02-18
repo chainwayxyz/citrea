@@ -6,7 +6,6 @@ use sov_schema_db::SchemaBatch;
 use tracing::{error, info};
 
 /// Rollback state DB
-#[allow(dead_code)]
 pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, down_to_block: u64) {
     info!("Rolling back state DB, down to L2 block {}", down_to_block);
 
