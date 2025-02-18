@@ -323,7 +323,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
     > = VecDeque::with_capacity(sequencer_commitments.len());
 
-    let mut short_header_proofs_set = HashSet::new();
+    let mut l1_hash_set = HashSet::new();
     let mut short_header_proofs = Vec::new();
 
     for sequencer_commitment in sequencer_commitments.iter() {
@@ -354,7 +354,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 ledger_db.get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
             {
                 // If first time, insert and push to the vector
-                if short_header_proofs_set.insert(shp.clone()) {
+                if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
                     short_header_proofs.push((soft_confirmation.da_slot_hash, shp));
                 }
             }
