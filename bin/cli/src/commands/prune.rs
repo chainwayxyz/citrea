@@ -73,7 +73,6 @@ pub(crate) async fn prune(
     {
         pruner.prune(node_type.into(), up_to_block).await;
     }
-    pruner.store_last_pruned_l2_height(soft_confirmation_number)?;
     Ok(())
 }
 
