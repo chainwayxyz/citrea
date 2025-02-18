@@ -209,7 +209,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db.clone(),
         ))) {
             Ok(_) => info!("Short header proof provider set"),
-            Err(_) => anyhow::bail!("Short header proof provider already set"),
+            Err(_) => tracing::error!("Short header proof provider already set"),
         };
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
