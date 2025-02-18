@@ -110,6 +110,8 @@ pub struct SoftConfirmationResult<Cs, W, SL> {
     pub state_root_transition: StateRootTransition,
     /// Cache of the read and writes happened on the state.
     pub state_log: SL,
+    /// Cache of the read and writes happened on the offchain state.
+    pub offchain_log: SL,
     /// Container for all state alterations that happened during soft confirmation execution
     pub change_set: Cs,
     /// Witness after applying the whole block
@@ -195,6 +197,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         cumulative_state_log: Option<Self::StateLog>,
+        cumulative_offchain_log: Option<Self::StateLog>,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,

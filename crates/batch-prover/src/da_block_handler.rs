@@ -428,6 +428,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         .expect("L2 state root must exist");
 
     let mut cumulative_state_log = None;
+    let mut cumulative_offchain_log = None;
 
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
@@ -454,6 +455,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                     &init_state_root,
                     pre_state,
                     cumulative_state_log,
+                    cumulative_offchain_log,
                     Default::default(),
                     Default::default(),
                     l1_block.header(),
@@ -466,6 +468,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                     &init_state_root,
                     pre_state,
                     None,
+                    None,
                     Default::default(),
                     Default::default(),
                     l1_block.header(),
@@ -475,6 +478,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
             cumulative_state_log = Some(soft_confirmation_result.state_log);
+            cumulative_offchain_log = Some(soft_confirmation_result.offchain_log);
 
             witnesses.push((
                 soft_confirmation_result.witness,

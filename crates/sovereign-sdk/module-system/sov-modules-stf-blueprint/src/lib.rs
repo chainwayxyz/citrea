@@ -277,7 +277,15 @@ where
             hex::encode(soft_confirmation.sequencer_pub_key()),
         );
 
-        let (state_root_transition, state_log, witness, offchain_witness, storage, state_diff) = {
+        let (
+            state_root_transition,
+            state_log,
+            offchain_log,
+            witness,
+            offchain_witness,
+            storage,
+            state_diff,
+        ) = {
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
@@ -303,6 +311,7 @@ where
             (
                 state_root_transition,
                 state_log,
+                offchain_log,
                 witness,
                 offchain_witness,
                 pre_state,
@@ -315,6 +324,7 @@ where
         SoftConfirmationResult {
             state_root_transition,
             state_log,
+            offchain_log,
             change_set: storage,
             witness,
             offchain_witness,
@@ -364,8 +374,6 @@ where
         let accessory_log = checkpoint.freeze_non_provable();
         let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
 
-        // TODO: Commit here for now, but probably this can be done outside of STF
-        // TODO: Commit is fine
         pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
         (genesis_hash, pre_state)
@@ -378,6 +386,7 @@ where
         pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         cumulative_state_log: Option<Self::StateLog>,
+        cumulative_offchain_log: Option<Self::StateLog>,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         // the header hash does not need to be verified here because the full
@@ -397,6 +406,7 @@ where
                 state_witness,
                 offchain_witness,
                 state_log,
+                cumulative_offchain_log.expect("Both logs must be provided"),
             )
         } else {
             WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness)
@@ -463,8 +473,9 @@ where
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
 
-        // Reuseable state log cache
+        // Reuseable log caches
         let mut cumulative_state_log = None;
+        let mut cumulative_offchain_log = None;
 
         for (sequencer_commitment, da_block_headers) in
             sequencer_commitments.into_iter().zip_eq(slot_headers)
@@ -616,6 +627,7 @@ where
                         &current_state_root,
                         pre_state.clone(),
                         cumulative_state_log,
+                        cumulative_offchain_log,
                         state_witness,
                         offchain_witness,
                         &da_block_headers[index_headers],
@@ -637,6 +649,7 @@ where
                 soft_confirmation_hashes.push(soft_confirmation.hash());
 
                 cumulative_state_log = Some(result.state_log);
+                cumulative_offchain_log = Some(result.offchain_log);
             }
 
             assert_eq!(

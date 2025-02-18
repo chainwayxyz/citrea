@@ -373,6 +373,21 @@ impl<S: Storage> OffchainDelta<S> {
         }
     }
 
+    fn with_witness_and_log(
+        storage: S,
+        witness: S::Witness,
+        offchain_log: ReadWriteLog,
+        version: Option<Version>,
+    ) -> Self {
+        Self {
+            storage,
+            cache_log: offchain_log.into_cache_log(),
+            uncommitted_writes: BTreeMap::default(),
+            witness,
+            version,
+        }
+    }
+
     fn commit(mut self) -> Self {
         let writes = mem::take(&mut self.uncommitted_writes);
         for (key, value) in writes {
@@ -496,11 +511,17 @@ impl<S: Storage> StateCheckpoint<S> {
         state_witness: S::Witness,
         offchain_witness: S::Witness,
         state_log: ReadWriteLog,
+        offchain_log: ReadWriteLog,
     ) -> Self {
         Self {
             delta: StateDelta::with_witness_and_log(inner.clone(), state_witness, state_log, None),
             accessory_delta: AccessoryDelta::new(inner.clone(), None),
-            offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
+            offchain_delta: OffchainDelta::with_witness_and_log(
+                inner,
+                offchain_witness,
+                offchain_log,
+                None,
+            ),
         }
     }
 
@@ -581,9 +602,16 @@ impl<S: Storage> WorkingSet<S> {
         state_witness: S::Witness,
         offchain_witness: S::Witness,
         state_log: ReadWriteLog,
+        offchain_log: ReadWriteLog,
     ) -> Self {
-        StateCheckpoint::with_witness_and_log(inner, state_witness, offchain_witness, state_log)
-            .to_revertable()
+        StateCheckpoint::with_witness_and_log(
+            inner,
+            state_witness,
+            offchain_witness,
+            state_log,
+            offchain_log,
+        )
+        .to_revertable()
     }
 
     /// Returns a handler for the accessory state (non-JMT state).
