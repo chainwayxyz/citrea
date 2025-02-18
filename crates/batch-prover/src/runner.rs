@@ -233,7 +233,7 @@ where
 
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
+        let signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
             if current_spec >= SpecId::Kumquat {
                 let signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
                     soft_confirmation
@@ -283,7 +283,7 @@ where
                 Default::default(),
                 Default::default(),
                 current_l1_block.header(),
-                &mut signed_soft_confirmation,
+                &signed_soft_confirmation,
             )?
         } else {
             self.stf.apply_soft_confirmation(
@@ -295,7 +295,7 @@ where
                 Default::default(),
                 Default::default(),
                 current_l1_block.header(),
-                &mut signed_soft_confirmation,
+                &signed_soft_confirmation,
             )?
         };
 

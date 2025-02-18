@@ -195,7 +195,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
+        soft_confirmation: &SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
         SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
         StateTransitionError,

@@ -165,7 +165,7 @@ where
         current_spec: SpecId,
         pre_state_root: StorageRootHash,
         sequencer_public_key: &[u8],
-        soft_confirmation: &mut SignedSoftConfirmation<
+        soft_confirmation: &SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
         working_set: &mut WorkingSet<C::Storage>,
@@ -264,7 +264,7 @@ where
         _current_spec: SpecId,
         working_set: WorkingSet<C::Storage>,
         pre_state: <Self as StateTransitionFunction<Da>>::PreState,
-        soft_confirmation: &mut SignedSoftConfirmation<
+        soft_confirmation: &SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
     ) -> SoftConfirmationResult<
@@ -384,7 +384,7 @@ where
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
+        soft_confirmation: &SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
         SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
         StateTransitionError,
@@ -561,7 +561,7 @@ where
                     .unwrap();
 
                 let spec_id = fork_manager.active_fork().spec_id;
-                let (mut soft_confirmation, state_witness, offchain_witness) =
+                let (soft_confirmation, state_witness, offchain_witness) =
                     if spec_id >= SpecId::Kumquat {
                         guest.read_from_host::<(
                             SignedSoftConfirmation<Self::Transaction>,
@@ -685,7 +685,7 @@ where
                         state_witness,
                         offchain_witness,
                         &da_block_headers[index_headers],
-                        &mut soft_confirmation,
+                        &soft_confirmation,
                     )
                     // TODO: this can be just ignoring the failing seq. com.
                     // We can count a failed soft confirmation as a valid state transition.

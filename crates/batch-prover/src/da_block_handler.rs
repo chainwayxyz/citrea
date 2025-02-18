@@ -461,7 +461,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let pre_state = storage_manager.create_storage_for_l2_height(3);
     let current_spec = fork_from_block_number(l2_height).spec_id;
 
-    let mut signed_soft_confirmation: SignedSoftConfirmation<Transaction> = if current_spec
+    let signed_soft_confirmation: SignedSoftConfirmation<Transaction> = if current_spec
         >= SpecId::Kumquat
     {
         let signed_soft_confirmation: SignedSoftConfirmation<Transaction> = soft_confirmation
@@ -505,7 +505,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             Default::default(),
             Default::default(),
             current_l1_block.header(),
-            &mut signed_soft_confirmation,
+            &signed_soft_confirmation,
         )?
     } else {
         stf.apply_soft_confirmation(
@@ -517,7 +517,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             Default::default(),
             Default::default(),
             current_l1_block.header(),
-            &mut signed_soft_confirmation,
+            &signed_soft_confirmation,
         )?
     };
 

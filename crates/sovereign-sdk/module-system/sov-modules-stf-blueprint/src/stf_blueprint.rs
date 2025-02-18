@@ -154,7 +154,7 @@ where
         &mut self,
         current_spec: SpecId,
         pre_state_root: StorageRootHash,
-        soft_confirmation: &mut SignedSoftConfirmation<
+        soft_confirmation: &SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
         working_set: &mut WorkingSet<C::Storage>,
