@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{env, fs};
 
 use async_trait::async_trait;
@@ -175,7 +175,7 @@ async fn guest_cycles() {
     env::set_var("RISC0_PPROF_OUT", "profile.pb");
     let prover = default_prover();
 
-    println!("Started proving at {:?}", Instant::now());
+    println!("Started proving at {}", chrono::Local::now());
     let ProveInfo { stats, .. } = prover
         .prove_with_opts(exec_env, &elf, &ProverOpts::groth16())
         .unwrap();
