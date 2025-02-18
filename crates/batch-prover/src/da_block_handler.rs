@@ -179,17 +179,16 @@ where
                 continue;
             }
 
-            let data_to_prove =
-                data_to_prove::<Da, DB, Witness, Transaction, PreFork2Transaction<DefaultContext>>(
-                    self.da_service.clone(),
-                    self.ledger_db.clone(),
-                    self.sequencer_pub_key.clone(),
-                    self.sequencer_da_pub_key.clone(),
-                    self.l1_block_cache.clone(),
-                    l1_block,
-                    Some(GroupCommitments::Normal),
-                )
-                .await;
+            let data_to_prove = data_to_prove::<Da, DB, Witness>(
+                self.da_service.clone(),
+                self.ledger_db.clone(),
+                self.sequencer_pub_key.clone(),
+                self.sequencer_da_pub_key.clone(),
+                self.l1_block_cache.clone(),
+                l1_block,
+                Some(GroupCommitments::Normal),
+            )
+            .await;
 
             let (sequencer_commitments, inputs) = match data_to_prove {
                 Ok((commitments, inputs)) => (commitments, inputs),
@@ -258,7 +257,7 @@ where
             };
 
             if should_prove {
-                prove_l1::<Da, Vm, DB, Witness, Transaction>(
+                prove_l1::<Da, Vm, DB, Witness>(
                     self.prover_service.clone(),
                     self.ledger_db.clone(),
                     self.code_commitments_by_spec.clone(),
@@ -306,17 +305,15 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
-    Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
-    TxOld: Clone + BorshDeserialize + 'txs,
 >(
     sequencer_commitments: &[SequencerCommitment],
     da_service: &Arc<Da>,
     ledger_db: &DB,
     l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
-) -> Result<CommitmentStateTransitionData<'txs, Witness, Da, Tx>, anyhow::Error> {
+) -> Result<CommitmentStateTransitionData<'txs, Witness, Da, Transaction>, anyhow::Error> {
     let mut state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>> =
         VecDeque::with_capacity(sequencer_commitments.len());
-    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Tx>>> =
+    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Transaction>>> =
         VecDeque::with_capacity(sequencer_commitments.len());
     let mut da_block_headers_of_soft_confirmations: VecDeque<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
@@ -368,39 +365,42 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             }
 
             let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = if spec_id >= SpecId::Kumquat
-            {
-                let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?;
-                signed_soft_confirmation
-            } else {
-                let signed_soft_confirmation: SignedSoftConfirmation<TxOld> = soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?;
-                // Convert to new transaction type
-                let signed_soft_confirmation: SignedSoftConfirmation<Tx> =
-                    SignedSoftConfirmation::new(
-                        signed_soft_confirmation.l2_height(),
-                        signed_soft_confirmation.hash(),
-                        signed_soft_confirmation.prev_hash(),
-                        signed_soft_confirmation.da_slot_height(),
-                        signed_soft_confirmation.da_slot_hash(),
-                        signed_soft_confirmation.da_slot_txs_commitment(),
-                        signed_soft_confirmation.l1_fee_rate(),
-                        signed_soft_confirmation.blobs().to_vec().into(),
-                        signed_soft_confirmation
-                            .txs()
-                            .iter()
-                            .map(|tx| Tx::from(tx.clone()))
-                            .collect(),
-                        signed_soft_confirmation.deposit_data().to_vec(),
-                        signed_soft_confirmation.signature().to_vec(),
-                        signed_soft_confirmation.pub_key().to_vec(),
-                        signed_soft_confirmation.timestamp(),
-                    );
-                signed_soft_confirmation
-            };
+            let signed_soft_confirmation: SignedSoftConfirmation<Transaction> =
+                if spec_id >= SpecId::Kumquat {
+                    let signed_soft_confirmation: SignedSoftConfirmation<Transaction> =
+                        soft_confirmation
+                            .try_into()
+                            .context("Failed to parse transactions")?;
+                    signed_soft_confirmation
+                } else {
+                    let signed_soft_confirmation: SignedSoftConfirmation<
+                        PreFork2Transaction<DefaultContext>,
+                    > = soft_confirmation
+                        .try_into()
+                        .context("Failed to parse transactions")?;
+                    // Convert to new transaction type
+                    let signed_soft_confirmation: SignedSoftConfirmation<Transaction> =
+                        SignedSoftConfirmation::new(
+                            signed_soft_confirmation.l2_height(),
+                            signed_soft_confirmation.hash(),
+                            signed_soft_confirmation.prev_hash(),
+                            signed_soft_confirmation.da_slot_height(),
+                            signed_soft_confirmation.da_slot_hash(),
+                            signed_soft_confirmation.da_slot_txs_commitment(),
+                            signed_soft_confirmation.l1_fee_rate(),
+                            signed_soft_confirmation.blobs().to_vec().into(),
+                            signed_soft_confirmation
+                                .txs()
+                                .iter()
+                                .map(|tx| Transaction::from(tx.clone()))
+                                .collect(),
+                            signed_soft_confirmation.deposit_data().to_vec(),
+                            signed_soft_confirmation.signature().to_vec(),
+                            signed_soft_confirmation.pub_key().to_vec(),
+                            signed_soft_confirmation.timestamp(),
+                        );
+                    signed_soft_confirmation
+                };
 
             commitment_soft_confirmations.push(signed_soft_confirmation);
         }

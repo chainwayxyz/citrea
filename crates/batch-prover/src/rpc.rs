@@ -17,8 +17,6 @@ use prover_services::ParallelProverService;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
@@ -26,7 +24,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::Mutex;
 
 use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
-use crate::{StfTransaction, StfWitness};
+use crate::StfWitness;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,14 +92,7 @@ where
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
 {
-    let rpc = create_rpc_module::<
-        Da,
-        Vm,
-        DB,
-        StfWitness<Da::Spec>,
-        StfTransaction<Da::Spec>,
-        PreFork2Transaction<DefaultContext>,
-    >(rpc_context);
+    let rpc = create_rpc_module::<Da, Vm, DB, StfWitness<Da::Spec>>(rpc_context);
     rpc_methods.merge(rpc)?;
     Ok(rpc_methods)
 }
@@ -125,7 +116,7 @@ pub trait BatchProverRpc {
     ) -> RpcResult<()>;
 }
 
-pub struct BatchProverRpcServerImpl<Da, Vm, DB, Witness, Tx, TxOld>
+pub struct BatchProverRpcServerImpl<Da, Vm, DB, Witness>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
@@ -134,31 +125,25 @@ where
 {
     context: Arc<RpcContext<Da, Vm, DB>>,
     _witness: PhantomData<Witness>,
-    _tx: PhantomData<Tx>,
-    _tx_old: PhantomData<TxOld>,
 }
 
-impl<Da, Vm, DB, Witness, Tx, TxOld> BatchProverRpcServerImpl<Da, Vm, DB, Witness, Tx, TxOld>
+impl<Da, Vm, DB, Witness> BatchProverRpcServerImpl<Da, Vm, DB, Witness>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
-
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync,
 {
     pub fn new(context: RpcContext<Da, Vm, DB>) -> Self {
         Self {
             context: Arc::new(context),
             _witness: PhantomData,
-            _tx: PhantomData,
-            _tx_old: PhantomData,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<Da, Vm, DB, Witness, Tx, TxOld> BatchProverRpcServer
-    for BatchProverRpcServerImpl<Da, Vm, DB, Witness, Tx, TxOld>
+impl<Da, Vm, DB, Witness> BatchProverRpcServer for BatchProverRpcServerImpl<Da, Vm, DB, Witness>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
@@ -171,8 +156,6 @@ where
         + Send
         + Sync
         + 'static,
-    Tx: From<TxOld> + Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
-    TxOld: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
 {
     async fn generate_input(
         &self,
@@ -192,7 +175,7 @@ where
                 )
             })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness, Tx, TxOld>(
+        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness>(
             self.context.da_service.clone(),
             self.context.ledger.clone(),
             self.context.sequencer_pub_key.clone(),
@@ -262,7 +245,7 @@ where
                 )
             })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness, Tx, TxOld>(
+        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, Witness>(
             self.context.da_service.clone(),
             self.context.ledger.clone(),
             self.context.sequencer_pub_key.clone(),
@@ -280,7 +263,7 @@ where
             )
         })?;
 
-        prove_l1::<Da, Vm, DB, Witness, Tx>(
+        prove_l1::<Da, Vm, DB, Witness>(
             self.context.prover_service.clone(),
             self.context.ledger.clone(),
             self.context.code_commitments_by_spec.clone(),
@@ -302,9 +285,9 @@ where
     }
 }
 
-pub fn create_rpc_module<Da, Vm, DB, Witness, Tx, TxOld>(
+pub fn create_rpc_module<Da, Vm, DB, Witness>(
     rpc_context: RpcContext<Da, Vm, DB>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, Vm, DB, Witness, Tx, TxOld>>
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, Vm, DB, Witness>>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
@@ -317,8 +300,6 @@ where
         + Send
         + Sync
         + 'static,
-    Tx: From<TxOld> + Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
-    TxOld: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
