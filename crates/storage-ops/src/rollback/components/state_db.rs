@@ -9,7 +9,7 @@ use tracing::{error, info};
 pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, down_to_block: u64) {
     info!("Rolling back state DB, down to L2 block {}", down_to_block);
 
-    let to_version = down_to_block + 1;
+    let target_version = down_to_block + 1;
 
     let mut indices = state_db
         .iter::<JmtNodes>()
@@ -29,7 +29,7 @@ pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, down_to_block:
         let node = index.value;
 
         // Exit loop if we go down below the target block
-        if node_key.version() < to_version {
+        if node_key.version() < target_version {
             break;
         }
 

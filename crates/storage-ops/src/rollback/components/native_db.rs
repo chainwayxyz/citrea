@@ -7,6 +7,8 @@ use tracing::{debug, error};
 pub(crate) fn rollback_native_db(native_db: Arc<sov_schema_db::DB>, down_to_block: u64) {
     debug!("Rolling back native DB, down to L2 block {}", down_to_block);
 
+    let target_version = down_to_block + 1;
+
     let Ok(mut iter) = native_db.iter::<ModuleAccessoryState>() else {
         return;
     };
@@ -18,7 +20,7 @@ pub(crate) fn rollback_native_db(native_db: Arc<sov_schema_db::DB>, down_to_bloc
     while let Some(Ok(entry)) = iter.next() {
         let version = entry.key.1;
         // The version value is always ahead of block number by one.
-        if version >= down_to_block + 1 {
+        if version >= target_version {
             keys_to_delete.push(entry.key);
             counter += 1;
         }

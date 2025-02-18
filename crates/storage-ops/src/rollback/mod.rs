@@ -45,7 +45,7 @@ impl Rollback {
         let native_db = self.native_db.clone();
         let state_db = self.state_db.clone();
 
-        let down_to_block = current_l2_height - num_blocks + 1;
+        let down_to_block = (current_l2_height + 1) - num_blocks;
 
         let ledger_rollback_handle = tokio::task::spawn_blocking(move || {
             rollback_ledger_db(node_type, ledger_db, down_to_block)
