@@ -4,6 +4,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::Rollback;
+use crate::pruning::types::StorageNodeType;
 
 pub struct RollbackService {
     rollback: Rollback,
@@ -16,7 +17,7 @@ impl RollbackService {
     }
 
     /// Run service to rollback when instructed to
-    pub async fn run(mut self, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, node_type: StorageNodeType, cancellation_token: CancellationToken) {
         loop {
             select! {
                 biased;
@@ -25,7 +26,7 @@ impl RollbackService {
                 },
                 Some((current_l2_height, num_blocks)) = self.receiver.recv() => {
                     info!("Received signal to rollback {num_blocks} blocks");
-                    if let Err(e) = self.rollback.execute(current_l2_height, num_blocks).await {
+                    if let Err(e) = self.rollback.execute(node_type, current_l2_height, num_blocks).await {
                         panic!("Could not rollback blocks: {:?}", e);
                     }
                 }

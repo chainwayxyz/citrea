@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use slots::prune_slots;
+use soft_confirmations::prune_soft_confirmations;
 use sov_schema_db::DB;
-use tracing::{debug, error};
+use tracing::debug;
 
-use self::slots::prune_slots;
-use self::soft_confirmations::prune_soft_confirmations;
 use crate::log_result_or_error;
 use crate::pruning::types::StorageNodeType;
 

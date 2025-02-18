@@ -4,6 +4,8 @@ use components::{rollback_ledger_db, rollback_native_db, rollback_state_db};
 use futures::future;
 use tracing::info;
 
+use crate::pruning::types::StorageNodeType;
+
 mod components;
 pub mod service;
 
@@ -31,7 +33,12 @@ impl Rollback {
     }
 
     /// Rollback the provided number of blocks
-    pub async fn execute(&self, current_l2_height: u64, num_blocks: u64) -> anyhow::Result<()> {
+    pub async fn execute(
+        &self,
+        node_type: StorageNodeType,
+        current_l2_height: u64,
+        num_blocks: u64,
+    ) -> anyhow::Result<()> {
         info!("Rolling back by {} blocks", num_blocks);
 
         let ledger_db = self.ledger_db.clone();
@@ -40,8 +47,9 @@ impl Rollback {
 
         let down_to_block = current_l2_height - num_blocks + 1;
 
-        let ledger_rollback_handle =
-            tokio::task::spawn_blocking(move || rollback_ledger_db(ledger_db, down_to_block));
+        let ledger_rollback_handle = tokio::task::spawn_blocking(move || {
+            rollback_ledger_db(node_type, ledger_db, down_to_block)
+        });
 
         let state_db_rollback_handle =
             tokio::task::spawn_blocking(move || rollback_state_db(state_db, down_to_block));
