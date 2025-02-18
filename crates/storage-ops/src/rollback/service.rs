@@ -7,11 +7,11 @@ use super::Rollback;
 
 pub struct RollbackService {
     rollback: Rollback,
-    receiver: Receiver<u32>,
+    receiver: Receiver<u64>,
 }
 
 impl RollbackService {
-    pub fn new(rollback: Rollback, receiver: Receiver<u32>) -> Self {
+    pub fn new(rollback: Rollback, receiver: Receiver<u64>) -> Self {
         Self { rollback, receiver }
     }
 
@@ -25,7 +25,7 @@ impl RollbackService {
                 },
                 Some(num_blocks) = self.receiver.recv() => {
                     info!("Received signal to rollback {num_blocks} blocks");
-                    if let Err(e) = self.rollback.execute(num_blocks) {
+                    if let Err(e) = self.rollback.execute(num_blocks).await {
                         panic!("Could not rollback blocks: {:?}", e);
                     }
                 }

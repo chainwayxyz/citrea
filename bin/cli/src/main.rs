@@ -56,7 +56,7 @@ enum Commands {
         db_path: PathBuf,
         /// The number of blocks to rollback
         #[arg(long)]
-        blocks: u32,
+        blocks: u64,
     },
     /// Backup DBs
     Backup {
@@ -88,11 +88,8 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::prune(node_type, db_path.clone(), distance).await?;
         }
-        Commands::Rollback {
-            db_path: _db_path,
-            blocks,
-        } => {
-            commands::rollback(blocks).await?;
+        Commands::Rollback { db_path, blocks } => {
+            commands::rollback(db_path.clone(), blocks).await?;
         }
         Commands::Backup {
             db_path,
