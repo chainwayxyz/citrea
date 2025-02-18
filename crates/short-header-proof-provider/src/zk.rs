@@ -1,6 +1,6 @@
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::sync::RwLock;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::DaSpec;
@@ -10,18 +10,23 @@ use super::ShortHeaderProofProvider;
 use crate::ShortHeaderProofProviderError;
 
 pub struct ZkShortHeaderProofProviderService<Da: DaSpec> {
-    short_header_proofs: RwLock<VecDeque<([u8; 32], Vec<u8>)>>,
+    short_header_proofs: RefCell<VecDeque<([u8; 32], Vec<u8>)>>,
     phantom: PhantomData<Da>,
 }
 
 impl<Da: DaSpec> ZkShortHeaderProofProviderService<Da> {
     pub fn new(short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>) -> Self {
         Self {
-            short_header_proofs: RwLock::new(short_header_proofs),
+            short_header_proofs: RefCell::new(short_header_proofs),
             phantom: PhantomData,
         }
     }
 }
+
+// This is safe to do because zk environment is single-threaded
+unsafe impl<Da: DaSpec> Send for ZkShortHeaderProofProviderService<Da> {}
+unsafe impl<Da: DaSpec> Sync for ZkShortHeaderProofProviderService<Da> {}
+
 impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<Da> {
     fn get_and_verify_short_header_proof_by_l1_hash(
         &self,
@@ -29,8 +34,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
     ) -> Result<bool, ShortHeaderProofProviderError> {
         let shp = self
             .short_header_proofs
-            .write()
-            .unwrap()
+            .borrow_mut()
             .pop_front()
             .unwrap_or_else(|| {
                 panic!(
