@@ -204,13 +204,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
     )> {
-        match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::new(
-            da_service.clone(),
-            Arc::new(ledger_db.clone()),
-        ))) {
-            Ok(_) => info!("Short header proof provider set"),
-            Err(_) => anyhow::bail!("Short header proof provider already set"),
-        }
+        SHORT_HEADER_PROOF_PROVIDER
+            .set(Box::new(NativeShortHeaderProofProviderService::new(
+                da_service.clone(),
+                Arc::new(ledger_db.clone()),
+            )))
+            .expect("Short header proof provider already set");
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
