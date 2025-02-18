@@ -9,7 +9,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{get_da_block_at_height, sync_l1};
 use citrea_common::utils::merge_state_diffs;
-use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
+use citrea_common::{BatchProverConfig, ProverGuestRunConfig, RollupPublicKeys};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
@@ -59,6 +59,7 @@ where
     ledger_db: DB,
     da_service: Arc<Da>,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
@@ -82,8 +83,7 @@ where
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
         da_service: Arc<Da>,
-        sequencer_pub_key: Vec<u8>,
-        sequencer_da_pub_key: Vec<u8>,
+        public_keys: RollupPublicKeys,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         elfs_by_spec: HashMap<SpecId, Vec<u8>>,
         skip_submission_until_l1: u64,
@@ -95,8 +95,9 @@ where
             prover_service,
             ledger_db,
             da_service,
-            sequencer_pub_key,
-            sequencer_da_pub_key,
+            sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
+            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             code_commitments_by_spec,
             elfs_by_spec,
             skip_submission_until_l1,
