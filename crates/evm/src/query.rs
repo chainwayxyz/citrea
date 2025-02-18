@@ -489,6 +489,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Err(err) => return Err(err.into()),
         };
 
+        self.check_if_l2_block_pruned(block_number, working_set)
+            .map_err(EthApiError::from)?;
+
         let block = self
             .blocks_rlp
             .get(block_number as usize, &mut working_set.accessory_state())
@@ -1631,23 +1634,30 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<Option<SealedBlock>, EthApiError> {
         // safe, finalized, and pending are not supported
         match block_number {
-            Some(BlockNumberOrTag::Number(block_number)) => Ok(self
-                .blocks_rlp
-                .get(block_number as usize, &mut working_set.accessory_state())),
-            Some(BlockNumberOrTag::Earliest) => Ok(Some(
-                self.blocks_rlp
-                    .get(0, &mut working_set.accessory_state())
-                    .or_else(|| {
-                        // upgrading from v0.5.7 to v0.6+ requires a codec change
-                        // this only applies to the sequencer
-                        // which will only query the genesis block and the head block
-                        // right after the upgrade
-                        self.blocks
-                            .get(0, &mut working_set.accessory_state())
-                            .map(Into::into)
-                    })
-                    .expect("Genesis block must be set"),
-            )),
+            Some(BlockNumberOrTag::Number(block_number)) => {
+                self.check_if_l2_block_pruned(block_number, working_set)?;
+
+                Ok(self
+                    .blocks_rlp
+                    .get(block_number as usize, &mut working_set.accessory_state()))
+            }
+            Some(BlockNumberOrTag::Earliest) => {
+                self.check_if_l2_block_pruned(0, working_set)?;
+                Ok(Some(
+                    self.blocks_rlp
+                        .get(0, &mut working_set.accessory_state())
+                        .or_else(|| {
+                            // upgrading from v0.5.7 to v0.6+ requires a codec change
+                            // this only applies to the sequencer
+                            // which will only query the genesis block and the head block
+                            // right after the upgrade
+                            self.blocks
+                                .get(0, &mut working_set.accessory_state())
+                                .map(Into::into)
+                        })
+                        .expect("Genesis block must be set"),
+                ))
+            }
             Some(BlockNumberOrTag::Latest) => Ok(Some(
                 self.blocks_rlp
                     .last(&mut working_set.accessory_state())
@@ -1689,6 +1699,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockId::Number(block_num)) => {
                 match block_num {
                     BlockNumberOrTag::Number(num) => {
+                        if num != 0 {
+                            // state at genesis block is being preserved
+                            self.check_if_l2_block_pruned(num, working_set)?;
+                        }
                         let curr_block_number = self
                             .blocks_rlp
                             .last(&mut working_set.accessory_state())
@@ -1721,6 +1735,23 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
+        Ok(())
+    }
+
+    /// Returns `ProviderError::StateAtBlockPruned` if the state at the given block number is pruned
+    fn check_if_l2_block_pruned(
+        &self,
+        block_number: u64,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<(), ProviderError> {
+        if let Some(last_pruned_l2_height) = working_set
+            .get_last_pruned_l2_height()
+            .expect("Failed to get last pruned l2 height")
+        {
+            if block_number <= last_pruned_l2_height {
+                return Err(ProviderError::StateAtBlockPruned(block_number));
+            }
+        }
         Ok(())
     }
 }

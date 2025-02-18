@@ -18,6 +18,7 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_db::state_db::StateDB;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_schema_db::DB;
+use sov_state::Storage;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
@@ -29,33 +30,56 @@ use crate::pruning::{Pruner, PrunerService, PruningConfig};
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruning_simple_run() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let (sender, receiver) = broadcast::channel(1);
-    let cancellation_token = CancellationToken::new();
-
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
-    let native_db = NativeDB::setup_schema_db(&rocksdb_config).unwrap();
-    let state_db = StateDB::setup_schema_db(&rocksdb_config).unwrap();
+    {
+        let (sender, receiver) = broadcast::channel(1);
+        let cancellation_token = CancellationToken::new();
 
-    let pruner = Pruner::new(
-        PruningConfig { distance: 5 },
-        ledger_db.inner(),
-        Arc::new(state_db),
-        Arc::new(native_db),
-    );
-    let pruner_service = PrunerService::new(pruner, 0, receiver);
+        let native_db = NativeDB::setup_schema_db(&rocksdb_config).unwrap();
+        let state_db = StateDB::setup_schema_db(&rocksdb_config).unwrap();
 
-    tokio::spawn(pruner_service.run(PruningNodeType::Sequencer, cancellation_token.clone()));
+        let pruner = Pruner::new(
+            PruningConfig { distance: 5 },
+            ledger_db.inner(),
+            Arc::new(state_db),
+            Arc::new(native_db),
+        );
+        let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-    sleep(Duration::from_secs(1));
+        tokio::spawn(pruner_service.run(PruningNodeType::Sequencer, cancellation_token.clone()));
 
-    for i in 1..=10 {
-        let _ = sender.send(i);
+        sleep(Duration::from_secs(1));
+
+        for i in 1..=10 {
+            let _ = sender.send(i);
+        }
+
+        sleep(Duration::from_secs(1));
+
+        cancellation_token.cancel();
     }
+    tokio::time::sleep(Duration::from_secs(1)).await;
 
-    sleep(Duration::from_secs(1));
+    let storage_manager =
+        sov_prover_storage_manager::ProverStorageManager::new(sov_state::Config {
+            path: tmpdir.path().to_path_buf(),
+            db_max_open_files: None,
+        })
+        .unwrap();
+    let finalized_storage = storage_manager.create_final_view_storage();
 
-    cancellation_token.cancel();
+    let native_height = finalized_storage
+        .get_last_pruned_l2_height()
+        .unwrap()
+        .expect("Last pruned L2 height should be set");
+    let ledger_height = ledger_db
+        .get_last_pruned_l2_height()
+        .unwrap()
+        .expect("Last pruned L2 height should be set");
+
+    assert_eq!(native_height, 5);
+    assert_eq!(ledger_height, 5);
 }
 
 #[test]

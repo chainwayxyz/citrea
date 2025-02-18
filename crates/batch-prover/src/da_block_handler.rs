@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -38,6 +38,7 @@ use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
 type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
+    VecDeque<([u8; 32], Vec<u8>)>,
     VecDeque<Vec<(Witness, Witness)>>,
     VecDeque<Vec<L2Block<'txs, Tx>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
@@ -322,6 +323,10 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     let mut da_block_headers_of_l2_blocks: VecDeque<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
     > = VecDeque::with_capacity(sequencer_commitments.len());
+
+    let mut l1_hash_set = HashSet::new();
+    let mut short_header_proofs = VecDeque::new();
+
     for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
         let mut witnesses = Vec::with_capacity(
@@ -345,6 +350,15 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
+            let shp = ledger_db
+                .get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
+                .expect("Must have short header proof");
+
+            // If first time, insert and push to the vector
+            if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
+                short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
+            }
+
             if da_block_headers_to_push.is_empty()
                 || da_block_headers_to_push.last().unwrap().height()
                     != soft_confirmation.da_slot_height
@@ -416,6 +430,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     }
 
     Ok((
+        short_header_proofs,
         state_transition_witnesses,
         committed_l2_blocks,
         da_block_headers_of_l2_blocks,

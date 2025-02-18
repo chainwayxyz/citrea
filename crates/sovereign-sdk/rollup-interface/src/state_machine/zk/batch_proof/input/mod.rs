@@ -55,6 +55,8 @@ pub struct BatchProofCircuitInput<'txs, Witness, Da: DaSpec, Tx: Clone + BorshSe
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
+    /// Short header proofs for verifying system transactions
+    pub short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>,
     /// Sequencer commitments that will be proven.
     /// Only applies to V3
     pub sequencer_commitments: Vec<SequencerCommitment>,
@@ -147,6 +149,7 @@ where
         (
             BatchProofCircuitInputV3Part1 {
                 initial_state_root: self.initial_state_root,
+                short_header_proofs: self.short_header_proofs,
                 da_block_headers_of_soft_confirmations: self.da_block_headers_of_l2_blocks,
                 sequencer_commitments: self.sequencer_commitments,
             },

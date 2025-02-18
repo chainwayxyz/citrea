@@ -916,6 +916,7 @@ dependencies = [
  "revm-precompile",
  "serde",
  "sha2",
+ "short-header-proof-provider",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -952,6 +953,7 @@ dependencies = [
  "borsh",
  "citrea-evm",
  "serde",
+ "short-header-proof-provider",
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
@@ -3074,6 +3076,17 @@ checksum = "a9b57fd861253bff08bb1919e995f90ba8f4889de2726091c8876f3a4e823b40"
 dependencies = [
  "cc",
  "cfg-if",
+]
+
+[[package]]
+name = "short-header-proof-provider"
+version = "0.6.0"
+dependencies = [
+ "borsh",
+ "once_cell",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "thiserror",
 ]
 
 [[package]]

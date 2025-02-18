@@ -67,6 +67,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     VerifiedBatchProofsBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
     SlotByHash::table_name(),
+    ShortHeaderProofBySlotHash::table_name(),
     CommitmentMerkleRoots::table_name(),
     // ########
     #[cfg(test)]
@@ -82,6 +83,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     SoftConfirmationByNumber::table_name(),
     SoftConfirmationByHash::table_name(),
+    ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
     LastSequencerCommitmentSent::table_name(),
@@ -103,6 +105,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     SoftConfirmationByNumber::table_name(),
     SoftConfirmationByHash::table_name(),
+    ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
@@ -152,6 +155,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     SoftConfirmationStatus::table_name(),
+    ShortHeaderProofBySlotHash::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
@@ -170,7 +174,10 @@ pub const LEDGER_TABLES: &[&str] = &[
 /// A list of all tables used by the NativeDB. These tables store
 /// "accessory" state only accessible from a native execution context, to be
 /// used for JSON-RPC and other tooling.
-pub const NATIVE_TABLES: &[&str] = &[ModuleAccessoryState::table_name()];
+pub const NATIVE_TABLES: &[&str] = &[
+    ModuleAccessoryState::table_name(),
+    LastPrunedL2Height::table_name(),
+];
 
 /// Macro to define a table that implements [`sov_schema_db::Schema`].
 /// KeyCodec<Schema> and ValueCodec<Schema> must be implemented separately.
@@ -341,6 +348,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// A "secondary index" for soft confirmation data by hash
     (SoftConfirmationByHash) DbHash => SoftConfirmationNumber
+);
+
+define_table_with_default_codec!(
+    /// A "secondary index" for soft confirmation data by hash
+    (ShortHeaderProofBySlotHash) DbHash => Vec<u8>
 );
 
 define_table_with_default_codec!(
@@ -559,6 +571,11 @@ define_table_without_codec!(
     (ModuleAccessoryState) (AccessoryKey, Version) => AccessoryStateValue
 );
 
+define_table_without_codec!(
+    /// last pruned l2 height
+    (LastPrunedL2Height) () => u64
+);
+
 impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         let mut out = Vec::with_capacity(self.0.len() + std::mem::size_of::<Version>() + 8);
@@ -573,9 +590,21 @@ impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
     }
 }
 
+impl KeyEncoder<LastPrunedL2Height> for () {
+    fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        Ok(vec![])
+    }
+}
+
 impl SeekKeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
     fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         <(Vec<u8>, u64) as KeyEncoder<ModuleAccessoryState>>::encode_key(self)
+    }
+}
+
+impl SeekKeyEncoder<LastPrunedL2Height> for () {
+    fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        <() as KeyEncoder<LastPrunedL2Height>>::encode_key(self)
     }
 }
 
@@ -588,7 +617,21 @@ impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
     }
 }
 
+impl KeyDecoder<LastPrunedL2Height> for () {
+    fn decode_key(_data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        Ok(())
+    }
+}
 impl ValueCodec<ModuleAccessoryState> for AccessoryStateValue {
+    fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        borsh::to_vec(self).map_err(CodecError::from)
+    }
+
+    fn decode_value(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        Ok(BorshDeserialize::deserialize_reader(&mut &data[..])?)
+    }
+}
+impl ValueCodec<LastPrunedL2Height> for u64 {
     fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         borsh::to_vec(self).map_err(CodecError::from)
     }

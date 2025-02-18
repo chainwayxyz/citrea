@@ -143,20 +143,24 @@ where
             last_l2_height_of_l1
         );
 
-        let (state_transition_witnesses, l2_blocks, da_block_headers_of_l2_blocks) =
-            get_batch_proof_circuit_input_from_commitments::<_, _, _, Tx, TxOld>(
-                &sequencer_commitments[sequencer_commitments_range.clone()],
-                &da_service,
-                &ledger,
-                &l1_block_cache,
-            )
-            .await
-            .map_err(|e| {
-                L1ProcessingError::Other(format!(
-                    "Error getting state transition data from commitments: {:?}",
-                    e
-                ))
-            })?;
+        let (
+            short_header_proofs,
+            state_transition_witnesses,
+            l2_blocks,
+            da_block_headers_of_l2_blocks,
+        ) = get_batch_proof_circuit_input_from_commitments::<_, _, _, Tx, TxOld>(
+            &sequencer_commitments[sequencer_commitments_range.clone()],
+            &da_service,
+            &ledger,
+            &l1_block_cache,
+        )
+        .await
+        .map_err(|e| {
+            L1ProcessingError::Other(format!(
+                "Error getting state transition data from commitments: {:?}",
+                e
+            ))
+        })?;
         let initial_state_root = ledger
             .get_l2_state_root(first_l2_height_of_l1 - 1)
             .map_err(|e| {
@@ -203,6 +207,7 @@ where
             sequencer_da_public_key: sequencer_da_pub_key.clone(),
             final_state_root,
             prev_soft_confirmation_hash: initial_soft_confirmation_hash,
+            short_header_proofs,
             sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
                 .to_vec(),
         };

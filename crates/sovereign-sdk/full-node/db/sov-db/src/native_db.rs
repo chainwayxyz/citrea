@@ -4,7 +4,7 @@ use sov_schema_db::transaction::DbTransaction;
 use sov_schema_db::{SchemaBatch, DB};
 
 use crate::rocks_db_config::RocksdbConfig;
-use crate::schema::tables::{ModuleAccessoryState, NATIVE_TABLES};
+use crate::schema::tables::{LastPrunedL2Height, ModuleAccessoryState, NATIVE_TABLES};
 use crate::schema::types::StateKeyRef;
 
 /// Specifies a particular version of the Accessory state.
@@ -69,6 +69,15 @@ impl NativeDB {
                     Ok(None)
                 }
             }
+            None => Ok(None),
+        }
+    }
+
+    /// Get the last pruned l2 height
+    pub fn get_last_pruned_l2_height(&self) -> anyhow::Result<Option<u64>> {
+        let found = self.db.get_prev::<LastPrunedL2Height>(&())?;
+        match found {
+            Some((_, value)) => Ok(Some(value)),
             None => Ok(None),
         }
     }

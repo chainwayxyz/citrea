@@ -21,8 +21,9 @@ use crate::schema::tables::{
     L2RangeByL1Height, L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
     PendingSequencerCommitmentL2Range, ProofsBySlotNumberV2, ProverLastScannedSlot,
-    ProverStateDiffs, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
-    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    ProverStateDiffs, ShortHeaderProofBySlotHash, SlotByHash, SoftConfirmationByHash,
+    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -256,6 +257,24 @@ impl SharedLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn put_short_header_proof_by_l1_hash(
+        &self,
+        hash: &[u8; 32],
+        short_header_proof: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<ShortHeaderProofBySlotHash>(hash, &short_header_proof)
+    }
+
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_short_header_proof_by_l1_hash(
+        &self,
+        hash: &[u8; 32],
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        self.db.get::<ShortHeaderProofBySlotHash>(hash)
     }
 
     /// Sets l1 height of l1 hash

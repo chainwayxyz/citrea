@@ -252,6 +252,10 @@ pub enum SoftConfirmationModuleCallError {
     RuleEnforcerUnauthorized,
     /// The EVM transaction type is not supported
     EvmTxTypeNotSupported(String),
+    /// Short Header Proof Not Found
+    ShortHeaderProofNotFound,
+    /// Short Header Proof Verification Error
+    ShortHeaderProofVerificationError,
 }
 
 #[derive(Debug, PartialEq)]
@@ -356,6 +360,12 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::EvmTxNotSerializable => {
                 write!(f, "EVM tx not serializable")
+            }
+            SoftConfirmationModuleCallError::ShortHeaderProofNotFound => {
+                write!(f, "Short header proof not found")
+            }
+            SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => {
+                write!(f, "Short header proof verification error")
             }
         }
     }

@@ -32,4 +32,6 @@ pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// DA block headers the soft confirmations was constructed on.
     /// TODO: this is going to be replaced with erce's pr most probably
     pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
+    /// Short header proofs for verifying system transactions
+    pub short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>,
 }
