@@ -16,10 +16,7 @@ const MAX_BATCHES_PER_REQUEST: u64 = 20;
 /// The maximum number of soft confirmations that can be requested in a single RPC range query
 const MAX_SOFT_CONFIRMATIONS_PER_REQUEST: u64 = 20;
 
-fn check_if_l2_block_pruned(
-    ledger_db: &LedgerDB,
-    l2_height: u64,
-) -> Result<(), anyhow::Error> {
+fn check_if_l2_block_pruned(ledger_db: &LedgerDB, l2_height: u64) -> Result<(), anyhow::Error> {
     let last_pruned_l2_height = ledger_db.get_last_pruned_l2_height()?;
     if let Some(last_pruned_l2_height) = last_pruned_l2_height {
         if l2_height <= last_pruned_l2_height {
