@@ -640,7 +640,6 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
  "sov-state",
- "tempfile",
 ]
 
 [[package]]
