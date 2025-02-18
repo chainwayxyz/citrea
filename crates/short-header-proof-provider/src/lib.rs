@@ -48,7 +48,10 @@ impl<Da: DaService> ShortHeaderProofProvider for NativeShortHeaderProofProviderS
         let block = block_on(self.da_service.get_block_by_hash(block_hash.into())).unwrap();
         let shp = Da::block_to_short_header_proof(block);
         self.ledger_db
-            .put_short_header_proof_by_l1_hash(block_hash, borsh::to_vec(&shp).unwrap())
+            .put_short_header_proof_by_l1_hash(
+                &block_hash,
+                &borsh::to_vec(&shp).expect("Should serialize short header proof"),
+            )
             .expect("Should save short header proof");
         shp.verify().is_ok()
     }

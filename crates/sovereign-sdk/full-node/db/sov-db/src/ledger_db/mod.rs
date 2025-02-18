@@ -252,16 +252,19 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     fn put_short_header_proof_by_l1_hash(
         &self,
-        hash: [u8; 32],
-        short_header_proof: Vec<u8>,
+        hash: &[u8; 32],
+        short_header_proof: &Vec<u8>,
     ) -> anyhow::Result<()> {
         self.db
-            .put::<ShortHeaderProofBySlotHash>(&hash, &short_header_proof)
+            .put::<ShortHeaderProofBySlotHash>(hash, short_header_proof)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_short_header_proof_by_l1_hash(&self, hash: [u8; 32]) -> anyhow::Result<Option<Vec<u8>>> {
-        self.db.get::<ShortHeaderProofBySlotHash>(&hash)
+    fn get_short_header_proof_by_l1_hash(
+        &self,
+        hash: &[u8; 32],
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        self.db.get::<ShortHeaderProofBySlotHash>(hash)
     }
 
     /// Sets l1 height of l1 hash

@@ -351,7 +351,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
             if let Some(shp) =
-                ledger_db.get_short_header_proof_by_l1_hash(soft_confirmation.da_slot_hash)?
+                ledger_db.get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
             {
                 // If first time, insert and push to the vector
                 if short_header_proofs_set.insert(shp.clone()) {
