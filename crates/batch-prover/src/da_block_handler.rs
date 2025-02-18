@@ -391,7 +391,6 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         da_service,
         l1_block_cache.clone(),
         storage_manager,
-        stf,
         sequencer_k256_pub_key,
         sequencer_pub_key,
     )
@@ -410,7 +409,6 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     da_service: &Arc<Da>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     storage_manager: &ProverStorageManager,
-    stf: &mut StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> anyhow::Result<VecDeque<Vec<(ArrayWitness, ArrayWitness)>>> {
@@ -421,6 +419,8 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         .expect("L2 state root must exist");
 
     let mut cumulative_state_log = None;
+
+    let mut stf = StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
     for commitment_soft_confirmations in soft_confirmations {
         let mut witnesses = Vec::with_capacity(commitment_soft_confirmations.len());
