@@ -20,7 +20,7 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::transaction::PreFork2Transaction;
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{SignedSoftConfirmation, SlotData, SpecId};
 use sov_modules_core::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -38,18 +38,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use crate::metrics::BATCH_PROVER_METRICS;
-
-pub(crate) type StfTransaction<Da> = <StfBlueprint<
-    DefaultContext,
-    Da,
-    CitreaRuntime<DefaultContext, Da>,
-> as StateTransitionFunction<Da>>::Transaction;
-
-pub(crate) type StfWitness<Da> = <StfBlueprint<
-    DefaultContext,
-    Da,
-    CitreaRuntime<DefaultContext, Da>,
-> as StateTransitionFunction<Da>>::Witness;
 
 pub struct CitreaBatchProver<Da, DB>
 where
@@ -233,45 +221,42 @@ where
 
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
-            if current_spec >= SpecId::Kumquat {
-                let signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
-                    soft_confirmation
-                        .clone()
-                        .try_into()
-                        .context("Failed to parse transactions")?;
-                signed_soft_confirmation
-            } else {
-                let signed_soft_confirmation: SignedSoftConfirmation<
-                    PreFork2Transaction<DefaultContext>,
-                > = soft_confirmation
-                    .clone()
-                    .try_into()
-                    .context("Failed to parse transactions")?;
-                let parsed_txs = signed_soft_confirmation
-                    .txs()
-                    .iter()
-                    .map(|tx| {
-                        let tx: StfTransaction<Da::Spec> = tx.clone().into();
-                        tx
-                    })
-                    .collect::<Vec<_>>();
-                SignedSoftConfirmation::new(
-                    signed_soft_confirmation.l2_height(),
-                    signed_soft_confirmation.hash(),
-                    signed_soft_confirmation.prev_hash(),
-                    signed_soft_confirmation.da_slot_height(),
-                    signed_soft_confirmation.da_slot_hash(),
-                    signed_soft_confirmation.da_slot_txs_commitment(),
-                    signed_soft_confirmation.l1_fee_rate(),
-                    signed_soft_confirmation.blobs().to_vec().into(),
-                    parsed_txs.into(),
-                    signed_soft_confirmation.deposit_data().to_vec(),
-                    signed_soft_confirmation.signature().to_vec(),
-                    signed_soft_confirmation.pub_key().to_vec(),
-                    signed_soft_confirmation.timestamp(),
-                )
-            };
+        let signed_soft_confirmation: SignedSoftConfirmation<Transaction> = if current_spec
+            >= SpecId::Kumquat
+        {
+            let signed_soft_confirmation: SignedSoftConfirmation<Transaction> = soft_confirmation
+                .clone()
+                .try_into()
+                .context("Failed to parse transactions")?;
+            signed_soft_confirmation
+        } else {
+            let signed_soft_confirmation: SignedSoftConfirmation<
+                PreFork2Transaction<DefaultContext>,
+            > = soft_confirmation
+                .clone()
+                .try_into()
+                .context("Failed to parse transactions")?;
+            let parsed_txs = signed_soft_confirmation
+                .txs()
+                .iter()
+                .map(|tx| Transaction::from(tx.clone()))
+                .collect::<Vec<_>>();
+            SignedSoftConfirmation::new(
+                signed_soft_confirmation.l2_height(),
+                signed_soft_confirmation.hash(),
+                signed_soft_confirmation.prev_hash(),
+                signed_soft_confirmation.da_slot_height(),
+                signed_soft_confirmation.da_slot_hash(),
+                signed_soft_confirmation.da_slot_txs_commitment(),
+                signed_soft_confirmation.l1_fee_rate(),
+                signed_soft_confirmation.blobs().to_vec().into(),
+                parsed_txs.into(),
+                signed_soft_confirmation.deposit_data().to_vec(),
+                signed_soft_confirmation.signature().to_vec(),
+                signed_soft_confirmation.pub_key().to_vec(),
+                signed_soft_confirmation.timestamp(),
+            )
+        };
 
         let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
             self.stf.apply_soft_confirmation(

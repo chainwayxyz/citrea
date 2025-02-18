@@ -14,6 +14,7 @@ use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutpu
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{SlotData, SpecId, Zkvm};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
@@ -45,10 +46,13 @@ pub enum GroupCommitments {
     OneByOne,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn data_to_prove<'txs, Da, DB>(
     da_service: Arc<Da>,
     ledger: DB,
+    storage_manager: &ProverStorageManager,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     l1_block: &<Da as DaService>::FilteredBlock,
@@ -147,6 +151,9 @@ where
             &da_service,
             &ledger,
             &l1_block_cache,
+            storage_manager,
+            &sequencer_k256_pub_key,
+            &sequencer_pub_key,
         )
         .await
         .map_err(|e| {

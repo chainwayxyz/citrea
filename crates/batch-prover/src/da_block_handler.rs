@@ -54,6 +54,7 @@ where
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger_db: DB,
     da_service: Arc<Da>,
+    storage_manager: ProverStorageManager,
     sequencer_pub_key: Vec<u8>,
     sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
@@ -76,6 +77,7 @@ where
         prover_config: BatchProverConfig,
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
+        storage_manager: ProverStorageManager,
         da_service: Arc<Da>,
         public_keys: RollupPublicKeys,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -88,6 +90,7 @@ where
             prover_config,
             prover_service,
             ledger_db,
+            storage_manager,
             da_service,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
@@ -180,7 +183,9 @@ where
             let data_to_prove = data_to_prove::<Da, DB>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
+                &self.storage_manager,
                 self.sequencer_pub_key.clone(),
+                self.sequencer_k256_pub_key.clone(),
                 self.sequencer_da_pub_key.clone(),
                 self.l1_block_cache.clone(),
                 l1_block,
@@ -307,6 +312,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     da_service: &Arc<Da>,
     ledger_db: &DB,
     l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
+    storage_manager: &ProverStorageManager,
+    sequencer_k256_pub_key: &[u8],
+    sequencer_pub_key: &[u8],
 ) -> Result<CommitmentStateTransitionData<'txs, Da>, anyhow::Error> {
     let mut soft_confirmations = VecDeque::with_capacity(sequencer_commitments.len());
     let mut da_block_headers_of_soft_confirmations =
@@ -420,7 +428,8 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
     let mut cumulative_state_log = None;
 
-    let mut stf = StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
+    let mut stf =
+        StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
     for commitment_soft_confirmations in soft_confirmations {
         let mut witnesses = Vec::with_capacity(commitment_soft_confirmations.len());
@@ -447,7 +456,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                     Default::default(),
                     Default::default(),
                     l1_block.header(),
-                    &signed_soft_confirmation,
+                    signed_soft_confirmation,
                 )?
             } else {
                 stf.apply_soft_confirmation(
@@ -459,7 +468,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                     Default::default(),
                     Default::default(),
                     l1_block.header(),
-                    &signed_soft_confirmation,
+                    signed_soft_confirmation,
                 )?
             };
 

@@ -469,8 +469,7 @@ where
                     timestamp,
                 );
 
-                let mut signed_soft_confirmation = if active_fork_spec
-                    >= sov_modules_api::SpecId::Fork2
+                let signed_soft_confirmation = if active_fork_spec >= sov_modules_api::SpecId::Fork2
                 {
                     self.sign_soft_confirmation_batch(&unsigned_batch, self.soft_confirmation_hash)?
                 } else if active_fork_spec >= sov_modules_api::SpecId::Kumquat {
@@ -490,7 +489,7 @@ where
                         active_fork_spec,
                         self.state_root,
                         self.sequencer_k256_pub_key.as_ref(),
-                        &mut signed_soft_confirmation,
+                        &signed_soft_confirmation,
                         &mut working_set,
                     )?;
                 } else {
@@ -498,7 +497,7 @@ where
                         active_fork_spec,
                         self.state_root,
                         self.sequencer_pub_key.as_ref(),
-                        &mut signed_soft_confirmation,
+                        &signed_soft_confirmation,
                         &mut working_set,
                     )?;
                 }
@@ -508,7 +507,7 @@ where
                     active_fork_spec,
                     working_set,
                     prestate,
-                    &mut signed_soft_confirmation,
+                    &signed_soft_confirmation,
                 );
                 let state_root_transition = soft_confirmation_result.state_root_transition;
 
