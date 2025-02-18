@@ -208,7 +208,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             da_service.clone(),
             ledger_db.clone(),
         ))) {
-            Ok(_) => info!("Short header proof provider set"),
+            Ok(_) => tracing::debug!("Short header proof provider set"),
             Err(_) => tracing::error!("Short header proof provider already set"),
         };
 
