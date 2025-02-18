@@ -23,7 +23,7 @@ use sov_modules_api::{
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::soft_confirmation::{
-    L2Block, SignedSoftConfirmationHeader, UnsignedSoftConfirmationV1,
+    L2Block, SignedL2Header, UnsignedSoftConfirmationV1,
 };
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
@@ -610,7 +610,7 @@ where
 }
 
 fn verify_soft_confirmation_signature(
-    header: &SignedSoftConfirmationHeader,
+    header: &SignedL2Header,
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
     let signature = K256Signature::try_from(header.signature.as_slice())?;
@@ -624,7 +624,7 @@ fn verify_soft_confirmation_signature(
 }
 
 fn verify_kumquat_signature(
-    header: &SignedSoftConfirmationHeader,
+    header: &SignedL2Header,
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
     let signature = DefaultSignature::try_from(header.signature.as_slice())?;

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
-use crate::soft_confirmation::{L2Block, SignedSoftConfirmationHeader, SoftConfirmationHeader};
+use crate::soft_confirmation::{L2Block, SignedL2Header, L2Header};
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::BatchProofInfo;
 use crate::RefCount;
@@ -109,7 +109,7 @@ where
             .map(|tx| tx.tx)
             .collect::<Vec<_>>();
 
-        let header = SoftConfirmationHeader::new(
+        let header = L2Header::new(
             val.l2_height,
             val.da_slot_height,
             val.da_slot_hash,
@@ -121,7 +121,7 @@ where
             val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
             val.timestamp,
         );
-        let signed_header = SignedSoftConfirmationHeader::new(
+        let signed_header = SignedL2Header::new(
             header,
             val.hash,
             val.soft_confirmation_signature,

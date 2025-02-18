@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::rpc::{HexTx, SoftConfirmationResponse};
 use sov_rollup_interface::soft_confirmation::{
-    L2Block, SignedSoftConfirmationHeader, SoftConfirmationHeader,
+    L2Block, SignedL2Header, L2Header,
 };
 use sov_rollup_interface::zk::StorageRootHash;
 
@@ -63,7 +63,7 @@ where
             .map(|tx| tx.body.unwrap())
             .collect::<Vec<_>>();
 
-        let header = SoftConfirmationHeader::new(
+        let header = L2Header::new(
             val.l2_height,
             val.da_slot_height,
             val.da_slot_hash,
@@ -75,7 +75,7 @@ where
             val.deposit_data,
             val.timestamp,
         );
-        let signed_header = SignedSoftConfirmationHeader::new(
+        let signed_header = SignedL2Header::new(
             header,
             val.hash,
             val.soft_confirmation_signature,

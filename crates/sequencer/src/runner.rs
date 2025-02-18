@@ -40,9 +40,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::soft_confirmation::{
-    SignedSoftConfirmationHeader, SoftConfirmationHeader,
-};
+use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
@@ -468,7 +466,7 @@ where
         let tx_merkle_root = compute_tx_merkle_root(&tx_hashes)?;
 
         // create the soft confirmation header
-        let header = SoftConfirmationHeader::new(
+        let header = L2Header::new(
             l2_height,
             da_block.header().height(),
             da_block.header().hash().into(),
@@ -807,7 +805,7 @@ where
     fn sign_soft_confirmation<'txs>(
         &mut self,
         active_spec: SpecId,
-        header: SoftConfirmationHeader,
+        header: L2Header,
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
@@ -820,7 +818,7 @@ where
 
     fn sign_soft_confirmation_header<'txs>(
         &mut self,
-        header: SoftConfirmationHeader,
+        header: L2Header,
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
@@ -832,7 +830,7 @@ where
         let pub_key = priv_key.pub_key();
         let signature = borsh::to_vec(&signature)?;
         let pub_key = borsh::to_vec(&pub_key)?;
-        let signed_header = SignedSoftConfirmationHeader::new(header, hash, signature, pub_key);
+        let signed_header = SignedL2Header::new(header, hash, signature, pub_key);
 
         Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
     }
@@ -840,7 +838,7 @@ where
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch_v2<'txs>(
         &mut self,
-        header: SoftConfirmationHeader,
+        header: L2Header,
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
@@ -856,7 +854,7 @@ where
         let pub_key = priv_key.pub_key();
         let signature = borsh::to_vec(&signature)?;
         let pub_key = borsh::to_vec(&pub_key)?;
-        let signed_header = SignedSoftConfirmationHeader::new(header, hash, signature, pub_key);
+        let signed_header = SignedL2Header::new(header, hash, signature, pub_key);
 
         Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
     }
@@ -867,7 +865,7 @@ where
     /// FIXME: ^
     fn sign_soft_confirmation_batch_v1<'txs>(
         &mut self,
-        header: SoftConfirmationHeader,
+        header: L2Header,
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
@@ -884,7 +882,7 @@ where
 
         let signature = borsh::to_vec(&signature)?;
         let pub_key = borsh::to_vec(&pub_key)?;
-        let signed_header = SignedSoftConfirmationHeader::new(header, hash, signature, pub_key);
+        let signed_header = SignedL2Header::new(header, hash, signature, pub_key);
 
         Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
     }

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// Soft confirmation header
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-pub struct SoftConfirmationHeader {
+pub struct L2Header {
     l2_height: u64,
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
@@ -22,9 +22,9 @@ pub struct SoftConfirmationHeader {
     timestamp: u64,
 }
 
-impl SoftConfirmationHeader {
+impl L2Header {
     #[allow(clippy::too_many_arguments)]
-    /// New SoftConfirmationHeader
+    /// New L2Header
     pub fn new(
         l2_height: u64,
         da_slot_height: u64,
@@ -70,9 +70,9 @@ impl SoftConfirmationHeader {
 
 /// Signed L2 header
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-pub struct SignedSoftConfirmationHeader {
+pub struct SignedL2Header {
     /// L2 header
-    pub inner: SoftConfirmationHeader,
+    pub inner: L2Header,
     /// Header hash
     pub hash: [u8; 32],
     /// Header signature
@@ -81,10 +81,10 @@ pub struct SignedSoftConfirmationHeader {
     pub pub_key: Vec<u8>,
 }
 
-impl SignedSoftConfirmationHeader {
+impl SignedL2Header {
     /// Crate new L2Block from header, hash and signature
     pub fn new(
-        header: SoftConfirmationHeader,
+        header: L2Header,
         hash: [u8; 32],
         signature: Vec<u8>,
         pub_key: Vec<u8>,
@@ -102,7 +102,7 @@ impl SignedSoftConfirmationHeader {
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     /// Header
-    pub header: SignedSoftConfirmationHeader,
+    pub header: SignedL2Header,
     /// Txs of signed batch
     pub txs: Cow<'txs, [Tx]>,
     /// Blobs of signed batch
@@ -112,7 +112,7 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
 impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     /// New L2Block from headers and txs
     pub fn new(
-        header: SignedSoftConfirmationHeader,
+        header: SignedL2Header,
         txs: Cow<'txs, [Tx]>,
         blobs: Cow<'txs, [Vec<u8>]>,
     ) -> Self {
@@ -222,10 +222,10 @@ pub struct UnsignedSoftConfirmation<'txs, Tx> {
     timestamp: u64,
 }
 
-impl<'txs, Tx: BorshSerialize> From<(&SoftConfirmationHeader, Vec<Vec<u8>>, &'txs [Tx])>
+impl<'txs, Tx: BorshSerialize> From<(&L2Header, Vec<Vec<u8>>, &'txs [Tx])>
     for UnsignedSoftConfirmation<'txs, Tx>
 {
-    fn from((header, blobs, txs): (&SoftConfirmationHeader, Vec<Vec<u8>>, &'txs [Tx])) -> Self {
+    fn from((header, blobs, txs): (&L2Header, Vec<Vec<u8>>, &'txs [Tx])) -> Self {
         UnsignedSoftConfirmation::new(
             header.l2_height,
             header.da_slot_height,

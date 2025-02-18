@@ -8,9 +8,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::soft_confirmation::StoredTransaction;
 use sov_modules_api::L2Block;
-use sov_rollup_interface::soft_confirmation::{
-    SignedSoftConfirmationHeader, SoftConfirmationHeader,
-};
+use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -111,7 +109,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         ::sha2::Sha256::digest(b"tx2").into(),
     ];
 
-    let header1 = SoftConfirmationHeader::new(
+    let header1 = L2Header::new(
         1,
         0,
         [0u8; 32],
@@ -127,7 +125,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         0,
     );
 
-    let header2 = SoftConfirmationHeader::new(
+    let header2 = L2Header::new(
         2,
         1,
         [2; 32],
@@ -141,14 +139,14 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         0,
     );
 
-    let signed_header1 = SignedSoftConfirmationHeader::new(
+    let signed_header1 = SignedL2Header::new(
         header1,
         ::sha2::Sha256::digest(b"batch_receipt").into(),
         vec![],
         vec![],
     );
 
-    let signed_header2 = SignedSoftConfirmationHeader::new(
+    let signed_header2 = SignedL2Header::new(
         header2,
         ::sha2::Sha256::digest(b"batch_receipt2").into(),
         vec![],
