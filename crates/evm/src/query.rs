@@ -368,8 +368,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
 
         let block_number = self.block_number_from_state(block_id, working_set)?;
-        self.check_if_l2_block_pruned(block_number, working_set)
-            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_from_block_number(block_number).spec_id;
 
