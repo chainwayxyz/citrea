@@ -17,8 +17,7 @@ pub use zk_storage::ZkStorage;
 pub mod config;
 pub use config::Config;
 pub use sov_modules_core::{
-    storage, CacheLog, OrderedReads, OrderedWrites, Prefix, ReadWriteLog, Storage,
-    Witness,
+    storage, CacheLog, OrderedReads, OrderedWrites, Prefix, ReadWriteLog, Storage, Witness,
 };
 
 pub use crate::witness::ArrayWitness;
