@@ -302,8 +302,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<U256> {
         let block_number = self.block_number_from_state(block_id, working_set)?;
-        self.check_if_l2_block_pruned(block_number, working_set)
-            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_from_block_number(block_number).spec_id;
 
@@ -347,8 +345,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
 
         let block_number = self.block_number_from_state(block_id, working_set)?;
-        self.check_if_l2_block_pruned(block_number, working_set)
-            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_fn(block_number).spec_id;
 
@@ -406,8 +402,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<Bytes> {
         let block_number = self.block_number_from_state(block_id, working_set)?;
-        self.check_if_l2_block_pruned(block_number, working_set) // offchain??
-            .map_err(EthApiError::from)?;
 
         let citrea_spec = fork_fn(block_number).spec_id;
 
@@ -1707,6 +1701,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockId::Number(block_num)) => {
                 match block_num {
                     BlockNumberOrTag::Number(num) => {
+                        if num != 0 { // state at genesis block is being preserved
+                            self.check_if_l2_block_pruned(num, working_set)?;
+                        }
                         let curr_block_number = self
                             .blocks_rlp
                             .last(&mut working_set.accessory_state())
@@ -1743,7 +1740,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Returns ProviderError::StateAtBlockPruned if the state at the given block number is pruned
-    pub fn check_if_l2_block_pruned(
+    fn check_if_l2_block_pruned(
         &self,
         block_number: u64,
         working_set: &mut WorkingSet<C::Storage>,
