@@ -4,17 +4,16 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::{DaSpec, SequencerCommitment};
-use crate::soft_confirmation::SignedSoftConfirmation;
+use crate::soft_confirmation::L2Block;
 use crate::zk::StorageRootHash;
 
-type InputV3Part2<'txs, Tx, Witness> =
-    VecDeque<Vec<(u64, SignedSoftConfirmation<'txs, Tx>, Witness, Witness)>>;
+type InputV3Part2<'txs, Tx, Witness> = VecDeque<Vec<(u64, L2Block<'txs, Tx>, Witness, Witness)>>;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 /// Second part of the Fork2 elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
-pub struct BatchProofCircuitInputV3Part2<'txs, Witness, Tx: Clone>(
+pub struct BatchProofCircuitInputV3Part2<'txs, Witness, Tx: Clone + BorshSerialize>(
     pub InputV3Part2<'txs, Tx, Witness>,
 );
 

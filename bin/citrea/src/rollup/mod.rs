@@ -418,7 +418,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
         if let Ok(state_root) = genesis_root {
-            // Chain was initialized but no soft confirmations was processed
+            // Chain was initialized but no L2 blocks were processed
             debug!("Chain is already initialized. Skipping initialization.");
             return Ok(InitParams {
                 state_root,

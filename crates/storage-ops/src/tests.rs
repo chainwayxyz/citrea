@@ -88,9 +88,10 @@ pub fn test_pruning_ledger_db_soft_confirmations() {
             prev_hash: [(i as u8) - 1; 32],
             txs: vec![],
             deposit_data: vec![],
-            state_root: vec![i as u8; 32],
+            state_root: [i as u8; 32],
             soft_confirmation_signature: vec![],
             pub_key: vec![0; 32],
+            tx_merkle_root: [0; 32],
             l1_fee_rate: 0,
             timestamp: i,
         };
@@ -222,9 +223,10 @@ pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
             prev_hash: [(i as u8) - 1; 32],
             txs: vec![],
             deposit_data: vec![],
-            state_root: vec![i as u8; 32],
+            state_root: [i as u8; 32],
             soft_confirmation_signature: vec![],
             pub_key: vec![0; 32],
+            tx_merkle_root: [0; 32],
             l1_fee_rate: 0,
             timestamp: i,
         };

@@ -1,11 +1,14 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use borsh::BorshSerialize;
+use rocksdb::WriteBatch;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
+use sov_rollup_interface::soft_confirmation::L2Block;
+use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
@@ -141,6 +144,11 @@ impl LedgerDB {
         }
     }
 
+    /// Write raw rocksdb WriteBatch
+    pub fn write(&self, batch: WriteBatch) -> anyhow::Result<()> {
+        self.db.write(batch)
+    }
+
     /// Reference to underlying sov DB
     pub fn db_handle(&self) -> Arc<sov_schema_db::DB> {
         self.db.clone()
@@ -159,7 +167,7 @@ impl SharedLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_soft_confirmation(
+    fn put_l2_block(
         &self,
         batch: &StoredSoftConfirmation,
         batch_number: &SoftConfirmationNumber,
@@ -170,54 +178,55 @@ impl SharedLedgerOps for LedgerDB {
     }
 
     /// Commits a soft confirmation to the database by inserting its transactions and batches before
-    fn commit_soft_confirmation<DS: DaSpec>(
+    fn commit_l2_block<Tx: Clone + BorshSerialize>(
         &self,
-        state_root: &[u8],
-        soft_confirmation_receipt: SoftConfirmationReceipt<DS>,
+        l2_block: L2Block<'_, Tx>,
+        tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
-        let tx_hashes = soft_confirmation_receipt.tx_hashes.into_iter();
-        let txs = match tx_bodies {
-            Some(tx_bodies) => {
-                assert_eq!(
-                    tx_bodies.len(),
-                    tx_hashes.len(),
-                    "Tx body count does not match tx hash count"
-                );
-                tx_hashes
-                    .zip(tx_bodies)
-                    .map(|(hash, body)| StoredTransaction {
-                        hash,
-                        body: Some(body),
-                    })
-                    .collect::<Vec<_>>()
-            }
-            None => tx_hashes
+        let txs = if let Some(tx_bodies) = tx_bodies {
+            assert_eq!(
+                tx_bodies.len(),
+                tx_hashes.len(),
+                "Tx body count does not match tx hash count"
+            );
+            tx_hashes
+                .into_iter()
+                .zip(tx_bodies)
+                .map(|(hash, body)| StoredTransaction {
+                    hash,
+                    body: Some(body),
+                })
+                .collect::<Vec<_>>()
+        } else {
+            tx_hashes
+                .into_iter()
                 .map(|hash| StoredTransaction { hash, body: None })
-                .collect::<Vec<_>>(),
+                .collect::<Vec<_>>()
         };
 
-        let l2_height = soft_confirmation_receipt.l2_height;
+        let l2_height = l2_block.l2_height();
 
         // Insert soft confirmation
         let soft_confirmation_to_store = StoredSoftConfirmation {
-            da_slot_height: soft_confirmation_receipt.da_slot_height,
+            da_slot_height: l2_block.da_slot_height(),
             l2_height,
-            da_slot_hash: soft_confirmation_receipt.da_slot_hash.into(),
-            da_slot_txs_commitment: soft_confirmation_receipt.da_slot_txs_commitment.into(),
-            hash: soft_confirmation_receipt.hash,
-            prev_hash: soft_confirmation_receipt.prev_hash,
+            da_slot_hash: l2_block.da_slot_hash(),
+            da_slot_txs_commitment: l2_block.da_slot_txs_commitment(),
+            hash: l2_block.hash(),
+            prev_hash: l2_block.prev_hash(),
             txs,
-            state_root: state_root.to_vec(),
-            soft_confirmation_signature: soft_confirmation_receipt.soft_confirmation_signature,
-            pub_key: soft_confirmation_receipt.pub_key,
-            deposit_data: soft_confirmation_receipt.deposit_data,
-            l1_fee_rate: soft_confirmation_receipt.l1_fee_rate,
-            timestamp: soft_confirmation_receipt.timestamp,
+            state_root: l2_block.state_root(),
+            soft_confirmation_signature: l2_block.signature().to_vec(),
+            pub_key: l2_block.pub_key().to_vec(),
+            deposit_data: l2_block.deposit_data().to_vec(),
+            l1_fee_rate: l2_block.l1_fee_rate(),
+            timestamp: l2_block.timestamp(),
+            tx_merkle_root: l2_block.tx_merkle_root(),
         };
-        self.put_soft_confirmation(
+        self.put_l2_block(
             &soft_confirmation_to_store,
             &SoftConfirmationNumber(l2_height),
             &mut schema_batch,
@@ -282,7 +291,7 @@ impl SharedLedgerOps for LedgerDB {
 
     /// Saves a soft confirmation status for a given L1 height
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn put_soft_confirmation_status(
+    fn put_l2_block_status(
         &self,
         height: SoftConfirmationNumber,
         status: sov_rollup_interface::rpc::SoftConfirmationStatus,

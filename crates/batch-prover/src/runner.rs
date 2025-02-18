@@ -10,7 +10,7 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
-use citrea_common::utils::soft_confirmation_to_receipt;
+use citrea_common::utils::compute_tx_hashes;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::CitreaRuntime;
@@ -21,8 +21,8 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
-use sov_modules_api::{SignedSoftConfirmation, SlotData, SpecId};
-use sov_modules_core::NativeStorage;
+use sov_modules_api::{L2Block, SlotData, SpecId};
+use sov_modules_core::storage::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -227,77 +227,60 @@ where
             "Prover storage version is corrupted"
         );
 
+        let tx_bodies = soft_confirmation
+            .txs
+            .clone()
+            .map(|txs| txs.into_iter().map(|tx| tx.tx).collect::<Vec<_>>());
+
         // Register this new block with the fork manager to active
         // the new fork on the next block
         self.fork_manager.register_block(l2_height)?;
-
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
-            if current_spec >= SpecId::Kumquat {
-                let signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
-                    soft_confirmation
-                        .clone()
-                        .try_into()
-                        .context("Failed to parse transactions")?;
-                signed_soft_confirmation
-            } else {
-                let signed_soft_confirmation: SignedSoftConfirmation<
-                    PreFork2Transaction<DefaultContext>,
-                > = soft_confirmation
-                    .clone()
-                    .try_into()
-                    .context("Failed to parse transactions")?;
-                let parsed_txs = signed_soft_confirmation
-                    .txs()
-                    .iter()
-                    .map(|tx| {
-                        let tx: StfTransaction<Da::Spec> = tx.clone().into();
-                        tx
-                    })
-                    .collect::<Vec<_>>();
-                SignedSoftConfirmation::new(
-                    signed_soft_confirmation.l2_height(),
-                    signed_soft_confirmation.hash(),
-                    signed_soft_confirmation.prev_hash(),
-                    signed_soft_confirmation.da_slot_height(),
-                    signed_soft_confirmation.da_slot_hash(),
-                    signed_soft_confirmation.da_slot_txs_commitment(),
-                    signed_soft_confirmation.l1_fee_rate(),
-                    signed_soft_confirmation.blobs().to_vec().into(),
-                    parsed_txs.into(),
-                    signed_soft_confirmation.deposit_data().to_vec(),
-                    signed_soft_confirmation.signature().to_vec(),
-                    signed_soft_confirmation.pub_key().to_vec(),
-                    signed_soft_confirmation.timestamp(),
-                )
-            };
-
-        let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
-            self.stf.apply_soft_confirmation(
-                current_spec,
-                self.sequencer_k256_pub_key.as_slice(),
-                &self.state_root,
-                pre_state,
-                Default::default(),
-                Default::default(),
-                current_l1_block.header(),
-                &mut signed_soft_confirmation,
-            )?
+        let mut l2_block: L2Block<StfTransaction<Da::Spec>> = if current_spec >= SpecId::Kumquat {
+            soft_confirmation
+                .clone()
+                .try_into()
+                .context("Failed to parse transactions")?
         } else {
-            self.stf.apply_soft_confirmation(
-                current_spec,
-                self.sequencer_pub_key.as_slice(),
-                &self.state_root,
-                pre_state,
-                Default::default(),
-                Default::default(),
-                current_l1_block.header(),
-                &mut signed_soft_confirmation,
-            )?
+            let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
+                .clone()
+                .try_into()
+                .context("Failed to parse transactions")?;
+
+            let (parsed_txs, blobs): (Vec<StfTransaction<Da::Spec>>, Vec<Vec<u8>>) = l2_block
+                .txs
+                .iter()
+                .map(|tx| {
+                    let blob = borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
+                    let tx: StfTransaction<Da::Spec> = tx.clone().into();
+                    (tx, blob)
+                })
+                .unzip();
+            L2Block::new(
+                l2_block.header,
+                parsed_txs.into(),
+                blobs.into(),
+                l2_block.deposit_data,
+            )
         };
 
-        let txs_bodies = signed_soft_confirmation.blobs().to_owned();
+        let sequencer_pub_key = if current_spec >= SpecId::Fork2 {
+            self.sequencer_k256_pub_key.as_slice()
+        } else {
+            self.sequencer_pub_key.as_slice()
+        };
+
+        let soft_confirmation_result = self.stf.apply_soft_confirmation(
+            current_spec,
+            sequencer_pub_key,
+            &self.state_root,
+            pre_state,
+            Default::default(),
+            Default::default(),
+            current_l1_block.header(),
+            &mut l2_block,
+        )?;
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation
@@ -321,16 +304,10 @@ where
         self.storage_manager
             .finalize_storage(soft_confirmation_result.change_set);
 
-        let receipt = soft_confirmation_to_receipt::<DefaultContext, _, Da::Spec>(
-            signed_soft_confirmation,
-            current_spec,
-        );
+        let tx_hashes = compute_tx_hashes::<DefaultContext, _>(&l2_block.txs, current_spec);
 
-        self.ledger_db.commit_soft_confirmation(
-            next_state_root.as_ref(),
-            receipt,
-            Some(txs_bodies),
-        )?;
+        self.ledger_db
+            .commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
