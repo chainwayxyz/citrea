@@ -101,7 +101,20 @@ pub fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
 /// witness fields themselves). For non-segwit transactions which do not have any segwit data,
 /// this will be equal to [`Transaction::compute_wtxid()`].
 pub fn calculate_txid(tx: &Transaction) -> [u8; 32] {
-    let mut enc = vec![];
+    // input and output types might have different sizes
+    // however we are dealing with taproot transactions
+    // input size and output size holds without witness data
+    //
+    // Even if the capacity does not hold, the vec will
+    // resize itself to hold the data
+    let mut enc = Vec::with_capacity(
+        4 // version
+        + 9 // max varint size for the number of inputs
+        + tx.input.len() * 40 // tx inputs
+        + 9 // max varint size for the number of outputs
+        + tx.output.len() * 40, // tx outputs
+    );
+
     tx.version
         .consensus_encode(&mut enc)
         .expect("engines don't error");

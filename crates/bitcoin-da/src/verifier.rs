@@ -201,8 +201,9 @@ impl DaVerifier for BitcoinVerifier {
 
                 let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
 
-                let mut vec_merkle = merkle_root.to_vec();
+                let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
+                vec_merkle.extend_from_slice(&merkle_root);
                 vec_merkle.extend_from_slice(input_witness_value);
 
                 // check with sha256(sha256(<merkle root><witness value>))

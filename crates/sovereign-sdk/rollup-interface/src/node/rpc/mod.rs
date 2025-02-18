@@ -306,8 +306,8 @@ pub struct BatchProofOutputRpcResponse {
     #[serde(with = "faster_hex")]
     pub final_state_root: Vec<u8>,
     /// The hash of the last soft confirmation before the state transition
-    #[serde(with = "utils::rpc_hex")]
-    pub prev_soft_confirmation_hash: [u8; 32],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prev_soft_confirmation_hash: Option<SerializableHash>,
     /// The hash of the last soft confirmation in the state transition
     #[serde(skip_serializing_if = "Option::is_none")]
     pub final_soft_confirmation_hash: Option<SerializableHash>,
@@ -318,19 +318,23 @@ pub struct BatchProofOutputRpcResponse {
     )]
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
-    #[serde(with = "hex::serde")] // without 0x prefix
-    pub da_slot_hash: [u8; 32],
+    #[serde(skip_serializing_if = "Option::is_none")] // without 0x prefix
+    pub da_slot_hash: Option<SerializableHash>,
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
-    pub sequencer_commitments_range: (U32, U32),
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequencer_commitments_range: Option<(U32, U32)>,
     /// Sequencer public key.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     #[serde(with = "faster_hex")]
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     #[serde(with = "hex::serde")] // without 0x prefix
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
-    pub preproven_commitments: Vec<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preproven_commitments: Option<Vec<usize>>,
     /// Last active spec id in the proof
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_active_spec_id: Option<U8>,

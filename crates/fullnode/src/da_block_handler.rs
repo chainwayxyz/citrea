@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -7,7 +8,6 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
-use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
@@ -157,7 +157,10 @@ where
                         return;
                     }
                     SyncError::Error(e) => {
-                        error!("Could not process ZK proofs: {}...skipping", e);
+                        error!("Could not process ZK proofs: {}... skipping...", e);
+                    }
+                    SyncError::SequencerCommitmentNotFound(merkle_root) => {
+                        error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
                     }
                 }
             }
@@ -176,6 +179,7 @@ where
                     SyncError::Error(e) => {
                         error!("Could not process sequencer commitments: {}... skipping", e);
                     }
+                    SyncError::SequencerCommitmentNotFound(_) => unreachable!("Error irrelevant!"),
                 }
             }
         }
@@ -260,6 +264,15 @@ where
                 SoftConfirmationStatus::Finalized,
             )?;
         }
+
+        self.ledger_db.set_l2_range_by_commitment_merkle_root(
+            sequencer_commitment.merkle_root,
+            (
+                SoftConfirmationNumber(start_l2_height),
+                SoftConfirmationNumber(end_l2_height),
+            ),
+        )?;
+
         self.ledger_db
             .set_last_commitment_l2_height(SoftConfirmationNumber(end_l2_height))?;
 
@@ -277,86 +290,156 @@ where
         );
         tracing::trace!("ZK proof: {:?}", proof);
 
-        let (
-            last_active_spec_id,
-            batch_proof_output,
-            da_slot_hash,
-            preproven_commitments,
-            sequencer_commitments_range,
-            initial_state_root,
-        ) = match Vm::extract_output::<BatchProofCircuitOutputV3>(&proof) {
-            Ok(output) => (
-                fork_from_block_number(output.last_l2_height).spec_id,
-                StoredBatchProofOutput::from(output.clone()),
-                output.da_slot_hash,
-                output.preproven_commitments,
-                output.sequencer_commitments_range,
-                output.initial_state_root,
-            ),
+        // there must be some diff in kumquat and genesis proof verification
+        match Vm::extract_output::<BatchProofCircuitOutputV3>(&proof) {
+            Ok(output) => {
+                let code_commitment = self
+                    .code_commitments_by_spec
+                    .get(&SpecId::Fork2)
+                    .expect("Proof public input must contain valid spec id");
+                Vm::verify(proof.as_slice(), code_commitment)
+                    .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+
+                self.process_fork2_zk_proof(
+                    l1_block,
+                    output.initial_state_root,
+                    output.sequencer_commitment_merkle_roots.clone(),
+                    proof,
+                    StoredBatchProofOutput::from(output),
+                )
+            }
             Err(e) => {
                 info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
                 match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
                     Ok(output) => {
-                        if output.sequencer_da_public_key != self.sequencer_da_pub_key
-                            || output.sequencer_public_key != self.sequencer_pub_key
-                        {
-                            return Err(anyhow!(
-                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
-            ).into());
-                        }
-                        (
-                            fork_from_block_number(output.last_l2_height).spec_id,
-                            StoredBatchProofOutput::from(output.clone()),
+                        let code_commitment = self
+                            .code_commitments_by_spec
+                            .get(&SpecId::Kumquat)
+                            .expect("Proof public input must contain valid spec id");
+                        Vm::verify(proof.as_slice(), code_commitment).map_err(|err| {
+                            anyhow!("Failed to verify proof: {:?}. Skipping it...", err)
+                        })?;
+
+                        self.process_pre_fork2_zk_proof(
+                            l1_block,
                             output.da_slot_hash,
-                            output.preproven_commitments,
+                            output.preproven_commitments.clone(),
                             output.sequencer_commitments_range,
                             output.initial_state_root,
+                            proof,
+                            StoredBatchProofOutput::from(output),
                         )
                     }
                     Err(e) => {
                         info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
                         let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
                             .expect("Should be able to extract either pre or post fork 1 output");
+
                         if output.sequencer_da_public_key != self.sequencer_da_pub_key
                             || output.sequencer_public_key != self.sequencer_pub_key
                         {
                             return Err(anyhow!(
-                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
-            ).into());
+                                     "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+                            ).into());
                         }
-                        // If we got output of pre fork 1 that means we are in genesis
-                        (
-                            SpecId::Genesis,
-                            StoredBatchProofOutput::from(output.clone()),
+
+                        let code_commitment = self
+                            .code_commitments_by_spec
+                            .get(&SpecId::Genesis)
+                            .expect("Proof public input must contain valid spec id");
+                        Vm::verify(proof.as_slice(), code_commitment).map_err(|err| {
+                            anyhow!("Failed to verify proof: {:?}. Skipping it...", err)
+                        })?;
+
+                        self.process_pre_fork2_zk_proof(
+                            l1_block,
                             output.da_slot_hash,
-                            output.preproven_commitments,
+                            output.preproven_commitments.clone(),
                             output.sequencer_commitments_range,
                             output.initial_state_root,
+                            proof,
+                            StoredBatchProofOutput::from(output),
                         )
                     }
                 }
             }
-        };
+        }
+    }
 
-        // TODO: Do this check for v1 only
+    fn process_fork2_zk_proof(
+        &self,
+        l1_block: &Da::FilteredBlock,
+        initial_state_root: [u8; 32],
+        soft_confirmation_merkle_roots: Vec<[u8; 32]>,
+        raw_proof: Proof,
+        batch_proof_output: StoredBatchProofOutput,
+    ) -> Result<(), SyncError> {
+        // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
+        for root in soft_confirmation_merkle_roots {
+            // make sure sequencer commitment soft confirmation merkle root match
+            // since we wouldn't have the sequencer commitment in the ledger db
+            // this makes sure the sequencer commitment exists
+            let seq_comm_range = self
+                .ledger_db
+                .get_l2_range_by_commitment_merkle_root(root)?
+                .ok_or(SyncError::SequencerCommitmentNotFound(root))?;
 
-        let code_commitment = self
-            .code_commitments_by_spec
-            .get(&last_active_spec_id)
-            .expect("Proof public input must contain valid spec id");
-        Vm::verify(proof.as_slice(), code_commitment)
-            .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+            let l2_height_before_comm_range = seq_comm_range.0 .0 - 1;
+            let state_root_prior_soft_confirmation = self
+                .ledger_db
+                .get_l2_state_root(l2_height_before_comm_range)?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
+                        l2_height_before_comm_range
+                    )
+                })?;
 
-        let l1_hash = da_slot_hash;
+            if state_root_prior_soft_confirmation.as_ref() != initial_state_root.as_ref() {
+                return Err(anyhow!(
+                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                    hex::encode(state_root_prior_soft_confirmation),
+                    hex::encode(initial_state_root)
+                ).into());
+            }
 
+            for i in seq_comm_range.0 .0..=seq_comm_range.1 .0 {
+                self.ledger_db.put_soft_confirmation_status(
+                    SoftConfirmationNumber(i),
+                    SoftConfirmationStatus::Proven,
+                )?;
+            }
+        }
+
+        // store in ledger db
+        self.ledger_db.update_verified_proof_data(
+            l1_block.header().height(),
+            raw_proof,
+            batch_proof_output,
+        )?;
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn process_pre_fork2_zk_proof(
+        &self,
+        l1_block: &Da::FilteredBlock,
+        da_slot_hash: [u8; 32],
+        preproven_commitments: Vec<usize>,
+        sequencer_commitments_range: (u32, u32),
+        initial_state_root: [u8; 32],
+        raw_proof: Proof,
+        batch_proof_output: StoredBatchProofOutput,
+    ) -> Result<(), SyncError> {
         // This is the l1 height where the sequencer commitment was read by the prover and proof generated by those commitments
         // We need to get commitments in this l1 height and set them as proven
-        let l1_height = match self.ledger_db.get_l1_height_of_l1_hash(l1_hash)? {
+        let l1_height = match self.ledger_db.get_l1_height_of_l1_hash(da_slot_hash)? {
             Some(l1_height) => l1_height,
             None => {
                 return Err(anyhow!(
                     "Proof verification: L1 height not found for l1 hash: {:?}. Skipping proof.",
-                    l1_hash
+                    da_slot_hash
                 )
                 .into());
             }
@@ -367,9 +450,9 @@ where
                 Some(commitments) => commitments,
                 None => {
                     return Err(anyhow!(
-                    "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
-                    l1_height
-                )
+                "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
+                l1_height
+            )
                     .into());
                 }
             };
@@ -388,22 +471,19 @@ where
             filtered_commitments[sequencer_commitments_range.0 as usize].l2_start_block_number;
         // Fetch the block prior to the one at l2_height so compare state roots
 
-        let prior_soft_confirmation_post_state_root = self
+        let state_root_prior_soft_confirmation = self
             .ledger_db
             .get_l2_state_root(l2_height - 1)?
             .ok_or_else(|| {
-                anyhow!(
-                "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
-                l2_height - 1
-            )
-            })?;
+            SyncError::MissingL2("L2 height not synced yet", l2_height - 1, l2_height - 1)
+        })?;
 
-        if prior_soft_confirmation_post_state_root.as_ref() != initial_state_root.as_ref() {
+        if state_root_prior_soft_confirmation.as_ref() != initial_state_root.as_ref() {
             return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(prior_soft_confirmation_post_state_root),
-                    hex::encode(initial_state_root)
-                ).into());
+                "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                hex::encode(state_root_prior_soft_confirmation),
+                hex::encode(initial_state_root)
+            ).into());
         }
 
         for commitment in filtered_commitments
@@ -423,9 +503,10 @@ where
         // store in ledger db
         self.ledger_db.update_verified_proof_data(
             l1_block.header().height(),
-            proof.clone(),
+            raw_proof,
             batch_proof_output,
         )?;
+
         Ok(())
     }
 }

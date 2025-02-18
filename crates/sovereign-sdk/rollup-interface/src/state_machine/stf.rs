@@ -10,6 +10,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::da::SequencerCommitment;
 use super::zk::{StorageRootHash, ZkvmGuest};
 use crate::da::DaSpec;
 use crate::fork::Fork;
@@ -53,6 +54,8 @@ pub struct ApplySequencerCommitmentsOutput {
     pub last_l2_height: u64,
     /// Last soft confirmation hash
     pub final_soft_confirmation_hash: [u8; 32],
+    /// Sequencer commitment hashes
+    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
 }
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
@@ -211,13 +214,10 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
         sequencer_k256_public_key: &[u8],
-        sequencer_da_public_key: &[u8],
         initial_state_root: &StorageRootHash,
         pre_state: Self::PreState,
-        da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        sequencer_commitments_range: (u32, u32),
+        sequencer_commitments: Vec<SequencerCommitment>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
-        preproven_commitment_indicies: Vec<usize>,
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput;
 }

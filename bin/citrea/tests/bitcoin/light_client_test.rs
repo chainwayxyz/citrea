@@ -1360,12 +1360,9 @@ fn create_serialized_fake_receipt_batch_proof(
         initial_state_root,
         final_state_root,
         last_l2_height,
-        da_slot_hash: [0u8; 32],
-        prev_soft_confirmation_hash: [0u8; 32],
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
-        sequencer_commitments_range: (0, 0),
-        preproven_commitments: vec![],
+        sequencer_commitment_merkle_roots: vec![],
     };
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 
