@@ -176,7 +176,12 @@ where
                 })
                 .unzip();
 
-            L2Block::new(l2_block.header, parsed_txs.into(), blobs.into())
+            L2Block::new(
+                l2_block.header,
+                parsed_txs.into(),
+                blobs.into(),
+                l2_block.deposit_data,
+            )
         };
 
         let sequencer_pub_key = if current_spec >= SpecId::Fork2 {

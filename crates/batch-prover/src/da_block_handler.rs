@@ -387,7 +387,12 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                         (tx, blob)
                     })
                     .unzip();
-                L2Block::new(l2_block.header, parsed_txs.into(), blobs.into())
+                L2Block::new(
+                    l2_block.header,
+                    parsed_txs.into(),
+                    blobs.into(),
+                    l2_block.deposit_data,
+                )
             };
 
             l2_blocks.push(l2_block);

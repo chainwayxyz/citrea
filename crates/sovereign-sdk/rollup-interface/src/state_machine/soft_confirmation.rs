@@ -18,7 +18,6 @@ pub struct L2Header {
     state_root: [u8; 32],
     l1_fee_rate: u128,
     tx_merkle_root: [u8; 32],
-    deposit_data: Vec<Vec<u8>>,
     timestamp: u64,
 }
 
@@ -34,7 +33,6 @@ impl L2Header {
         state_root: [u8; 32],
         l1_fee_rate: u128,
         tx_merkle_root: [u8; 32],
-        deposit_data: Vec<Vec<u8>>,
         timestamp: u64,
     ) -> Self {
         Self {
@@ -46,7 +44,6 @@ impl L2Header {
             state_root,
             l1_fee_rate,
             tx_merkle_root,
-            deposit_data,
             timestamp,
         }
     }
@@ -62,7 +59,6 @@ impl L2Header {
         hasher.update(self.state_root);
         hasher.update(self.l1_fee_rate.to_be_bytes());
         hasher.update(self.tx_merkle_root);
-        hasher.update(self.deposit_data.concat());
         hasher.update(self.timestamp.to_be_bytes());
         hasher.finalize()
     }
@@ -102,12 +98,24 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     pub txs: Cow<'txs, [Tx]>,
     /// Blobs of signed batch
     pub blobs: Cow<'txs, [Vec<u8>]>,
+    /// Deposit data
+    pub deposit_data: Vec<Vec<u8>>,
 }
 
 impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     /// New L2Block from headers and txs
-    pub fn new(header: SignedL2Header, txs: Cow<'txs, [Tx]>, blobs: Cow<'txs, [Vec<u8>]>) -> Self {
-        Self { header, txs, blobs }
+    pub fn new(
+        header: SignedL2Header,
+        txs: Cow<'txs, [Tx]>,
+        blobs: Cow<'txs, [Vec<u8>]>,
+        deposit_data: Vec<Vec<u8>>,
+    ) -> Self {
+        Self {
+            header,
+            txs,
+            blobs,
+            deposit_data,
+        }
     }
 
     /// L2 block height
@@ -147,7 +155,7 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
 
     /// Deposit data
     pub fn deposit_data(&self) -> &[Vec<u8>] {
-        self.header.inner.deposit_data.as_slice()
+        self.deposit_data.as_slice()
     }
 
     /// Signature of the sequencer
@@ -188,15 +196,6 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     pub fn state_root(&self) -> [u8; 32] {
         self.header.inner.state_root
     }
-
-    // /// Expensive
-    // /// compute Borsh serialized txs
-    // fn compute_blobs(&self) -> Vec<Vec<u8>> {
-    //     self.txs
-    //         .iter()
-    //         .map(|tx| borsh::to_vec(tx).expect("Tx serialization shouldn't fail"))
-    //         .collect()
-    // }
 }
 
 /// Contains raw transactions and information about the soft confirmation block
@@ -213,10 +212,12 @@ pub struct UnsignedSoftConfirmation<'txs, Tx> {
     timestamp: u64,
 }
 
-impl<'txs, Tx: BorshSerialize> From<(&L2Header, Vec<Vec<u8>>, &'txs [Tx])>
+impl<'txs, Tx: BorshSerialize> From<(&L2Header, Vec<Vec<u8>>, &'txs [Tx], Vec<Vec<u8>>)>
     for UnsignedSoftConfirmation<'txs, Tx>
 {
-    fn from((header, blobs, txs): (&L2Header, Vec<Vec<u8>>, &'txs [Tx])) -> Self {
+    fn from(
+        (header, blobs, txs, deposit_data): (&L2Header, Vec<Vec<u8>>, &'txs [Tx], Vec<Vec<u8>>),
+    ) -> Self {
         UnsignedSoftConfirmation::new(
             header.l2_height,
             header.da_slot_height,
@@ -224,7 +225,7 @@ impl<'txs, Tx: BorshSerialize> From<(&L2Header, Vec<Vec<u8>>, &'txs [Tx])>
             header.da_slot_txs_commitment,
             blobs,
             txs,
-            header.deposit_data.clone(),
+            deposit_data,
             header.l1_fee_rate,
             header.timestamp,
         )
@@ -303,7 +304,7 @@ impl<'txs, Tx: Clone + BorshSerialize> From<&'txs L2Block<'_, Tx>>
             da_slot_txs_commitment: header.da_slot_txs_commitment,
             blobs: block.blobs.to_vec(),
             txs: &block.txs,
-            deposit_data: header.deposit_data.clone(),
+            deposit_data: block.deposit_data.clone(),
             l1_fee_rate: header.l1_fee_rate,
             timestamp: header.timestamp,
         }
@@ -319,7 +320,7 @@ impl<'txs, Tx: Clone + BorshSerialize> From<&'txs L2Block<'_, Tx>> for UnsignedS
             da_slot_hash: header.da_slot_hash,
             da_slot_txs_commitment: header.da_slot_txs_commitment,
             blobs: block.blobs.to_vec(),
-            deposit_data: header.deposit_data.clone(),
+            deposit_data: block.deposit_data.clone(),
             l1_fee_rate: header.l1_fee_rate,
             timestamp: header.timestamp,
         }

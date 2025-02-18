@@ -70,7 +70,6 @@ where
             val.state_root,
             val.l1_fee_rate,
             val.tx_merkle_root,
-            val.deposit_data,
             val.timestamp,
         );
         let signed_header = SignedL2Header::new(
@@ -80,7 +79,12 @@ where
             val.pub_key,
         );
 
-        let res = L2Block::new(signed_header, parsed_txs.into(), blobs.into());
+        let res = L2Block::new(
+            signed_header,
+            parsed_txs.into(),
+            blobs.into(),
+            val.deposit_data,
+        );
         Ok(res)
     }
 }

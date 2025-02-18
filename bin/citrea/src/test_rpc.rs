@@ -118,10 +118,6 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         [1; 32],
         0,
         compute_tx_merkle_root(&tx_hashes_1).unwrap(),
-        vec![
-            "aaaaab".as_bytes().to_vec(),
-            "eeeeeeeeee".as_bytes().to_vec(),
-        ],
         0,
     );
 
@@ -135,7 +131,6 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         0,
         compute_tx_merkle_root(&batch_2_receipts.iter().map(|r| r.hash).collect::<Vec<_>>())
             .unwrap(),
-        vec!["c44444".as_bytes().to_vec()],
         0,
     );
 
@@ -154,7 +149,15 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
     );
 
     let l2_blocks = vec![
-        L2Block::<[u8; 32]>::new(signed_header1, tx_hashes_1.into(), vec![].into()),
+        L2Block::<[u8; 32]>::new(
+            signed_header1,
+            tx_hashes_1.into(),
+            vec![].into(),
+            vec![
+                "aaaaab".as_bytes().to_vec(),
+                "eeeeeeeeee".as_bytes().to_vec(),
+            ],
+        ),
         L2Block::<[u8; 32]>::new(
             signed_header2,
             batch_2_receipts
@@ -167,6 +170,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                 .map(|r| r.body.clone().unwrap())
                 .collect::<Vec<_>>()
                 .into(),
+            vec!["c44444".as_bytes().to_vec()],
         ),
     ];
 

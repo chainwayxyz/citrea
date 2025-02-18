@@ -475,11 +475,17 @@ where
             soft_confirmation_result.state_root_transition.final_root,
             l1_fee_rate,
             tx_merkle_root,
-            deposit_data.clone(),
             timestamp,
         );
 
-        let l2_block = self.sign_soft_confirmation(active_fork_spec, header, &blobs, &txs)?;
+        let signed_header = self.sign_soft_confirmation(
+            active_fork_spec,
+            header,
+            &blobs,
+            &txs,
+            deposit_data.clone(),
+        )?;
+        let l2_block = L2Block::new(signed_header, txs.into(), blobs.into(), deposit_data);
 
         debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
@@ -808,20 +814,23 @@ where
         header: L2Header,
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
-    ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
+        deposit_data: Vec<Vec<u8>>,
+    ) -> anyhow::Result<SignedL2Header> {
         match active_spec {
-            SpecId::Genesis => self.sign_soft_confirmation_batch_v1(header, blobs, txs),
-            SpecId::Kumquat => self.sign_soft_confirmation_batch_v2(header, blobs, txs),
-            _ => self.sign_soft_confirmation_header(header, blobs, txs),
+            SpecId::Genesis => {
+                self.sign_soft_confirmation_batch_v1(header, blobs, txs, deposit_data)
+            }
+            SpecId::Kumquat => {
+                self.sign_soft_confirmation_batch_v2(header, blobs, txs, deposit_data)
+            }
+            _ => self.sign_soft_confirmation_header(header),
         }
     }
 
-    fn sign_soft_confirmation_header<'txs>(
+    fn sign_soft_confirmation_header(
         &mut self,
         header: L2Header,
-        blobs: &'txs [Vec<u8>],
-        txs: &'txs [StfTransaction<Da::Spec>],
-    ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
+    ) -> anyhow::Result<SignedL2Header> {
         let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
         let priv_key = K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
@@ -830,9 +839,7 @@ where
         let pub_key = priv_key.pub_key();
         let signature = borsh::to_vec(&signature)?;
         let pub_key = borsh::to_vec(&pub_key)?;
-        let signed_header = SignedL2Header::new(header, hash, signature, pub_key);
-
-        Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
+        Ok(SignedL2Header::new(header, hash, signature, pub_key))
     }
 
     /// Signs necessary info and returns a BlockTemplate
@@ -841,8 +848,10 @@ where
         header: L2Header,
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
-    ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
-        let soft_confirmation = &UnsignedSoftConfirmation::from((&header, blobs.to_vec(), txs));
+        deposit_data: Vec<Vec<u8>>,
+    ) -> anyhow::Result<SignedL2Header> {
+        let soft_confirmation =
+            &UnsignedSoftConfirmation::from((&header, blobs.to_vec(), txs, deposit_data));
 
         let digest =
             soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
@@ -854,9 +863,7 @@ where
         let pub_key = priv_key.pub_key();
         let signature = borsh::to_vec(&signature)?;
         let pub_key = borsh::to_vec(&pub_key)?;
-        let signed_header = SignedL2Header::new(header, hash, signature, pub_key);
-
-        Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
+        Ok(SignedL2Header::new(header, hash, signature, pub_key))
     }
 
     /// Old version of sign_soft_confirmation_batch
@@ -868,10 +875,12 @@ where
         header: L2Header,
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
-    ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
+        deposit_data: Vec<Vec<u8>>,
+    ) -> anyhow::Result<SignedL2Header> {
         use digest::Digest;
 
-        let soft_confirmation = &UnsignedSoftConfirmation::from((&header, blobs.to_vec(), txs));
+        let soft_confirmation =
+            &UnsignedSoftConfirmation::from((&header, blobs.to_vec(), txs, deposit_data));
         let raw = borsh::to_vec(&UnsignedSoftConfirmationV1::from(soft_confirmation.clone()))
             .map_err(|e| anyhow!(e))?;
         let hash = <DefaultContext as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
@@ -882,9 +891,7 @@ where
 
         let signature = borsh::to_vec(&signature)?;
         let pub_key = borsh::to_vec(&pub_key)?;
-        let signed_header = SignedL2Header::new(header, hash, signature, pub_key);
-
-        Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
+        Ok(SignedL2Header::new(header, hash, signature, pub_key))
     }
 
     /// Fetches nonce from state

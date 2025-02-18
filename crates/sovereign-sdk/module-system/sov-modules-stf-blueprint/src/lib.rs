@@ -468,7 +468,12 @@ where
                         })
                         .unzip();
 
-                    let sc = L2Block::new(l2_block.header, parsed_txs.into(), blobs.into());
+                    let sc = L2Block::new(
+                        l2_block.header,
+                        parsed_txs.into(),
+                        blobs.into(),
+                        l2_block.deposit_data,
+                    );
                     (sc, state_witness, offchain_witness)
                 };
 
