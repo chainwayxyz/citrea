@@ -83,12 +83,7 @@ pub struct SignedL2Header {
 
 impl SignedL2Header {
     /// Crate new L2Block from header, hash and signature
-    pub fn new(
-        header: L2Header,
-        hash: [u8; 32],
-        signature: Vec<u8>,
-        pub_key: Vec<u8>,
-    ) -> Self {
+    pub fn new(header: L2Header, hash: [u8; 32], signature: Vec<u8>, pub_key: Vec<u8>) -> Self {
         Self {
             inner: header,
             hash,
@@ -111,11 +106,7 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
 
 impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     /// New L2Block from headers and txs
-    pub fn new(
-        header: SignedL2Header,
-        txs: Cow<'txs, [Tx]>,
-        blobs: Cow<'txs, [Vec<u8>]>,
-    ) -> Self {
+    pub fn new(header: SignedL2Header, txs: Cow<'txs, [Tx]>, blobs: Cow<'txs, [Vec<u8>]>) -> Self {
         Self { header, txs, blobs }
     }
 

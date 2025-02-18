@@ -2,9 +2,7 @@ use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::rpc::{HexTx, SoftConfirmationResponse};
-use sov_rollup_interface::soft_confirmation::{
-    L2Block, SignedL2Header, L2Header,
-};
+use sov_rollup_interface::soft_confirmation::{L2Block, L2Header, SignedL2Header};
 use sov_rollup_interface::zk::StorageRootHash;
 
 use super::DbHash;

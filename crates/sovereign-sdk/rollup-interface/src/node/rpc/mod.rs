@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
-use crate::soft_confirmation::{L2Block, SignedL2Header, L2Header};
+use crate::soft_confirmation::{L2Block, L2Header, SignedL2Header};
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::BatchProofInfo;
 use crate::RefCount;
