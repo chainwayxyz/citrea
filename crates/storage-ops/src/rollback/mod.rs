@@ -40,19 +40,19 @@ impl Rollback {
 
         let down_to_block = current_l2_height - num_blocks + 1;
 
-        let ledger_pruning_handle =
+        let ledger_rollback_handle =
             tokio::task::spawn_blocking(move || rollback_ledger_db(ledger_db, down_to_block));
 
-        let state_db_pruning_handle =
+        let state_db_rollback_handle =
             tokio::task::spawn_blocking(move || rollback_state_db(state_db, down_to_block));
 
-        let native_db_pruning_handle =
+        let native_db_rollback_handle =
             tokio::task::spawn_blocking(move || rollback_native_db(native_db, down_to_block));
 
         future::join_all([
-            ledger_pruning_handle,
-            state_db_pruning_handle,
-            native_db_pruning_handle,
+            ledger_rollback_handle,
+            state_db_rollback_handle,
+            native_db_rollback_handle,
         ])
         .await;
 
