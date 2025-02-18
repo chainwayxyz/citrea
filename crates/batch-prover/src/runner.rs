@@ -21,7 +21,7 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::PreFork2Transaction;
-use sov_modules_api::{L2Block, SlotData, SpecId};
+use sov_modules_api::{DaSpec, L2Block, SlotData, SpecId};
 use sov_modules_core::storage::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -208,6 +208,16 @@ where
             self.l1_block_cache.clone(),
         )
         .await?;
+
+        // Save short header proof to ledger db for Native Short Header Proof Provider Service
+        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+            Da::block_to_short_header_proof(current_l1_block.clone());
+        self.ledger_db
+            .put_short_header_proof_by_l1_hash(
+                &current_l1_block.hash(),
+                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            )
+            .expect("Should save short header proof to ledger db");
 
         info!(
             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
