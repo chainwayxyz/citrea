@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use borsh::BorshSerialize;
@@ -15,7 +16,7 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{StateDiff, TransactionDigest};
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
-    let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
+    let mut new_diff_map: HashMap<Arc<[u8]>, Option<Arc<[u8]>>> = HashMap::from_iter(old_diff);
 
     new_diff_map.extend(new_diff);
     new_diff_map.into_iter().collect()

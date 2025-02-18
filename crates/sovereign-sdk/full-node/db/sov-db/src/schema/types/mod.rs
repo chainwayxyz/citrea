@@ -19,6 +19,7 @@ pub type DbHash = [u8; 32];
 /// The "value" half of a key/value pair from the JMT
 pub type JmtValue = Option<Vec<u8>>;
 pub(crate) type StateKey = Vec<u8>;
+pub(crate) type StateKeyRef<'a> = &'a [u8];
 
 /// The range of L2 heights (soft confirmations) for a given L1 block
 /// (start, end) inclusive

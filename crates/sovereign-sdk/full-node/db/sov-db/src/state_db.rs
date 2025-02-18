@@ -8,7 +8,7 @@ use sov_schema_db::{SchemaBatch, DB};
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes, STATE_TABLES};
-use crate::schema::types::StateKey;
+use crate::schema::types::StateKeyRef;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
 /// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized writes.
@@ -73,11 +73,11 @@ impl StateDB {
     /// since the DB is unaware of the hash function used by the JMT.
     pub fn put_preimages<'a>(
         &self,
-        items: impl IntoIterator<Item = (KeyHash, &'a Vec<u8>)>,
+        items: impl IntoIterator<Item = (KeyHash, StateKeyRef<'a>)>,
     ) -> Result<(), anyhow::Error> {
         let mut batch = SchemaBatch::new();
         for (key_hash, key) in items.into_iter() {
-            batch.put::<KeyHashToKey>(&key_hash.0, key)?;
+            batch.put::<KeyHashToKey>(&key_hash.0, &key.to_vec())?;
         }
         self.db.write_many(batch)?;
         Ok(())
@@ -87,12 +87,12 @@ impl StateDB {
     pub fn get_value_option_by_key(
         &self,
         version: Version,
-        key: &StateKey,
+        key: StateKeyRef,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
         let found = self.db.get_prev::<JmtValues>(&(&key, version))?;
         match found {
             Some(((found_key, found_version), value)) => {
-                if &found_key == key {
+                if found_key == key {
                     anyhow::ensure!(found_version <= version, "Bug! iterator isn't returning expected values. expected a version <= {version:} but found {found_version:}");
                     Ok(value)
                 } else {
@@ -188,7 +188,7 @@ mod state_db_tests {
         let key = vec![2u8; 100];
         let value = [8u8; 150];
 
-        db.put_preimages(vec![(key_hash, &key)]).unwrap();
+        db.put_preimages(vec![(key_hash, key.as_slice())]).unwrap();
         let mut batch = NodeBatch::default();
         batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
         db.write_node_batch(&batch).unwrap();
