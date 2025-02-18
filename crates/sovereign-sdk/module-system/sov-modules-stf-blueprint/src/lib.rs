@@ -359,6 +359,8 @@ where
 
         native_debug!("Applying soft confirmation in STF Blueprint");
 
+        self.verify_soft_confirmation(current_spec, l2_block, sequencer_public_key)?;
+
         self.begin_soft_confirmation(
             sequencer_public_key,
             &mut working_set,
@@ -372,8 +374,6 @@ where
             &l2_block.txs,
             &mut working_set,
         )?;
-
-        self.verify_soft_confirmation(current_spec, l2_block, sequencer_public_key)?;
 
         self.end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
 
