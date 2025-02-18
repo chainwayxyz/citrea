@@ -1737,7 +1737,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(())
     }
 
-    /// Returns ProviderError::StateAtBlockPruned if the state at the given block number is pruned
+    /// Returns `ProviderError::StateAtBlockPruned` if the state at the given block number is pruned
     fn check_if_l2_block_pruned(
         &self,
         block_number: u64,

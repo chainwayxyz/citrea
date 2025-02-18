@@ -59,7 +59,6 @@ async fn test_pruning_simple_run() {
 
         cancellation_token.cancel();
     }
-    // remove this part later
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     let storage_manager =
