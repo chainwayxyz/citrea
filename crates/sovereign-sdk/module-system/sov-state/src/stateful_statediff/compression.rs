@@ -6,13 +6,13 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[derive(Debug, PartialEq, Eq)]
 pub struct CompressionAdd {
     pub diff: U256,
-    pub size: usize,
+    pub size: u8,
 }
 
 impl CompressionAdd {
     fn new(prev_value: U256, new_value: U256) -> Option<Self> {
         let (diff, _overflowed) = new_value.overflowing_sub(prev_value);
-        let size = diff.byte_len();
+        let size = diff.byte_len() as u8;
 
         if size <= 30 {
             Some(Self { diff, size })
@@ -33,7 +33,7 @@ impl CompressionAddInlined {
         let (diff, _overflowed) = new_value.overflowing_sub(prev_value);
 
         if let Ok(diff) = diff.try_into() {
-            if diff <= 31 {
+            if diff < 32 {
                 return Some(Self { diff });
             }
         }
@@ -44,13 +44,13 @@ impl CompressionAddInlined {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CompressionSub {
     pub diff: U256,
-    pub size: usize,
+    pub size: u8,
 }
 
 impl CompressionSub {
     fn new(prev_value: U256, new_value: U256) -> Option<Self> {
         let (diff, _overflowed) = prev_value.overflowing_sub(new_value);
-        let size = diff.byte_len();
+        let size = diff.byte_len() as u8;
 
         if size <= 30 {
             Some(Self { diff, size })
@@ -64,13 +64,13 @@ impl CompressionSub {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CompressionTransform {
     pub diff: U256,
-    pub size: usize,
+    pub size: u8,
 }
 
 impl CompressionTransform {
     fn new(new_value: U256) -> Option<Self> {
         let diff = new_value;
-        let size = diff.byte_len();
+        let size = diff.byte_len() as u8;
 
         if size <= 30 {
             Some(Self { diff, size })
@@ -104,7 +104,7 @@ pub enum SlotChange {
 }
 
 impl SlotChange {
-    fn output_size(&self) -> usize {
+    fn output_size(&self) -> u8 {
         match self {
             SlotChange::Add(op) => op.size,
             SlotChange::AddInlined(_) => 0,
@@ -121,20 +121,20 @@ impl SlotChange {
             SlotChange::Transform(op) => (op.diff.as_le_slice(), op.size),
             SlotChange::NoCompression(no) => (no.diff.as_le_slice(), 32),
         };
-        &bytes[..size]
+        &bytes[..size as usize]
     }
-}
-
-/// Generates the metadata byte for a given compression strategy.
-/// The metadata byte is structured as:
-/// First 5 bits: length of the compressed value
-/// Last 3 bits: operation id corresponding to the given compression used.
-fn metadata_byte(output_size: usize, operation_id: usize) -> u8 {
-    ((output_size << 3) | operation_id) as u8
 }
 
 impl BorshSerialize for SlotChange {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        /// Generates the metadata byte for a given compression strategy.
+        /// The metadata byte is structured as:
+        /// First 5 bits: length of the compressed value
+        /// Last 3 bits: operation id corresponding to the given compression used.
+        const fn metadata_byte(output_size: u8, operation_id: u8) -> u8 {
+            (output_size << 3) | operation_id
+        }
+
         let operation_id = match self {
             SlotChange::Add(_) => 1,
             SlotChange::Sub(_) => 2,
@@ -142,7 +142,7 @@ impl BorshSerialize for SlotChange {
             SlotChange::NoCompression(_) => 0,
             SlotChange::AddInlined(op) => {
                 // a special case when we put data into metadata byte
-                let metadata = metadata_byte(op.diff as usize, 4);
+                let metadata = metadata_byte(op.diff, 4);
                 return writer.write_all(&[metadata]);
             }
         };
@@ -175,9 +175,8 @@ impl BorshDeserialize for SlotChange {
         // handle a special case for NoCompression
         let size = if id == 0 { 32 } else { size };
 
-        let size = size as usize;
         let mut d_buff = [0u8; 32];
-        let bytes = &mut d_buff[..size];
+        let bytes = &mut d_buff[..size as usize];
         reader.read_exact(bytes)?;
 
         let diff = U256::from_le_slice(bytes);
@@ -364,9 +363,9 @@ mod tests {
     fn compress_one_slot() {
         // Transform
         assert_eq!(
-            compress_one_best_strategy(U256::from(257usize)),
+            compress_one_best_strategy(U256::from(257)),
             SlotChange::Transform(CompressionTransform {
-                diff: U256::from(257usize),
+                diff: U256::from(257),
                 size: 2
             })
         );
@@ -381,30 +380,38 @@ mod tests {
     fn compress_two_slot() {
         // AddInlined
         assert_eq!(
-            compress_two_best_strategy(U256::from(3usize), U256::from(34usize)),
+            compress_two_best_strategy(U256::from(3), U256::from(34)),
             SlotChange::AddInlined(CompressionAddInlined { diff: 31 })
         );
         // Add
         assert_eq!(
-            compress_two_best_strategy(U256::from(255usize), U256::from(287usize)),
+            compress_two_best_strategy(U256::from(255), U256::from(287)),
             SlotChange::Add(CompressionAdd {
-                diff: U256::from(32usize),
+                diff: U256::from(32),
                 size: 1
             })
         );
         // Sub
         assert_eq!(
-            compress_two_best_strategy(U256::from(297usize), U256::from(265usize)),
+            compress_two_best_strategy(U256::from(297), U256::from(265)),
             SlotChange::Sub(CompressionSub {
-                diff: U256::from(32usize),
+                diff: U256::from(32),
+                size: 1
+            })
+        );
+        // Sub overflow
+        assert_eq!(
+            compress_two_best_strategy(U256::from(2), U256::MAX - U256::from(2)),
+            SlotChange::Sub(CompressionSub {
+                diff: U256::from(5),
                 size: 1
             })
         );
         // Transform
         assert_eq!(
-            compress_two_best_strategy(U256::from(297usize), U256::from(0usize)),
+            compress_two_best_strategy(U256::from(297), U256::ZERO),
             SlotChange::Transform(CompressionTransform {
-                diff: U256::from(0usize),
+                diff: U256::ZERO,
                 size: 0
             })
         );
