@@ -308,11 +308,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     ledger_db: &DB,
     l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
 ) -> Result<CommitmentStateTransitionData<'txs, Da>, anyhow::Error> {
-    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Transaction>>> =
+    let mut soft_confirmations = VecDeque::with_capacity(sequencer_commitments.len());
+    let mut da_block_headers_of_soft_confirmations =
         VecDeque::with_capacity(sequencer_commitments.len());
-    let mut da_block_headers_of_soft_confirmations: VecDeque<
-        Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
-    > = VecDeque::with_capacity(sequencer_commitments.len());
     for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
         let start_l2 = sequencer_commitment.l2_start_block_number;
@@ -416,8 +414,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> anyhow::Result<VecDeque<Vec<(ArrayWitness, ArrayWitness)>>> {
-    let mut state_transition_witnesses: VecDeque<Vec<(ArrayWitness, ArrayWitness)>> =
-        VecDeque::with_capacity(soft_confirmations.len());
+    let mut state_transition_witnesses = VecDeque::with_capacity(soft_confirmations.len());
 
     let mut init_state_root = ledger_db
         .get_l2_state_root(soft_confirmations[0][0].l2_height() - 1)?
