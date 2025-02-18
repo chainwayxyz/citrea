@@ -5,27 +5,11 @@ use tracing::{debug, error};
 
 use self::slots::prune_slots;
 use self::soft_confirmations::prune_soft_confirmations;
+use crate::log_result_or_error;
 use crate::pruning::types::StorageNodeType;
 
 mod slots;
 mod soft_confirmations;
-
-macro_rules! log_result_or_error {
-    ($tables_group:literal, $call:expr) => {{
-        match $call {
-            Ok(result) => {
-                debug!("Deleted {} records from {} group", result, $tables_group);
-            }
-            Err(e) => {
-                error!(
-                    "Failed to prune ledger's {} table group: {:?}",
-                    $tables_group, e
-                );
-                return;
-            }
-        }
-    }};
-}
 
 /// Prune ledger
 pub(crate) fn prune_ledger(node_type: StorageNodeType, ledger_db: Arc<DB>, up_to_block: u64) {
