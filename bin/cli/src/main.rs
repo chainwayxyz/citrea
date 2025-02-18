@@ -51,6 +51,8 @@ enum Commands {
     },
     /// Rollback the most recent N blocks
     Rollback {
+        #[arg(long)]
+        node_type: StorageNodeTypeArg,
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,
@@ -88,8 +90,12 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::prune(node_type, db_path.clone(), distance).await?;
         }
-        Commands::Rollback { db_path, blocks } => {
-            commands::rollback(db_path.clone(), blocks).await?;
+        Commands::Rollback {
+            node_type,
+            db_path,
+            blocks,
+        } => {
+            commands::rollback(node_type, db_path.clone(), blocks).await?;
         }
         Commands::Backup {
             db_path,

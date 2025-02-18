@@ -8,14 +8,23 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use tracing::info;
 
-pub(crate) async fn rollback(db_path: PathBuf, num_blocks: u64) -> anyhow::Result<()> {
+use super::StorageNodeTypeArg;
+use crate::commands::cfs_from_node_type;
+
+pub(crate) async fn rollback(
+    node_type: StorageNodeTypeArg,
+    db_path: PathBuf,
+    num_blocks: u64,
+) -> anyhow::Result<()> {
     info!(
         "Rolling back DB at {} {} down",
         db_path.display(),
         num_blocks
     );
 
-    let rocksdb_config = RocksdbConfig::new(&db_path, None, None);
+    let column_families = cfs_from_node_type(node_type);
+
+    let rocksdb_config = RocksdbConfig::new(&db_path, None, Some(column_families.to_vec()));
     let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
     let native_db = NativeDB::setup_schema_db(&rocksdb_config)?;
     let state_db = StateDB::setup_schema_db(&rocksdb_config)?;
@@ -26,7 +35,7 @@ pub(crate) async fn rollback(db_path: PathBuf, num_blocks: u64) -> anyhow::Resul
 
     let rollback = Rollback::new(ledger_db.inner(), Arc::new(state_db), Arc::new(native_db));
     rollback
-        .execute(soft_confirmation_number, num_blocks)
+        .execute(node_type.into(), soft_confirmation_number, num_blocks)
         .await?;
 
     Ok(())

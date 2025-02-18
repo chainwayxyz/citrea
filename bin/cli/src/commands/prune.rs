@@ -1,37 +1,15 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::{Pruner, PruningConfig};
-use clap::ValueEnum;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_db::schema::tables::{
-    BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
-    SEQUENCER_LEDGER_TABLES,
-};
 use sov_db::state_db::StateDB;
 use tracing::{debug, info};
 
-#[derive(Copy, Clone, ValueEnum)]
-pub enum StorageNodeTypeArg {
-    Sequencer,
-    FullNode,
-    BatchProver,
-    LightClient,
-}
-
-impl From<StorageNodeTypeArg> for StorageNodeType {
-    fn from(value: StorageNodeTypeArg) -> Self {
-        match value {
-            StorageNodeTypeArg::Sequencer => StorageNodeType::Sequencer,
-            StorageNodeTypeArg::FullNode => StorageNodeType::FullNode,
-            StorageNodeTypeArg::BatchProver => StorageNodeType::BatchProver,
-            StorageNodeTypeArg::LightClient => StorageNodeType::LightClient,
-        }
-    }
-}
+use super::StorageNodeTypeArg;
+use crate::commands::cfs_from_node_type;
 
 pub(crate) async fn prune(
     node_type: StorageNodeTypeArg,
@@ -74,15 +52,4 @@ pub(crate) async fn prune(
         pruner.prune(node_type.into(), up_to_block).await;
     }
     Ok(())
-}
-
-fn cfs_from_node_type(node_type: StorageNodeTypeArg) -> Vec<String> {
-    let cfs = match node_type {
-        StorageNodeTypeArg::Sequencer => SEQUENCER_LEDGER_TABLES,
-        StorageNodeTypeArg::FullNode => FULL_NODE_LEDGER_TABLES,
-        StorageNodeTypeArg::BatchProver => BATCH_PROVER_LEDGER_TABLES,
-        StorageNodeTypeArg::LightClient => LIGHT_CLIENT_PROVER_LEDGER_TABLES,
-    };
-
-    cfs.iter().map(|x| x.to_string()).collect::<Vec<_>>()
 }
