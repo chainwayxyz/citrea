@@ -54,7 +54,7 @@ pub struct ApplySequencerCommitmentsOutput {
     /// Last soft confirmation hash
     pub final_soft_confirmation_hash: [u8; 32],
     /// Sequencer commitment hashes
-    pub sequencer_commitment_hashes: Vec<[u8; 32]>,
+    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
 }
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database

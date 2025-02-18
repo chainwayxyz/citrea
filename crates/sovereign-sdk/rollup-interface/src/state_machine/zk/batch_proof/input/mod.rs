@@ -163,8 +163,6 @@ where
         (
             BatchProofCircuitInputV3Part1 {
                 initial_state_root: self.initial_state_root,
-                final_state_root: self.final_state_root,
-                prev_soft_confirmation_hash: self.prev_soft_confirmation_hash,
                 da_block_headers_of_soft_confirmations: self.da_block_headers_of_soft_confirmations,
                 sequencer_commitments: self.sequencer_commitments,
             },

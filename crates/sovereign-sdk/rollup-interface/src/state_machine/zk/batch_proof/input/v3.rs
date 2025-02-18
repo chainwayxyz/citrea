@@ -25,12 +25,6 @@ pub struct BatchProofCircuitInputV3Part2<'txs, Witness, Tx: Clone>(
 pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
-    /// The state root after the state transition
-    /// TODO: remove in this pr
-    pub final_state_root: StorageRootHash,
-    /// The hash before the state transition
-    /// TODO: remove in this pr
-    pub prev_soft_confirmation_hash: [u8; 32],
     /// Sequencer commitments being proven
     /// Since `SequencerCommitment` does not have the sequencer's signature,
     /// the light client prover will be doing the signature verification

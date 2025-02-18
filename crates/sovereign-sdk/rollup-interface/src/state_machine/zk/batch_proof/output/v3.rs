@@ -20,10 +20,6 @@ pub struct BatchProofCircuitOutputV3 {
     pub initial_state_root: StorageRootHash,
     /// The state of the rollup after the transition
     pub final_state_root: StorageRootHash,
-    /// The hash of the last soft confirmation before the state transition
-    /// This will be [0; 32] for pre fork 1 proofs
-    /// TODO: remove in this pr
-    pub prev_soft_confirmation_hash: [u8; 32],
     /// The hash of the last soft confirmation in the state transition
     /// This will be [0; 32] for pre fork 1 proofs
     pub final_soft_confirmation_hash: [u8; 32],
@@ -33,5 +29,5 @@ pub struct BatchProofCircuitOutputV3 {
     /// This will be 0 for pre fork 1 proofs
     pub last_l2_height: u64,
     /// Hashes inside sequencer commitmentes that were processed.
-    pub sequencer_commitment_hashes: Vec<[u8; 32]>,
+    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
 }

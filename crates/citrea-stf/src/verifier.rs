@@ -47,7 +47,7 @@ where
             state_diff,
             last_l2_height,
             final_soft_confirmation_hash,
-            sequencer_commitment_hashes,
+            sequencer_commitment_merkle_roots,
         } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
@@ -68,9 +68,8 @@ where
             final_state_root,
             final_soft_confirmation_hash,
             state_diff,
-            prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             last_l2_height,
-            sequencer_commitment_hashes,
+            sequencer_commitment_merkle_roots,
         }
     }
 }

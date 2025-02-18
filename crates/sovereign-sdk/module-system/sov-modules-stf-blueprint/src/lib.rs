@@ -428,7 +428,7 @@ where
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
 
-        let sequencer_commitment_hashes = sequencer_commitments
+        let sequencer_commitment_merkle_roots = sequencer_commitments
             .iter()
             .map(|c| c.merkle_root)
             .collect::<Vec<_>>();
@@ -642,7 +642,7 @@ where
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
-            sequencer_commitment_hashes,
+            sequencer_commitment_merkle_roots,
         }
     }
 }

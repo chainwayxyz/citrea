@@ -303,7 +303,7 @@ where
                 self.process_fork2_zk_proof(
                     l1_block,
                     output.initial_state_root,
-                    output.sequencer_commitment_hashes.clone(),
+                    output.sequencer_commitment_merkle_roots.clone(),
                     proof,
                     StoredBatchProofOutput::from(output),
                 )
@@ -385,7 +385,7 @@ where
                 .ok_or(SyncError::SequencerCommitmentNotFound(root))?;
 
             let l2_height_before_comm_range = seq_comm_range.0 .0 - 1;
-            let prior_soft_confirmation_post_state_root = self
+            let state_root_prior_soft_confirmation = self
                 .ledger_db
                 .get_l2_state_root(l2_height_before_comm_range)?
                 .ok_or_else(|| {
@@ -395,10 +395,10 @@ where
                     )
                 })?;
 
-            if prior_soft_confirmation_post_state_root.as_ref() != initial_state_root.as_ref() {
+            if state_root_prior_soft_confirmation.as_ref() != initial_state_root.as_ref() {
                 return Err(anyhow!(
                     "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(prior_soft_confirmation_post_state_root),
+                    hex::encode(state_root_prior_soft_confirmation),
                     hex::encode(initial_state_root)
                 ).into());
             }
@@ -471,17 +471,17 @@ where
             filtered_commitments[sequencer_commitments_range.0 as usize].l2_start_block_number;
         // Fetch the block prior to the one at l2_height so compare state roots
 
-        let prior_soft_confirmation_post_state_root = self
+        let state_root_prior_soft_confirmation = self
             .ledger_db
             .get_l2_state_root(l2_height - 1)?
             .ok_or_else(|| {
-                SyncError::MissingL2("L2 height not synced yet", l2_height - 1, l2_height - 1)
-            })?;
+            SyncError::MissingL2("L2 height not synced yet", l2_height - 1, l2_height - 1)
+        })?;
 
-        if prior_soft_confirmation_post_state_root.as_ref() != initial_state_root.as_ref() {
+        if state_root_prior_soft_confirmation.as_ref() != initial_state_root.as_ref() {
             return Err(anyhow!(
                 "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                hex::encode(prior_soft_confirmation_post_state_root),
+                hex::encode(state_root_prior_soft_confirmation),
                 hex::encode(initial_state_root)
             ).into());
         }

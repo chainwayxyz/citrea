@@ -93,7 +93,7 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                     U32::from(value.sequencer_commitments_range.1),
                 )),
                 preproven_commitments: Some(value.preproven_commitments),
-                prev_soft_confirmation_hash: value.initial_batch_hash,
+                prev_soft_confirmation_hash: Some(SerializableHash(value.initial_batch_hash)),
                 final_soft_confirmation_hash: None,
                 last_l2_height: None,
                 last_active_spec_id: Some(U8::from(value.last_active_spec_id as u8)),
@@ -110,7 +110,9 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                     U32::from(value.sequencer_commitments_range.1),
                 )),
                 preproven_commitments: Some(value.preproven_commitments),
-                prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
+                prev_soft_confirmation_hash: Some(SerializableHash(
+                    value.prev_soft_confirmation_hash,
+                )),
                 final_soft_confirmation_hash: Some(SerializableHash(
                     value.final_soft_confirmation_hash,
                 )),
@@ -126,7 +128,7 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 sequencer_public_key: vec![],
                 sequencer_commitments_range: None,
                 preproven_commitments: None,
-                prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
+                prev_soft_confirmation_hash: None,
                 final_soft_confirmation_hash: Some(SerializableHash(
                     value.final_soft_confirmation_hash,
                 )),
