@@ -91,8 +91,6 @@ where
         let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
         info!("Starting L2 height: {}", start_l2_height);
-        // TODO: Rename to verifier
-        // Set the short header proof provider
 
         Ok(Self {
             start_l2_height,

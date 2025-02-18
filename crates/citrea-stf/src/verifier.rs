@@ -1,5 +1,3 @@
-use core::panic;
-
 use short_header_proof_provider::{ZkShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::fork::Fork;

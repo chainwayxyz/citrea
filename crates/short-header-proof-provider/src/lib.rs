@@ -29,12 +29,12 @@ pub static SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvide
 #[cfg(feature = "native")]
 pub struct NativeShortHeaderProofProviderService<Da: DaService> {
     pub da_service: Arc<Da>,
-    pub ledger_db: Arc<LedgerDB>,
+    pub ledger_db: LedgerDB,
 }
 
 #[cfg(feature = "native")]
 impl<Da: DaService> NativeShortHeaderProofProviderService<Da> {
-    pub fn new(da_service: Arc<Da>, ledger_db: Arc<LedgerDB>) -> Self {
+    pub fn new(da_service: Arc<Da>, ledger_db: LedgerDB) -> Self {
         Self {
             da_service,
             ledger_db,
@@ -49,11 +49,8 @@ impl<Da: DaService> ShortHeaderProofProvider for NativeShortHeaderProofProviderS
         let shp = Da::block_to_short_header_proof(block);
         self.ledger_db
             .put_short_header_proof_by_l1_hash(block_hash, borsh::to_vec(&shp).unwrap())
-            .unwrap();
-        if shp.verify().is_ok() {
-            return true;
-        }
-        false
+            .expect("Should save short header proof");
+        shp.verify().is_ok()
     }
 }
 
@@ -71,11 +68,13 @@ impl<Da: DaSpec> ZkShortHeaderProofProviderService<Da> {
 }
 impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<Da> {
     fn get_and_verify_short_header_proof_by_l1_hash(&self, block_hash: [u8; 32]) -> bool {
-        for (l1_hash, proof) in self.short_header_proofs.iter() {
-            if l1_hash != &block_hash {
-                continue;
-            }
-            let shp = Da::ShortHeaderProof::try_from_slice(proof).unwrap();
+        if let Some(pos) = self
+            .short_header_proofs
+            .iter()
+            .position(|(l1_hash, _)| l1_hash == &block_hash)
+        {
+            let shp =
+                Da::ShortHeaderProof::try_from_slice(&self.short_header_proofs[pos].1).unwrap();
             if shp.verify().is_ok() {
                 return true;
             }
