@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
-use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
@@ -12,8 +11,6 @@ use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
 pub use proving::GroupCommitments;
 pub use runner::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
@@ -33,7 +30,7 @@ pub mod rpc;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub async fn build_services<Da, DB, Vm, Witness>(
+pub async fn build_services<Da, DB, Vm>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
     init_params: InitParams,
@@ -55,14 +52,13 @@ pub async fn build_services<Da, DB, Vm, Witness>(
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
     CitreaBatchProver<Da, DB>,
-    L1BlockHandler<Vm, Da, DB, Witness>,
+    L1BlockHandler<Vm, Da, DB>,
     RpcModule<()>,
 )>
 where
     Da: DaService<Error = anyhow::Error>,
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
-    Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
 
