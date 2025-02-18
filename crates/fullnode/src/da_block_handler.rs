@@ -121,6 +121,15 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
+        // Save short header proof to ledger db for Native Short Header Proof Provider Service
+        let short_header_proof = Da::block_to_short_header_proof(l1_block.clone());
+        self.ledger_db
+            .put_short_header_proof_by_l1_hash(
+                &l1_block.hash(),
+                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            )
+            .expect("Should save short header proof to ledger db");
+
         let sequencer_commitments = extract_sequencer_commitments(
             self.da_service.clone(),
             l1_block,

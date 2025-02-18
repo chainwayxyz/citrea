@@ -3197,6 +3197,7 @@ dependencies = [
  "once_cell",
  "sov-modules-api",
  "sov-rollup-interface",
+ "thiserror",
 ]
 
 [[package]]

@@ -163,6 +163,17 @@ where
                 )
                 .unwrap();
 
+            // Save short header proof to ledger db for Native Short Header Proof Provider Service
+            let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+                Da::block_to_short_header_proof(l1_block.clone());
+            self.ledger_db
+                .put_short_header_proof_by_l1_hash(
+                    &l1_block.hash(),
+                    borsh::to_vec(&short_header_proof)
+                        .expect("Should serialize short header proof"),
+                )
+                .expect("Should save short header proof to ledger db");
+
             if l1_height < self.skip_submission_until_l1 {
                 info!("Skipping proving for l1 height {}", l1_height);
                 self.ledger_db

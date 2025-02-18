@@ -3,7 +3,7 @@ use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
-use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
+use short_header_proof_provider::{ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::{
     native_error, native_trace, SoftConfirmationModuleCallError, SpecId as CitreaSpecId,
 };
@@ -108,9 +108,15 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             // TODO: Get this and other params from input
             let _input = tx.input();
             let l1_hash = [0u8; 32];
-            if !shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_hash) {
-                // Failed to verify shp
-                native_error!("Failed to verify short header proof");
+            match shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_hash) {
+                Ok(true) => {}
+                Ok(false) => {
+                    // Failed to verify shp
+                    return Err(SoftConfirmationModuleCallError::ShortHeaderProofVerificationError);
+                }
+                Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
+                    return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
+                }
             }
             native_error!("System transaction found in user txs");
             return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);

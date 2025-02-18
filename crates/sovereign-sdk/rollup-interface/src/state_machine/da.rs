@@ -160,7 +160,11 @@ pub trait DaSpec:
 
     /// A verifiable proof that upon verification, returns the hash of the header,
     /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
-    type ShortHeaderProof: VerifableShortHeaderProof + BorshDeserialize + BorshSerialize;
+    type ShortHeaderProof: VerifableShortHeaderProof
+        + BorshDeserialize
+        + BorshSerialize
+        + Send
+        + Sync;
 }
 
 /// Information needed to update L1 light client system contract

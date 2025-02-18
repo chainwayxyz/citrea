@@ -7768,6 +7768,7 @@ dependencies = [
  "sov-db",
  "sov-modules-api",
  "sov-rollup-interface",
+ "thiserror",
 ]
 
 [[package]]

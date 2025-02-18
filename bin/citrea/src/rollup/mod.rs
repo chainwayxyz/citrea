@@ -204,10 +204,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
     )> {
-        match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::new(
-            da_service.clone(),
-            ledger_db.clone(),
-        ))) {
+        match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+            Self::DaSpec,
+        >::new(ledger_db.clone())))
+        {
             Ok(_) => tracing::debug!("Short header proof provider set"),
             Err(_) => tracing::error!("Short header proof provider already set"),
         };
@@ -263,10 +263,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
         RpcModule<()>,
     )> {
-        match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::new(
-            da_service.clone(),
-            ledger_db.clone(),
-        ))) {
+        match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+            Self::DaSpec,
+        >::new(ledger_db.clone())))
+        {
             Ok(_) => tracing::debug!("Short header proof provider set"),
             Err(_) => tracing::error!("Short header proof provider already set"),
         };
