@@ -86,7 +86,7 @@ impl TestCase for GenerateProofInput {
 
             // if last block, ensure all txs are in the mempool
             if block == blocks {
-                while let Some(signed_tx) = signed_txs_iter.next() {
+                for signed_tx in signed_txs_iter.by_ref() {
                     sequencer
                         .client
                         .http_client()
