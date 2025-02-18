@@ -362,13 +362,13 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
-            if let Some(shp) =
-                ledger_db.get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
-            {
-                // If first time, insert and push to the vector
-                if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
-                    short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
-                }
+            let shp = ledger_db
+                .get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
+                .expect("Must have short header proof");
+
+            // If first time, insert and push to the vector
+            if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
+                short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
             }
 
             if da_block_headers_to_push.is_empty()
