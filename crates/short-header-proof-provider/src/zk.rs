@@ -32,13 +32,12 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             .write()
             .unwrap()
             .pop_front()
-            .expect(
-                format!(
+            .unwrap_or_else(|| {
+                panic!(
                     "Should have short header proof for l1 hash: {:?}",
                     block_hash
                 )
-                .as_str(),
-            )
+            })
             .1;
 
         let shp = Da::ShortHeaderProof::try_from_slice(&shp).unwrap();
