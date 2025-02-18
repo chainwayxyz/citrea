@@ -324,11 +324,11 @@ pub struct BatchProofOutputRpcResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sequencer_commitments_range: Option<(U32, U32)>,
     /// Sequencer public key.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     #[serde(with = "faster_hex")]
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     #[serde(with = "hex::serde")] // without 0x prefix
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
