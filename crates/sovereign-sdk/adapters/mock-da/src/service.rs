@@ -21,7 +21,7 @@ use tracing::instrument::Instrument;
 
 use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
-use crate::verifier::MockDaSpec;
+use crate::verifier::{MockDaSpec, MockShortHeaderProof};
 use crate::{MockBlockHeader, MockHash};
 
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
@@ -548,7 +548,7 @@ impl DaService for MockDaService {
     fn block_to_short_header_proof(
         _block: Self::FilteredBlock,
     ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
-        unimplemented!()
+        MockShortHeaderProof {}
     }
 }
 
