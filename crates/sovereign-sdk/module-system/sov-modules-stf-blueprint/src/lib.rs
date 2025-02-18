@@ -177,9 +177,7 @@ where
             l2_block,
         )
         .map_err(|_| {
-            StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::InvalidateTxMerkleRoot,
-            )
+            StateTransitionError::SoftConfirmationError(SoftConfirmationError::InvalidTxMerkleRoot)
         })?;
 
         match current_spec {
@@ -680,7 +678,7 @@ fn verify_tx_merkle_root<C: Context + Spec, Tx: Clone + BorshSerialize + Transac
 
     if tx_merkle_root != l2_block.tx_merkle_root() {
         return Err(StateTransitionError::SoftConfirmationError(
-            SoftConfirmationError::InvalidateTxMerkleRoot,
+            SoftConfirmationError::InvalidTxMerkleRoot,
         ));
     }
     Ok(())
