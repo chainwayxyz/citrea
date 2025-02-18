@@ -3,7 +3,7 @@ use citrea_primitives::forks::NIGHTLY_FORKS;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_stf::StfVerifier;
-use sov_mock_da::MockDaVerifier;
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -26,7 +26,7 @@ const SEQUENCER_K256_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_arr
     Err(_) => panic!("Can't happen"),
 };
 
-const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+const _SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
     b"02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
 ) {
     Ok(pub_key) => pub_key,
@@ -52,19 +52,16 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StfVerifier<_, ZkDefaultContext, CitreaRuntime<_, _>> =
-        StfVerifier::new(stf, MockDaVerifier {});
+    let mut stf_verifier: StfVerifier<MockDaSpec, ZkDefaultContext, CitreaRuntime<_, _>> =
+        StfVerifier::new(stf);
 
-    let out = stf_verifier
-        .run_sequencer_commitments_in_da_slot(
-            &guest,
-            storage,
-            &SEQUENCER_PUBLIC_KEY,
-            &SEQUENCER_K256_PUBLIC_KEY,
-            &SEQUENCER_DA_PUBLIC_KEY,
-            get_forks(),
-        )
-        .expect("Prover must be honest");
+    let out = stf_verifier.run_sequencer_commitments_in_da_slot(
+        &guest,
+        storage,
+        &SEQUENCER_PUBLIC_KEY,
+        &SEQUENCER_K256_PUBLIC_KEY,
+        get_forks(),
+    );
 
     guest.commit(&out);
 }

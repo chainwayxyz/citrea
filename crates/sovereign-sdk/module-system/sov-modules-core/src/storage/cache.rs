@@ -12,7 +12,7 @@ use crate::common::{MergeError, ReadError};
 #[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
 pub struct CacheKey {
     /// The key of the cache entry.
-    pub key: RefCount<Vec<u8>>,
+    pub key: RefCount<[u8]>,
 }
 
 impl fmt::Display for CacheKey {
@@ -26,7 +26,7 @@ impl fmt::Display for CacheKey {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CacheValue {
     /// The value of the cache entry.
-    pub value: RefCount<Vec<u8>>,
+    pub value: RefCount<[u8]>,
 }
 
 impl fmt::Display for CacheValue {
@@ -375,13 +375,13 @@ mod tests {
 
     pub fn create_key(key: u8) -> CacheKey {
         CacheKey {
-            key: RefCount::new(alloc::vec![key]),
+            key: RefCount::from(alloc::vec![key]),
         }
     }
 
     pub fn create_value(v: u8) -> Option<CacheValue> {
         Some(CacheValue {
-            value: RefCount::new(alloc::vec![v]),
+            value: RefCount::from(alloc::vec![v]),
         })
     }
 

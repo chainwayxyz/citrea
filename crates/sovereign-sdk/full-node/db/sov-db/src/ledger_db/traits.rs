@@ -139,6 +139,18 @@ pub trait SharedLedgerOps {
     /// Returns stored short header proof by l1 hash
     fn get_short_header_proof_by_l1_hash(&self, hash: &[u8; 32])
         -> anyhow::Result<Option<Vec<u8>>>;
+    /// Set L2 range by soft confirmation hash merkle root
+    fn set_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+        range: L2HeightRange,
+    ) -> anyhow::Result<()>;
+
+    /// Get L2 range by soft confirmation hash merkle root
+    fn get_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+    ) -> anyhow::Result<Option<L2HeightRange>>;
 }
 
 /// Node ledger operations
