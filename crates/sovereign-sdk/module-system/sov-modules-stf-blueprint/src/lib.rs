@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use borsh::BorshDeserialize;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -15,10 +14,10 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
-    native_debug, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature,
-    Spec, UnsignedSoftConfirmation, WorkingSet,
+    native_debug, BasicAddress, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
+    UnsignedSoftConfirmation, WorkingSet,
 };
-use sov_rollup_interface::da::DaDataBatchProof;
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, UnsignedSoftConfirmationV1};
 use sov_rollup_interface::spec::SpecId;
@@ -421,95 +420,30 @@ where
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
         sequencer_k256_public_key: &[u8],
-        sequencer_da_public_key: &[u8],
         initial_state_root: &StorageRootHash,
         pre_state: Self::PreState,
-        da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        sequencer_commitments_range: (u32, u32),
+        sequencer_commitments: Vec<SequencerCommitment>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        preproven_commitment_indices: Vec<usize>,
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
 
-        // Extract all sequencer commitments.
-        // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
-        let mut sequencer_commitments = da_data
-            .into_iter()
-            .filter_map(|blob| {
-                if blob.sender().as_ref() == sequencer_da_public_key {
-                    let da_data = DaDataBatchProof::try_from_slice(blob.full_data());
-
-                    if let Ok(DaDataBatchProof::SequencerCommitment(commitment)) = da_data {
-                        return Some(commitment);
-                    }
-                }
-
-                None
-            })
+        let sequencer_commitment_merkle_roots = sequencer_commitments
+            .iter()
+            .map(|c| c.merkle_root)
             .collect::<Vec<_>>();
 
-        // A breakdown of why we sort the sequencer commitments, and why we need fields
-        // `StateTransitionData::preproven_commitments` and `StateTransitionData::sequencer_commitment_range`:
-        //
-        // There is a chance of your "relevant transaction" being replayed on da layer, if the da layer does not have
-        // a publickey-nonce check. To prevent from these attacks stopping our proving, we need to have a way to input the
-        // the commitments we will ignore. This does not break any trust assumptions, as the zk circuit checks the
-        // state transitions. So the prover can not leave out any commitments, beacuse it would break the state root checks
-        // done by the zk circuit.
-        //
-        // If there is limitations on da on for the size of a single transaction (all blockchains have this), then
-        // it's a good idea to allow proving of a single sequencer commitment at a time. Because more sequencer commmitments being
-        // processed means there will be a bigger state diff. But sometimes it's efficient to
-        // prove multiple commitments at a time. So we need to have a way to input the range of commitments we are proving.
-        //
-        // Now, why do we sort?
-        //
-        // Again, if the da layer doesn't have a publickey-nonce relation, there is a chance of sequencer commitment #10
-        // landing on the da layer before sequencer commitment #9. If DA layer ordering is enforced in the zk circuit,
-        // then this will break your rollup. So we need to sort the commitments by their l2_start_block_number, or something else.
-        //
-        // As long as the zk circuit and the prover (the entity providing the zk circuit inputs) are in agreement on the
-        // ordering, the range of commitments, and which commitments to ignore, the zk circuit will be able to verify the state transition.
-        //
-        // Again, since the zk circuit verify the state transition, the prover can not leave out any commitments or change the ordering of
-        // rollup state transitions.
-        sequencer_commitments.sort();
-
-        // The preproven indices are sorted by the prover when originally passed.
-        // Therefore, we can iterate of sequencer commitments and filter out
-        // matching preproven indices.
-        let mut preproven_commitments_iter = preproven_commitment_indices.into_iter().peekable();
-        let sequencer_commitments_iter = sequencer_commitments
-            .into_iter()
-            .enumerate()
-            .filter(|(idx, _)| {
-                if let Some(preproven_idx) = preproven_commitments_iter.peek() {
-                    if preproven_idx == idx {
-                        preproven_commitments_iter.next();
-                        return false;
-                    }
-                }
-                true
-            })
-            .map(|(_, commitment)| commitment);
-
-        // Then verify these soft confirmations.
+        // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
         let mut prev_soft_confirmation_hash: Option<[u8; 32]> = None;
         let mut last_commitment_end_height: Option<u64> = None;
 
         let group_count: u32 = guest.read_from_host();
 
-        assert_eq!(
-            group_count,
-            sequencer_commitments_range.1 - sequencer_commitments_range.0 + 1
-        );
+        assert_eq!(group_count, sequencer_commitments.len() as u32);
 
-        for (sequencer_commitment, da_block_headers) in sequencer_commitments_iter
-            .skip(sequencer_commitments_range.0 as usize)
-            .take(group_count as usize)
-            .zip_eq(slot_headers)
+        for (sequencer_commitment, da_block_headers) in
+            sequencer_commitments.into_iter().zip_eq(slot_headers)
         {
             // if the commitment is not sequential, then the proof is invalid.
             if let Some(end_height) = last_commitment_end_height {
@@ -708,6 +642,7 @@ where
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
+            sequencer_commitment_merkle_roots,
         }
     }
 }

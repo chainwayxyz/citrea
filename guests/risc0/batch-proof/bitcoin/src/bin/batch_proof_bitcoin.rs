@@ -1,17 +1,14 @@
 #![no_main]
-use bitcoin_da::spec::RollupParams;
-use bitcoin_da::verifier::BitcoinVerifier;
+use bitcoin_da::spec::BitcoinSpec;
 use citrea_primitives::forks::{
     ALL_FORKS, DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, TESTNET_FORKS,
 };
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::guest::Risc0Guest;
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_stf::StfVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 use sov_state::ZkStorage;
@@ -64,7 +61,7 @@ const SEQUENCER_K256_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
-const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+const _SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "030000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
@@ -108,24 +105,16 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StfVerifier<_, ZkDefaultContext, CitreaRuntime<_, _>> = StfVerifier::new(
-        stf,
-        BitcoinVerifier::new(RollupParams {
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-        }),
-    );
+    let mut stf_verifier: StfVerifier<BitcoinSpec, ZkDefaultContext, CitreaRuntime<_, _>> =
+        StfVerifier::new(stf);
 
-    let out = stf_verifier
-        .run_sequencer_commitments_in_da_slot(
-            &guest,
-            storage,
-            &SEQUENCER_PUBLIC_KEY,
-            &SEQUENCER_K256_PUBLIC_KEY,
-            &SEQUENCER_DA_PUBLIC_KEY,
-            get_forks(),
-        )
-        .expect("Prover must be honest");
+    let out = stf_verifier.run_sequencer_commitments_in_da_slot(
+        &guest,
+        storage,
+        &SEQUENCER_PUBLIC_KEY,
+        &SEQUENCER_K256_PUBLIC_KEY,
+        get_forks(),
+    );
 
     guest.commit(&out);
 }

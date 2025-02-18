@@ -348,7 +348,6 @@ impl DaService for MockDaService {
     type HeaderStream = MockDaBlockHeaderStream;
     type TransactionId = MockHash;
     type Error = anyhow::Error;
-    type BlockHash = [u8; 32];
 
     /// Decompress and deserialize chunks
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -530,12 +529,12 @@ impl DaService for MockDaService {
 
     async fn get_block_by_hash(
         &self,
-        hash: Self::BlockHash,
+        hash: <Self::Spec as DaSpec>::SlotHash,
     ) -> Result<Self::FilteredBlock, Self::Error> {
         self.blocks
             .lock()
             .await
-            .get_by_hash(hash)
+            .get_by_hash(hash.0)
             .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
     }
 

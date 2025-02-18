@@ -96,10 +96,12 @@ where
         });
     }
 
-    let (sequencer_commitments, preproven_commitments) =
+    let (mut sequencer_commitments, preproven_commitments) =
         filter_out_proven_commitments(&ledger, &sequencer_commitments).map_err(|e| {
             L1ProcessingError::Other(format!("Error filtering out proven commitments: {}", e))
         })?;
+
+    sequencer_commitments.sort();
 
     if sequencer_commitments.is_empty() {
         return Err(L1ProcessingError::DuplicateCommitments { l1_height });
@@ -204,6 +206,8 @@ where
             sequencer_da_public_key: sequencer_da_pub_key.clone(),
             final_state_root,
             prev_soft_confirmation_hash: initial_soft_confirmation_hash,
+            sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
+                .to_vec(),
         };
 
         batch_proof_circuit_inputs.push(input);
@@ -279,6 +283,7 @@ where
         ledger.clone(),
         txs_and_proofs,
         code_commitments_by_spec.clone(),
+        l1_block.header().height(),
     )
     .await?;
 
@@ -314,7 +319,7 @@ where
             ),
             StoredBatchProofOutput::V3(output) => (
                 output.initial_state_root,
-                output.sequencer_commitments_range,
+                (u32::MAX, u32::MAX), // TODO: find another way for v3
             ),
         };
 
@@ -331,6 +336,7 @@ pub(crate) async fn extract_and_store_proof<DB, Da, Vm>(
     ledger_db: DB,
     txs_and_proofs: Vec<(<Da as DaService>::TransactionId, Proof)>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    l1_height: u64,
 ) -> Result<(), anyhow::Error>
 where
     Da: DaService,
@@ -342,34 +348,22 @@ where
 
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
-        let (last_active_spec_id, da_slot_hash, batch_proof_output) = match Vm::extract_output::<
+        let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
             BatchProofCircuitOutputV3,
         >(&proof)
         {
-            Ok(output) => (
-                fork_from_block_number(output.last_l2_height).spec_id,
-                output.da_slot_hash,
-                StoredBatchProofOutput::V3(output),
-            ),
+            Ok(output) => (SpecId::Fork2, StoredBatchProofOutput::V3(output)),
             Err(e) => {
                 info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
                 match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
-                    Ok(output) => (
-                        fork_from_block_number(output.last_l2_height).spec_id,
-                        output.da_slot_hash,
-                        StoredBatchProofOutput::V2(output),
-                    ),
+                    Ok(output) => (SpecId::Kumquat, StoredBatchProofOutput::V2(output)),
                     Err(e) => {
                         info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
                         let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
                             .expect("Should be able to extract either pre or post fork 1 output");
 
                         // If we got output of pre fork 1 that means we are in genesis
-                        (
-                            SpecId::Genesis,
-                            output.da_slot_hash,
-                            StoredBatchProofOutput::V1(output),
-                        )
+                        (SpecId::Genesis, StoredBatchProofOutput::V1(output))
                     }
                 }
             }
@@ -385,12 +379,6 @@ where
             .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
         debug!("circuit output: {:?}", batch_proof_output);
-
-        let slot_hash = da_slot_hash;
-
-        let l1_height = ledger_db
-            .get_l1_height_of_l1_hash(slot_hash)?
-            .expect("l1 height should exist");
 
         if let Err(e) = ledger_db.insert_batch_proof_data_by_l1_height(
             l1_height,

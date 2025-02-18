@@ -80,6 +80,32 @@ where
         working_set.get_value(self.prefix(), key, self.codec())
     }
 
+    /// Same as [`StateMapAccessor::get`], but also verifies the value with a given function only when the
+    /// value is not found in the cache and read from the storage.
+    /// This only applies to OffchainWorkingSet.
+    fn get_with_verification_on_no_cache<Q, F, E>(
+        &self,
+        key: &Q,
+        verification_fn_on_no_cache: F,
+        working_set: &mut W,
+    ) -> Result<Option<V>, E>
+    where
+        Codec: StateCodec,
+        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Codec::ValueCodec: StateValueCodec<V>,
+        Q: ?Sized,
+        F: FnOnce(&Option<V>) -> Result<(), E>,
+    {
+        let (val, read_from_cache) =
+            working_set.get_value_with_cache_info(self.prefix(), key, self.codec());
+
+        if !read_from_cache {
+            verification_fn_on_no_cache(&val)?;
+        }
+
+        Ok(val)
+    }
+
     /// Returns the value corresponding to the key or [`StateMapError`] if key is absent from
     /// the map.
     fn get_or_err<Q>(&self, key: &Q, working_set: &mut W) -> Result<V, StateMapError>

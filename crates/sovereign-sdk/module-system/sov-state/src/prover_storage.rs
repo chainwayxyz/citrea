@@ -146,7 +146,7 @@ impl Storage for ProverStorage {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
             let (result, proof) = jmt.get_with_proof(key_hash, version)?;
-            if result.as_ref() != read_value.as_ref().map(|f| f.value.as_ref()) {
+            if result.as_deref() != read_value.as_ref().map(|f| f.value.as_ref()) {
                 anyhow::bail!("Bug! Incorrect value read from jmt");
             }
             witness.add_hint(&proof);
@@ -163,15 +163,13 @@ impl Storage for ProverStorage {
             .map(|(key, value)| {
                 let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-                let key_bytes =
-                    Arc::try_unwrap(key.key.clone()).unwrap_or_else(|arc| (*arc).clone());
-                let value_bytes =
-                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
+                let key_bytes = key.key.clone();
+                let value_bytes = value.map(|v| v.value.clone());
 
                 diff.push((key_bytes, value_bytes.clone()));
                 key_preimages.push((key_hash, key));
 
-                (key_hash, value_bytes)
+                (key_hash, value_bytes.map(|v| (*v).to_vec()))
             });
 
         let next_version = version + 1;

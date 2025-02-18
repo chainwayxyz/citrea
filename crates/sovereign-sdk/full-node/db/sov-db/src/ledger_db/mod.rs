@@ -14,12 +14,12 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot, L2RangeByL1Height, L2Witness,
-    LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, LightClientProofBySlotNumber,
-    MempoolTxs, PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
-    LEDGER_TABLES,
+    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot,
+    L2RangeByL1Height, L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
+    PendingSequencerCommitmentL2Range, ProofsBySlotNumberV2, ProverLastScannedSlot,
+    ProverStateDiffs, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -463,6 +463,21 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()> {
         self.db.put::<ExecutedMigrations>(&migration, &())
+    }
+
+    fn set_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+        range: L2HeightRange,
+    ) -> anyhow::Result<()> {
+        self.db.put::<CommitmentMerkleRoots>(&root, &range)
+    }
+
+    fn get_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+    ) -> anyhow::Result<Option<L2HeightRange>> {
+        self.db.get::<CommitmentMerkleRoots>(&root)
     }
 }
 

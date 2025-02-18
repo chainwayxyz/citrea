@@ -128,6 +128,19 @@ pub trait SharedLedgerOps {
 
     /// Put a pending commitment l2 range
     fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()>;
+
+    /// Set L2 range by soft confirmation hash merkle root
+    fn set_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+        range: L2HeightRange,
+    ) -> anyhow::Result<()>;
+
+    /// Get L2 range by soft confirmation hash merkle root
+    fn get_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+    ) -> anyhow::Result<Option<L2HeightRange>>;
 }
 
 /// Node ledger operations

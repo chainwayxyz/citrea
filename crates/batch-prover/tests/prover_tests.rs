@@ -363,7 +363,8 @@ fn make_transition_data(
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
         preproven_commitments: vec![],
-        final_state_root: [0u8; 32],
+        final_state_root: [0; 32],
+        sequencer_commitments: vec![],
     }
 }
 
