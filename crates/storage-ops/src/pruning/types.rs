@@ -1,5 +1,5 @@
 #[derive(Copy, Clone)]
-pub enum PruningNodeType {
+pub enum StorageNodeType {
     Sequencer,
     FullNode,
     BatchProver,

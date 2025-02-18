@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use commands::PruningNodeTypeArg;
+use commands::StorageNodeTypeArg;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -41,7 +41,7 @@ enum Commands {
     /// Prune old DB entries
     Prune {
         #[arg(long)]
-        node_type: PruningNodeTypeArg,
+        node_type: StorageNodeTypeArg,
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,

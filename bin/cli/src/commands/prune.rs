@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use citrea_storage_ops::pruning::types::PruningNodeType;
+use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::{Pruner, PruningConfig};
 use clap::ValueEnum;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -15,26 +15,26 @@ use sov_db::state_db::StateDB;
 use tracing::{debug, info};
 
 #[derive(Copy, Clone, ValueEnum)]
-pub enum PruningNodeTypeArg {
+pub enum StorageNodeTypeArg {
     Sequencer,
     FullNode,
     BatchProver,
     LightClient,
 }
 
-impl From<PruningNodeTypeArg> for PruningNodeType {
-    fn from(value: PruningNodeTypeArg) -> Self {
+impl From<StorageNodeTypeArg> for StorageNodeType {
+    fn from(value: StorageNodeTypeArg) -> Self {
         match value {
-            PruningNodeTypeArg::Sequencer => PruningNodeType::Sequencer,
-            PruningNodeTypeArg::FullNode => PruningNodeType::FullNode,
-            PruningNodeTypeArg::BatchProver => PruningNodeType::BatchProver,
-            PruningNodeTypeArg::LightClient => PruningNodeType::LightClient,
+            StorageNodeTypeArg::Sequencer => StorageNodeType::Sequencer,
+            StorageNodeTypeArg::FullNode => StorageNodeType::FullNode,
+            StorageNodeTypeArg::BatchProver => StorageNodeType::BatchProver,
+            StorageNodeTypeArg::LightClient => StorageNodeType::LightClient,
         }
     }
 }
 
 pub(crate) async fn prune(
-    node_type: PruningNodeTypeArg,
+    node_type: StorageNodeTypeArg,
     db_path: PathBuf,
     distance: u64,
 ) -> anyhow::Result<()> {
@@ -76,12 +76,12 @@ pub(crate) async fn prune(
     Ok(())
 }
 
-fn cfs_from_node_type(node_type: PruningNodeTypeArg) -> Vec<String> {
+fn cfs_from_node_type(node_type: StorageNodeTypeArg) -> Vec<String> {
     let cfs = match node_type {
-        PruningNodeTypeArg::Sequencer => SEQUENCER_LEDGER_TABLES,
-        PruningNodeTypeArg::FullNode => FULL_NODE_LEDGER_TABLES,
-        PruningNodeTypeArg::BatchProver => BATCH_PROVER_LEDGER_TABLES,
-        PruningNodeTypeArg::LightClient => LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+        StorageNodeTypeArg::Sequencer => SEQUENCER_LEDGER_TABLES,
+        StorageNodeTypeArg::FullNode => FULL_NODE_LEDGER_TABLES,
+        StorageNodeTypeArg::BatchProver => BATCH_PROVER_LEDGER_TABLES,
+        StorageNodeTypeArg::LightClient => LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     };
 
     cfs.iter().map(|x| x.to_string()).collect::<Vec<_>>()

@@ -5,10 +5,10 @@ use sov_db::schema::tables::{
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_schema_db::{ScanDirection, DB};
 
-use crate::pruning::types::PruningNodeType;
+use crate::pruning::types::StorageNodeType;
 
 pub(crate) fn prune_slots(
-    node_type: PruningNodeType,
+    node_type: StorageNodeType,
     ledger_db: &DB,
     up_to_block: u64,
 ) -> anyhow::Result<u64> {
@@ -31,20 +31,20 @@ pub(crate) fn prune_slots(
         ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
         ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
 
-        if !matches!(node_type, PruningNodeType::Sequencer) {
+        if !matches!(node_type, StorageNodeType::Sequencer) {
             prune_slot_by_hash(ledger_db, slot_height)?;
         }
 
-        if matches!(node_type, PruningNodeType::FullNode) {
+        if matches!(node_type, StorageNodeType::FullNode) {
             ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&slot_height)?;
         }
 
-        if matches!(node_type, PruningNodeType::BatchProver) {
+        if matches!(node_type, StorageNodeType::BatchProver) {
             ledger_db.delete::<ProofsBySlotNumber>(&slot_height)?;
             ledger_db.delete::<ProofsBySlotNumberV2>(&slot_height)?;
         }
 
-        if matches!(node_type, PruningNodeType::LightClient) {
+        if matches!(node_type, StorageNodeType::LightClient) {
             ledger_db.delete::<LightClientProofBySlotNumber>(&slot_height)?;
         }
 

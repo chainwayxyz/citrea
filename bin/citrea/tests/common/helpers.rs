@@ -17,7 +17,7 @@ use citrea_common::{
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
-use citrea_storage_ops::pruning::types::PruningNodeType;
+use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PruningConfig;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -338,7 +338,7 @@ pub async fn start_rollup(
         if let Some(pruner) = pruner {
             task_manager.spawn(|cancellation_token| async move {
                 pruner
-                    .run(PruningNodeType::FullNode, cancellation_token)
+                    .run(StorageNodeType::FullNode, cancellation_token)
                     .await
             });
         }

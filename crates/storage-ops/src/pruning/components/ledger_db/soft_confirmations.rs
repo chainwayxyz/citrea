@@ -5,10 +5,10 @@ use sov_db::schema::tables::{
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_schema_db::{ScanDirection, DB};
 
-use crate::pruning::types::PruningNodeType;
+use crate::pruning::types::StorageNodeType;
 
 pub(crate) fn prune_soft_confirmations(
-    node_type: PruningNodeType,
+    node_type: StorageNodeType,
     ledger_db: &DB,
     up_to_block: u64,
 ) -> anyhow::Result<u64> {
