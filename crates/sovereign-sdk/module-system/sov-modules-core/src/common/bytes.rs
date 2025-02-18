@@ -7,68 +7,6 @@ use sha2::Digest;
 
 use crate::module::Context;
 
-/// A [`Vec`] of bytes whose length is guaranteed to be aligned to 4 bytes.
-/// This makes certain operations cheaper in zk-context (namely, concatenation).
-// TODO: Currently the implementation defaults to `stc::vec::Vec` see:
-// https://github.com/Sovereign-Labs/sovereign-sdk/issues/47
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(
-    feature = "sync",
-    derive(
-        serde::Serialize,
-        serde::Deserialize,
-        borsh::BorshDeserialize,
-        borsh::BorshSerialize
-    )
-)]
-pub struct AlignedVec {
-    inner: Vec<u8>,
-}
-
-impl AlignedVec {
-    /// The length of the chunks of the aligned vector.
-    pub const ALIGNMENT: usize = 4;
-
-    /// Creates a new [`AlignedVec`] whose length is aligned to
-    /// [`AlignedVec::ALIGNMENT`] bytes.
-    pub fn new(vector: Vec<u8>) -> Self {
-        Self { inner: vector }
-    }
-
-    /// Extends `self` with the contents of the other [`AlignedVec`].
-    pub fn extend(&mut self, other: &Self) {
-        // TODO check if the standard extend method does the right thing.
-        // debug_assert_eq!(
-        //     self.inner.len() % Self::ALIGNMENT,
-        //     0,
-        //     "`AlignedVec` is expected to have well-formed chunks"
-        // );
-        self.inner.extend(&other.inner);
-    }
-
-    /// Consumes `self` and returns the underlying [`Vec`] of bytes.
-    pub fn into_inner(self) -> Vec<u8> {
-        self.inner
-    }
-
-    /// Returns the length in bytes of the prefix.
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    /// Returns `true` if the prefix is empty, `false` otherwise.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-impl AsRef<Vec<u8>> for AlignedVec {
-    fn as_ref(&self) -> &Vec<u8> {
-        &self.inner
-    }
-}
-
 /// A prefix prepended to each key before insertion and retrieval from the storage.
 ///
 /// When interacting with state containers, you will usually use the same working set instance to
@@ -85,7 +23,7 @@ impl AsRef<Vec<u8>> for AlignedVec {
     )
 )]
 pub struct Prefix {
-    prefix: AlignedVec,
+    prefix: Vec<u8>,
 }
 
 impl fmt::Display for Prefix {
@@ -104,22 +42,24 @@ impl fmt::Display for Prefix {
 
 impl Extend<u8> for Prefix {
     fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
-        self.prefix
-            .extend(&AlignedVec::new(iter.into_iter().collect()))
+        self.prefix.extend(iter)
     }
 }
 
 impl Prefix {
     /// Creates a new prefix from a byte vector.
     pub fn new(prefix: Vec<u8>) -> Self {
-        Self {
-            prefix: AlignedVec::new(prefix),
-        }
+        Self { prefix }
     }
 
-    /// Returns a reference to the [`AlignedVec`] containing the prefix.
-    pub fn as_aligned_vec(&self) -> &AlignedVec {
+    /// Returns a reference to the vector containing the prefix.
+    pub fn as_vec(&self) -> &Vec<u8> {
         &self.prefix
+    }
+
+    /// Returns a clone of the vector containing the prefix.
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.prefix.clone()
     }
 
     /// Returns the length in bytes of the prefix.
@@ -136,9 +76,11 @@ impl Prefix {
     /// Returns a new prefix allocated on the fly, by extending the current
     /// prefix with the given bytes.
     pub fn extended(&self, bytes: &[u8]) -> Self {
-        let mut prefix = self.clone();
-        prefix.extend(bytes.iter().copied());
-        prefix
+        let mut new_prefix = Vec::with_capacity(self.len() + bytes.len());
+        new_prefix.extend_from_slice(self.as_vec());
+        new_prefix.extend_from_slice(bytes);
+
+        Self::new(new_prefix)
     }
 }
 
