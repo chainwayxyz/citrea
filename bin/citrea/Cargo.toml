@@ -80,6 +80,7 @@ alloy-rpc-types = { workspace = true }
 alloy-rpc-types-trace = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
+chrono = { workspace = true }
 futures = { workspace = true }
 jmt = { workspace = true }
 rand = { workspace = true }

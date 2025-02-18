@@ -1779,6 +1779,7 @@ dependencies = [
  "bitcoin-da",
  "bitcoincore-rpc",
  "borsh",
+ "chrono",
  "citrea-batch-prover",
  "citrea-common",
  "citrea-e2e",
