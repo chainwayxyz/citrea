@@ -12,7 +12,6 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
-use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -21,9 +20,8 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::PreFork2Transaction;
-use sov_modules_api::{SignedSoftConfirmation, SlotData, SpecId, WorkingSet};
+use sov_modules_api::{SignedSoftConfirmation, SlotData, SpecId};
 use sov_modules_core::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -204,12 +202,6 @@ where
 
         let l2_height = soft_confirmation.l2_height;
 
-        if l2_height == 4 {
-            self.run_past_blocks()
-                .await
-                .expect("Running past blocks failed");
-        }
-
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
             soft_confirmation.da_slot_height,
@@ -364,81 +356,6 @@ where
             Instant::now()
                 .saturating_duration_since(start)
                 .as_secs_f64(),
-        );
-
-        Ok(())
-    }
-
-    async fn run_past_blocks(&mut self) -> anyhow::Result<()> {
-        tracing::warn!("Running past blocks");
-        let init_state_root: [u8; 32] = self
-            .ledger_db
-            .get_soft_confirmation_by_number(&SoftConfirmationNumber(2))?
-            .unwrap()
-            .state_root
-            .try_into()
-            .unwrap();
-        let soft_confirmation = self
-            .ledger_db
-            .get_soft_confirmation_by_number(&SoftConfirmationNumber(3))?
-            .unwrap();
-        let l2_height = soft_confirmation.l2_height;
-        let expected_state_root: [u8; 32] =
-            soft_confirmation.state_root.as_slice().try_into().unwrap();
-
-        let current_l1_block = get_da_block_at_height(
-            &self.da_service,
-            soft_confirmation.da_slot_height,
-            self.l1_block_cache.clone(),
-        )
-        .await?;
-        let l1_header = current_l1_block.header();
-
-        let pre_state = self.storage_manager.create_storage_for_l2_height(3);
-        let current_spec = fork_from_block_number(l2_height).spec_id;
-
-        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<Da::Spec>> =
-            soft_confirmation
-                .try_into()
-                .context("Failed to parse transactions")?;
-
-        let soft_confirmation_info =
-            HookSoftConfirmationInfo::new(&signed_soft_confirmation, init_state_root, current_spec);
-
-        let mut working_set = WorkingSet::new(pre_state.clone());
-
-        self.stf.begin_soft_confirmation(
-            &self.sequencer_k256_pub_key,
-            &mut working_set,
-            l1_header,
-            &soft_confirmation_info,
-        )?;
-
-        self.stf.apply_soft_confirmation_txs(
-            soft_confirmation_info,
-            signed_soft_confirmation.blobs(),
-            signed_soft_confirmation.txs(),
-            &mut working_set,
-        )?;
-
-        self.stf.end_soft_confirmation(
-            current_spec,
-            init_state_root,
-            &self.sequencer_k256_pub_key,
-            &mut signed_soft_confirmation,
-            &mut working_set,
-        )?;
-
-        let result = self.stf.finalize_soft_confirmation(
-            current_spec,
-            working_set,
-            pre_state,
-            &mut signed_soft_confirmation,
-        );
-
-        assert_eq!(
-            result.state_root_transition.final_root, expected_state_root,
-            "Got invalid state root when replaying block"
         );
 
         Ok(())

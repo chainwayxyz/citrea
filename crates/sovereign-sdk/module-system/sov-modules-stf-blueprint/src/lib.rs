@@ -311,6 +311,8 @@ where
             )
         };
 
+        // TODO: check if state_log is too big, prune if so
+
         SoftConfirmationResult {
             state_root_transition,
             state_log,
@@ -525,6 +527,9 @@ where
             sequencer_commitments_range.1 - sequencer_commitments_range.0 + 1
         );
 
+        // Reuseable state log cache
+        let mut cumulative_state_log = None;
+
         for (sequencer_commitment, da_block_headers) in sequencer_commitments_iter
             .skip(sequencer_commitments_range.0 as usize)
             .take(group_count as usize)
@@ -676,7 +681,7 @@ where
                         sequencer_pub_key,
                         &current_state_root,
                         pre_state.clone(),
-                        None,
+                        cumulative_state_log,
                         state_witness,
                         offchain_witness,
                         &da_block_headers[index_headers],
@@ -696,6 +701,8 @@ where
                 prev_soft_confirmation_hash = Some(soft_confirmation.hash());
 
                 soft_confirmation_hashes.push(soft_confirmation.hash());
+
+                cumulative_state_log = Some(result.state_log);
             }
 
             assert_eq!(
