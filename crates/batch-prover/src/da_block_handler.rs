@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context as _};
+use anyhow::{anyhow, Context};
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
@@ -330,17 +330,11 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         );
         let start_l2 = sequencer_commitment.l2_start_block_number;
         let end_l2 = sequencer_commitment.l2_end_block_number;
-        let soft_confirmations_in_commitment = match ledger_db.get_soft_confirmation_range(
-            &(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)),
-        ) {
-            Ok(soft_confirmations) => soft_confirmations,
-            Err(e) => {
-                return Err(anyhow!(
-                    "Failed to get soft confirmations from the ledger db: {}",
-                    e
-                ));
-            }
-        };
+        let soft_confirmations_in_commitment = ledger_db
+            .get_soft_confirmation_range(
+                &(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)),
+            )
+            .context("Failed to get soft confirmations")?;
         let mut commitment_soft_confirmations =
             Vec::with_capacity(soft_confirmations_in_commitment.len());
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
