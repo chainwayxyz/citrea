@@ -156,12 +156,17 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
     );
 
     let l2_blocks = vec![
-        L2Block::<[u8; 32]>::new(signed_header1, tx_hashes_1.into()),
+        L2Block::<[u8; 32]>::new(signed_header1, tx_hashes_1.into(), vec![].into()),
         L2Block::<[u8; 32]>::new(
             signed_header2,
             batch_2_receipts
                 .iter()
                 .map(|r| r.hash)
+                .collect::<Vec<_>>()
+                .into(),
+            batch_2_receipts
+                .iter()
+                .map(|r| r.body.clone().unwrap())
                 .collect::<Vec<_>>()
                 .into(),
         ),

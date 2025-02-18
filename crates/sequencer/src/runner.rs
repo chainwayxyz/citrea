@@ -173,9 +173,9 @@ where
                 &soft_confirmation_info,
             ) {
                 warn!(
-                    "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
-                    err
-                );
+                "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                err
+            );
                 bail!(
                     "DryRun: Failed to apply begin soft confirmation hook: {:?}",
                     err
@@ -220,6 +220,12 @@ where
                             citrea_evm::Evm<DefaultContext>,
                         >>::encode_call(call_txs);
 
+                        let blob = self.make_blob(
+                            raw_message.clone(),
+                            &mut working_set_to_discard,
+                            soft_confirmation_info.current_spec(),
+                        )?;
+
                         let signed_tx = self.sign_tx(
                             raw_message,
                             &mut working_set_to_discard,
@@ -227,11 +233,13 @@ where
                         )?;
 
                         let txs = vec![signed_tx];
+                        let blobs = vec![blob];
 
                         let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
                         match self.stf.apply_soft_confirmation_txs(
                                     &soft_confirmation_info,
+                                    &blobs,
                                     &txs,
                                     &mut working_set,
                                 ) {
@@ -444,7 +452,7 @@ where
         }
 
         self.stf
-            .apply_soft_confirmation_txs(&soft_confirmation_info, &txs, &mut working_set)
+            .apply_soft_confirmation_txs(&soft_confirmation_info, &blobs, &txs, &mut working_set)
             .expect("dry_run_transactions should have already checked this");
 
         self.stf
@@ -499,8 +507,8 @@ where
 
         let soft_confirmation_hash = l2_block.hash();
 
-        self.ledger_db
-            .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
+        let blobs = Some(l2_block.blobs.to_vec());
+        self.ledger_db.commit_l2_block(l2_block, tx_hashes, blobs)?;
 
         // connect L1 and L2 height
         self.ledger_db.extend_l2_range_of_l1_slot(
@@ -800,19 +808,20 @@ where
         &mut self,
         active_spec: SpecId,
         header: SoftConfirmationHeader,
-        blobs: &[Vec<u8>],
+        blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
         match active_spec {
             SpecId::Genesis => self.sign_soft_confirmation_batch_v1(header, blobs, txs),
             SpecId::Kumquat => self.sign_soft_confirmation_batch_v2(header, blobs, txs),
-            _ => self.sign_soft_confirmation_header(header, txs),
+            _ => self.sign_soft_confirmation_header(header, blobs, txs),
         }
     }
 
     fn sign_soft_confirmation_header<'txs>(
         &mut self,
         header: SoftConfirmationHeader,
+        blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
         let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
@@ -825,14 +834,14 @@ where
         let pub_key = borsh::to_vec(&pub_key)?;
         let signed_header = SignedSoftConfirmationHeader::new(header, hash, signature, pub_key);
 
-        Ok(L2Block::new(signed_header, txs.into()))
+        Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
     }
 
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch_v2<'txs>(
         &mut self,
         header: SoftConfirmationHeader,
-        blobs: &[Vec<u8>],
+        blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
         let soft_confirmation = &UnsignedSoftConfirmation::from((&header, blobs.to_vec(), txs));
@@ -849,7 +858,7 @@ where
         let pub_key = borsh::to_vec(&pub_key)?;
         let signed_header = SignedSoftConfirmationHeader::new(header, hash, signature, pub_key);
 
-        Ok(L2Block::new(signed_header, txs.into()))
+        Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
     }
 
     /// Old version of sign_soft_confirmation_batch
@@ -859,7 +868,7 @@ where
     fn sign_soft_confirmation_batch_v1<'txs>(
         &mut self,
         header: SoftConfirmationHeader,
-        blobs: &[Vec<u8>],
+        blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
     ) -> anyhow::Result<L2Block<'txs, StfTransaction<Da::Spec>>> {
         use digest::Digest;
@@ -877,7 +886,7 @@ where
         let pub_key = borsh::to_vec(&pub_key)?;
         let signed_header = SignedSoftConfirmationHeader::new(header, hash, signature, pub_key);
 
-        Ok(L2Block::new(signed_header, txs.into()))
+        Ok(L2Block::new(signed_header, txs.into(), blobs.into()))
     }
 
     /// Fetches nonce from state

@@ -57,6 +57,12 @@ where
                 borsh::from_slice::<Tx>(body)
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
+        let blobs = val
+            .txs
+            .into_iter()
+            .map(|tx| tx.body.unwrap())
+            .collect::<Vec<_>>();
+
         let header = SoftConfirmationHeader::new(
             val.l2_height,
             val.da_slot_height,
@@ -76,7 +82,7 @@ where
             val.pub_key,
         );
 
-        let res = L2Block::new(signed_header, parsed_txs.into());
+        let res = L2Block::new(signed_header, parsed_txs.into(), blobs.into());
         Ok(res)
     }
 }

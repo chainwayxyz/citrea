@@ -54,6 +54,7 @@ where
     pub fn apply_sov_txs_inner(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
+        blobs: &[Vec<u8>],
         txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
         sc_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
@@ -62,9 +63,8 @@ where
                 self.apply_sov_tx_inner(soft_confirmation_info, tx, sc_workspace)?;
             }
         } else {
-            for tx in txs {
+            for raw_tx in blobs {
                 // Stateless verification of transaction, such as signature check
-                let raw_tx = borsh::to_vec(tx).unwrap();
                 let mut reader = std::io::Cursor::new(raw_tx);
                 let tx =
                     PreFork2Transaction::<C>::deserialize_reader(&mut reader).map_err(|_| {

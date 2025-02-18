@@ -165,15 +165,18 @@ where
                 .clone()
                 .try_into()
                 .context("Failed to parse transactions")?;
-            let parsed_txs = l2_block
+
+            let (parsed_txs, blobs): (Vec<StfTransaction<Da::Spec>>, Vec<Vec<u8>>) = l2_block
                 .txs
                 .iter()
                 .map(|tx| {
+                    let blob = borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
                     let tx: StfTransaction<Da::Spec> = tx.clone().into();
-                    tx
+                    (tx, blob)
                 })
-                .collect::<Vec<_>>();
-            L2Block::new(l2_block.header, parsed_txs.into())
+                .unzip();
+
+            L2Block::new(l2_block.header, parsed_txs.into(), blobs.into())
         };
 
         let sequencer_pub_key = if current_spec >= SpecId::Fork2 {

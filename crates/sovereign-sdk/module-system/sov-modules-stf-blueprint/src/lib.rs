@@ -156,10 +156,11 @@ where
     pub fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
+        blobs: &[Vec<u8>],
         txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
         batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation_info, blobs, txs, batch_workspace)
     }
 
     /// Verify l2_block hash and signature
@@ -183,6 +184,7 @@ where
 
         match current_spec {
             SpecId::Genesis => {
+                // PreFork2Transaction
                 let unsigned = UnsignedSoftConfirmationV1::from(l2_block);
                 let raw = borsh::to_vec(&unsigned).map_err(|_| {
                     StateTransitionError::SoftConfirmationError(
@@ -366,7 +368,12 @@ where
             &soft_confirmation_info,
         )?;
 
-        self.apply_soft_confirmation_txs(&soft_confirmation_info, &l2_block.txs, &mut working_set)?;
+        self.apply_soft_confirmation_txs(
+            &soft_confirmation_info,
+            &l2_block.blobs,
+            &l2_block.txs,
+            &mut working_set,
+        )?;
 
         self.verify_soft_confirmation(current_spec, l2_block, sequencer_public_key)?;
 
@@ -517,16 +524,18 @@ where
                         <C::Storage as Storage>::Witness,
                         <C::Storage as Storage>::Witness,
                     )>();
-                    let parsed_txs = l2_block
+                    let (parsed_txs, blobs): (Vec<Self::Transaction>, Vec<Vec<u8>>) = l2_block
                         .txs
                         .iter()
                         .map(|tx| {
+                            let blob =
+                                borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
                             let tx: Self::Transaction = tx.clone().into();
-                            tx
+                            (tx, blob)
                         })
-                        .collect::<Vec<_>>();
+                        .unzip();
 
-                    let sc = L2Block::new(l2_block.header, parsed_txs.into());
+                    let sc = L2Block::new(l2_block.header, parsed_txs.into(), blobs.into());
                     (sc, state_witness, offchain_witness)
                 };
 

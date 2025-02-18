@@ -376,11 +376,17 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                     .try_into()
                     .context("Failed to parse transactions")?;
 
-                // Convert to new transaction type
-                let parsed_txs: Vec<_> =
-                    l2_block.txs.iter().map(|tx| Tx::from(tx.clone())).collect();
-
-                L2Block::new(l2_block.header, parsed_txs.into())
+                let (parsed_txs, blobs): (Vec<Tx>, Vec<Vec<u8>>) = l2_block
+                    .txs
+                    .iter()
+                    .map(|tx| {
+                        let blob =
+                            borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
+                        let tx: Tx = tx.clone().into();
+                        (tx, blob)
+                    })
+                    .unzip();
+                L2Block::new(l2_block.header, parsed_txs.into(), blobs.into())
             };
 
             l2_blocks.push(l2_block);
