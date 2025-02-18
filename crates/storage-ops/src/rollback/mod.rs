@@ -31,23 +31,23 @@ impl Rollback {
     }
 
     /// Rollback the provided number of blocks
-    pub async fn execute(&self, num_blocks: u64) -> anyhow::Result<()> {
+    pub async fn execute(&self, current_l2_height: u64, num_blocks: u64) -> anyhow::Result<()> {
         info!("Rolling back by {} blocks", num_blocks);
 
         let ledger_db = self.ledger_db.clone();
         let native_db = self.native_db.clone();
         let state_db = self.state_db.clone();
 
-        let up_to_block = 0;
+        let down_to_block = current_l2_height - num_blocks + 1;
 
         let ledger_pruning_handle =
-            tokio::task::spawn_blocking(move || rollback_ledger_db(ledger_db, num_blocks));
+            tokio::task::spawn_blocking(move || rollback_ledger_db(ledger_db, down_to_block));
 
         let state_db_pruning_handle =
-            tokio::task::spawn_blocking(move || rollback_state_db(state_db, up_to_block));
+            tokio::task::spawn_blocking(move || rollback_state_db(state_db, down_to_block));
 
         let native_db_pruning_handle =
-            tokio::task::spawn_blocking(move || rollback_native_db(native_db, up_to_block));
+            tokio::task::spawn_blocking(move || rollback_native_db(native_db, down_to_block));
 
         future::join_all([
             ledger_pruning_handle,

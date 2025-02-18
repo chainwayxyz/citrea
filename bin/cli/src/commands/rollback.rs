@@ -20,8 +20,14 @@ pub(crate) async fn rollback(db_path: PathBuf, num_blocks: u64) -> anyhow::Resul
     let native_db = NativeDB::setup_schema_db(&rocksdb_config)?;
     let state_db = StateDB::setup_schema_db(&rocksdb_config)?;
 
+    let Some(soft_confirmation_number) = ledger_db.get_head_soft_confirmation_height()? else {
+        return Ok(());
+    };
+
     let rollback = Rollback::new(ledger_db.inner(), Arc::new(state_db), Arc::new(native_db));
-    rollback.execute(num_blocks).await?;
+    rollback
+        .execute(soft_confirmation_number, num_blocks)
+        .await?;
 
     Ok(())
 }
