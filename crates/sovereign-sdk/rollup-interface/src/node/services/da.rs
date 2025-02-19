@@ -31,7 +31,7 @@ pub struct TxRequestWithNotifier<TxID> {
 #[async_trait::async_trait]
 pub trait DaService: Send + Sync + 'static {
     /// A handle to the types used by the DA layer.
-    type Spec: DaSpec + Send + Sync;
+    type Spec: DaSpec;
 
     /// The verifier for this DA layer.
     type Verifier: DaVerifier<Spec = Self::Spec>;
