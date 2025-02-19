@@ -306,7 +306,7 @@ where
         };
         let balance = account.balance;
         let nonce = account.nonce;
-        let code_hash = account.code_hash.map(Into::into).unwrap_or(KECCAK_EMPTY);
+        let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
 
         // Remove before mainet
         fn generate_account_proof_prefork2<C>(

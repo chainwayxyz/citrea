@@ -159,7 +159,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Option<U256> {
         let kaddr = Self::get_storage_address(account, key);
-        self.storage.get(&kaddr, working_set).map(Into::into)
+        self.storage.get(&kaddr, working_set)
     }
 
     /// Get the storage value for the given (account, key)

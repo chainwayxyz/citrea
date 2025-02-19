@@ -14,7 +14,7 @@ impl From<AccountInfo> for ReVmAccountInfo {
             nonce: info.nonce,
             balance: info.balance,
             code: None,
-            code_hash: info.code_hash.map(Into::into).unwrap_or(KECCAK_EMPTY),
+            code_hash: info.code_hash.unwrap_or(KECCAK_EMPTY),
         }
     }
 }
@@ -38,7 +38,7 @@ impl From<AccountInfo> for reth_primitives::Account {
     fn from(acc: AccountInfo) -> Self {
         Self {
             balance: acc.balance,
-            bytecode_hash: acc.code_hash.map(Into::into),
+            bytecode_hash: acc.code_hash,
             nonce: acc.nonce,
         }
     }
