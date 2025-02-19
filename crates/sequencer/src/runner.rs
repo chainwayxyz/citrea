@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{Address, Bytes, TxHash};
+use alloy_primitives::{Address, Bytes, TxHash, U256};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -13,7 +13,8 @@ use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::system_events::create_system_transactions;
 use citrea_evm::{
-    populate_system_events, CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
+    populate_system_events, AccountInfo, CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS,
+    SYSTEM_SIGNER,
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
@@ -204,7 +205,11 @@ where
                         soft_confirmation_info.current_spec,
                         &mut working_set_to_discard,
                     )
-                    .unwrap();
+                    .unwrap_or(AccountInfo {
+                        balance: U256::ZERO,
+                        nonce: 0,
+                        code_hash: None,
+                    });
                 let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
                 let chain_id = cfg.chain_id;
                 system_transactions =
