@@ -28,7 +28,6 @@ pub(crate) mod compat;
 mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
-use sov_state::codec::borsh_codec::{B256 as BorshB256, U256 as BorshU256};
 use sov_state::codec::{BcsCodec, BorshCodec};
 
 #[cfg(all(test, feature = "native"))]
@@ -62,33 +61,39 @@ pub struct AccountInfo {
     pub code_hash: Option<B256>,
 }
 
-// FIXME: Optimize BorshCodec for AccountInfo to reduce unnecessary tmp struct => memcpy
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct BorshAccountInfo {
-    pub balance: BorshU256,
-    pub nonce: u64,
-    pub code_hash: Option<BorshB256>,
+impl BorshSerialize for AccountInfo {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        let balance = self.balance.as_limbs();
+        let nonce = self.nonce;
+        let code_hash = self.code_hash.as_ref().map(|v| &v.0);
+        BorshSerialize::serialize(balance, writer)?;
+        BorshSerialize::serialize(&nonce, writer)?;
+        BorshSerialize::serialize(&code_hash, writer)
+    }
+}
+
+impl BorshDeserialize for AccountInfo {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let balance: [u64; 4] = BorshDeserialize::deserialize_reader(reader)?;
+        let nonce = BorshDeserialize::deserialize_reader(reader)?;
+        let code_hash: Option<[u8; 32]> = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(Self {
+            balance: U256::from_limbs(balance),
+            nonce,
+            code_hash: code_hash.map(|v| B256::from_slice(&v)),
+        })
+    }
 }
 
 impl StateValueCodec<AccountInfo> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &AccountInfo) -> Vec<u8> {
-        let t = BorshAccountInfo {
-            balance: value.balance.into(),
-            nonce: value.nonce,
-            code_hash: value.code_hash.map(Into::into),
-        };
-        borsh::to_vec(&t).unwrap()
+        borsh::to_vec(&value).unwrap()
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<AccountInfo, Self::Error> {
-        let value: BorshAccountInfo = borsh::from_slice(bytes)?;
-        Ok(AccountInfo {
-            balance: value.balance.into(),
-            nonce: value.nonce,
-            code_hash: value.code_hash.map(Into::into),
-        })
+        borsh::from_slice(bytes)
     }
 }
 

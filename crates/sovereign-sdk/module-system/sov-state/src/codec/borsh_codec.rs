@@ -1,7 +1,5 @@
-use alloy_primitives::{Address as AlloyAddress, B256 as AlloyB256, U256 as AlloyU256};
-use borsh::io::{Error, Read, Write};
+use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 use sov_modules_core::{Address as ModuleAddress, EncodeKeyLike};
 
 use super::{StateCodec, StateKeyCodec};
@@ -117,79 +115,4 @@ where
     fn encode_key_like(&self, borrowed: &[T]) -> Vec<u8> {
         borsh::to_vec(borrowed).unwrap()
     }
-}
-
-/// U256 wrapper to support borsh serde for alloy::U256
-#[derive(
-    Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
-)]
-#[repr(transparent)]
-pub struct U256(
-    #[borsh(serialize_with = "ser_u256", deserialize_with = "der_u256")]
-    /// Original value
-    AlloyU256,
-);
-
-impl From<AlloyU256> for U256 {
-    fn from(value: AlloyU256) -> Self {
-        Self(value)
-    }
-}
-
-impl From<&AlloyU256> for U256 {
-    fn from(value: &AlloyU256) -> Self {
-        Self(*value)
-    }
-}
-
-impl From<U256> for AlloyU256 {
-    fn from(value: U256) -> Self {
-        value.0
-    }
-}
-/// Serialize U256
-fn ser_u256<W: Write>(x: &AlloyU256, writer: &mut W) -> Result<(), Error> {
-    let t = x.as_le_slice();
-    BorshSerialize::serialize(&t, writer)
-}
-
-/// Deserialize U256
-fn der_u256<R: Read>(reader: &mut R) -> Result<AlloyU256, Error> {
-    let s: [u8; 32] = BorshDeserialize::deserialize_reader(reader)?;
-    Ok(AlloyU256::from_le_slice(&s))
-}
-
-/// B256 wrapper to support borsh serde for alloy::B256
-#[derive(
-    Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
-)]
-#[repr(transparent)]
-pub struct B256(
-    #[borsh(serialize_with = "ser_b256", deserialize_with = "der_b256")]
-    /// Original value
-    pub AlloyB256,
-);
-
-impl From<AlloyB256> for B256 {
-    fn from(value: AlloyB256) -> Self {
-        Self(value)
-    }
-}
-
-impl From<B256> for AlloyB256 {
-    fn from(value: B256) -> Self {
-        value.0
-    }
-}
-
-/// Serialize B256
-fn ser_b256<W: Write>(x: &AlloyB256, writer: &mut W) -> Result<(), Error> {
-    let t = x.as_slice();
-    BorshSerialize::serialize(&t, writer)
-}
-
-/// Deserialize B256
-fn der_b256<R: Read>(reader: &mut R) -> Result<AlloyB256, Error> {
-    let s: [u8; 32] = BorshDeserialize::deserialize_reader(reader)?;
-    Ok(AlloyB256::from_slice(&s))
 }
