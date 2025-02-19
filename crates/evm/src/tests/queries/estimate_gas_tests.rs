@@ -21,7 +21,7 @@ type C = DefaultContext;
 
 #[test]
 fn test_payable_contract_value() {
-    let (evm, mut working_set, signer) = init_evm_single_block();
+    let (evm, mut working_set, signer) = init_evm_single_block(sov_modules_api::SpecId::Fork2);
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
@@ -58,7 +58,7 @@ fn test_payable_contract_value() {
 
 #[test]
 fn test_tx_request_fields_gas_fork1() {
-    let (evm, mut working_set, signer) = init_evm_single_block();
+    let (evm, mut working_set, signer) = init_evm_single_block(sov_modules_api::SpecId::Fork2);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
@@ -390,7 +390,7 @@ fn test_access_list() {
 
 #[test]
 fn estimate_gas_with_varied_inputs_test() {
-    let (evm, mut working_set, _, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm(sov_modules_api::SpecId::Fork2);
 
     let simple_call_data = 0;
     let simple_result =
@@ -416,7 +416,7 @@ fn estimate_gas_with_varied_inputs_test() {
 
 #[test]
 fn test_pending_env() {
-    let (evm, mut working_set, signer) = init_evm_single_block();
+    let (evm, mut working_set, signer) = init_evm_single_block(sov_modules_api::SpecId::Fork2);
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),

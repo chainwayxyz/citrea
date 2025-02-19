@@ -32,7 +32,9 @@ type Storage = ProverStorage;
 /// Block 1 has 3 transactions
 /// Block 2 has 4 transactions
 /// Block 3 has 2 transactions
-fn init_evm() -> (
+fn init_evm(
+    spec_id: SovSpecId,
+) -> (
     Evm<C>,
     WorkingSet<<C as Spec>::Storage>,
     Storage,
@@ -78,7 +80,7 @@ fn init_evm() -> (
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
+        current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -89,7 +91,7 @@ fn init_evm() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, spec_id, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, LogsContract::default()),
@@ -119,7 +121,7 @@ fn init_evm() -> (
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [99u8; 32],
-        current_spec: SovSpecId::Fork2,
+        current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -130,7 +132,7 @@ fn init_evm() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, spec_id, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             publish_event_message(contract_addr, &dev_signer, 3, "hello2".to_string()),
@@ -161,7 +163,7 @@ fn init_evm() -> (
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [100u8; 32],
-        current_spec: SovSpecId::Fork2,
+        current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -172,7 +174,7 @@ fn init_evm() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, spec_id, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 7, SimpleStorageContract::default()),
@@ -198,7 +200,9 @@ fn init_evm() -> (
     (evm, working_set, prover_storage, dev_signer, l2_height)
 }
 
-pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, TestSigner) {
+pub fn init_evm_single_block(
+    spec_id: SovSpecId,
+) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let mut config = EvmConfig {
@@ -239,7 +243,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, Tes
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [0u8; 32],
-        current_spec: SovSpecId::Fork2,
+        current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -252,7 +256,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, Tes
 
     let sender_address = generate_address::<C>("sender");
 
-    let context = C::new(sender_address, 1, SovSpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, 1, spec_id, l1_fee_rate);
 
     evm.call(
         CallMessage {
