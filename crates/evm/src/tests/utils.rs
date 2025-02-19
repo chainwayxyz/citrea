@@ -50,6 +50,12 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::St
     get_evm_with_spec(config, SovSpecId::Fork2)
 }
 
+pub(crate) fn get_evm_pre_fork2(
+    config: &EvmConfig,
+) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
+    get_evm_with_spec(config, SovSpecId::Kumquat)
+}
+
 pub(crate) fn get_evm_with_spec(
     config: &EvmConfig,
     spec_id: SovSpecId,
@@ -321,6 +327,10 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
 
 pub(crate) fn get_fork_fn_only_fork2() -> impl Fn(u64) -> Fork {
     |_: u64| Fork::new(SovSpecId::Fork2, 0)
+}
+
+pub(crate) fn get_fork_fn_only_kumquat() -> impl Fn(u64) -> Fork {
+    |_: u64| Fork::new(SovSpecId::Kumquat, 0)
 }
 
 /// Read genesis file
