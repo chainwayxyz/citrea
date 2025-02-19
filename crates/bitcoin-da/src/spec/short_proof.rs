@@ -1,3 +1,5 @@
+use bitcoin::hashes::Hash;
+use bitcoin::script;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError,
     VerifableShortHeaderProof,
@@ -88,13 +90,48 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
             }
         }
 
-        // Finally return hash, wtxid root and txid proof count
-        Ok((
-            // block_hash calculates the hash of the header
-            self.header.hash().into(),
-            self.header.txs_commitment().into(),
-            self.coinbase_tx_txid_merkle_proof.len() as u8,
-        ))
+        // code taken from
+        // bitcoin::Block::bip34_block_height()
+        // and slightly modified
+        //
+        // we use .expect() on these lines as we don't expect
+        // non-bip34 blocks on mainnet and testnet
+        let input = self
+            .coinbase_tx
+            .input
+            .first()
+            .expect("coinbase tx must have input");
+
+        let push = input
+            .script_sig
+            .instructions_minimal()
+            .next()
+            .expect("should have at least one instruction")
+            .expect("should be minimal");
+
+        let script::Instruction::PushBytes(b) = push else {
+            panic!("should be push bytes");
+        };
+
+        let height = script::read_scriptint(b.as_bytes()).expect("should work");
+
+        assert!(height > 0, "height must be positive");
+
+        let height = height as u64;
+
+        // Finally return hash, wtxid root, txid proof count, and height
+        Ok(L1UpdateSystemTransactionInfo {
+            header_hash: self.header.hash().into(),
+            prev_header_hash: self
+                .header
+                .inner()
+                .prev_blockhash
+                .as_raw_hash()
+                .to_byte_array(),
+            tx_commitment: self.header.txs_commitment().into(),
+            coinbase_txid_merkle_proof_height: self.coinbase_tx_txid_merkle_proof.len() as u8,
+            block_height: height,
+        })
     }
 }
 
@@ -141,26 +178,31 @@ mod test {
     fn test_correct_short_proof() {
         let proof = get_proof();
 
-        let (block_hash, tx_commitment, tx_proof_count) =
-            proof.verify().expect("Proof verification failed");
+        let l1_update = proof.verify().expect("Proof verification failed");
 
         let mut hash_from_input = <[u8; 32]>::from_hex(
             "00000000000000000001a33628ffb58f0705f17815b9b789fe23ad64bfbbeb45",
         )
         .unwrap();
-
         hash_from_input.reverse();
+        assert_eq!(l1_update.header_hash, hash_from_input);
 
-        assert_eq!(block_hash, hash_from_input);
+        let mut prev_hash_from_input = <[u8; 32]>::from_hex(
+            "0000000000000000000274671d48c3af6e9eb2cf9fb5f9128edabac6062a889a",
+        )
+        .unwrap();
+        prev_hash_from_input.reverse();
+        assert_eq!(l1_update.prev_header_hash, prev_hash_from_input);
+
         assert_eq!(
-            tx_commitment,
+            l1_update.tx_commitment,
             <[u8; 32]>::from_hex(
                 "a4d7206595b921ee04f46e76fda0175dea5ad8d227af75110490d05b6a90df9c"
             )
             .unwrap()
         );
-
-        assert_eq!(tx_proof_count, 11);
+        assert_eq!(l1_update.coinbase_txid_merkle_proof_height, 11);
+        assert_eq!(l1_update.block_height, 882547);
     }
 
     #[test]
