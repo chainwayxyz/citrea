@@ -145,9 +145,10 @@ where
         );
 
         let (
+            short_header_proofs,
             state_transition_witnesses,
-            soft_confirmations,
-            da_block_headers_of_soft_confirmations,
+            l2_blocks,
+            da_block_headers_of_l2_blocks,
         ) = get_batch_proof_circuit_input_from_commitments(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
@@ -198,9 +199,9 @@ where
             da_block_header_of_commitments: da_block_header_of_commitments.clone(),
             inclusion_proof: inclusion_proof.clone(),
             completeness_proof: completeness_proof.clone(),
-            soft_confirmations,
+            l2_blocks,
             state_transition_witnesses,
-            da_block_headers_of_soft_confirmations,
+            da_block_headers_of_l2_blocks,
             preproven_commitments: preproven_commitments.to_vec(),
             sequencer_commitments_range: (
                 *sequencer_commitments_range.start() as u32,
@@ -210,6 +211,7 @@ where
             sequencer_da_public_key: sequencer_da_pub_key.clone(),
             final_state_root,
             prev_soft_confirmation_hash: initial_soft_confirmation_hash,
+            short_header_proofs,
             sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
                 .to_vec(),
         };
@@ -406,10 +408,7 @@ pub(crate) fn save_commitments<DB>(
         let l2_end_height = sequencer_commitment.l2_end_block_number;
         for i in l2_start_height..=l2_end_height {
             ledger_db
-                .put_soft_confirmation_status(
-                    SoftConfirmationNumber(i),
-                    SoftConfirmationStatus::Proven,
-                )
+                .put_l2_block_status(SoftConfirmationNumber(i), SoftConfirmationStatus::Proven)
                 .unwrap_or_else(|_| {
                     panic!(
                         "Failed to put soft confirmation status in the ledger db {}",

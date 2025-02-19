@@ -119,7 +119,7 @@ pub enum DaNamespace {
 
 /// A specification for the types used by a DA layer.
 pub trait DaSpec:
-    'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone
+    'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone + Send + Sync
 {
     /// The hash of a DA layer block
     type SlotHash: BlockHashTrait;
@@ -160,7 +160,11 @@ pub trait DaSpec:
 
     /// A verifiable proof that upon verification, returns the hash of the header,
     /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
-    type ShortHeaderProof: VerifableShortHeaderProof + BorshDeserialize + BorshSerialize;
+    type ShortHeaderProof: VerifableShortHeaderProof
+        + BorshDeserialize
+        + BorshSerialize
+        + Send
+        + Sync;
 }
 
 /// Information needed to update L1 light client system contract

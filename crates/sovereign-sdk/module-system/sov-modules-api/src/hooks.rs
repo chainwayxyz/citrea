@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::SoftConfirmationError;
 use sov_rollup_interface::stf::SoftConfirmationHookError;
@@ -88,22 +88,22 @@ pub struct HookSoftConfirmationInfo {
 }
 
 impl HookSoftConfirmationInfo {
-    pub fn new<Tx: Clone>(
-        signed_soft_confirmation: &SignedSoftConfirmation<Tx>,
+    pub fn new<Tx: Clone + BorshSerialize>(
+        l2_block: &L2Block<Tx>,
         pre_state_root: StorageRootHash,
         current_spec: SpecId,
     ) -> Self {
         HookSoftConfirmationInfo {
-            l2_height: signed_soft_confirmation.l2_height(),
-            da_slot_height: signed_soft_confirmation.da_slot_height(),
-            da_slot_hash: signed_soft_confirmation.da_slot_hash(),
-            da_slot_txs_commitment: signed_soft_confirmation.da_slot_txs_commitment(),
+            l2_height: l2_block.l2_height(),
+            da_slot_height: l2_block.da_slot_height(),
+            da_slot_hash: l2_block.da_slot_hash(),
+            da_slot_txs_commitment: l2_block.da_slot_txs_commitment(),
             pre_state_root,
             current_spec,
-            pub_key: signed_soft_confirmation.sequencer_pub_key().to_vec(),
-            deposit_data: signed_soft_confirmation.deposit_data().to_vec(),
-            l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),
-            timestamp: signed_soft_confirmation.timestamp(),
+            pub_key: l2_block.sequencer_pub_key().to_vec(),
+            deposit_data: l2_block.deposit_data().to_vec(),
+            l1_fee_rate: l2_block.l1_fee_rate(),
+            timestamp: l2_block.timestamp(),
         }
     }
 }

@@ -8,13 +8,13 @@ use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use super::da::SequencerCommitment;
 use super::zk::{StorageRootHash, ZkvmGuest};
 use crate::da::DaSpec;
 use crate::fork::Fork;
-use crate::soft_confirmation::SignedSoftConfirmation;
+use crate::soft_confirmation::L2Block;
 use crate::spec::SpecId;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::RefCount;
@@ -56,35 +56,6 @@ pub struct ApplySequencerCommitmentsOutput {
     pub final_soft_confirmation_hash: [u8; 32],
     /// Sequencer commitment hashes
     pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
-}
-
-/// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftConfirmationReceipt<DS: DaSpec> {
-    /// L2 block height
-    pub l2_height: u64,
-    /// DA layer block number
-    pub da_slot_height: u64,
-    /// DA layer block hash
-    pub da_slot_hash: <DS as DaSpec>::SlotHash,
-    /// DA layer transactions commitment
-    pub da_slot_txs_commitment: <DS as DaSpec>::SlotHash,
-    /// The canonical hash of this batch
-    pub hash: [u8; 32],
-    /// The canonical hash of the previous batch
-    pub prev_hash: [u8; 32],
-    /// The receipts of all the transactions in this batch.
-    pub tx_hashes: Vec<[u8; 32]>,
-    /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
-    pub soft_confirmation_signature: Vec<u8>,
-    /// Sequencer public key
-    pub pub_key: Vec<u8>,
-    /// Deposit data from the L1 chain
-    pub deposit_data: Vec<Vec<u8>>,
-    /// Base layer fee rate sats/wei etc. per byte.
-    pub l1_fee_rate: u128,
-    /// Sequencer's block timestamp
-    pub timestamp: u64,
 }
 
 /// A diff of the state, represented as a list of key-value pairs.
@@ -201,11 +172,8 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        soft_confirmation: &SignedSoftConfirmation<Self::Transaction>,
-    ) -> Result<
-        SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
-        StateTransitionError,
-    >;
+        soft_confirmation: &L2Block<Self::Transaction>,
+    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>, StateTransitionError>;
 
     /// Runs a vector of Soft Confirmations
     /// Used for proving the L2 block state transitions
@@ -245,6 +213,8 @@ pub enum SoftConfirmationError {
     InvalidSovTxSignature,
     /// The soft confirmation includes a sov-tx that can not be runtime decoded
     SovTxCantBeRuntimeDecoded,
+    /// The soft confirmation includes an invalid tx merkle root
+    InvalidTxMerkleRoot,
     /// Any other error that can occur during the application of a soft confirmation
     /// These can come from runtime hooks etc.
     Other(String),
@@ -291,6 +261,10 @@ pub enum SoftConfirmationModuleCallError {
     RuleEnforcerUnauthorized,
     /// The EVM transaction type is not supported
     EvmTxTypeNotSupported(String),
+    /// Short Header Proof Not Found
+    ShortHeaderProofNotFound,
+    /// Short Header Proof Verification Error
+    ShortHeaderProofVerificationError,
 }
 
 #[derive(Debug, PartialEq)]
@@ -336,6 +310,9 @@ impl std::fmt::Display for SoftConfirmationError {
             SoftConfirmationError::InvalidSovTxSignature => write!(f, "Invalid sov tx signature"),
             SoftConfirmationError::SovTxCantBeRuntimeDecoded => {
                 write!(f, "Sov tx can't be runtime decoded")
+            }
+            SoftConfirmationError::InvalidTxMerkleRoot => {
+                write!(f, "Invalid tx merkle root")
             }
         }
     }
@@ -392,6 +369,12 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::EvmTxNotSerializable => {
                 write!(f, "EVM tx not serializable")
+            }
+            SoftConfirmationModuleCallError::ShortHeaderProofNotFound => {
+                write!(f, "Short header proof not found")
+            }
+            SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => {
+                write!(f, "Short header proof verification error")
             }
         }
     }

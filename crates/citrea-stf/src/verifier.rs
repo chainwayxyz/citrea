@@ -1,3 +1,4 @@
+use short_header_proof_provider::{ZkShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::fork::Fork;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
@@ -40,6 +41,15 @@ where
         println!("Running sequencer commitments in DA slot");
 
         let data: BatchProofCircuitInputV3Part1<Da> = guest.read_from_host();
+
+        let short_header_proof_provider: ZkShortHeaderProofProviderService<Da> =
+            ZkShortHeaderProofProviderService::new(data.short_header_proofs);
+        if SHORT_HEADER_PROOF_PROVIDER
+            .set(Box::new(short_header_proof_provider))
+            .is_err()
+        {
+            panic!("Short header proof provider already set");
+        }
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let ApplySequencerCommitmentsOutput {

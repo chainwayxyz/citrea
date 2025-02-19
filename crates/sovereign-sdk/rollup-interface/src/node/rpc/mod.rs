@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
-use crate::soft_confirmation::SignedSoftConfirmation;
+use crate::soft_confirmation::{L2Block, L2Header, SignedL2Header};
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::BatchProofInfo;
 use crate::RefCount;
@@ -69,7 +69,7 @@ pub struct SoftConfirmationResponse {
     pub txs: Option<Vec<HexTx>>,
     /// State root of the soft confirmation.
     #[serde(with = "hex::serde")]
-    pub state_root: Vec<u8>,
+    pub state_root: [u8; 32],
     /// Signature of the batch
     #[serde(with = "hex::serde")]
     pub soft_confirmation_signature: Vec<u8>,
@@ -82,11 +82,13 @@ pub struct SoftConfirmationResponse {
     pub l1_fee_rate: u128,
     /// Sequencer's block timestamp.
     pub timestamp: u64,
+    /// Tx merkle root.
+    pub tx_merkle_root: [u8; 32],
 }
 
-impl<'txs, Tx> TryFrom<SoftConfirmationResponse> for SignedSoftConfirmation<'txs, Tx>
+impl<'txs, Tx> TryFrom<SoftConfirmationResponse> for L2Block<'txs, Tx>
 where
-    Tx: Clone + BorshDeserialize,
+    Tx: Clone + BorshDeserialize + BorshSerialize,
 {
     type Error = borsh::io::Error;
     fn try_from(val: SoftConfirmationResponse) -> Result<Self, Self::Error> {
@@ -99,24 +101,37 @@ where
                 borsh::from_slice::<Tx>(body)
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
-        let res = SignedSoftConfirmation::new(
+
+        let blobs = val
+            .txs
+            .unwrap_or_default()
+            .into_iter()
+            .map(|tx| tx.tx)
+            .collect::<Vec<_>>();
+
+        let header = L2Header::new(
             val.l2_height,
-            val.hash,
-            val.prev_hash,
             val.da_slot_height,
             val.da_slot_hash,
             val.da_slot_txs_commitment,
+            val.prev_hash,
+            val.state_root,
             val.l1_fee_rate,
-            val.txs
-                .unwrap_or_default()
-                .into_iter()
-                .map(|tx| tx.tx)
-                .collect(),
-            parsed_txs.into(),
-            val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
+            val.tx_merkle_root,
+            val.timestamp,
+        );
+        let signed_header = SignedL2Header::new(
+            header,
+            val.hash,
             val.soft_confirmation_signature,
             val.pub_key,
-            val.timestamp,
+        );
+
+        let res = L2Block::new(
+            signed_header,
+            parsed_txs.into(),
+            blobs.into(),
+            val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
         );
         Ok(res)
     }

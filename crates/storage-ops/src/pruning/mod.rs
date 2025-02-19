@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future;
 use serde::{Deserialize, Serialize};
-use sov_db::schema::tables::LastPrunedBlock;
+use sov_db::schema::tables::{LastPrunedBlock, LastPrunedL2Height};
 use tracing::info;
 use types::PruningNodeType;
 
@@ -61,7 +61,10 @@ impl Pruner {
 
     pub fn store_last_pruned_l2_height(&self, last_pruned_l2_height: u64) -> anyhow::Result<()> {
         self.ledger_db
-            .put::<LastPrunedBlock>(&(), &last_pruned_l2_height)
+            .put::<LastPrunedBlock>(&(), &last_pruned_l2_height)?;
+
+        self.native_db
+            .put::<LastPrunedL2Height>(&(), &last_pruned_l2_height)
     }
 
     pub fn should_prune(&self, last_pruned_l2_height: u64, current_l2_height: u64) -> Option<u64> {

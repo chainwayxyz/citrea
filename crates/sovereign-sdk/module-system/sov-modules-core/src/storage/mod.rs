@@ -281,6 +281,11 @@ pub trait Storage: Clone {
     /// hard clone the storage to not overwrite the version of cloned
     /// storage.
     fn clone_with_version(&self, version: Version) -> Self;
+
+    /// Get the last pruned l2 height. Blanket implemented to return [`Ok(None)`].
+    fn get_last_pruned_l2_height(&self) -> Result<Option<u64>, anyhow::Error> {
+        Ok(None)
+    }
 }
 
 /// Used only in tests.

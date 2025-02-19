@@ -34,8 +34,8 @@ pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
     pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmationV1>>,
     /// Corresponding witness for the soft confirmations.
     pub state_transition_witnesses: VecDeque<Vec<Witness>>,
-    /// DA block headers the soft confirmations was constructed on.
-    pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
+    /// DA block headers the L2 blocks were constructed on.
+    pub da_block_headers_of_l2_blocks: VecDeque<Vec<Da::BlockHeader>>,
     /// Sequencer soft confirmation public key.
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public_key: Vec<u8>,
@@ -74,9 +74,8 @@ impl<Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
         BorshSerialize::serialize(&self.state_transition_witnesses, writer)?;
 
         // for every Da::BlockHeader we serialize it and remove last 32 bytes
-        writer
-            .write_all(&(self.da_block_headers_of_soft_confirmations.len() as u32).to_le_bytes())?;
-        for header_vec in &self.da_block_headers_of_soft_confirmations {
+        writer.write_all(&(self.da_block_headers_of_l2_blocks.len() as u32).to_le_bytes())?;
+        for header_vec in &self.da_block_headers_of_l2_blocks {
             writer.write_all(&(header_vec.len() as u32).to_le_bytes())?;
             for header in header_vec {
                 let original = borsh::to_vec(header)?;
@@ -96,7 +95,7 @@ impl<'txs, Witness, Da, Tx> From<BatchProofCircuitInput<'txs, Witness, Da, Tx>>
     for BatchProofCircuitInputV1<Witness, Da>
 where
     Da: DaSpec,
-    Tx: Clone,
+    Tx: Clone + BorshSerialize,
     Witness: Serialize + DeserializeOwned,
 {
     fn from(input: BatchProofCircuitInput<'txs, Witness, Da, Tx>) -> Self {
@@ -110,7 +109,7 @@ where
             completeness_proof: input.completeness_proof,
             preproven_commitments: input.preproven_commitments,
             soft_confirmations: input
-                .soft_confirmations
+                .l2_blocks
                 .into_iter()
                 .map(|confirmations| {
                     confirmations
@@ -124,7 +123,7 @@ where
                 .into_iter()
                 .map(|witnesses| witnesses.into_iter().map(|(witness, _)| witness).collect())
                 .collect(),
-            da_block_headers_of_soft_confirmations: input.da_block_headers_of_soft_confirmations,
+            da_block_headers_of_l2_blocks: input.da_block_headers_of_l2_blocks,
             sequencer_public_key: input.sequencer_public_key,
             sequencer_da_public_key: input.sequencer_da_public_key,
             sequencer_commitments_range: input.sequencer_commitments_range,

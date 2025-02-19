@@ -30,7 +30,7 @@ use anyhow::format_err;
 pub use iterator::{RawDbReverseIterator, ScanDirection, SchemaIterator, SeekKeyEncoder};
 pub use rocksdb;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
-use rocksdb::{DBIterator, ReadOptions};
+use rocksdb::{DBIterator, ReadOptions, WriteBatch};
 use thiserror::Error;
 use tracing::info;
 
@@ -367,6 +367,11 @@ impl DB {
         );
 
         Ok(())
+    }
+
+    /// Write raw rocksdb WriteBatch
+    pub fn write(&self, batch: WriteBatch) -> anyhow::Result<()> {
+        Ok(self.inner.write(batch)?)
     }
 
     /// Returns the handle for a rocksdb column family.

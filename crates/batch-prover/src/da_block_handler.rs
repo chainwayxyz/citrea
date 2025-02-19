@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -39,8 +39,9 @@ use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
 type CommitmentStateTransitionData<'txs, Da> = (
+    VecDeque<([u8; 32], Vec<u8>)>,
     VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
-    VecDeque<Vec<SignedSoftConfirmation<'txs, Transaction>>>,
+    VecDeque<Vec<L2Block<'txs, Transaction>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
@@ -317,23 +318,35 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> Result<CommitmentStateTransitionData<'txs, Da>, anyhow::Error> {
-    let mut soft_confirmations = VecDeque::with_capacity(sequencer_commitments.len());
-    let mut da_block_headers_of_soft_confirmations =
-        VecDeque::with_capacity(sequencer_commitments.len());
+    let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
+    let mut da_block_headers_of_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
+
+    let mut l1_hash_set = HashSet::new();
+    let mut short_header_proofs = VecDeque::new();
+
     for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
         let start_l2 = sequencer_commitment.l2_start_block_number;
         let end_l2 = sequencer_commitment.l2_end_block_number;
+
         let soft_confirmations_in_commitment = ledger_db
             .get_soft_confirmation_range(
                 &(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)),
             )
             .context("Failed to get soft confirmations")?;
-        let mut commitment_soft_confirmations =
-            Vec::with_capacity(soft_confirmations_in_commitment.len());
-        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
-            vec![];
+
+        let mut l2_blocks = Vec::with_capacity(soft_confirmations_in_commitment.len());
+        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> = vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
+            let shp = ledger_db
+                .get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
+                .expect("Must have short header proof");
+
+            // If first time, insert and push to the vector
+            if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
+                short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
+            }
+
             if da_block_headers_to_push.is_empty()
                 || da_block_headers_to_push.last().unwrap().height()
                     != soft_confirmation.da_slot_height
@@ -349,53 +362,43 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             }
 
             let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-            let signed_soft_confirmation: SignedSoftConfirmation<Transaction> =
-                if spec_id >= SpecId::Kumquat {
-                    let signed_soft_confirmation: SignedSoftConfirmation<Transaction> =
-                        soft_confirmation
-                            .try_into()
-                            .context("Failed to parse transactions")?;
-                    signed_soft_confirmation
-                } else {
-                    let signed_soft_confirmation: SignedSoftConfirmation<
-                        PreFork2Transaction<DefaultContext>,
-                    > = soft_confirmation
-                        .try_into()
-                        .context("Failed to parse transactions")?;
-                    // Convert to new transaction type
-                    let signed_soft_confirmation: SignedSoftConfirmation<Transaction> =
-                        SignedSoftConfirmation::new(
-                            signed_soft_confirmation.l2_height(),
-                            signed_soft_confirmation.hash(),
-                            signed_soft_confirmation.prev_hash(),
-                            signed_soft_confirmation.da_slot_height(),
-                            signed_soft_confirmation.da_slot_hash(),
-                            signed_soft_confirmation.da_slot_txs_commitment(),
-                            signed_soft_confirmation.l1_fee_rate(),
-                            signed_soft_confirmation.blobs().to_vec().into(),
-                            signed_soft_confirmation
-                                .txs()
-                                .iter()
-                                .map(|tx| Transaction::from(tx.clone()))
-                                .collect(),
-                            signed_soft_confirmation.deposit_data().to_vec(),
-                            signed_soft_confirmation.signature().to_vec(),
-                            signed_soft_confirmation.pub_key().to_vec(),
-                            signed_soft_confirmation.timestamp(),
-                        );
-                    signed_soft_confirmation
-                };
+            let l2_block: L2Block<Transaction> = if spec_id >= SpecId::Kumquat {
+                soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?
+            } else {
+                let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?;
 
-            commitment_soft_confirmations.push(signed_soft_confirmation);
+                let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
+                    .txs
+                    .iter()
+                    .map(|tx| {
+                        let blob =
+                            borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
+                        let tx = tx.clone().into();
+                        (tx, blob)
+                    })
+                    .unzip();
+                L2Block::new(
+                    l2_block.header,
+                    parsed_txs.into(),
+                    blobs.into(),
+                    l2_block.deposit_data,
+                )
+            };
+
+            l2_blocks.push(l2_block);
         }
-        soft_confirmations.push_back(commitment_soft_confirmations);
+        committed_l2_blocks.push_back(l2_blocks);
 
-        da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
+        da_block_headers_of_l2_blocks.push_back(da_block_headers_to_push);
     }
 
     // Replay transactions in the commitment blocks and collect cumulative witnesses
     let state_transition_witnesses = generate_cumulative_witness(
-        &soft_confirmations,
+        &committed_l2_blocks,
         ledger_db,
         da_service,
         l1_block_cache.clone(),
@@ -406,14 +409,15 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     .await?;
 
     Ok((
+        short_header_proofs,
         state_transition_witnesses,
-        soft_confirmations,
-        da_block_headers_of_soft_confirmations,
+        committed_l2_blocks,
+        da_block_headers_of_l2_blocks,
     ))
 }
 
 async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerOps>(
-    soft_confirmations: &VecDeque<Vec<SignedSoftConfirmation<'txs, Transaction>>>,
+    committed_l2_blocks: &VecDeque<Vec<L2Block<'txs, Transaction>>>,
     ledger_db: &DB,
     da_service: &Arc<Da>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
@@ -421,10 +425,10 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> anyhow::Result<VecDeque<Vec<(ArrayWitness, ArrayWitness)>>> {
-    let mut state_transition_witnesses = VecDeque::with_capacity(soft_confirmations.len());
+    let mut state_transition_witnesses = VecDeque::with_capacity(committed_l2_blocks.len());
 
     let mut init_state_root = ledger_db
-        .get_l2_state_root(soft_confirmations[0][0].l2_height() - 1)?
+        .get_l2_state_root(committed_l2_blocks[0][0].l2_height() - 1)?
         .expect("L2 state root must exist");
 
     let mut cumulative_state_log = None;
@@ -433,14 +437,14 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
-    for commitment_soft_confirmations in soft_confirmations {
-        let mut witnesses = Vec::with_capacity(commitment_soft_confirmations.len());
+    for l2_blocks_in_commitment in committed_l2_blocks {
+        let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
 
-        for signed_soft_confirmation in commitment_soft_confirmations {
-            let l2_height = signed_soft_confirmation.l2_height();
+        for l2_block in l2_blocks_in_commitment {
+            let l2_height = l2_block.l2_height();
             let l1_block = get_da_block_at_height(
                 da_service,
-                signed_soft_confirmation.da_slot_height(),
+                l2_block.da_slot_height(),
                 l1_block_cache.clone(),
             )
             .await?;
@@ -448,33 +452,24 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             let pre_state = storage_manager.create_storage_for_l2_height(l2_height);
             let current_spec = fork_from_block_number(l2_height).spec_id;
 
-            let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
-                stf.apply_soft_confirmation(
-                    current_spec,
-                    sequencer_k256_pub_key,
-                    &init_state_root,
-                    pre_state,
-                    cumulative_state_log,
-                    cumulative_offchain_log,
-                    Default::default(),
-                    Default::default(),
-                    l1_block.header(),
-                    signed_soft_confirmation,
-                )?
+            let (sequencer_public_key, state_log, offchain_log) = if current_spec >= SpecId::Fork2 {
+                (sequencer_k256_pub_key, cumulative_state_log, cumulative_offchain_log)
             } else {
-                stf.apply_soft_confirmation(
-                    current_spec,
-                    sequencer_pub_key,
-                    &init_state_root,
-                    pre_state,
-                    None,
-                    None,
-                    Default::default(),
-                    Default::default(),
-                    l1_block.header(),
-                    signed_soft_confirmation,
-                )?
+                (sequencer_pub_key, None, None)
             };
+
+            let soft_confirmation_result = stf.apply_soft_confirmation(
+                current_spec,
+                sequencer_public_key,
+                &init_state_root,
+                pre_state,
+                state_log,
+                offchain_log,
+                Default::default(),
+                Default::default(),
+                l1_block.header(),
+                l2_block,
+            )?;
 
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
             cumulative_state_log = Some(soft_confirmation_result.state_log);
