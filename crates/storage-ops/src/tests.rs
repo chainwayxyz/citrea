@@ -47,7 +47,7 @@ async fn test_pruning_simple_run() {
         );
         let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-        tokio::spawn(pruner_service.run(PruningNodeType::Sequencer, cancellation_token.clone()));
+        tokio::spawn(pruner_service.run(StorageNodeType::Sequencer, cancellation_token.clone()));
 
         sleep(Duration::from_secs(1));
 
