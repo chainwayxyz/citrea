@@ -106,6 +106,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 .expect("Short header proof provider not set");
             // TODO: Check if this is the set_block_info tx, if so:
             // TODO: Get this and other params from input
+            // TODO: don't forget about height
             let _input = tx.input();
             let l1_hash = [0u8; 32];
             match shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_hash) {

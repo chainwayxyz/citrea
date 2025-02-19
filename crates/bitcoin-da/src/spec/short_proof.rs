@@ -1,3 +1,4 @@
+use bitcoin::script;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError,
     VerifableShortHeaderProof,
@@ -88,12 +89,43 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
             }
         }
 
-        // Finally return hash, wtxid root and txid proof count
+        // code taken from
+        // bitcoin::Block::bip34_block_height()
+        // and slightly modified
+        //
+        // we use .expect() on these lines as we don't expect
+        // non-bip34 blocks on mainnet and testnet
+        let input = self
+            .coinbase_tx
+            .input
+            .first()
+            .expect("coinbase tx must have input");
+
+        let push = input
+            .script_sig
+            .instructions_minimal()
+            .next()
+            .expect("should have at least one instruction")
+            .expect("should be minimal");
+
+        let height = if let script::Instruction::PushBytes(b) = push {
+            // Check that the number is encoded in the minimal way.
+            let h = script::read_scriptint(b.as_bytes()).expect("should work");
+
+            assert!(h > 0);
+
+            h as u64
+        } else {
+            panic!("should be push bytes");
+        };
+
+        // Finally return hash, wtxid root, txid proof count, and height
         Ok((
             // block_hash calculates the hash of the header
             self.header.hash().into(),
             self.header.txs_commitment().into(),
             self.coinbase_tx_txid_merkle_proof.len() as u8,
+            height,
         ))
     }
 }
@@ -141,7 +173,7 @@ mod test {
     fn test_correct_short_proof() {
         let proof = get_proof();
 
-        let (block_hash, tx_commitment, tx_proof_count) =
+        let (block_hash, tx_commitment, tx_proof_count, height) =
             proof.verify().expect("Proof verification failed");
 
         let mut hash_from_input = <[u8; 32]>::from_hex(
@@ -159,8 +191,8 @@ mod test {
             )
             .unwrap()
         );
-
         assert_eq!(tx_proof_count, 11);
+        assert_eq!(height, 882547);
     }
 
     #[test]
