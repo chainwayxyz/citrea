@@ -170,14 +170,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let code = Bytecode::new_raw(acc.code.clone());
             // hash_slow returns EMPTY_KECCAK if code is empty
             let code_hash = if !code.is_empty() {
-                Some(code.hash_slow())
+                Some(code.hash_slow().into())
             } else {
                 None
             };
             evm_db.insert_account_info(
                 acc.address,
                 AccountInfo {
-                    balance: acc.balance,
+                    balance: acc.balance.into(),
                     code_hash,
                     nonce: acc.nonce,
                 },

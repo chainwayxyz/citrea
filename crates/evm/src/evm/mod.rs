@@ -1,5 +1,5 @@
 use alloy_eips::eip1559::BaseFeeParams;
-use alloy_primitives::{address, Address, B256, U256};
+use alloy_primitives::{address, Address, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
 use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;

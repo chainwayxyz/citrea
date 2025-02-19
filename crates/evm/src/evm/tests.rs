@@ -38,7 +38,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
     evm_db.insert_account_info(
         caller,
         AccountInfo {
-            balance: U256::from_str("100000000000000000000").unwrap(),
+            balance: U256::from_str("100000000000000000000").unwrap().into(),
             code_hash: None,
             nonce: 1,
         },

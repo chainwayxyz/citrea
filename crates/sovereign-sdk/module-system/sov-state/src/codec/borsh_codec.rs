@@ -1,4 +1,3 @@
-use core::convert::AsRef;
 use core::ops::Deref;
 
 use alloy_primitives::{Address as AddressOrig, B256 as B256Orig, U256 as U256Orig};
@@ -12,7 +11,7 @@ use super::{StateCodec, StateKeyCodec};
 use crate::codec::StateValueCodec;
 
 /// A [`StateCodec`] that uses [`borsh`] for all keys and values.
-#[derive(Debug, Default, PartialEq, Eq, Clone, BorshDeserialize, borsh::BorshSerialize)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct BorshCodec;
 
 impl<K> StateKeyCodec<K> for BorshCodec
@@ -87,24 +86,6 @@ pub struct Address(
     /// Original value
     AddressOrig,
 );
-
-impl From<AddressOrig> for Address {
-    fn from(value: AddressOrig) -> Self {
-        Self(value)
-    }
-}
-
-impl From<Address> for AddressOrig {
-    fn from(value: Address) -> Self {
-        value.0
-    }
-}
-
-impl PartialEq<AddressOrig> for Address {
-    fn eq(&self, other: &AddressOrig) -> bool {
-        self.0.eq(other)
-    }
-}
 
 /// Serialize Address
 fn ser_address<W: Write>(x: &AddressOrig, writer: &mut W) -> Result<(), Error> {
@@ -207,12 +188,6 @@ impl Deref for B256 {
         &self.0
     }
 }
-
-// impl AsRef<B256Orig> for B256 {
-//     fn as_ref(&self) -> &B256Orig {
-//         &self.0
-//     }
-// }
 
 /// Serialize B256
 fn ser_b256<W: Write>(x: &B256Orig, writer: &mut W) -> Result<(), Error> {
