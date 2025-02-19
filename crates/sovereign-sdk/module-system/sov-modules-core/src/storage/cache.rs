@@ -8,11 +8,20 @@ use sov_rollup_interface::RefCount;
 
 use crate::common::{MergeError, ReadError};
 
+const MAX_CACHE_SIZE: usize = 64 * 1024 * 1024; // 64 MB
+
 /// A key for a cache set.
 #[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
 pub struct CacheKey {
     /// The key of the cache entry.
     pub key: RefCount<[u8]>,
+}
+
+impl CacheKey {
+    /// Returns the heap size of the `CacheKey`
+    pub fn size(&self) -> usize {
+        self.key.len()
+    }
 }
 
 impl fmt::Display for CacheKey {
@@ -29,14 +38,19 @@ pub struct CacheValue {
     pub value: RefCount<[u8]>,
 }
 
+impl CacheValue {
+    /// Returns the heap size of the `CacheValue`
+    pub fn size(&self) -> usize {
+        self.value.len()
+    }
+}
+
 impl fmt::Display for CacheValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO revisit how we display values
         write!(f, "{:?}", self.value)
     }
 }
-
-// TODO: I don't believe this is necessary
 
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
@@ -91,6 +105,18 @@ impl Access {
             // For Write override the original value with a new value
             // We can do this unconditionally, since overwriting a value with itself is a no-op
             Access::Write(value) => *value = new_value,
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Access::Read(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
+            Access::ReadThenWrite { original, modified } => {
+                let original_size = original.as_ref().map(|v| v.size()).unwrap_or_default();
+                let modified_size = modified.as_ref().map(|v| v.size()).unwrap_or_default();
+                original_size + modified_size
+            }
+            Access::Write(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
         }
     }
 
@@ -306,6 +332,26 @@ impl CacheLog {
         }
     }
 
+    /// Prunes half of the cache efficiently
+    pub fn prune_half(&mut self) {
+        if self.log.is_empty() {
+            return;
+        }
+
+        let mid_idx = self.log.len() / 2;
+        let mid_key = self.log.keys().nth(mid_idx).expect("must exist").clone();
+        self.log.split_off(&mid_key);
+    }
+
+    /// Returns the estimated heap size of the `CacheLog`. This doesn't account for
+    /// pointer and node overhead coming from BTreeMap.
+    pub fn estimated_size(&self) -> usize {
+        self.log.iter().fold(0, |mut acc, (key, access)| {
+            acc += key.size() + access.size();
+            acc
+        })
+    }
+
     /// Merges two cache logs in a way that preserves the first read (from self) and the last write (from rhs)
     /// for the same key in both caches.
     /// The merge succeeds if the first read in the right cache for a key 'k' is consistent with the last read/write
@@ -398,6 +444,13 @@ impl ReadWriteLog {
     /// Converts this into a `CacheLog` for reuse. Marks all entries as `Access::Read` before returning.
     pub fn into_cache_log(mut self) -> CacheLog {
         self.cache_log.mark_all_as_read();
+
+        let cache_size = self.cache_log.estimated_size();
+        if cache_size > MAX_CACHE_SIZE {
+            println!("Cache size limit hit, pruning half of the cache");
+            self.cache_log.prune_half();
+        }
+
         self.cache_log
     }
 }

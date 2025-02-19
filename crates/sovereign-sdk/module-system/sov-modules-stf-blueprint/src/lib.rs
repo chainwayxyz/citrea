@@ -295,8 +295,6 @@ where
             )
         };
 
-        // TODO: check if state_log is too big, prune if so
-
         SoftConfirmationResult {
             state_root_transition,
             state_log,
