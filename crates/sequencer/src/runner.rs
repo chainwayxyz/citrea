@@ -21,6 +21,7 @@ use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
+use reth_primitives::TransactionSignedEcRecovered;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::identifier::SenderId;
 use reth_transaction_pool::{
@@ -187,7 +188,10 @@ where
             let mut system_events = vec![];
             if soft_confirmation_info.current_spec >= SpecId::Fork2 {
                 let evm = citrea_evm::Evm::<DefaultContext>::default();
-                let last_l1_hash_of_evm = evm.last_l1_hash.get(&mut working_set_to_discard);
+                let mut last_l1_hash_of_evm = evm.last_l1_hash.get(&mut working_set_to_discard);
+                if soft_confirmation_info.l2_height == 1 {
+                    last_l1_hash_of_evm = None;
+                }
 
                 populate_system_events(
                     &soft_confirmation_info,
@@ -238,14 +242,20 @@ where
                     // Collect all system txs to a vector of rlp txs
                     for sys_tx in system_transactions {
                         let sys_tx = sys_tx.into_signed();
+                        // Cannot do into ecrecovered here because we don't have a valid signature
+                        let sys_tx_ec_recovered =
+                            TransactionSignedEcRecovered::from_signed_transaction(
+                                sys_tx,
+                                SYSTEM_SIGNER,
+                            );
                         // These txs don't have a SenderId as we do not get them from mempool
                         // So we use u64::MAX
                         let sender = SenderId::from(u64::MAX);
-                        let tx_hash = sys_tx.hash();
+                        let tx_hash = sys_tx_ec_recovered.hash();
                         let mut buf = vec![];
-                        sys_tx.encode_2718(&mut buf);
-                        let sys_tx = RlpEvmTransaction { rlp: buf };
-                        all_rlp_sys_txs.push((sys_tx, sender, tx_hash));
+                        sys_tx_ec_recovered.encode_2718(&mut buf);
+                        let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
+                        all_rlp_sys_txs.push((sys_tx_rlp, sender, tx_hash));
                     }
                     // Collect all user txs to a vector of rlp txs
                     for evm_tx in transactions {
