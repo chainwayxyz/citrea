@@ -8,8 +8,6 @@ use sov_rollup_interface::RefCount;
 
 use crate::common::{MergeError, ReadError};
 
-const MAX_CACHE_SIZE: usize = 64 * 1024 * 1024; // 64 MB
-
 /// A key for a cache set.
 #[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
 pub struct CacheKey {
@@ -444,14 +442,17 @@ impl ReadWriteLog {
     /// Converts this into a `CacheLog` for reuse. Marks all entries as `Access::Read` before returning.
     pub fn into_cache_log(mut self) -> CacheLog {
         self.cache_log.mark_all_as_read();
-
-        let cache_size = self.cache_log.estimated_size();
-        if cache_size > MAX_CACHE_SIZE {
-            println!("Cache size limit hit, pruning half of the cache");
-            self.cache_log.prune_half();
-        }
-
         self.cache_log
+    }
+
+    /// Returns the estimated cache size
+    pub fn estimated_cache_size(&self) -> usize {
+        self.cache_log.estimated_size()
+    }
+
+    /// Prunes the cache into half unconditionally.
+    pub fn prune_half(&mut self) {
+        self.cache_log.prune_half();
     }
 }
 

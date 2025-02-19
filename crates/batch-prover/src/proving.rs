@@ -147,6 +147,7 @@ where
         let (
             short_header_proofs,
             state_transition_witnesses,
+            cache_prune_l2_heights,
             l2_blocks,
             da_block_headers_of_l2_blocks,
         ) = get_batch_proof_circuit_input_from_commitments(
@@ -214,6 +215,7 @@ where
             short_header_proofs,
             sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
                 .to_vec(),
+            cache_prune_l2_heights,
         };
 
         batch_proof_circuit_inputs.push(input);

@@ -38,9 +38,12 @@ use crate::errors::L1ProcessingError;
 use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
+const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
+
 type CommitmentStateTransitionData<'txs, Da> = (
     VecDeque<([u8; 32], Vec<u8>)>,
     VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
+    Vec<u64>,
     VecDeque<Vec<L2Block<'txs, Transaction>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
@@ -398,7 +401,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     }
 
     // Replay transactions in the commitment blocks and collect cumulative witnesses
-    let state_transition_witnesses = generate_cumulative_witness(
+    let (state_transition_witnesses, cache_prune_l2_heights) = generate_cumulative_witness(
         &committed_l2_blocks,
         ledger_db,
         da_service,
@@ -412,6 +415,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Ok((
         short_header_proofs,
         state_transition_witnesses,
+        cache_prune_l2_heights,
         committed_l2_blocks,
         da_block_headers_of_l2_blocks,
     ))
@@ -425,7 +429,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     storage_manager: &ProverStorageManager,
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
-) -> anyhow::Result<VecDeque<Vec<(ArrayWitness, ArrayWitness)>>> {
+) -> anyhow::Result<(VecDeque<Vec<(ArrayWitness, ArrayWitness)>>, Vec<u64>)> {
     let mut state_transition_witnesses = VecDeque::with_capacity(committed_l2_blocks.len());
 
     let mut init_state_root = ledger_db
@@ -434,6 +438,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
     let mut cumulative_state_log = None;
     let mut cumulative_offchain_log = None;
+    let mut cache_prune_l2_heights = vec![];
 
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
@@ -490,8 +495,21 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
 
             if should_use_cache {
-                cumulative_state_log = Some(soft_confirmation_result.state_log);
-                cumulative_offchain_log = Some(soft_confirmation_result.offchain_log);
+                let mut state_log = soft_confirmation_result.state_log;
+                let mut offchain_log = soft_confirmation_result.offchain_log;
+
+                // If cache grew too large, zkvm will error with OOM, hence, we pass
+                // when to prune as hint
+                if state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
+                    > MAX_CUMULATIVE_CACHE_SIZE
+                {
+                    state_log.prune_half();
+                    offchain_log.prune_half();
+                    cache_prune_l2_heights.push(l2_height);
+                }
+
+                cumulative_state_log = Some(state_log);
+                cumulative_offchain_log = Some(offchain_log);
             }
 
             witnesses.push((
@@ -503,7 +521,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         state_transition_witnesses.push_back(witnesses);
     }
 
-    Ok(state_transition_witnesses)
+    Ok((state_transition_witnesses, cache_prune_l2_heights))
 }
 
 pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(

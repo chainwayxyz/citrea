@@ -1,6 +1,8 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+use std::collections::VecDeque;
+
 use borsh::BorshSerialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
@@ -425,7 +427,8 @@ where
         initial_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         sequencer_commitments: Vec<SequencerCommitment>,
-        slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
+        slot_headers: VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
+        cache_prune_l2_heights: &[u64],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
@@ -447,6 +450,7 @@ where
         // Reuseable log caches
         let mut cumulative_state_log = None;
         let mut cumulative_offchain_log = None;
+        let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();
 
         for (sequencer_commitment, da_block_headers) in
             sequencer_commitments.into_iter().zip_eq(slot_headers)
@@ -610,8 +614,19 @@ where
 
                 soft_confirmation_hashes.push(l2_block.hash());
 
-                cumulative_state_log = Some(result.state_log);
-                cumulative_offchain_log = Some(result.offchain_log);
+                let mut state_log = result.state_log;
+                let mut offchain_log = result.offchain_log;
+                // prune cache logs if it is hinted from native
+                if cache_prune_l2_heights_iter
+                    .next_if_eq(&&l2_height)
+                    .is_some()
+                {
+                    state_log.prune_half();
+                    offchain_log.prune_half();
+                }
+
+                cumulative_state_log = Some(state_log);
+                cumulative_offchain_log = Some(offchain_log);
             }
 
             assert_eq!(

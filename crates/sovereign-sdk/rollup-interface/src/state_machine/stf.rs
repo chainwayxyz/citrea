@@ -192,6 +192,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         pre_state: Self::PreState,
         sequencer_commitments: Vec<SequencerCommitment>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
+        cache_prune_l2_heights: &[u64],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput;
 }
