@@ -336,7 +336,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             .context("Failed to get soft confirmations")?;
 
         let mut l2_blocks = Vec::with_capacity(soft_confirmations_in_commitment.len());
-        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> = vec![];
+        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
+            vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
             let shp = ledger_db
                 .get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
@@ -453,7 +454,11 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             let current_spec = fork_from_block_number(l2_height).spec_id;
 
             let (sequencer_public_key, state_log, offchain_log) = if current_spec >= SpecId::Fork2 {
-                (sequencer_k256_pub_key, cumulative_state_log, cumulative_offchain_log)
+                (
+                    sequencer_k256_pub_key,
+                    cumulative_state_log,
+                    cumulative_offchain_log,
+                )
             } else {
                 (sequencer_pub_key, None, None)
             };

@@ -173,7 +173,10 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         soft_confirmation: &L2Block<Self::Transaction>,
-    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>, StateTransitionError>;
+    ) -> Result<
+        SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
+        StateTransitionError,
+    >;
 
     /// Runs a vector of Soft Confirmations
     /// Used for proving the L2 block state transitions

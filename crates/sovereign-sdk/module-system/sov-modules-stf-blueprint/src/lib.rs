@@ -369,7 +369,10 @@ where
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
         l2_block: &L2Block<Self::Transaction>,
-    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>, StateTransitionError> {
+    ) -> Result<
+        SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
+        StateTransitionError,
+    > {
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(l2_block, *pre_state_root, current_spec);
 
@@ -476,8 +479,7 @@ where
                     .unwrap();
 
                 let spec_id = fork_manager.active_fork().spec_id;
-                let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat
-                {
+                let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
                     guest.read_from_host::<(
                         L2Block<Self::Transaction>,
                         <C::Storage as Storage>::Witness,
