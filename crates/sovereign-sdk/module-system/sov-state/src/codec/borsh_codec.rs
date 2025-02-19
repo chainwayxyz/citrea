@@ -11,7 +11,7 @@ pub struct BorshCodec;
 
 impl StateKeyCodec<AlloyU256> for BorshCodec {
     fn encode_key(&self, value: &AlloyU256) -> Vec<u8> {
-        borsh::to_vec(value.as_le_slice()).expect("Failed to serialize key")
+        borsh::to_vec(value.as_limbs()).expect("Failed to serialize key")
     }
 }
 
@@ -31,13 +31,13 @@ impl StateValueCodec<AlloyU256> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &AlloyU256) -> Vec<u8> {
-        let t = value.as_le_slice();
+        let t = value.as_limbs();
         borsh::to_vec(t).unwrap()
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<AlloyU256, Self::Error> {
-        let s: [u8; 32] = borsh::from_slice(bytes)?;
-        Ok(AlloyU256::from_le_bytes(s))
+        let s: [u64; 4] = borsh::from_slice(bytes)?;
+        Ok(AlloyU256::from_limbs(s))
     }
 }
 
