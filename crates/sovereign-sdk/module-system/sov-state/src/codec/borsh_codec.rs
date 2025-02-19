@@ -57,7 +57,7 @@ where
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &Vec<T>) -> Vec<u8> {
-        borsh::to_vec(value).unwrap()
+        borsh::to_vec(value).expect("Failed to serialize value")
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<T>, Self::Error> {
