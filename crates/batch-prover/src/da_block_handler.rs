@@ -476,6 +476,12 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                 l2_block,
             )?;
 
+            assert_eq!(
+                l2_block.state_root(),
+                soft_confirmation_result.state_root_transition.final_root,
+                "State root mismatch when regenerating witnesses"
+            );
+
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
             cumulative_state_log = Some(soft_confirmation_result.state_log);
             cumulative_offchain_log = Some(soft_confirmation_result.offchain_log);
