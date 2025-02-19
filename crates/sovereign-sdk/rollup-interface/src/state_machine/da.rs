@@ -167,11 +167,21 @@ pub trait DaSpec:
         + Sync;
 }
 
+#[derive(Debug)]
 /// Information needed to update L1 light client system contract
-///
-/// (header hash, tx commitment (wtxid commitment in Bitcoin), hashes needed for the merkle inclusion proof)
-pub type L1UpdateSystemTransactionInfo = ([u8; 32], [u8; 32], u8);
-
+pub struct L1UpdateSystemTransactionInfo {
+    /// Hash of header at height `block_height`
+    pub header_hash: [u8; 32],
+    /// Hash of header at height `block_height - 1`
+    pub prev_header_hash: [u8; 32],
+    /// Transaction commitment of the block
+    /// For bitcoin this should be the wtxid commitment
+    pub tx_commitment: [u8; 32],
+    /// Number of hashes needed for the merkle inclusion proof of the coinbase transaction
+    pub coinbase_txid_merkle_proof_height: u8,
+    /// Block height
+    pub block_height: u64,
+}
 /// A trait for a verifiable short header proof
 pub trait VerifableShortHeaderProof {
     /// Verifies the proof and returns the header hash, transaction commitment and coinbase transaction txid merkle proof

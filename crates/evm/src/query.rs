@@ -1600,7 +1600,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Return block number using the state
-    pub(crate) fn block_number_from_state(
+    pub fn block_number_from_state(
         &self,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
