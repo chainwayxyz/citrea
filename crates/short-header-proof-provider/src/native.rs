@@ -25,6 +25,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
     fn get_and_verify_short_header_proof_by_l1_hash(
         &self,
         block_hash: [u8; 32],
+        txs_commitment: [u8; 32],
     ) -> Result<bool, ShortHeaderProofProviderError> {
         if let Some(shp_serialized) = self
             .ledger_db
@@ -33,7 +34,8 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         {
             let shp = Da::ShortHeaderProof::try_from_slice(&shp_serialized)
                 .expect("Should deserialize short header proof");
-            return Ok(shp.verify().is_ok());
+            // TODO: Sequencer shp provider
+            return Ok(shp.verify_with_params(block_hash, txs_commitment).is_ok());
         }
         Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound)
     }

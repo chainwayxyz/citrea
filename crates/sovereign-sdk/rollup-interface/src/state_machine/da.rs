@@ -196,6 +196,13 @@ pub trait VerifableShortHeaderProof {
     /// In the light client proof, the circuit will extract the `l1_hashes` output and will check that the hashes are
     /// included in the header chain.
     fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError>;
+
+    /// Same with verify, Verifies the proof and checks the parameters
+    fn verify_with_params(
+        &self,
+        l1_hash: [u8; 32],
+        da_txs_commitment: [u8; 32],
+    ) -> Result<bool, ShortHeaderProofVerificationError>;
 }
 
 #[derive(Debug, PartialEq, Eq)]

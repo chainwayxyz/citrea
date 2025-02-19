@@ -133,6 +133,21 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
             block_height: height,
         })
     }
+
+    fn verify_with_params(
+        &self,
+        l1_hash: [u8; 32],
+        da_txs_commitment: [u8; 32],
+    ) -> Result<bool, ShortHeaderProofVerificationError> {
+        let params = self.verify()?;
+        if params.header_hash != l1_hash {
+            return Ok(false);
+        }
+        if params.tx_commitment != da_txs_commitment {
+            return Ok(false);
+        }
+        Ok(true)
+    }
 }
 
 #[cfg(test)]

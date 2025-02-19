@@ -22,6 +22,7 @@ pub trait ShortHeaderProofProvider: Send + Sync {
     fn get_and_verify_short_header_proof_by_l1_hash(
         &self,
         l1_hash: [u8; 32],
+        txs_commitment: [u8; 32],
     ) -> Result<bool, ShortHeaderProofProviderError>;
 }
 

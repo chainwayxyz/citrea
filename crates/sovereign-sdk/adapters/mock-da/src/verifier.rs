@@ -64,6 +64,14 @@ impl VerifableShortHeaderProof for MockShortHeaderProof {
     fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
         todo!()
     }
+
+    fn verify_with_params(
+        &self,
+        _l1_hash: [u8; 32],
+        _da_txs_commitment: [u8; 32],
+    ) -> Result<bool, ShortHeaderProofVerificationError> {
+        Ok(true)
+    }
 }
 impl DaVerifier for MockDaVerifier {
     type Spec = MockDaSpec;

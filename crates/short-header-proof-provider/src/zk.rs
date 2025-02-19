@@ -31,6 +31,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
     fn get_and_verify_short_header_proof_by_l1_hash(
         &self,
         block_hash: [u8; 32],
+        txs_commitment: [u8; 32],
     ) -> Result<bool, ShortHeaderProofProviderError> {
         let shp = self
             .short_header_proofs
@@ -45,6 +46,6 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             .1;
 
         let shp = Da::ShortHeaderProof::try_from_slice(&shp).unwrap();
-        Ok(shp.verify().is_ok())
+        Ok(shp.verify_with_params(block_hash, txs_commitment).is_ok())
     }
 }
