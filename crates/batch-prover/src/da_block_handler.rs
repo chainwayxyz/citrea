@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
@@ -38,8 +38,9 @@ use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
 type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
+    VecDeque<([u8; 32], Vec<u8>)>,
     VecDeque<Vec<(Witness, Witness)>>,
-    VecDeque<Vec<SignedSoftConfirmation<'txs, Tx>>>,
+    VecDeque<Vec<L2Block<'txs, Tx>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
@@ -294,6 +295,7 @@ where
             self.ledger_db.clone(),
             txs_and_proofs,
             self.code_commitments_by_spec.clone(),
+            0, // TODO: since we don't support session recovery any more put in 0 to make it work
         )
         .await?;
 
@@ -306,8 +308,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
-    Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
-    TxOld: Clone + BorshDeserialize + 'txs,
+    Tx: From<TxOld> + Clone + BorshDeserialize + 'txs + BorshSerialize,
+    TxOld: Clone + BorshDeserialize + 'txs + BorshSerialize,
 >(
     sequencer_commitments: &[SequencerCommitment],
     da_service: &Arc<Da>,
@@ -316,11 +318,15 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
 ) -> Result<CommitmentStateTransitionData<'txs, Witness, Da, Tx>, anyhow::Error> {
     let mut state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>> =
         VecDeque::with_capacity(sequencer_commitments.len());
-    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Tx>>> =
+    let mut committed_l2_blocks: VecDeque<Vec<L2Block<Tx>>> =
         VecDeque::with_capacity(sequencer_commitments.len());
-    let mut da_block_headers_of_soft_confirmations: VecDeque<
+    let mut da_block_headers_of_l2_blocks: VecDeque<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
     > = VecDeque::with_capacity(sequencer_commitments.len());
+
+    let mut l1_hash_set = HashSet::new();
+    let mut short_header_proofs = VecDeque::new();
+
     for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
         let mut witnesses = Vec::with_capacity(
@@ -340,11 +346,19 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 ));
             }
         };
-        let mut commitment_soft_confirmations =
-            Vec::with_capacity(soft_confirmations_in_commitment.len());
+        let mut l2_blocks = Vec::with_capacity(soft_confirmations_in_commitment.len());
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
+            let shp = ledger_db
+                .get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
+                .expect("Must have short header proof");
+
+            // If first time, insert and push to the vector
+            if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
+                short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
+            }
+
             if da_block_headers_to_push.is_empty()
                 || da_block_headers_to_push.last().unwrap().height()
                     != soft_confirmation.da_slot_height
@@ -368,45 +382,38 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             }
 
             let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = if spec_id >= SpecId::Kumquat
-            {
-                let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
+            let l2_block: L2Block<Tx> = if spec_id >= SpecId::Kumquat {
+                soft_confirmation
                     .try_into()
-                    .context("Failed to parse transactions")?;
-                signed_soft_confirmation
+                    .context("Failed to parse transactions")?
             } else {
-                let signed_soft_confirmation: SignedSoftConfirmation<TxOld> = soft_confirmation
+                let l2_block: L2Block<TxOld> = soft_confirmation
                     .try_into()
                     .context("Failed to parse transactions")?;
-                // Convert to new transaction type
-                let signed_soft_confirmation: SignedSoftConfirmation<Tx> =
-                    SignedSoftConfirmation::new(
-                        signed_soft_confirmation.l2_height(),
-                        signed_soft_confirmation.hash(),
-                        signed_soft_confirmation.prev_hash(),
-                        signed_soft_confirmation.da_slot_height(),
-                        signed_soft_confirmation.da_slot_hash(),
-                        signed_soft_confirmation.da_slot_txs_commitment(),
-                        signed_soft_confirmation.l1_fee_rate(),
-                        signed_soft_confirmation.blobs().to_vec().into(),
-                        signed_soft_confirmation
-                            .txs()
-                            .iter()
-                            .map(|tx| Tx::from(tx.clone()))
-                            .collect(),
-                        signed_soft_confirmation.deposit_data().to_vec(),
-                        signed_soft_confirmation.signature().to_vec(),
-                        signed_soft_confirmation.pub_key().to_vec(),
-                        signed_soft_confirmation.timestamp(),
-                    );
-                signed_soft_confirmation
+
+                let (parsed_txs, blobs): (Vec<Tx>, Vec<Vec<u8>>) = l2_block
+                    .txs
+                    .iter()
+                    .map(|tx| {
+                        let blob =
+                            borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
+                        let tx: Tx = tx.clone().into();
+                        (tx, blob)
+                    })
+                    .unzip();
+                L2Block::new(
+                    l2_block.header,
+                    parsed_txs.into(),
+                    blobs.into(),
+                    l2_block.deposit_data,
+                )
             };
 
-            commitment_soft_confirmations.push(signed_soft_confirmation);
+            l2_blocks.push(l2_block);
         }
-        soft_confirmations.push_back(commitment_soft_confirmations);
+        committed_l2_blocks.push_back(l2_blocks);
 
-        da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
+        da_block_headers_of_l2_blocks.push_back(da_block_headers_to_push);
         for l2_height in
             sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
         {
@@ -423,9 +430,10 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     }
 
     Ok((
+        short_header_proofs,
         state_transition_witnesses,
-        soft_confirmations,
-        da_block_headers_of_soft_confirmations,
+        committed_l2_blocks,
+        da_block_headers_of_l2_blocks,
     ))
 }
 

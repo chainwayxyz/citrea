@@ -357,13 +357,15 @@ fn make_transition_data(
             time: Time::now(),
             bits: 0,
         },
-        soft_confirmations: VecDeque::new(),
+        l2_blocks: VecDeque::new(),
         state_transition_witnesses: VecDeque::new(),
-        da_block_headers_of_soft_confirmations: VecDeque::new(),
+        da_block_headers_of_l2_blocks: VecDeque::new(),
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
         preproven_commitments: vec![],
-        final_state_root: [0u8; 32],
+        short_header_proofs: VecDeque::new(),
+        final_state_root: [0; 32],
+        sequencer_commitments: vec![],
     }
 }
 

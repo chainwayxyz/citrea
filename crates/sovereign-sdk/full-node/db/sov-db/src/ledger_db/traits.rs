@@ -2,10 +2,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
+use borsh::BorshSerialize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
+use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::soft_confirmation::L2Block;
+use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaBatch;
 
@@ -25,7 +27,7 @@ pub trait SharedLedgerOps {
     fn inner(&self) -> Arc<sov_schema_db::DB>;
 
     /// Put soft confirmation to db
-    fn put_soft_confirmation(
+    fn put_l2_block(
         &self,
         batch: &StoredSoftConfirmation,
         batch_number: &SoftConfirmationNumber,
@@ -33,10 +35,10 @@ pub trait SharedLedgerOps {
     ) -> Result<()>;
 
     /// Commits a soft confirmation to the database by inserting its transactions and batches before
-    fn commit_soft_confirmation<DS: DaSpec>(
+    fn commit_l2_block<Tx: Clone + BorshSerialize>(
         &self,
-        state_root: &[u8],
-        sc_receipt: SoftConfirmationReceipt<DS>,
+        l2_block: L2Block<'_, Tx>,
+        tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<()>;
 
@@ -54,7 +56,7 @@ pub trait SharedLedgerOps {
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 
     /// Saves a soft confirmation status for a given L1 height
-    fn put_soft_confirmation_status(
+    fn put_l2_block_status(
         &self,
         height: SoftConfirmationNumber,
         status: sov_rollup_interface::rpc::SoftConfirmationStatus,
@@ -128,6 +130,29 @@ pub trait SharedLedgerOps {
 
     /// Put a pending commitment l2 range
     fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()>;
+
+    /// Stores a short header proof by l1 hash
+    fn put_short_header_proof_by_l1_hash(
+        &self,
+        hash: &[u8; 32],
+        short_header_proof: Vec<u8>,
+    ) -> anyhow::Result<()>;
+
+    /// Returns stored short header proof by l1 hash
+    fn get_short_header_proof_by_l1_hash(&self, hash: &[u8; 32])
+        -> anyhow::Result<Option<Vec<u8>>>;
+    /// Set L2 range by soft confirmation hash merkle root
+    fn set_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+        range: L2HeightRange,
+    ) -> anyhow::Result<()>;
+
+    /// Get L2 range by soft confirmation hash merkle root
+    fn get_l2_range_by_commitment_merkle_root(
+        &self,
+        root: [u8; 32],
+    ) -> anyhow::Result<Option<L2HeightRange>>;
 }
 
 /// Node ledger operations

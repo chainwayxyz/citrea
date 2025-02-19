@@ -4,11 +4,9 @@ use borsh::BorshDeserialize;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{native_debug, native_error, Context, DaSpec, SpecId, WorkingSet};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationHookError, StateTransitionError, StateTransitionFunction,
 };
-use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -55,17 +53,17 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn apply_sov_txs_inner(
         &mut self,
-        soft_confirmation_info: HookSoftConfirmationInfo,
-        txs: &[Vec<u8>],
-        txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        blobs: &[Vec<u8>],
+        txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
         sc_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
         if soft_confirmation_info.current_spec >= SpecId::Kumquat {
-            for tx in txs_new {
-                self.apply_sov_tx_inner(&soft_confirmation_info, tx, sc_workspace)?;
+            for tx in txs {
+                self.apply_sov_tx_inner(soft_confirmation_info, tx, sc_workspace)?;
             }
         } else {
-            for raw_tx in txs {
+            for raw_tx in blobs {
                 // Stateless verification of transaction, such as signature check
                 let mut reader = std::io::Cursor::new(raw_tx);
                 let tx =
@@ -75,7 +73,7 @@ where
                         )
                     })?;
 
-                self.apply_sov_tx_inner(&soft_confirmation_info, &tx.into(), sc_workspace)?;
+                self.apply_sov_tx_inner(soft_confirmation_info, &tx.into(), sc_workspace)?;
             }
         };
 
@@ -152,16 +150,9 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn end_soft_confirmation_inner(
         &mut self,
-        current_spec: SpecId,
-        pre_state_root: StorageRootHash,
-        soft_confirmation: &mut SignedSoftConfirmation<
-            <Self as StateTransitionFunction<Da>>::Transaction,
-        >,
+        hook_soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
-        let hook_soft_confirmation_info =
-            HookSoftConfirmationInfo::new(soft_confirmation, pre_state_root, current_spec);
-
         if let Err(e) = self
             .runtime
             .end_soft_confirmation_hook(hook_soft_confirmation_info, working_set)

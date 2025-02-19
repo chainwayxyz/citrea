@@ -1779,6 +1779,7 @@ dependencies = [
  "bitcoin-da",
  "bitcoincore-rpc",
  "borsh",
+ "chrono",
  "citrea-batch-prover",
  "citrea-common",
  "citrea-e2e",
@@ -1819,6 +1820,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "short-header-proof-provider",
  "soft-confirmation-rule-enforcer",
  "sov-db",
  "sov-ledger-rpc",
@@ -1902,6 +1904,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
+ "borsh",
  "citrea-primitives",
  "citrea-storage-ops",
  "futures",
@@ -1911,6 +1914,7 @@ dependencies = [
  "lru",
  "metrics",
  "rocksdb",
+ "rs_merkle",
  "serde",
  "serde_json",
  "sov-db",
@@ -1996,6 +2000,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "short-header-proof-provider",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
@@ -2169,6 +2174,7 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
+ "short-header-proof-provider",
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
@@ -2188,8 +2194,10 @@ dependencies = [
  "jmt",
  "serde",
  "sov-db",
+ "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-schema-db",
+ "sov-state",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -7756,6 +7764,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "short-header-proof-provider"
+version = "0.6.0"
+dependencies = [
+ "borsh",
+ "futures",
+ "once_cell",
+ "sov-db",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "thiserror",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8045,6 +8066,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "citrea-primitives",
  "hex",
  "itertools 0.13.0",
  "jmt",

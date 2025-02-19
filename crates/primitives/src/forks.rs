@@ -53,16 +53,18 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
     forks[pos]
 }
 
-pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Kumquat, 0)];
+pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork2, 0)];
 
-pub const TESTNET_FORKS: [Fork; 2] = [
+pub const TESTNET_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 5546000), // will be reached Jan 24 2025 ~7 PM
+    Fork::new(SpecId::Fork2, u64::MAX),
 ];
 
-pub const DEVNET_FORKS: [Fork; 2] = [
+pub const DEVNET_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 1921835),
+    Fork::new(SpecId::Fork2, u64::MAX),
 ];
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork2, 0)];

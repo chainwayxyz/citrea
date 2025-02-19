@@ -11,7 +11,7 @@ use crate::zk::StorageRootHash;
 /// Second part of the Kumquat elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
-pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone>(
+pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone + BorshSerialize>(
     pub VecDeque<Vec<(SignedSoftConfirmation<'txs, Tx>, Witness, Witness)>>,
 );
 
@@ -36,8 +36,8 @@ pub struct BatchProofCircuitInputV2Part1<Da: DaSpec> {
     pub completeness_proof: Da::CompletenessProof,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
-    /// DA block headers the soft confirmations was constructed on.
-    pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
+    /// DA block headers the L2 blocks were constructed on.
+    pub da_block_headers_of_l2_blocks: VecDeque<Vec<Da::BlockHeader>>,
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),

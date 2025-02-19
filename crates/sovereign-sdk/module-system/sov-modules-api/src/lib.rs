@@ -191,7 +191,7 @@ pub use sov_modules_core::{
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::soft_confirmation::{
-    SignedSoftConfirmation, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1,
+    L2Block, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1,
 };
 pub use sov_rollup_interface::stf::StateDiff;
 pub use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;

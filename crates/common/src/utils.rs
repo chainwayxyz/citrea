@@ -1,15 +1,19 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use anyhow::Context as _;
+use borsh::BorshSerialize;
+use citrea_primitives::EMPTY_TX_ROOT;
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::{Context, Spec};
-use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff, TransactionDigest};
+use sov_rollup_interface::stf::{StateDiff, TransactionDigest};
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map: HashMap<Arc<[u8]>, Option<Arc<[u8]>>> = HashMap::from_iter(old_diff);
@@ -80,36 +84,30 @@ pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64
     head_l2_height >= l2_height
 }
 
-pub fn soft_confirmation_to_receipt<C: Context, Tx: TransactionDigest + Clone, DS: DaSpec>(
-    soft_confirmation: SignedSoftConfirmation<'_, Tx>,
+pub fn compute_tx_hashes<C: Context, Tx: TransactionDigest + Clone + BorshSerialize>(
+    txs: &[Tx],
     current_spec: SpecId,
-) -> SoftConfirmationReceipt<DS> {
-    let tx_hashes = if current_spec >= SpecId::Kumquat {
-        soft_confirmation
-            .txs()
-            .iter()
+) -> Vec<[u8; 32]> {
+    if current_spec >= SpecId::Kumquat {
+        txs.iter()
             .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
             .collect()
     } else {
-        soft_confirmation
-            .blobs()
-            .iter()
-            .map(|raw_tx| <C as Spec>::Hasher::digest(raw_tx).into())
+        txs.iter()
+            .map(|tx| {
+                let serialized = borsh::to_vec(tx).expect("Tx serialization shouldn't fail");
+                <C as Spec>::Hasher::digest(&serialized).into()
+            })
             .collect()
-    };
-
-    SoftConfirmationReceipt {
-        l2_height: soft_confirmation.l2_height(),
-        hash: soft_confirmation.hash(),
-        prev_hash: soft_confirmation.prev_hash(),
-        da_slot_height: soft_confirmation.da_slot_height(),
-        da_slot_hash: soft_confirmation.da_slot_hash().into(),
-        da_slot_txs_commitment: soft_confirmation.da_slot_txs_commitment().into(),
-        l1_fee_rate: soft_confirmation.l1_fee_rate(),
-        tx_hashes,
-        deposit_data: soft_confirmation.deposit_data().to_vec(),
-        timestamp: soft_confirmation.timestamp(),
-        soft_confirmation_signature: soft_confirmation.signature().to_vec(),
-        pub_key: soft_confirmation.pub_key().to_vec(),
     }
+}
+
+pub fn compute_tx_merkle_root(tx_hashes: &[[u8; 32]]) -> anyhow::Result<[u8; 32]> {
+    if tx_hashes.is_empty() {
+        return Ok(EMPTY_TX_ROOT);
+    }
+
+    MerkleTree::<Sha256>::from_leaves(tx_hashes)
+        .root()
+        .context("Couldn't compute merkle root")
 }

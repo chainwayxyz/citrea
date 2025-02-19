@@ -328,8 +328,7 @@ impl Encodable for Block<AlloyHeader> {
         rlp_head.payload_length += self.transactions.start.length();
         rlp_head.payload_length += self.transactions.end.length();
         rlp_head.encode(out);
-        let header: AlloyHeader = self.header.clone();
-        header.encode(out);
+        self.header.encode(out);
         self.l1_fee_rate.encode(out);
         self.l1_hash.encode(out);
         self.transactions.start.encode(out);
@@ -382,8 +381,7 @@ impl Encodable for SealedBlock {
         rlp_head.payload_length += self.transactions.start.length();
         rlp_head.payload_length += self.transactions.end.length();
         rlp_head.encode(out);
-        let header: SealedHeader = self.header.clone();
-        header.encode(out);
+        self.header.encode(out);
         self.l1_fee_rate.encode(out);
         self.l1_hash.encode(out);
         self.transactions.start.encode(out);

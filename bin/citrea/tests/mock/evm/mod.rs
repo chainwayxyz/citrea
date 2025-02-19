@@ -403,7 +403,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
                 U256::from_le_slice(&arr)
             };
             let storage_key = [
-                b"Evm/s/".as_slice(),
+                b"Evm/S/".as_slice(),
                 &[32],
                 kaddr.to_be_bytes::<32>().as_slice(),
             ]

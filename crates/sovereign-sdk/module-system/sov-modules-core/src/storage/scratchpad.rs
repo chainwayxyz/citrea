@@ -634,6 +634,11 @@ impl<S: Storage> WorkingSet<S> {
         // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
         self.delta.storage.get_root_hash(version)
     }
+
+    /// Get the last pruned L2 height.
+    pub fn get_last_pruned_l2_height(&mut self) -> Result<Option<u64>, anyhow::Error> {
+        self.delta.storage.get_last_pruned_l2_height()
+    }
 }
 
 impl<S: Storage> StateReaderAndWriter for WorkingSet<S> {

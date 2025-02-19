@@ -291,6 +291,11 @@ impl Storage for ProverStorage {
             committable: false,
         }
     }
+
+    /// Get the last pruned L2 height from the native db.
+    fn get_last_pruned_l2_height(&self) -> Result<Option<u64>, anyhow::Error> {
+        self.native_db.get_last_pruned_l2_height()
+    }
 }
 
 impl NativeStorage for ProverStorage {
