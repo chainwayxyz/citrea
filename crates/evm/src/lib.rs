@@ -41,7 +41,7 @@ use revm::primitives::{BlockEnv, SpecId as EvmSpecId, U256};
 use sov_modules_api::{
     ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };
-use sov_state::codec::borsh_codec::Address as BorshAddress;
+use sov_state::codec::borsh_codec::{Address as BorshAddress, U256 as BorshU256};
 use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
@@ -104,7 +104,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from storage hash ( sha256(address | key) ) to storage value.
     #[state(rename = "S")]
-    pub storage: sov_modules_api::StateMap<U256, U256, BorshCodec>,
+    pub storage: sov_modules_api::StateMap<BorshU256, BorshU256, BorshCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     /// This is the new offchain version which is not counted in the state diff.

@@ -70,6 +70,13 @@ impl EncodeKeyLike<AddressOrig, Address> for BorshCodec {
     }
 }
 
+impl EncodeKeyLike<U256Orig, U256> for BorshCodec {
+    fn encode_key_like(&self, borrowed: &U256Orig) -> Vec<u8> {
+        let t = borrowed.as_le_slice();
+        borsh::to_vec(t).unwrap()
+    }
+}
+
 /// Address wrapper to support borsh serde for alloy::Address
 #[derive(
     Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
@@ -125,6 +132,12 @@ pub struct U256(
 impl From<U256Orig> for U256 {
     fn from(value: U256Orig) -> Self {
         Self(value)
+    }
+}
+
+impl From<&U256Orig> for U256 {
+    fn from(value: &U256Orig) -> Self {
+        Self(*value)
     }
 }
 
