@@ -41,6 +41,7 @@ use revm::primitives::{BlockEnv, SpecId as EvmSpecId, U256};
 use sov_modules_api::{
     ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };
+use sov_state::codec::borsh_codec::Address as BorshAddress;
 use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
@@ -83,7 +84,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account address to account id.
     #[state(rename = "i")]
-    pub account_idxs: sov_modules_api::StateMap<Address, AccountId, BorshCodec>,
+    pub account_idxs: sov_modules_api::StateMap<BorshAddress, AccountId, BorshCodec>,
 
     /// Mapping from account address to account state.
     #[state(rename = "a")]

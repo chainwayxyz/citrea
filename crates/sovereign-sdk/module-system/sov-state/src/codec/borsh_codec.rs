@@ -1,7 +1,7 @@
 use core::convert::AsRef;
 use core::ops::Deref;
 
-use alloy_primitives::{B256 as B256Orig, U256 as U256Orig};
+use alloy_primitives::{Address as AddressOrig, B256 as B256Orig, U256 as U256Orig};
 use borsh::io::{Error, Read, Write};
 use borsh::{BorshDeserialize, BorshSerialize};
 // use ruint::aliases::{B256 as B256Orig, U256 as U256Orig};
@@ -63,7 +63,55 @@ where
     }
 }
 
-/// U256 wrapper to support borsh serde for ruint::U256
+impl EncodeKeyLike<AddressOrig, Address> for BorshCodec {
+    fn encode_key_like(&self, borrowed: &AddressOrig) -> Vec<u8> {
+        let t = borrowed.as_slice();
+        borsh::to_vec(t).unwrap()
+    }
+}
+
+/// Address wrapper to support borsh serde for alloy::Address
+#[derive(
+    Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
+)]
+#[repr(transparent)]
+pub struct Address(
+    #[borsh(serialize_with = "ser_address", deserialize_with = "der_address")]
+    /// Original value
+    AddressOrig,
+);
+
+impl From<AddressOrig> for Address {
+    fn from(value: AddressOrig) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Address> for AddressOrig {
+    fn from(value: Address) -> Self {
+        value.0
+    }
+}
+
+impl PartialEq<AddressOrig> for Address {
+    fn eq(&self, other: &AddressOrig) -> bool {
+        self.0.eq(other)
+    }
+}
+
+/// Serialize Address
+fn ser_address<W: Write>(x: &AddressOrig, writer: &mut W) -> Result<(), Error> {
+    let t = x.as_slice();
+    BorshSerialize::serialize(&t, writer)
+}
+
+/// Deserialize Address
+fn der_address<R: Read>(reader: &mut R) -> Result<AddressOrig, Error> {
+    let s: [u8; 20] = BorshDeserialize::deserialize_reader(reader)?;
+    Ok(AddressOrig::from_slice(&s))
+}
+
+/// U256 wrapper to support borsh serde for alloy::U256
 #[derive(
     Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
 )]
@@ -104,7 +152,7 @@ fn der_u256<R: Read>(reader: &mut R) -> Result<U256Orig, Error> {
     Ok(U256Orig::from_le_slice(&s))
 }
 
-/// B256 wrapper to support borsh serde for ruint::B256
+/// B256 wrapper to support borsh serde for alloy::B256
 #[derive(
     Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
 )]

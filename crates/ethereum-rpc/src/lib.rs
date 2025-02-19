@@ -31,6 +31,7 @@ use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
+use sov_state::codec::borsh_codec::Address as BorshAddress;
 use sov_state::storage::NativeStorage;
 use tokio::join;
 use tokio::sync::broadcast;
@@ -350,9 +351,9 @@ where
         {
             let fork = Bytes::from("fork2"); // Remove before mainet
 
-            let index_key = StorageKey::new(
+            let index_key = StorageKey::new::<BorshAddress, Address, _>(
                 evm.account_idxs.prefix(),
-                &account,
+                account,
                 evm.account_idxs.codec().key_codec(),
             );
             let index_proof = working_set.get_with_proof(index_key, version);
