@@ -11,13 +11,17 @@ use backoff::ExponentialBackoffBuilder;
 use citrea_common::backup::BackupManager;
 use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
-use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_evm::system_events::create_system_transactions;
+use citrea_evm::{
+    populate_system_events, CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
+};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
+use reth_transaction_pool::identifier::SenderId;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
@@ -32,8 +36,8 @@ use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
-    EncodeCall, L2Block, PrivateKey, SlotData, Spec, SpecId, StateDiff, UnsignedSoftConfirmation,
-    UnsignedSoftConfirmationV1, WorkingSet,
+    EncodeCall, L2Block, PrivateKey, SlotData, Spec, SpecId, StateDiff, StateValueAccessor,
+    UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -179,6 +183,33 @@ where
                     err
                 )
             }
+            let mut system_events = vec![];
+            if soft_confirmation_info.current_spec >= SpecId::Fork2 {
+                let evm = citrea_evm::Evm::<DefaultContext>::default();
+                let last_l1_hash_of_evm = evm.last_l1_hash.get(&mut working_set_to_discard);
+
+                populate_system_events(
+                    &soft_confirmation_info,
+                    &mut system_events,
+                    last_l1_hash_of_evm,
+                );
+            }
+
+            let mut system_transactions = vec![];
+            if soft_confirmation_info.current_spec >= SpecId::Fork2 {
+                let evm = citrea_evm::Evm::<DefaultContext>::default();
+                let system_signer = evm
+                    .account_info(
+                        &SYSTEM_SIGNER,
+                        soft_confirmation_info.current_spec,
+                        &mut working_set_to_discard,
+                    )
+                    .unwrap();
+                let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
+                let chain_id = cfg.chain_id;
+                system_transactions =
+                    create_system_transactions(system_events, system_signer.nonce, chain_id);
+            }
 
             match l2_block_mode {
                 L2BlockMode::NotEmpty => {
@@ -196,21 +227,46 @@ where
                     let mut all_txs = vec![];
                     let mut l1_fee_failed_txs = vec![];
 
-                    // using .next() instead of a for loop because its the intended
-                    // behaviour for the BestTransactions implementations
-                    // when we update reth we'll need to call transactions.mark_invalid()
-                    #[allow(clippy::while_let_on_iterator)]
+                    let mut all_rlp_sys_txs = vec![];
+                    let mut all_rlp_evm_txs = vec![];
+
+                    // Collect all system txs to a vector of rlp txs
+                    for sys_tx in system_transactions {
+                        let sys_tx = sys_tx.into_signed();
+                        // These txs don't have a SenderId as we do not get them from mempool
+                        // So we use u64::MAX
+                        let sender = SenderId::from(u64::MAX);
+                        let tx_hash = sys_tx.hash();
+                        let mut buf = vec![];
+                        sys_tx.encode_2718(&mut buf);
+                        let sys_tx = RlpEvmTransaction { rlp: buf };
+                        all_rlp_sys_txs.push((sys_tx, sender, tx_hash));
+                    }
+                    // Collect all user txs to a vector of rlp txs
                     while let Some(evm_tx) = transactions.next() {
                         if invalid_senders.contains(&evm_tx.transaction_id.sender) {
                             continue;
                         }
-
+                        let sender = evm_tx.transaction_id.sender;
+                        let tx_hash = *evm_tx.hash();
                         let mut buf = vec![];
                         evm_tx
                             .to_recovered_transaction()
                             .into_signed()
                             .encode_2718(&mut buf);
                         let rlp_tx = RlpEvmTransaction { rlp: buf };
+                        all_rlp_evm_txs.push((rlp_tx, sender, tx_hash));
+                    }
+                    // Combine all txs assuring system txs are first in the block
+                    let mut all_txs_to_process = all_rlp_sys_txs
+                        .into_iter()
+                        .chain(all_rlp_evm_txs.into_iter());
+
+                    // using .next() instead of a for loop because its the intended
+                    // behaviour for the BestTransactions implementations
+                    // when we update reth we'll need to call transactions.mark_invalid()
+                    #[allow(clippy::while_let_on_iterator)]
+                    while let Some((rlp_tx, sender_id, tx_hash)) = all_txs_to_process.next() {
                         let call_txs = CallMessage {
                             txs: vec![rlp_tx.clone()],
                         };
@@ -235,14 +291,13 @@ where
 
                         let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
-                        match self.stf.apply_soft_confirmation_txs(
-                                    &soft_confirmation_info,
-                                    &blobs,
-                                    &txs,
-                                    &mut working_set,
-                                ) {
-                                    Ok(result) => result,
-                                    Err(e) => match e {
+                        if let Err(e) = self.stf.apply_soft_confirmation_txs(
+                            &soft_confirmation_info,
+                            &blobs,
+                            &txs,
+                            &mut working_set,
+                        ) {
+                            match e {
                                         // Since this is the sequencer, it should never get a soft confirmation error or a hook error
                                         sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
                                         sov_rollup_interface::stf::StateTransitionError::HookError(soft_confirmation_hook_error) => panic!("Hook error: {:?}", soft_confirmation_hook_error),
@@ -260,7 +315,7 @@ where
                                                if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
                                                 break;
                                                } else {
-                                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                                invalid_senders.insert(sender_id);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                                }
@@ -270,15 +325,17 @@ where
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
                                             // Discard tx if it fails to execute
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
-                                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                                invalid_senders.insert(sender_id);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
-                                            // we won't try to execute system transactions here
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
+                                            // we won't try to execute system transactions here before fork2
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx if soft_confirmation_info.current_spec < SpecId::Fork2 => panic!("tried to execute system transaction"),
+                                            // After fork2, we should never get this error
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx  => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
-                                                l1_fee_failed_txs.push(*evm_tx.hash());
-                                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                                l1_fee_failed_txs.push(tx_hash);
+                                                invalid_senders.insert(sender_id);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
@@ -289,8 +346,8 @@ where
                                             sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofNotFound => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
                                         },
-                                    },
-                                };
+                                    }
+                        };
 
                         // if no errors
                         // we can include the transaction in the block

@@ -10,6 +10,7 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
+pub use hooks::populate_system_events;
 #[cfg(feature = "native")]
 use primitive_types::DoNotUseSealedBlock;
 #[cfg(feature = "native")]
@@ -113,7 +114,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Chain configuration. This field is set in genesis.
     #[state]
-    pub(crate) cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
+    pub cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
     #[memory]
@@ -136,7 +137,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Last seen L1 block hash.
     #[state(rename = "l")]
-    pub(crate) last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
+    pub last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
 
     /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
     /// Removes the oldest blockhash in `finalize_hook`

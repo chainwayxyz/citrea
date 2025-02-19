@@ -15,7 +15,8 @@ pub(crate) mod handler;
 pub(crate) mod primitive_types;
 /// System contracts used for system transactions
 pub mod system_contracts;
-pub(crate) mod system_events;
+/// System events used for creating system transactions
+pub mod system_events;
 
 #[cfg(feature = "native")]
 pub(crate) mod call;

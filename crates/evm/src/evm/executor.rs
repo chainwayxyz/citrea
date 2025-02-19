@@ -1,3 +1,4 @@
+use alloy_sol_types::SolCall;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
@@ -12,6 +13,7 @@ use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
+use crate::system_contracts::BitcoinLightClientContract;
 use crate::{EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
@@ -101,29 +103,38 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 .entered();
 
         if tx.signer() == SYSTEM_SIGNER {
-            let shp_provider = SHORT_HEADER_PROOF_PROVIDER
-                .get()
-                .expect("Short header proof provider not set");
-            // TODO: Check if this is the set_block_info tx, if so:
-            // TODO: Get this and other params from input
-            // TODO: don't forget about height
-            // TODO: read height - 1's hash from the contract, and compare
-            // with the prevhash result from the short header proof
-            // reject L2 block if they don't match
-            let _input = tx.input();
-            let l1_hash = [0u8; 32];
-            match shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_hash) {
-                Ok(true) => {}
-                Ok(false) => {
-                    // Failed to verify shp
-                    return Err(SoftConfirmationModuleCallError::ShortHeaderProofVerificationError);
-                }
-                Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
-                    return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
-                }
+            if citrea_spec < CitreaSpecId::Fork2 {
+                native_error!("System transaction found in user txs");
+                return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
             }
-            native_error!("System transaction found in user txs");
-            return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
+
+            let function_selector: [u8; 4] = tx.input()[0..4]
+                .try_into()
+                .expect("Should have function selector");
+
+            match function_selector {
+                BitcoinLightClientContract::setBlockInfoCall::SELECTOR => {
+                    let l1_block_hash: [u8; 32] = tx.input()[4..36]
+                        .try_into()
+                        .expect("Should have block hash parameter");
+                    let shp_provider = SHORT_HEADER_PROOF_PROVIDER
+                        .get()
+                        .expect("Short header proof provider not set");
+                    match shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_block_hash) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            // Failed to verify shp
+                            return Err(
+                                SoftConfirmationModuleCallError::ShortHeaderProofVerificationError,
+                            );
+                        }
+                        Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
+                            return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
 
         // if tx is eip4844 error out
