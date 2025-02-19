@@ -1037,7 +1037,7 @@ where
             K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
         let new_address = k256_priv_key.to_address::<<DefaultContext as Spec>::Address>();
 
-        let rule_enforcer_call_tx = RuleEnforcerCallMessage::ChangeAuthority::<DefaultContext> {
+        let rule_enforcer_call_tx = RuleEnforcerCallMessage::ChangeAuthority {
             new_authority: new_address,
         };
 

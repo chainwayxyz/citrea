@@ -31,7 +31,6 @@ use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
-use sov_state::codec::borsh_codec::Address as BorshAddress;
 use sov_state::storage::NativeStorage;
 use tokio::join;
 use tokio::sync::broadcast;
@@ -305,7 +304,7 @@ where
         } else {
             account_in_fork2.unwrap_or_default()
         };
-        let balance = account.balance.into();
+        let balance = account.balance;
         let nonce = account.nonce;
         let code_hash = account.code_hash.map(Into::into).unwrap_or(KECCAK_EMPTY);
 
@@ -351,7 +350,7 @@ where
         {
             let fork = Bytes::from("fork2"); // Remove before mainet
 
-            let index_key = StorageKey::new::<BorshAddress, Address, _>(
+            let index_key = StorageKey::new(
                 evm.account_idxs.prefix(),
                 account,
                 evm.account_idxs.codec().key_codec(),

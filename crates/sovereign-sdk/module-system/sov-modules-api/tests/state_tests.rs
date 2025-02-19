@@ -1,6 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::*;
+use sov_modules_core::StateValueCodec;
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_state::codec::BorshCodec;
 use sov_state::{ArrayWitness, DefaultWitness, Prefix, ProverStorage, Storage, ZkStorage};
 
 enum Operation {
@@ -198,7 +200,10 @@ fn test_witness_round_trip() {
 fn create_state_vec<T: BorshDeserialize + BorshSerialize>(
     values: Vec<T>,
     working_set: &mut WorkingSet<ProverStorage>,
-) -> StateVec<T> {
+) -> StateVec<T, BorshCodec>
+where
+    BorshCodec: StateValueCodec<T>,
+{
     let state_vec = StateVec::new(Prefix::new(vec![0]));
     state_vec.set_all(values, working_set);
     state_vec

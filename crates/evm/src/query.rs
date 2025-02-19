@@ -311,8 +311,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let balance = self
             .account_info(&address, citrea_spec, working_set)
             .unwrap_or_default()
-            .balance
-            .into();
+            .balance;
 
         Ok(balance)
     }
@@ -991,7 +990,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .unwrap_or_default();
 
         // create tx env
-        let mut tx_env = create_txn_env(&block_env, request, Some(account.balance.into()))?;
+        let mut tx_env = create_txn_env(&block_env, request, Some(account.balance))?;
 
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {

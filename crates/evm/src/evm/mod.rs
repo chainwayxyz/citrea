@@ -1,10 +1,11 @@
 use alloy_eips::eip1559::BaseFeeParams;
-use alloy_primitives::{address, Address, U256};
+use alloy_primitives::{address, Address, B256, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
 use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
+use sov_state::storage::StateValueCodec;
 use sov_state::Prefix;
 
 pub(crate) mod conversions;
@@ -28,7 +29,7 @@ mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::borsh_codec::{B256 as BorshB256, U256 as BorshU256};
-use sov_state::codec::BcsCodec;
+use sov_state::codec::{BcsCodec, BorshCodec};
 
 #[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
@@ -51,16 +52,44 @@ pub const DBACCOUNT_STORAGE_PREFIX: [u8; 6] = *b"Evm/s/";
 pub const DBACCOUNT_KEYS_PREFIX: [u8; 6] = *b"Evm/k/";
 
 /// Stores information about an EVM account
-#[derive(
-    Default, Deserialize, Serialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone,
-)]
+#[derive(Default, Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct AccountInfo {
     /// Balance
-    pub balance: BorshU256,
+    pub balance: U256,
     /// Nonce
     pub nonce: u64,
     /// Code hash
+    pub code_hash: Option<B256>,
+}
+
+// FIXME: Optimize BorshCodec for AccountInfo to reduce unnecessary tmp struct => memcpy
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct BorshAccountInfo {
+    pub balance: BorshU256,
+    pub nonce: u64,
     pub code_hash: Option<BorshB256>,
+}
+
+impl StateValueCodec<AccountInfo> for BorshCodec {
+    type Error = std::io::Error;
+
+    fn encode_value(&self, value: &AccountInfo) -> Vec<u8> {
+        let t = BorshAccountInfo {
+            balance: value.balance.into(),
+            nonce: value.nonce,
+            code_hash: value.code_hash.map(Into::into),
+        };
+        borsh::to_vec(&t).unwrap()
+    }
+
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<AccountInfo, Self::Error> {
+        let value: BorshAccountInfo = borsh::from_slice(bytes)?;
+        Ok(AccountInfo {
+            balance: value.balance.into(),
+            nonce: value.nonce,
+            code_hash: value.code_hash.map(Into::into),
+        })
+    }
 }
 
 /// Stores information about an EVM account and a corresponding account state.

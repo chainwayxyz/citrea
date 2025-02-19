@@ -667,10 +667,9 @@ impl TestCase for ForkElfSwitchingTest {
         // assert the first byte is 2 as in sc rule enforcer
         assert_eq!(tx.runtime_msg()[0], 2);
 
-        let change_authority_call_message: soft_confirmation_rule_enforcer::CallMessage<
-            DefaultContext,
-            // Going to ignore the first byte here because it's the call prefix as explained above
-        > = soft_confirmation_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
+        let change_authority_call_message: soft_confirmation_rule_enforcer::CallMessage
+        // Going to ignore the first byte here because it's the call prefix as explained above
+        = soft_confirmation_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
             .expect("Should be the tx");
 
         match change_authority_call_message {

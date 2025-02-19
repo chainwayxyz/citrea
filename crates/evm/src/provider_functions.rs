@@ -5,7 +5,6 @@ use sha2::Digest;
 #[cfg(feature = "native")]
 use sov_modules_api::StateVecAccessor;
 use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, StateValueAccessor, WorkingSet};
-use sov_state::codec::borsh_codec::U256 as BorshU256;
 
 use crate::{AccountInfo, DbAccount, Evm};
 
@@ -191,12 +190,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         account: &Address,
         key: &U256,
-        value: impl Into<BorshU256>,
+        value: &U256,
         working_set: &mut WorkingSet<C::Storage>,
     ) {
-        let value = value.into();
         let kaddr = Self::get_storage_address(account, key);
-        self.storage.set(&kaddr, &value, working_set)
+        self.storage.set(&kaddr, value, working_set)
     }
 
     fn storage_set_prefork2(

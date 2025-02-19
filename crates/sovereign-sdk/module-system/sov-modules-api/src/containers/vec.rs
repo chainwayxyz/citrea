@@ -43,8 +43,8 @@ impl<V, Codec: Clone> StateVec<V, Codec> {
 }
 
 impl<V> StateVec<V>
-where
-    BorshCodec: StateValueCodec<V>,
+// where
+//     BorshCodec: StateValueCodec<V>,
 {
     /// Crates a new [`StateVec`] with the given prefix and the default
     /// [`StateValueCodec`] (i.e. [`BorshCodec`]).

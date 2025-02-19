@@ -117,7 +117,5 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 }
 
 fn check_account_info_changed(old: &DbAccountInfo, new: &AccountInfo) -> bool {
-    old.balance != new.balance
-        || old.code_hash != Some(new.code_hash.into())
-        || old.nonce != new.nonce
+    old.balance != new.balance || old.code_hash != Some(new.code_hash) || old.nonce != new.nonce
 }

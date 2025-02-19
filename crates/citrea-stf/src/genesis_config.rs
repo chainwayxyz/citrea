@@ -68,7 +68,7 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
 
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 
-    let soft_confirmation_rule_enforcer_config: SoftConfirmationRuleEnforcerConfig<C> =
+    let soft_confirmation_rule_enforcer_config: SoftConfirmationRuleEnforcerConfig =
         read_json_file(&genesis_paths.soft_confirmation_rule_enforcer_genesis_path)?;
 
     Ok(GenesisConfig::new(

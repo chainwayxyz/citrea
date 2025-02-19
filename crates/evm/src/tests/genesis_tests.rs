@@ -54,7 +54,7 @@ fn genesis_data() {
     assert_eq!(
         db_account,
         AccountInfo {
-            balance: account.balance.into(),
+            balance: account.balance,
             code_hash: None,
             nonce: account.nonce,
         }
@@ -63,8 +63,8 @@ fn genesis_data() {
     assert_eq!(
         contract_account,
         AccountInfo {
-            balance: contract.balance.into(),
-            code_hash: Some(contract.code_hash.into()),
+            balance: contract.balance,
+            code_hash: Some(contract.code_hash),
             nonce: contract.nonce,
         }
     );
