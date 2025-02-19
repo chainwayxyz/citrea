@@ -440,6 +440,15 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
+        // If executed with Fork2 elf, should use cache
+        let should_use_cache = fork_from_block_number(
+            l2_blocks_in_commitment
+                .last()
+                .expect("must have at least one")
+                .l2_height(),
+        )
+        .spec_id
+            >= SpecId::Fork2;
 
         for l2_block in l2_blocks_in_commitment {
             let l2_height = l2_block.l2_height();
@@ -453,14 +462,16 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             let pre_state = storage_manager.create_storage_for_l2_height(l2_height);
             let current_spec = fork_from_block_number(l2_height).spec_id;
 
-            let (sequencer_public_key, state_log, offchain_log) = if current_spec >= SpecId::Fork2 {
-                (
-                    sequencer_k256_pub_key,
-                    cumulative_state_log,
-                    cumulative_offchain_log,
-                )
+            let sequencer_public_key = if current_spec >= SpecId::Fork2 {
+                sequencer_k256_pub_key
             } else {
-                (sequencer_pub_key, None, None)
+                sequencer_pub_key
+            };
+
+            let (state_log, offchain_log) = if should_use_cache {
+                (cumulative_state_log, cumulative_offchain_log)
+            } else {
+                (None, None)
             };
 
             let soft_confirmation_result = stf.apply_soft_confirmation(
@@ -483,6 +494,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             );
 
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
+
             cumulative_state_log = Some(soft_confirmation_result.state_log);
             cumulative_offchain_log = Some(soft_confirmation_result.offchain_log);
 
