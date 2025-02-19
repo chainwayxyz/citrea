@@ -169,8 +169,8 @@ pub trait DaSpec:
 
 /// Information needed to update L1 light client system contract
 ///
-/// (header hash, tx commitment (wtxid commitment in Bitcoin), number of hashes needed for the merkle inclusion proof, block height (derived from bip34))
-pub type L1UpdateSystemTransactionInfo = ([u8; 32], [u8; 32], u8, u64);
+/// (header hash, previous header hash, tx commitment (wtxid commitment in Bitcoin), number of hashes needed for the merkle inclusion proof, block height (derived from bip34))
+pub type L1UpdateSystemTransactionInfo = ([u8; 32], [u8; 32], [u8; 32], u8, u64);
 
 /// A trait for a verifiable short header proof
 pub trait VerifableShortHeaderProof {

@@ -1,3 +1,4 @@
+use bitcoin::hashes::Hash;
 use bitcoin::script;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError,
@@ -123,6 +124,11 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
         Ok((
             // block_hash calculates the hash of the header
             self.header.hash().into(),
+            self.header
+                .inner()
+                .prev_blockhash
+                .as_raw_hash()
+                .to_byte_array(),
             self.header.txs_commitment().into(),
             self.coinbase_tx_txid_merkle_proof.len() as u8,
             height,
@@ -173,17 +179,23 @@ mod test {
     fn test_correct_short_proof() {
         let proof = get_proof();
 
-        let (block_hash, tx_commitment, tx_proof_count, height) =
+        let (block_hash, prev_hash, tx_commitment, tx_proof_count, height) =
             proof.verify().expect("Proof verification failed");
 
         let mut hash_from_input = <[u8; 32]>::from_hex(
             "00000000000000000001a33628ffb58f0705f17815b9b789fe23ad64bfbbeb45",
         )
         .unwrap();
-
         hash_from_input.reverse();
-
         assert_eq!(block_hash, hash_from_input);
+
+        let mut prev_hash_from_input = <[u8; 32]>::from_hex(
+            "0000000000000000000274671d48c3af6e9eb2cf9fb5f9128edabac6062a889a",
+        )
+        .unwrap();
+        prev_hash_from_input.reverse();
+        assert_eq!(prev_hash, prev_hash_from_input);
+
         assert_eq!(
             tx_commitment,
             <[u8; 32]>::from_hex(
