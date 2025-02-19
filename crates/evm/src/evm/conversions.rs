@@ -12,9 +12,9 @@ impl From<AccountInfo> for ReVmAccountInfo {
     fn from(info: AccountInfo) -> Self {
         Self {
             nonce: info.nonce,
-            balance: info.balance,
+            balance: info.balance.into(),
             code: None,
-            code_hash: info.code_hash.unwrap_or(KECCAK_EMPTY),
+            code_hash: info.code_hash.map(Into::into).unwrap_or(KECCAK_EMPTY),
         }
     }
 }
@@ -22,12 +22,12 @@ impl From<AccountInfo> for ReVmAccountInfo {
 impl From<ReVmAccountInfo> for AccountInfo {
     fn from(info: ReVmAccountInfo) -> Self {
         let code_hash = if info.code_hash != KECCAK_EMPTY {
-            Some(info.code_hash)
+            Some(info.code_hash.into())
         } else {
             None
         };
         Self {
-            balance: info.balance,
+            balance: info.balance.into(),
             code_hash,
             nonce: info.nonce,
         }
@@ -37,8 +37,8 @@ impl From<ReVmAccountInfo> for AccountInfo {
 impl From<AccountInfo> for reth_primitives::Account {
     fn from(acc: AccountInfo) -> Self {
         Self {
-            balance: acc.balance,
-            bytecode_hash: acc.code_hash,
+            balance: acc.balance.into(),
+            bytecode_hash: acc.code_hash.map(Into::into),
             nonce: acc.nonce,
         }
     }

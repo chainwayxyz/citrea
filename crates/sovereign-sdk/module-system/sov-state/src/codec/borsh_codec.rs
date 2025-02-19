@@ -1,4 +1,11 @@
+use core::convert::AsRef;
+use core::ops::Deref;
+
+use alloy_primitives::{B256 as B256Orig, U256 as U256Orig};
+use borsh::io::{Error, Read, Write};
 use borsh::{BorshDeserialize, BorshSerialize};
+// use ruint::aliases::{B256 as B256Orig, U256 as U256Orig};
+use serde::{Deserialize, Serialize};
 use sov_modules_core::EncodeKeyLike;
 
 use super::{StateCodec, StateKeyCodec};
@@ -54,4 +61,106 @@ where
     fn encode_key_like(&self, borrowed: &[T]) -> Vec<u8> {
         borsh::to_vec(borrowed).unwrap()
     }
+}
+
+/// U256 wrapper to support borsh serde for ruint::U256
+#[derive(
+    Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
+)]
+#[repr(transparent)]
+pub struct U256(
+    #[borsh(serialize_with = "ser_u256", deserialize_with = "der_u256")]
+    /// Original value
+    U256Orig,
+);
+
+impl From<U256Orig> for U256 {
+    fn from(value: U256Orig) -> Self {
+        Self(value)
+    }
+}
+
+impl From<U256> for U256Orig {
+    fn from(value: U256) -> Self {
+        value.0
+    }
+}
+
+impl PartialEq<U256Orig> for U256 {
+    fn eq(&self, other: &U256Orig) -> bool {
+        self.0.eq(other)
+    }
+}
+
+/// Serialize U256
+fn ser_u256<W: Write>(x: &U256Orig, writer: &mut W) -> Result<(), Error> {
+    let t = x.as_le_slice();
+    BorshSerialize::serialize(&t, writer)
+}
+
+/// Deserialize U256
+fn der_u256<R: Read>(reader: &mut R) -> Result<U256Orig, Error> {
+    let s: [u8; 32] = BorshDeserialize::deserialize_reader(reader)?;
+    Ok(U256Orig::from_le_slice(&s))
+}
+
+/// B256 wrapper to support borsh serde for ruint::B256
+#[derive(
+    Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone,
+)]
+#[repr(transparent)]
+pub struct B256(
+    #[borsh(serialize_with = "ser_b256", deserialize_with = "der_b256")]
+    /// Original value
+    pub B256Orig,
+);
+
+impl From<B256Orig> for B256 {
+    fn from(value: B256Orig) -> Self {
+        Self(value)
+    }
+}
+
+impl From<B256> for B256Orig {
+    fn from(value: B256) -> Self {
+        value.0
+    }
+}
+
+impl PartialEq<B256Orig> for B256 {
+    fn eq(&self, other: &B256Orig) -> bool {
+        self.0.eq(other)
+    }
+}
+
+impl PartialEq<B256> for B256Orig {
+    fn eq(&self, other: &B256) -> bool {
+        self.eq(&other.0)
+    }
+}
+
+impl Deref for B256 {
+    type Target = B256Orig;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+// impl AsRef<B256Orig> for B256 {
+//     fn as_ref(&self) -> &B256Orig {
+//         &self.0
+//     }
+// }
+
+/// Serialize B256
+fn ser_b256<W: Write>(x: &B256Orig, writer: &mut W) -> Result<(), Error> {
+    let t = x.as_slice();
+    BorshSerialize::serialize(&t, writer)
+}
+
+/// Deserialize B256
+fn der_b256<R: Read>(reader: &mut R) -> Result<B256Orig, Error> {
+    let s: [u8; 32] = BorshDeserialize::deserialize_reader(reader)?;
+    Ok(B256Orig::from_slice(&s))
 }

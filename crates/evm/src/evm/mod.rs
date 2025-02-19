@@ -1,5 +1,6 @@
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_primitives::{address, Address, B256, U256};
+use borsh::{BorshDeserialize, BorshSerialize};
 use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,7 @@ pub(crate) mod compat;
 mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
+use sov_state::codec::borsh_codec::{B256 as BorshB256, U256 as BorshU256};
 use sov_state::codec::BcsCodec;
 
 #[cfg(all(test, feature = "native"))]
@@ -49,14 +51,16 @@ pub const DBACCOUNT_STORAGE_PREFIX: [u8; 6] = *b"Evm/s/";
 pub const DBACCOUNT_KEYS_PREFIX: [u8; 6] = *b"Evm/k/";
 
 /// Stores information about an EVM account
-#[derive(Default, Deserialize, Serialize, Debug, PartialEq, Clone)]
+#[derive(
+    Default, Deserialize, Serialize, BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone,
+)]
 pub struct AccountInfo {
     /// Balance
-    pub balance: U256,
+    pub balance: BorshU256,
     /// Nonce
     pub nonce: u64,
     /// Code hash
-    pub code_hash: Option<B256>,
+    pub code_hash: Option<BorshB256>,
 }
 
 /// Stores information about an EVM account and a corresponding account state.

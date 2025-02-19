@@ -14,6 +14,7 @@ pub use genesis::*;
 use primitive_types::DoNotUseSealedBlock;
 #[cfg(feature = "native")]
 use primitive_types::DoNotUseTransactionSignedAndRecovered;
+use sov_state::codec::BorshCodec;
 pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(feature = "native")]
@@ -82,7 +83,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account address to account id.
     #[state(rename = "i")]
-    pub account_idxs: sov_modules_api::StateMap<Address, AccountId, BcsCodec>,
+    pub account_idxs: sov_modules_api::StateMap<Address, AccountId, BorshCodec>,
 
     /// Mapping from account address to account state.
     #[state(rename = "a")]
@@ -90,11 +91,11 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account id to account state.
     #[state(rename = "t")]
-    pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BcsCodec>,
+    pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BorshCodec>,
 
     /// The total number of accounts.
     #[state(rename = "n")]
-    pub(crate) account_amount: sov_modules_api::StateValue<u64, BcsCodec>,
+    pub(crate) account_amount: sov_modules_api::StateValue<u64, BorshCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
@@ -102,7 +103,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from storage hash ( sha256(address | key) ) to storage value.
     #[state(rename = "S")]
-    pub storage: sov_modules_api::StateMap<U256, U256, BcsCodec>,
+    pub storage: sov_modules_api::StateMap<U256, U256, BorshCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     /// This is the new offchain version which is not counted in the state diff.
