@@ -166,7 +166,6 @@ impl Storage for ProverStorage {
             diff.push((key_bytes, value_bytes.clone()));
             key_preimages.push((key_hash, key.clone()));
 
-            // TODO: see if we can get rid of to_vec here
             (key_hash, value_bytes.map(|v| (*v).to_vec()))
         });
 
