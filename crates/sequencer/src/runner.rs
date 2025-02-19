@@ -152,7 +152,7 @@ where
     #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
-        mut transactions: Box<
+        transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
