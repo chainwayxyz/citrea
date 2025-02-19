@@ -243,7 +243,7 @@ where
                         all_rlp_sys_txs.push((sys_tx, sender, tx_hash));
                     }
                     // Collect all user txs to a vector of rlp txs
-                    while let Some(evm_tx) = transactions.next() {
+                    for evm_tx in transactions {
                         if invalid_senders.contains(&evm_tx.transaction_id.sender) {
                             continue;
                         }

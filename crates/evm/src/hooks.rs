@@ -387,7 +387,7 @@ pub fn populate_system_events(
     last_l1_hash_of_evm: Option<B256>,
 ) {
     if let Some(last_l1_hash) = last_l1_hash_of_evm {
-        if last_l1_hash != &soft_confirmation_info.da_slot_hash {
+        if last_l1_hash != soft_confirmation_info.da_slot_hash {
             // That's a new L1 block
             system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
                 soft_confirmation_info.da_slot_hash,

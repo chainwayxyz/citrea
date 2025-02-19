@@ -112,28 +112,25 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 .try_into()
                 .expect("Should have function selector");
 
-            match function_selector {
-                BitcoinLightClientContract::setBlockInfoCall::SELECTOR => {
-                    let l1_block_hash: [u8; 32] = tx.input()[4..36]
-                        .try_into()
-                        .expect("Should have block hash parameter");
-                    let shp_provider = SHORT_HEADER_PROOF_PROVIDER
-                        .get()
-                        .expect("Short header proof provider not set");
-                    match shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_block_hash) {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            // Failed to verify shp
-                            return Err(
-                                SoftConfirmationModuleCallError::ShortHeaderProofVerificationError,
-                            );
-                        }
-                        Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
-                            return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
-                        }
+            if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+                let l1_block_hash: [u8; 32] = tx.input()[4..36]
+                    .try_into()
+                    .expect("Should have block hash parameter");
+                let shp_provider = SHORT_HEADER_PROOF_PROVIDER
+                    .get()
+                    .expect("Short header proof provider not set");
+                match shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_block_hash) {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        // Failed to verify shp
+                        return Err(
+                            SoftConfirmationModuleCallError::ShortHeaderProofVerificationError,
+                        );
+                    }
+                    Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
+                        return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
                     }
                 }
-                _ => {}
             }
         }
 
