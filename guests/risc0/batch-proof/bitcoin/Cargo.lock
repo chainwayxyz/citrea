@@ -3328,6 +3328,7 @@ dependencies = [
 name = "sov-state"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "alloy-rlp",
  "anyhow",
  "bcs",
