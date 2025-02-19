@@ -468,19 +468,13 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                 sequencer_pub_key
             };
 
-            let (state_log, offchain_log) = if should_use_cache {
-                (cumulative_state_log, cumulative_offchain_log)
-            } else {
-                (None, None)
-            };
-
             let soft_confirmation_result = stf.apply_soft_confirmation(
                 current_spec,
                 sequencer_public_key,
                 &init_state_root,
                 pre_state,
-                state_log,
-                offchain_log,
+                cumulative_state_log.take(),
+                cumulative_offchain_log.take(),
                 Default::default(),
                 Default::default(),
                 l1_block.header(),
@@ -495,8 +489,10 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
 
-            cumulative_state_log = Some(soft_confirmation_result.state_log);
-            cumulative_offchain_log = Some(soft_confirmation_result.offchain_log);
+            if should_use_cache {
+                cumulative_state_log = Some(soft_confirmation_result.state_log);
+                cumulative_offchain_log = Some(soft_confirmation_result.offchain_log);
+            }
 
             witnesses.push((
                 soft_confirmation_result.witness,
