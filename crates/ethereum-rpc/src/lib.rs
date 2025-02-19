@@ -276,14 +276,14 @@ where
 
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 
-        let mut version = block_id_internal
-            .checked_add(1) // We need to set block_id to the end
-            .ok_or_else(|| EthApiError::EvmCustom("Block id overflow".into()))?;
-
-        if block_id == Some(BlockId::Number(BlockNumberOrTag::Pending)) {
-            // we act like pending state = latest state everywhere
-            version -= 1;
-        }
+        let version = if block_id == Some(BlockId::Number(BlockNumberOrTag::Pending)) {
+            // if pending it will already be last block + 1
+            block_id_internal
+        } else {
+            block_id_internal
+                .checked_add(1) // We need to set block_id to the end
+                .ok_or_else(|| EthApiError::EvmCustom("Block id overflow".into()))?
+        };
 
         let root_hash = working_set
             .get_root_hash(version)
