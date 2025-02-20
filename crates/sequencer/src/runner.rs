@@ -170,6 +170,8 @@ where
         tracing::subscriber::with_default(silent_subscriber, || {
             let mut working_set_to_discard = WorkingSet::new(prestate.clone());
 
+            let evm = citrea_evm::Evm::<DefaultContext>::default();
+            let mut last_l1_hash_of_evm = evm.last_l1_hash.get(&mut working_set_to_discard);
             if let Err(err) = self.stf.begin_soft_confirmation(
                 pub_key,
                 &mut working_set_to_discard,
@@ -187,8 +189,6 @@ where
             }
             let mut system_events = vec![];
             if soft_confirmation_info.current_spec >= SpecId::Fork2 {
-                let evm = citrea_evm::Evm::<DefaultContext>::default();
-                let mut last_l1_hash_of_evm = evm.last_l1_hash.get(&mut working_set_to_discard);
                 if soft_confirmation_info.l2_height == 1 {
                     last_l1_hash_of_evm = None;
                 }
