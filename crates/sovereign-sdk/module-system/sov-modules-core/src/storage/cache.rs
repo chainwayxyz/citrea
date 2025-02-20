@@ -58,6 +58,7 @@ impl fmt::Display for CacheValue {
 /// 3. Otherwise, retain the read.
 /// 4. A write is retained unless it is followed by another write.
 #[derive(PartialEq, Eq, Debug, Clone)]
+#[repr(u8)]
 pub(crate) enum Access {
     Read(Option<CacheValue>),
     ReadThenWrite {
@@ -107,7 +108,7 @@ impl Access {
     }
 
     pub fn size(&self) -> usize {
-        match self {
+        let inner_size = match self {
             Access::Read(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
             Access::ReadThenWrite { original, modified } => {
                 let original_size = original.as_ref().map(|v| v.size()).unwrap_or_default();
@@ -115,7 +116,9 @@ impl Access {
                 original_size + modified_size
             }
             Access::Write(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
-        }
+        };
+        // 1 byte enum tag
+        1 + inner_size
     }
 
     pub fn merge(&mut self, rhs: Self) -> Result<(), MergeError> {
