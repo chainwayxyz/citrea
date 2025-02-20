@@ -118,35 +118,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 return Err(SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
-            let function_selector: [u8; 4] = tx.input()[0..4]
-                .try_into()
-                .expect("Sys tx should have function selector");
-
-            if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
-                let l1_block_hash: [u8; 32] = tx.input()[4..36]
-                    .try_into()
-                    .expect("Should have block hash parameter");
-                let shp_provider = SHORT_HEADER_PROOF_PROVIDER
-                    .get()
-                    .expect("Short header proof provider not set");
-                let txs_commitment: [u8; 32] = tx.input()[36..68]
-                    .try_into()
-                    .expect("Should have txs commitment parameter");
-                match shp_provider
-                    .get_and_verify_short_header_proof_by_l1_hash(l1_block_hash, txs_commitment)
-                {
-                    Ok(true) => {}
-                    Ok(false) => {
-                        // Failed to verify shp
-                        return Err(
-                            SoftConfirmationModuleCallError::ShortHeaderProofVerificationError,
-                        );
-                    }
-                    Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
-                        return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
-                    }
-                }
-            }
+            post_fork2_system_tx_handler(tx)?;
         } else {
             should_be_end_of_sys_txs = true;
         }
@@ -188,6 +160,40 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     }
 
     Ok(tx_results)
+}
+
+fn post_fork2_system_tx_handler(
+    tx: &TransactionSignedEcRecovered,
+) -> Result<(), SoftConfirmationModuleCallError> {
+    let function_selector: [u8; 4] = tx.input()[0..4]
+        .try_into()
+        .expect("Sys tx should have function selector");
+
+    if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+        let l1_block_hash: [u8; 32] = tx.input()[4..36]
+            .try_into()
+            .expect("Should have block hash parameter");
+        let shp_provider = SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .expect("Short header proof provider not set");
+        let txs_commitment: [u8; 32] = tx.input()[36..68]
+            .try_into()
+            .expect("Should have txs commitment parameter");
+        match shp_provider
+            .get_and_verify_short_header_proof_by_l1_hash(l1_block_hash, txs_commitment)
+        {
+            Ok(true) => return Ok(()),
+            Ok(false) => {
+                // Failed to verify shp
+                return Err(SoftConfirmationModuleCallError::ShortHeaderProofVerificationError);
+            }
+            Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
+                return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn execute_system_txs<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
