@@ -127,7 +127,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         0,
         compute_tx_merkle_root(&batch_2_receipts.iter().map(|r| r.hash).collect::<Vec<_>>())
             .unwrap(),
-        1,
+        0,
     );
 
     let signed_header1 = SignedL2Header::new(
@@ -170,7 +170,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                 .into(),
             vec!["c44444".as_bytes().to_vec()],
             1,
-            [0u8; 32],
+            [2u8; 32],
         ),
     ];
 
