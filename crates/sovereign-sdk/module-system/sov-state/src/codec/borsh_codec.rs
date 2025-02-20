@@ -57,6 +57,15 @@ impl StateKeyCodec<Vec<u8>> for BorshCodec {
         buf
     }
 }
+// FIXME: Remove before mainnet
+impl EncodeKeyLike<[u8], Vec<u8>> for BorshCodec
+{
+    fn encode_key_like(&self, borrowed: &[u8]) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + borrowed.len());
+        BorshSerialize::serialize(borrowed, &mut buf).unwrap();
+        buf
+    }
+}
 
 impl StateValueCodec<Vec<u8>> for BorshCodec {
     type Error = std::io::Error;
@@ -115,18 +124,5 @@ impl StateCodec for BorshCodec {
 
     fn value_codec(&self) -> &Self::ValueCodec {
         self
-    }
-}
-
-// In borsh, a slice is encoded the same way as a vector except in edge case where
-// T is zero-sized, in which case Vec<T> is not borsh encodable.
-impl<T> EncodeKeyLike<[T], Vec<T>> for BorshCodec
-where
-    T: BorshSerialize,
-{
-    fn encode_key_like(&self, borrowed: &[T]) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(64);
-        BorshSerialize::serialize(borrowed, &mut buf).unwrap();
-        buf
     }
 }
