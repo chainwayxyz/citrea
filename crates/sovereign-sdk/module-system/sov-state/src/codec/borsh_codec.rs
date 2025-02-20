@@ -52,9 +52,7 @@ impl StateValueCodec<AlloyU256> for BorshCodec {
 // FIXME: Remove before mainnet
 impl StateKeyCodec<Vec<u8>> for BorshCodec {
     fn encode_key(&self, value: &Vec<u8>) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(4 + value.len());
-        BorshSerialize::serialize(value, &mut buf).unwrap();
-        buf
+        value.clone()
     }
 }
 
@@ -62,13 +60,11 @@ impl StateValueCodec<Vec<u8>> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &Vec<u8>) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(4 + value.len());
-        BorshSerialize::serialize(value, &mut buf).unwrap();
-        buf
+        value.clone()
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        borsh::from_slice(bytes)
+        Ok(bytes.to_vec())
     }
 }
 
