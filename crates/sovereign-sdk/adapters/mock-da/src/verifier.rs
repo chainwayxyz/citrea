@@ -58,19 +58,34 @@ impl DaSpec for MockDaSpec {
 
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
 /// Short form header proof for mock da
-pub struct MockShortHeaderProof;
+pub struct MockShortHeaderProof {
+    ///
+    pub header_hash: [u8; 32],
+    ///
+    pub prev_header_hash: [u8; 32],
+    ///
+    pub txs_commitment: [u8; 32],
+    ///
+    pub height: u64,
+}
 
 impl VerifableShortHeaderProof for MockShortHeaderProof {
     fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
-        todo!()
+        Ok(L1UpdateSystemTransactionInfo {
+            header_hash: self.header_hash,
+            prev_header_hash: self.prev_header_hash,
+            tx_commitment: self.txs_commitment,
+            coinbase_txid_merkle_proof_height: 1,
+            block_height: self.height,
+        })
     }
 
     fn verify_with_params(
         &self,
-        _l1_hash: [u8; 32],
-        _da_txs_commitment: [u8; 32],
+        l1_hash: [u8; 32],
+        da_txs_commitment: [u8; 32],
     ) -> Result<bool, ShortHeaderProofVerificationError> {
-        Ok(true)
+        Ok(l1_hash == self.header_hash && da_txs_commitment == self.txs_commitment)
     }
 }
 impl DaVerifier for MockDaVerifier {
