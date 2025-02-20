@@ -1,23 +1,26 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::extract_sequencer_commitments;
+use citrea_common::da::{extract_sequencer_commitments, get_da_block_at_height};
 use citrea_common::utils::{check_l2_block_exists, filter_out_proven_commitments};
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{SlotData, SpecId, Zkvm};
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
@@ -28,10 +31,18 @@ use sov_state::ArrayWitness;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
-use crate::da_block_handler::{
-    break_sequencer_commitments_into_groups, get_batch_proof_circuit_input_from_commitments,
-};
+use crate::da_block_handler::break_sequencer_commitments_into_groups;
 use crate::errors::L1ProcessingError;
+
+const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
+
+type CommitmentStateTransitionData<'txs, Da> = (
+    VecDeque<([u8; 32], Vec<u8>)>,
+    VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
+    Vec<u64>,
+    VecDeque<Vec<L2Block<'txs, Transaction>>>,
+    VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
+);
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 /// Enum to determine how to group commitments
@@ -300,6 +311,222 @@ where
     );
 
     Ok(())
+}
+
+pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
+    'txs,
+    Da: DaService,
+    DB: BatchProverLedgerOps,
+>(
+    sequencer_commitments: &[SequencerCommitment],
+    da_service: &Arc<Da>,
+    ledger_db: &DB,
+    l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
+    storage_manager: &ProverStorageManager,
+    sequencer_k256_pub_key: &[u8],
+    sequencer_pub_key: &[u8],
+) -> Result<CommitmentStateTransitionData<'txs, Da>, anyhow::Error> {
+    let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
+    let mut da_block_headers_of_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
+
+    let mut l1_hash_set = HashSet::new();
+    let mut short_header_proofs = VecDeque::new();
+
+    for sequencer_commitment in sequencer_commitments.iter() {
+        // get the l2 height ranges of each seq_commitments
+        let start_l2 = sequencer_commitment.l2_start_block_number;
+        let end_l2 = sequencer_commitment.l2_end_block_number;
+
+        let soft_confirmations_in_commitment = ledger_db
+            .get_soft_confirmation_range(
+                &(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)),
+            )
+            .context("Failed to get soft confirmations")?;
+
+        let mut l2_blocks = Vec::with_capacity(soft_confirmations_in_commitment.len());
+        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
+            vec![];
+        for soft_confirmation in soft_confirmations_in_commitment {
+            let shp = ledger_db
+                .get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
+                .expect("Must have short header proof");
+
+            // If first time, insert and push to the vector
+            if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
+                short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
+            }
+
+            if da_block_headers_to_push.is_empty()
+                || da_block_headers_to_push.last().unwrap().height()
+                    != soft_confirmation.da_slot_height
+            {
+                let filtered_block = get_da_block_at_height(
+                    da_service,
+                    soft_confirmation.da_slot_height,
+                    l1_block_cache.clone(),
+                )
+                .await
+                .context("Error fetching DA block")?;
+                da_block_headers_to_push.push(filtered_block.header().clone());
+            }
+
+            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
+            let l2_block: L2Block<Transaction> = if spec_id >= SpecId::Kumquat {
+                soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?
+            } else {
+                let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?;
+
+                let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
+                    .txs
+                    .iter()
+                    .map(|tx| {
+                        let blob =
+                            borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
+                        let tx = tx.clone().into();
+                        (tx, blob)
+                    })
+                    .unzip();
+                L2Block::new(
+                    l2_block.header,
+                    parsed_txs.into(),
+                    blobs.into(),
+                    l2_block.deposit_data,
+                )
+            };
+
+            l2_blocks.push(l2_block);
+        }
+        committed_l2_blocks.push_back(l2_blocks);
+
+        da_block_headers_of_l2_blocks.push_back(da_block_headers_to_push);
+    }
+
+    // Replay transactions in the commitment blocks and collect cumulative witnesses
+    let (state_transition_witnesses, cache_prune_l2_heights) = generate_cumulative_witness(
+        &committed_l2_blocks,
+        ledger_db,
+        da_service,
+        l1_block_cache.clone(),
+        storage_manager,
+        sequencer_k256_pub_key,
+        sequencer_pub_key,
+    )
+    .await?;
+
+    Ok((
+        short_header_proofs,
+        state_transition_witnesses,
+        cache_prune_l2_heights,
+        committed_l2_blocks,
+        da_block_headers_of_l2_blocks,
+    ))
+}
+
+async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerOps>(
+    committed_l2_blocks: &VecDeque<Vec<L2Block<'txs, Transaction>>>,
+    ledger_db: &DB,
+    da_service: &Arc<Da>,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    storage_manager: &ProverStorageManager,
+    sequencer_k256_pub_key: &[u8],
+    sequencer_pub_key: &[u8],
+) -> anyhow::Result<(VecDeque<Vec<(ArrayWitness, ArrayWitness)>>, Vec<u64>)> {
+    let mut state_transition_witnesses = VecDeque::with_capacity(committed_l2_blocks.len());
+
+    let mut init_state_root = ledger_db
+        .get_l2_state_root(committed_l2_blocks[0][0].l2_height() - 1)?
+        .expect("L2 state root must exist");
+
+    let mut cumulative_state_log = None;
+    let mut cumulative_offchain_log = None;
+    let mut cache_prune_l2_heights = vec![];
+
+    let mut stf =
+        StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
+
+    for l2_blocks_in_commitment in committed_l2_blocks {
+        let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
+        // If executed with Fork2 elf, should use cache
+        let should_use_cache = fork_from_block_number(
+            l2_blocks_in_commitment
+                .last()
+                .expect("must have at least one")
+                .l2_height(),
+        )
+        .spec_id
+            >= SpecId::Fork2;
+
+        for l2_block in l2_blocks_in_commitment {
+            let l2_height = l2_block.l2_height();
+            let l1_block = get_da_block_at_height(
+                da_service,
+                l2_block.da_slot_height(),
+                l1_block_cache.clone(),
+            )
+            .await?;
+
+            let pre_state = storage_manager.create_storage_for_l2_height(l2_height);
+            let current_spec = fork_from_block_number(l2_height).spec_id;
+
+            let sequencer_public_key = if current_spec >= SpecId::Fork2 {
+                sequencer_k256_pub_key
+            } else {
+                sequencer_pub_key
+            };
+
+            let soft_confirmation_result = stf.apply_soft_confirmation(
+                current_spec,
+                sequencer_public_key,
+                &init_state_root,
+                pre_state,
+                cumulative_state_log.take(),
+                cumulative_offchain_log.take(),
+                Default::default(),
+                Default::default(),
+                l1_block.header(),
+                l2_block,
+            )?;
+
+            assert_eq!(
+                l2_block.state_root(),
+                soft_confirmation_result.state_root_transition.final_root,
+                "State root mismatch when regenerating witnesses"
+            );
+
+            init_state_root = soft_confirmation_result.state_root_transition.final_root;
+
+            if should_use_cache {
+                let mut state_log = soft_confirmation_result.state_log;
+                let mut offchain_log = soft_confirmation_result.offchain_log;
+
+                // If cache grew too large, zkvm will error with OOM, hence, we pass
+                // when to prune as hint
+                if state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
+                    > MAX_CUMULATIVE_CACHE_SIZE
+                {
+                    state_log.prune_half();
+                    offchain_log.prune_half();
+                    cache_prune_l2_heights.push(l2_height);
+                }
+
+                cumulative_state_log = Some(state_log);
+                cumulative_offchain_log = Some(offchain_log);
+            }
+
+            witnesses.push((
+                soft_confirmation_result.witness,
+                soft_confirmation_result.offchain_witness,
+            ));
+        }
+
+        state_transition_witnesses.push_back(witnesses);
+    }
+
+    Ok((state_transition_witnesses, cache_prune_l2_heights))
 }
 
 /// TODO: This check needs a rewrite for sure.
