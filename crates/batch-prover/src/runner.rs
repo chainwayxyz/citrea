@@ -272,6 +272,8 @@ where
                 parsed_txs.into(),
                 blobs.into(),
                 l2_block.deposit_data,
+                l2_block.da_slot_height,
+                l2_block.da_slot_hash,
             )
         };
 

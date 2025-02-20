@@ -165,6 +165,9 @@ where
         self.fork_manager.register_block(l2_height)?;
         let current_spec = self.fork_manager.active_fork().spec_id;
 
+        let da_slot_height = soft_confirmation.da_slot_height;
+        let da_slot_hash = soft_confirmation.da_slot_hash;
+
         let mut l2_block: L2Block<StfTransaction<Da::Spec>> = if current_spec >= SpecId::Kumquat {
             soft_confirmation
                 .clone()
@@ -191,6 +194,8 @@ where
                 parsed_txs.into(),
                 blobs.into(),
                 l2_block.deposit_data,
+                da_slot_height,
+                da_slot_hash,
             )
         };
 

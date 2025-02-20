@@ -95,8 +95,8 @@ impl HookSoftConfirmationInfo {
     ) -> Self {
         HookSoftConfirmationInfo {
             l2_height: l2_block.l2_height(),
-            da_slot_height: l2_block.da_slot_height(),
             da_slot_hash: l2_block.da_slot_hash(),
+            da_slot_height: l2_block.da_slot_height(),
             da_slot_txs_commitment: l2_block.da_slot_txs_commitment(),
             pre_state_root,
             current_spec,
