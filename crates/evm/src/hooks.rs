@@ -82,11 +82,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut system_events = vec![];
         // populate system events if active citrea spec is below fork2
         if current_spec < CitreaSpecId::Fork2 {
-            populate_system_events(
-                soft_confirmation_info,
-                &mut system_events,
-                self.last_l1_hash.get(working_set),
-            );
+            system_events =
+                populate_system_events(soft_confirmation_info, self.last_l1_hash.get(working_set))
         }
 
         let cfg = self
@@ -383,9 +380,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 /// Populates system events based on the current soft confirmation info.
 pub fn populate_system_events(
     soft_confirmation_info: &HookSoftConfirmationInfo,
-    system_events: &mut Vec<SystemEvent>,
     last_l1_hash_of_evm: Option<B256>,
-) {
+) -> Vec<SystemEvent> {
+    let mut system_events = vec![];
     if let Some(last_l1_hash) = last_l1_hash_of_evm {
         if last_l1_hash != soft_confirmation_info.da_slot_hash {
             // That's a new L1 block
@@ -412,4 +409,5 @@ pub fn populate_system_events(
         .for_each(|params| {
             system_events.push(SystemEvent::BridgeDeposit(params.clone()));
         });
+    system_events
 }

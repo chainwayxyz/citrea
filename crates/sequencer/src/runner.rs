@@ -23,7 +23,6 @@ use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_primitives::TransactionSignedEcRecovered;
 use reth_provider::{AccountReader, BlockReaderIdExt};
-use reth_transaction_pool::identifier::SenderId;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
@@ -154,7 +153,7 @@ where
     #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
-        transactions: Box<
+        mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
@@ -187,21 +186,15 @@ where
                     err
                 )
             }
-            let mut system_events = vec![];
+
+            let mut system_transactions = vec![];
             if soft_confirmation_info.current_spec >= SpecId::Fork2 {
                 if soft_confirmation_info.l2_height == 1 {
                     last_l1_hash_of_evm = None;
                 }
 
-                populate_system_events(
-                    &soft_confirmation_info,
-                    &mut system_events,
-                    last_l1_hash_of_evm,
-                );
-            }
-
-            let mut system_transactions = vec![];
-            if soft_confirmation_info.current_spec >= SpecId::Fork2 {
+                let system_events =
+                    populate_system_events(&soft_confirmation_info, last_l1_hash_of_evm);
                 let evm = citrea_evm::Evm::<DefaultContext>::default();
                 let system_signer = evm
                     .account_info(
@@ -236,52 +229,73 @@ where
                     let mut all_txs = vec![];
                     let mut l1_fee_failed_txs = vec![];
 
-                    let mut all_rlp_sys_txs = vec![];
-                    let mut all_rlp_evm_txs = vec![];
-
-                    // Collect all system txs to a vector of rlp txs
+                    // Initially process system txs if any
+                    // No need to check spec as they are only populated after fork2
                     for sys_tx in system_transactions {
                         let sys_tx = sys_tx.into_signed();
-                        // Cannot do into ecrecovered here because we don't have a valid signature
+
+                        // Cannot do into_ecrecovered here because we don't have a valid signature
                         let sys_tx_ec_recovered =
                             TransactionSignedEcRecovered::from_signed_transaction(
                                 sys_tx,
                                 SYSTEM_SIGNER,
                             );
-                        // These txs don't have a SenderId as we do not get them from mempool
-                        // So we use u64::MAX
-                        let sender = SenderId::from(u64::MAX);
-                        let tx_hash = sys_tx_ec_recovered.hash();
+
                         let mut buf = vec![];
                         sys_tx_ec_recovered.encode_2718(&mut buf);
                         let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
-                        all_rlp_sys_txs.push((sys_tx_rlp, sender, tx_hash));
+
+                        let call_txs = CallMessage {
+                            txs: vec![sys_tx_rlp.clone()],
+                        };
+                        let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
+                            citrea_evm::Evm<DefaultContext>,
+                        >>::encode_call(call_txs);
+
+                        let blob = self.make_blob(
+                            raw_message.clone(),
+                            &mut working_set_to_discard,
+                            soft_confirmation_info.current_spec(),
+                        )?;
+
+                        let signed_tx = self.sign_tx(
+                            raw_message,
+                            &mut working_set_to_discard,
+                            soft_confirmation_info.current_spec(),
+                        )?;
+
+                        let txs = vec![signed_tx];
+                        let blobs = vec![blob];
+
+                        let mut working_set = working_set_to_discard.checkpoint().to_revertable();
+
+                        if let Err(e) = self.stf.apply_soft_confirmation_txs(
+                            &soft_confirmation_info,
+                            &blobs,
+                            &txs,
+                            &mut working_set,
+                        ) {
+                            return Err(anyhow!("Failed to apply system transaction: {:?}", e));
+                        }
+
+                        working_set_to_discard = working_set.checkpoint().to_revertable();
+                        all_txs.push(sys_tx_rlp);
                     }
-                    // Collect all user txs to a vector of rlp txs
-                    for evm_tx in transactions {
+
+                    // using .next() instead of a for loop because its the intended
+                    // behaviour for the BestTransactions implementations
+                    // when we update reth we'll need to call transactions.mark_invalid()
+                    #[allow(clippy::while_let_on_iterator)]
+                    while let Some(evm_tx) = transactions.next() {
                         if invalid_senders.contains(&evm_tx.transaction_id.sender) {
                             continue;
                         }
-                        let sender = evm_tx.transaction_id.sender;
-                        let tx_hash = *evm_tx.hash();
                         let mut buf = vec![];
                         evm_tx
                             .to_recovered_transaction()
                             .into_signed()
                             .encode_2718(&mut buf);
                         let rlp_tx = RlpEvmTransaction { rlp: buf };
-                        all_rlp_evm_txs.push((rlp_tx, sender, tx_hash));
-                    }
-                    // Combine all txs assuring system txs are first in the block
-                    let mut all_txs_to_process = all_rlp_sys_txs
-                        .into_iter()
-                        .chain(all_rlp_evm_txs.into_iter());
-
-                    // using .next() instead of a for loop because its the intended
-                    // behaviour for the BestTransactions implementations
-                    // when we update reth we'll need to call transactions.mark_invalid()
-                    #[allow(clippy::while_let_on_iterator)]
-                    while let Some((rlp_tx, sender_id, tx_hash)) = all_txs_to_process.next() {
                         let call_txs = CallMessage {
                             txs: vec![rlp_tx.clone()],
                         };
@@ -330,7 +344,7 @@ where
                                                if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
                                                 break;
                                                } else {
-                                                invalid_senders.insert(sender_id);
+                                                invalid_senders.insert(evm_tx.transaction_id.sender);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                                }
@@ -340,7 +354,7 @@ where
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
                                             // Discard tx if it fails to execute
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
-                                                invalid_senders.insert(sender_id);
+                                                invalid_senders.insert(evm_tx.transaction_id.sender);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
@@ -349,8 +363,8 @@ where
                                             // After fork2, we should never get this error
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx  => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
-                                                l1_fee_failed_txs.push(tx_hash);
-                                                invalid_senders.insert(sender_id);
+                                                l1_fee_failed_txs.push(*evm_tx.hash());
+                                                invalid_senders.insert(evm_tx.transaction_id.sender);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
