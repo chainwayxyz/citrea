@@ -17,7 +17,7 @@ impl StateKeyCodec<AlloyU256> for BorshCodec {
 
 impl StateKeyCodec<AlloyAddress> for BorshCodec {
     fn encode_key(&self, value: &AlloyAddress) -> Vec<u8> {
-        borsh::to_vec(value.as_slice()).expect("Failed to serialize key")
+        borsh::to_vec(&value.0 .0).expect("Failed to serialize key")
     }
 }
 

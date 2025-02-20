@@ -410,7 +410,7 @@ where
             let storage_key = StorageKey::new(
                 db_account.storage.prefix(),
                 key,
-                evm.storage.codec().key_codec(),
+                db_account.storage.codec().key_codec(),
             );
             let value = evm.storage_get(account, key, citrea_spec, working_set);
             let proof = working_set.get_with_proof(storage_key, version);
