@@ -1,3 +1,4 @@
+use alloy_primitives::{keccak256, U256};
 use alloy_sol_types::SolCall;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
@@ -13,11 +14,12 @@ use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
+use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use crate::system_contracts::BitcoinLightClientContract;
 use crate::{EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
-    evm: revm::Evm<'a, EXT, DB>,
+    pub(crate) evm: revm::Evm<'a, EXT, DB>,
 }
 
 impl<'a, EXT, DB> CitreaEvm<'a, EXT, DB>
@@ -119,7 +121,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 return Err(SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
-            post_fork2_system_tx_handler(tx, l2_height)?;
+            post_fork2_system_tx_handler(evm.evm.db_mut(), tx, l2_height)?;
         } else {
             should_be_end_of_sys_txs = true;
         }
@@ -163,7 +165,8 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     Ok(tx_results)
 }
 
-fn post_fork2_system_tx_handler(
+fn post_fork2_system_tx_handler<C: sov_modules_api::Context>(
+    db: &mut EvmDb<C>,
     tx: &TransactionSignedEcRecovered,
     l2_height: u64,
 ) -> Result<(), SoftConfirmationModuleCallError> {
@@ -181,8 +184,30 @@ fn post_fork2_system_tx_handler(
         let txs_commitment: [u8; 32] = tx.input()[36..68]
             .try_into()
             .expect("Should have txs commitment parameter");
+
+        let last_l1_height = db
+            .storage(BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256::ZERO)
+            .unwrap();
+
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&(last_l1_height - U256::from(1)).to_be_bytes::<32>());
+        // counter intuitively the contract stores next block height (expected on setBlockInfo)x
+        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+
+        let prev_hash = db
+            .storage(
+                BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                keccak256(bytes).into(),
+            )
+            .unwrap();
+
+        // counter intuitively the contract stores next block height (expected on setBlockInfo)
+        let next_l1_height: u64 = last_l1_height.to::<u64>();
+
         match shp_provider.get_and_verify_short_header_proof_by_l1_hash(
             l1_block_hash,
+            prev_hash.to_be_bytes(),
+            next_l1_height,
             txs_commitment,
             l2_height,
         ) {

@@ -34,6 +34,8 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
     fn get_and_verify_short_header_proof_by_l1_hash(
         &self,
         block_hash: [u8; 32],
+        prev_block_hash: [u8; 32],
+        l1_height: u64,
         txs_commitment: [u8; 32],
         _l2_height: u64,
     ) -> Result<bool, ShortHeaderProofProviderError> {
@@ -56,8 +58,17 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             self.queried_and_verified_hashes
                 .borrow_mut()
                 .push(block_hash);
+
+            let prev_hash_cond = if prev_block_hash == [0; 32] {
+                true
+            } else {
+                prev_block_hash == l1_update_info.prev_header_hash
+            };
+
             return Ok(txs_commitment == l1_update_info.tx_commitment
-                && block_hash == l1_update_info.header_hash);
+                && block_hash == l1_update_info.header_hash
+                && prev_hash_cond
+                && l1_height == l1_update_info.block_height);
         }
         Ok(false)
     }

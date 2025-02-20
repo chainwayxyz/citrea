@@ -215,6 +215,57 @@ where
                 system_transactions =
                     create_system_transactions(system_events, system_signer.nonce, chain_id);
             }
+            let mut all_txs = vec![];
+
+            // Initially process system txs if any
+            // No need to check spec as they are only populated after fork2
+            for sys_tx in system_transactions {
+                let sys_tx = sys_tx.into_signed();
+
+                // Cannot do into_ecrecovered here because we don't have a valid signature
+                let sys_tx_ec_recovered =
+                    TransactionSignedEcRecovered::from_signed_transaction(sys_tx, SYSTEM_SIGNER);
+
+                let mut buf = vec![];
+                sys_tx_ec_recovered.encode_2718(&mut buf);
+                let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
+
+                let call_txs = CallMessage {
+                    txs: vec![sys_tx_rlp.clone()],
+                };
+                let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
+                    citrea_evm::Evm<DefaultContext>,
+                >>::encode_call(call_txs);
+
+                let blob = self.make_blob(
+                    raw_message.clone(),
+                    &mut working_set_to_discard,
+                    soft_confirmation_info.current_spec(),
+                )?;
+
+                let signed_tx = self.sign_tx(
+                    raw_message,
+                    &mut working_set_to_discard,
+                    soft_confirmation_info.current_spec(),
+                )?;
+
+                let txs = vec![signed_tx];
+                let blobs = vec![blob];
+
+                let mut working_set = working_set_to_discard.checkpoint().to_revertable();
+
+                if let Err(e) = self.stf.apply_soft_confirmation_txs(
+                    &soft_confirmation_info,
+                    &blobs,
+                    &txs,
+                    &mut working_set,
+                ) {
+                    return Err(anyhow!("Failed to apply system transaction: {:?}", e));
+                }
+
+                working_set_to_discard = working_set.checkpoint().to_revertable();
+                all_txs.push(sys_tx_rlp);
+            }
 
             match l2_block_mode {
                 L2BlockMode::NotEmpty => {
@@ -228,62 +279,7 @@ where
                     // because other transactions from the same sender now cannot be included in the block
                     // since they are auto rejected due to the nonce gap.
                     let mut invalid_senders = HashSet::new();
-
-                    let mut all_txs = vec![];
                     let mut l1_fee_failed_txs = vec![];
-
-                    // Initially process system txs if any
-                    // No need to check spec as they are only populated after fork2
-                    for sys_tx in system_transactions {
-                        let sys_tx = sys_tx.into_signed();
-
-                        // Cannot do into_ecrecovered here because we don't have a valid signature
-                        let sys_tx_ec_recovered =
-                            TransactionSignedEcRecovered::from_signed_transaction(
-                                sys_tx,
-                                SYSTEM_SIGNER,
-                            );
-
-                        let mut buf = vec![];
-                        sys_tx_ec_recovered.encode_2718(&mut buf);
-                        let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
-
-                        let call_txs = CallMessage {
-                            txs: vec![sys_tx_rlp.clone()],
-                        };
-                        let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
-                            citrea_evm::Evm<DefaultContext>,
-                        >>::encode_call(call_txs);
-
-                        let blob = self.make_blob(
-                            raw_message.clone(),
-                            &mut working_set_to_discard,
-                            soft_confirmation_info.current_spec(),
-                        )?;
-
-                        let signed_tx = self.sign_tx(
-                            raw_message,
-                            &mut working_set_to_discard,
-                            soft_confirmation_info.current_spec(),
-                        )?;
-
-                        let txs = vec![signed_tx];
-                        let blobs = vec![blob];
-
-                        let mut working_set = working_set_to_discard.checkpoint().to_revertable();
-
-                        if let Err(e) = self.stf.apply_soft_confirmation_txs(
-                            &soft_confirmation_info,
-                            &blobs,
-                            &txs,
-                            &mut working_set,
-                        ) {
-                            return Err(anyhow!("Failed to apply system transaction: {:?}", e));
-                        }
-
-                        working_set_to_discard = working_set.checkpoint().to_revertable();
-                        all_txs.push(sys_tx_rlp);
-                    }
 
                     // using .next() instead of a for loop because its the intended
                     // behaviour for the BestTransactions implementations
@@ -395,7 +391,7 @@ where
 
                     Ok((all_txs, l1_fee_failed_txs))
                 }
-                L2BlockMode::Empty => Ok((vec![], vec![])),
+                L2BlockMode::Empty => Ok((all_txs, vec![])),
             }
         })
     }
