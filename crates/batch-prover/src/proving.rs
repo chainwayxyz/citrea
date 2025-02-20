@@ -342,6 +342,14 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 &(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)),
             )
             .context("Failed to get soft confirmations")?;
+        assert_eq!(
+            soft_confirmations_in_commitment
+                .last()
+                .expect("at least one must exist")
+                .l2_height,
+            end_l2,
+            "Should not try to create circuit input without ensuring the prover is synced"
+        );
 
         let mut l2_blocks = Vec::with_capacity(soft_confirmations_in_commitment.len());
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
