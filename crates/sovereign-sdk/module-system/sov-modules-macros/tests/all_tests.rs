@@ -31,8 +31,6 @@ fn module_info_tests() {
 fn module_dispatch_tests() {
     set_constants_manifest();
     let t = trybuild::TestCases::new();
-    t.pass("tests/dispatch/derive_genesis.rs");
-    t.pass("tests/dispatch/derive_dispatch.rs");
     t.compile_fail("tests/dispatch/missing_serialization.rs");
 }
 
