@@ -447,6 +447,9 @@ where
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
 
+        let mut fork_manager =
+            ForkManager::new(forks, sequencer_commitments[0].l2_start_block_number);
+
         // Reuseable log caches
         let mut cumulative_state_log = None;
         let mut cumulative_offchain_log = None;
@@ -469,7 +472,6 @@ where
             let mut index_headers = 0;
             let mut current_da_height = da_block_headers[index_headers].height();
             let mut l2_height = sequencer_commitment.l2_start_block_number;
-            let mut fork_manager = ForkManager::new(forks, l2_height);
 
             let state_change_count: u32 = guest.read_from_host();
             let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
