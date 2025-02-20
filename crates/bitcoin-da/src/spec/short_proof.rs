@@ -7,7 +7,7 @@ use sov_rollup_interface::da::{
 
 use super::header::HeaderWrapper;
 use super::transaction::TransactionWrapper;
-use crate::helpers::{calculate_txid, merkle_tree};
+use crate::helpers::{calculate_double_sha256, calculate_txid, merkle_tree};
 use crate::verifier::WITNESS_COMMITMENT_PREFIX;
 
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Eq, PartialEq, Debug, Clone)]
@@ -79,7 +79,17 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
                 // and compare with header.txs_commitment().
                 let idx = self.coinbase_tx.output.len() - idx - 1; // The index is reversed
                 let script_pubkey = self.coinbase_tx.output[idx].script_pubkey.as_bytes();
-                if script_pubkey[6..38] != Into::<[u8; 32]>::into(self.header.txs_commitment()) {
+                let input_witness_value = self.coinbase_tx.input[0].witness.iter().next().unwrap();
+
+                let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
+
+                vec_merkle.extend_from_slice(&self.header.txs_commitment().to_byte_array());
+                vec_merkle.extend_from_slice(input_witness_value);
+
+                // check with sha256(sha256(<merkle root><witness value>))
+                let commitment = calculate_double_sha256(&vec_merkle);
+
+                if script_pubkey[6..38] != commitment {
                     return Err(ShortHeaderProofVerificationError::WrongTxCommitment {
                         expected: script_pubkey[6..38]
                             .try_into()
