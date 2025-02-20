@@ -403,6 +403,16 @@ where
             "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
         );
 
+        // Save short header proof to ledger db for Native Short Header Proof Provider Service
+        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+            Da::block_to_short_header_proof(da_block.clone());
+        self.ledger_db
+            .put_short_header_proof_by_l1_hash(
+                &da_block.hash(),
+                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            )
+            .expect("Should save short header proof to ledger db");
+
         let timestamp = chrono::Local::now().timestamp() as u64;
 
         let deposit_data = self

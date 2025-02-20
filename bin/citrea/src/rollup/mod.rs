@@ -159,6 +159,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(CitreaSequencer<Self::DaService, LedgerDB>, RpcModule<()>)> {
+        match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+            Self::DaSpec,
+        >::new(ledger_db.clone())))
+        {
+            Ok(_) => tracing::debug!("Short header proof provider set"),
+            Err(_) => tracing::error!("Short header proof provider already set"),
+        };
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
