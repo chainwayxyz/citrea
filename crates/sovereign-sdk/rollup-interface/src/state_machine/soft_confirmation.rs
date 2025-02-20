@@ -82,6 +82,8 @@ impl SignedL2Header {
 }
 
 /// Signed L2 block
+/// `blobs`, `deposit_data`, `da_slot_height` and `da_slot_hash` are kept for compatibility reason
+/// and hash checking against PreFork2 *SoftConfirmations structs.
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     /// Header
@@ -89,12 +91,16 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     /// Txs of signed batch
     pub txs: Cow<'txs, [Tx]>,
     /// Blobs of signed batch
+    /// TODO remove before mainnet
     pub blobs: Cow<'txs, [Vec<u8>]>,
     /// Deposit data
+    /// TODO remove before mainnet
     pub deposit_data: Vec<Vec<u8>>,
     /// L1 height
+    /// TODO remove before mainnet
     pub da_slot_height: u64,
     /// L1 hash
+    /// TODO remove before mainnet
     pub da_slot_hash: [u8; 32],
 }
 
