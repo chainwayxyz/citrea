@@ -58,8 +58,7 @@ impl StateKeyCodec<Vec<u8>> for BorshCodec {
     }
 }
 // FIXME: Remove before mainnet
-impl EncodeKeyLike<[u8], Vec<u8>> for BorshCodec
-{
+impl EncodeKeyLike<[u8], Vec<u8>> for BorshCodec {
     fn encode_key_like(&self, borrowed: &[u8]) -> Vec<u8> {
         let mut buf = Vec::with_capacity(4 + borrowed.len());
         BorshSerialize::serialize(borrowed, &mut buf).unwrap();
