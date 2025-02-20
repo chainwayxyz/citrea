@@ -87,10 +87,11 @@ macro_rules! impl_borsh_codec {
     };
 }
 
-impl_borsh_codec!(usize);
+impl_borsh_codec!(u8);
 impl_borsh_codec!(i32);
 impl_borsh_codec!(u32);
 impl_borsh_codec!(u64);
+impl_borsh_codec!(usize);
 impl_borsh_codec!(String);
 
 impl StateCodec for BorshCodec {

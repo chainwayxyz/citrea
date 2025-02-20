@@ -198,67 +198,19 @@ error[E0599]: no method named `set` found for struct `sov_modules_api::StateValu
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:50:23
    |
 50 |             self.data.set(config, working_set);
-   |                       ^^^
-   |
-  ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/traits/value.rs
-   |
-   |     fn set(&self, value: &V, working_set: &mut W) {
-   |        --- the method is available for `sov_modules_api::StateValue<D>` here
-   |
-   = help: items from traits can only be used if the trait is in scope
-help: there is a method `get` with a similar name, but with different arguments
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/traits/value.rs
-   |
-   |     fn get(&self, working_set: &mut W) -> Option<V> {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-help: trait `StateValueAccessor` which provides `set` is implemented but not in scope; perhaps you want to import it
-   |
-30 +     use sov_modules_api::StateValueAccessor;
-   |
+   |                       ^^^ method not found in `StateValue<D>`
 
 error[E0599]: no method named `set` found for struct `sov_modules_api::StateValue` in the current scope
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:59:23
    |
 59 |             self.data.set(&msg, working_set);
-   |                       ^^^
-   |
-  ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/traits/value.rs
-   |
-   |     fn set(&self, value: &V, working_set: &mut W) {
-   |        --- the method is available for `sov_modules_api::StateValue<D>` here
-   |
-   = help: items from traits can only be used if the trait is in scope
-help: there is a method `get` with a similar name, but with different arguments
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/traits/value.rs
-   |
-   |     fn get(&self, working_set: &mut W) -> Option<V> {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-help: trait `StateValueAccessor` which provides `set` is implemented but not in scope; perhaps you want to import it
-   |
-30 +     use sov_modules_api::StateValueAccessor;
-   |
+   |                       ^^^ method not found in `StateValue<D>`
 
 error[E0599]: no method named `get` found for struct `sov_modules_api::StateValue` in the current scope
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:84:39
    |
 84 |                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
-   |                                       ^^^
-   |
-  ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/traits/value.rs
-   |
-   |     fn get(&self, working_set: &mut W) -> Option<V> {
-   |        --- the method is available for `sov_modules_api::StateValue<D>` here
-   |
-   = help: items from traits can only be used if the trait is in scope
-help: there is a method `set` with a similar name, but with different arguments
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/traits/value.rs
-   |
-   |     fn set(&self, value: &V, working_set: &mut W) {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-help: trait `StateValueAccessor` which provides `get` is implemented but not in scope; perhaps you want to import it
-   |
-66 +         use sov_modules_api::StateValueAccessor;
-   |
+   |                                       ^^^ method not found in `StateValue<D>`
 
 error[E0271]: type mismatch resolving `<QueryModule<C, <S as TestSpec>::Data> as ModuleInfo>::Context == S`
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:94:10
