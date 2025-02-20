@@ -30,6 +30,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         if let Some(shp_serialized) = self
             .ledger_db
             .get_short_header_proof_by_l1_hash(&block_hash)
+            // TODO: Return error here and make process l2 block run again
             .expect("Should save short header proof")
         {
             let shp = Da::ShortHeaderProof::try_from_slice(&shp_serialized)

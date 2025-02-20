@@ -20,7 +20,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 citrea-primitives = { path = "../primitives" }
 
 borsh = { workspace = true, features = ["rc"] }
-hex = { workspace = true, optional = true }
+hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -57,7 +57,6 @@ alloy = { workspace = true, features = ["consensus", "providers", "signers", "si
 bcs = { workspace = true }
 bytes = { workspace = true }
 citrea-primitives = { path = "../primitives", features = ["testing"] }
-hex = { workspace = true }
 lazy_static = "1.4.0"
 rand = { workspace = true }
 rayon = { workspace = true }
@@ -95,7 +94,6 @@ native = [
   "dep:alloy-serde",
   "dep:alloy-network",
 
-  "dep:hex",
   "dep:jsonrpsee",
   "dep:itertools",
   "dep:serde_json",

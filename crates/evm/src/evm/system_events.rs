@@ -19,7 +19,9 @@ pub enum SystemEvent {
     /// Sets the block info for the Bitcoin light client.
     BitcoinLightClientSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
     /// Initializes the bridge contract.
-    BridgeInitialize,
+    BridgeInitialize(
+        /*script prefix, script suffix, deposit amount hex(abi()) */ Option<String>,
+    ),
     /// Inserts deposit data to bridge contract.
     BridgeDeposit(Vec<u8>), // version, flag, vin, vout, witness, locktime, intermediate nodes, block height, index
 }
@@ -46,9 +48,9 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
-        SystemEvent::BridgeInitialize => TxEip1559 {
+        SystemEvent::BridgeInitialize(params) => TxEip1559 {
             to: TxKind::Call(BridgeWrapper::address()),
-            input: BridgeWrapper::initialize(),
+            input: BridgeWrapper::initialize(params),
             nonce,
             chain_id,
             value: U256::ZERO,
