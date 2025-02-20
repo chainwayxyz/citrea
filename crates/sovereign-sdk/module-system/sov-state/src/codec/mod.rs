@@ -19,6 +19,18 @@ mod tests {
 
     use super::*;
 
+    impl StateValueCodec<Vec<i32>> for BorshCodec {
+        type Error = std::io::Error;
+
+        fn encode_value(&self, value: &Vec<i32>) -> Vec<u8> {
+            borsh::to_vec(value).unwrap()
+        }
+
+        fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<i32>, Self::Error> {
+            borsh::from_slice(bytes)
+        }
+    }
+
     fn arb_vec_i32() -> impl Strategy<Value = Vec<i32>> {
         vec(any::<i32>(), 0..2048)
     }

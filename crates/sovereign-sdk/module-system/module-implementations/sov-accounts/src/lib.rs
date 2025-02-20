@@ -1,5 +1,6 @@
 mod genesis;
 mod hooks;
+use borsh::BorshSerialize;
 pub use genesis::*;
 #[cfg(feature = "native")]
 mod query;
@@ -35,7 +36,9 @@ impl StateValueCodec<Account> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &Account) -> Vec<u8> {
-        borsh::to_vec(&value).unwrap()
+        let mut buf = Vec::with_capacity(32 + 8);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<Account, Self::Error> {

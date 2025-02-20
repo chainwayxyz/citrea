@@ -1,5 +1,5 @@
 use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
 use sov_modules_core::{Address as ModuleAddress, EncodeKeyLike};
 
 use super::{StateCodec, StateKeyCodec};
@@ -58,17 +58,16 @@ impl StateKeyCodec<Vec<u8>> for BorshCodec {
     }
 }
 
-impl<T> StateValueCodec<Vec<T>> for BorshCodec
-where
-    T: BorshSerialize + BorshDeserialize,
-{
+impl StateValueCodec<Vec<u8>> for BorshCodec {
     type Error = std::io::Error;
 
-    fn encode_value(&self, value: &Vec<T>) -> Vec<u8> {
-        borsh::to_vec(value).expect("Failed to serialize value")
+    fn encode_value(&self, value: &Vec<u8>) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + value.len());
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
     }
 
-    fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<T>, Self::Error> {
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<u8>, Self::Error> {
         borsh::from_slice(bytes)
     }
 }
