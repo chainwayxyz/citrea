@@ -256,6 +256,8 @@ pub enum SoftConfirmationModuleCallError {
     ShortHeaderProofNotFound,
     /// Short Header Proof Verification Error
     ShortHeaderProofVerificationError,
+    /// Some System transaction was placed after a user transaction in the block
+    EvmSystemTransactionPlacedAfterUserTx,
 }
 
 #[derive(Debug, PartialEq)]
@@ -366,6 +368,9 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => {
                 write!(f, "Short header proof verification error")
+            }
+            SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => {
+                write!(f, "EVM system transaction placed after user tx")
             }
         }
     }
