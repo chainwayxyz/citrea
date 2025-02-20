@@ -1,6 +1,8 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+use std::collections::VecDeque;
+
 use borsh::BorshSerialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
@@ -32,7 +34,7 @@ use sov_rollup_interface::stf::{
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
-use sov_state::Storage;
+use sov_state::{ReadWriteLog, Storage};
 
 mod stf_blueprint;
 
@@ -248,15 +250,27 @@ where
         _current_spec: SpecId,
         working_set: WorkingSet<C::Storage>,
         pre_state: <Self as StateTransitionFunction<Da>>::PreState,
-    ) -> SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness> {
-        let (state_root_transition, witness, offchain_witness, storage, state_diff) = {
+    ) -> SoftConfirmationResult<
+        C::Storage,
+        <C::Storage as Storage>::Witness,
+        <Self as StateTransitionFunction<Da>>::StateLog,
+    > {
+        let (
+            state_root_transition,
+            state_log,
+            offchain_log,
+            witness,
+            offchain_witness,
+            storage,
+            state_diff,
+        ) = {
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
-            let (cache_log, mut witness) = checkpoint.freeze();
+            let (state_log, mut witness) = checkpoint.freeze();
 
             let (state_root_transition, state_update, state_diff) = pre_state
-                .compute_state_update(cache_log, &mut witness)
+                .compute_state_update(&state_log, &mut witness)
                 .expect("jellyfish merkle tree update must succeed");
 
             let mut working_set = checkpoint.to_revertable();
@@ -274,6 +288,8 @@ where
 
             (
                 state_root_transition,
+                state_log,
+                offchain_log,
                 witness,
                 offchain_witness,
                 pre_state,
@@ -283,6 +299,8 @@ where
 
         SoftConfirmationResult {
             state_root_transition,
+            state_log,
+            offchain_log,
             change_set: storage,
             witness,
             offchain_witness,
@@ -302,6 +320,7 @@ where
     type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
     type ChangeSet = C::Storage;
+    type StateLog = ReadWriteLog;
 
     type Witness = <C::Storage as Storage>::Witness;
 
@@ -315,10 +334,10 @@ where
         self.runtime.genesis(&params.runtime, &mut working_set);
 
         let mut checkpoint = working_set.checkpoint();
-        let (log, mut witness) = checkpoint.freeze();
+        let (state_log, mut witness) = checkpoint.freeze();
 
         let (state_root_transition, state_update, _) = pre_state
-            .compute_state_update(log, &mut witness)
+            .compute_state_update(&state_log, &mut witness)
             .expect("Storage update must succeed");
         let genesis_hash = state_root_transition.final_root;
 
@@ -331,8 +350,6 @@ where
         let accessory_log = checkpoint.freeze_non_provable();
         let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
 
-        // TODO: Commit here for now, but probably this can be done outside of STF
-        // TODO: Commit is fine
         pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
         (genesis_hash, pre_state)
@@ -344,18 +361,32 @@ where
         sequencer_public_key: &[u8],
         pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
+        cumulative_state_log: Option<Self::StateLog>,
+        cumulative_offchain_log: Option<Self::StateLog>,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
-        l2_block: &mut L2Block<Self::Transaction>,
-    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness>, StateTransitionError> {
+        l2_block: &L2Block<Self::Transaction>,
+    ) -> Result<
+        SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
+        StateTransitionError,
+    > {
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(l2_block, *pre_state_root, current_spec);
 
-        let mut working_set =
-            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness);
+        let mut working_set = if let Some(state_log) = cumulative_state_log {
+            WorkingSet::with_witness_and_log(
+                pre_state.clone(),
+                state_witness,
+                offchain_witness,
+                state_log,
+                cumulative_offchain_log.expect("Both logs must be provided"),
+            )
+        } else {
+            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness)
+        };
 
         native_debug!("Applying soft confirmation in STF Blueprint");
 
@@ -396,7 +427,8 @@ where
         initial_state_root: &StorageRootHash,
         pre_state: Self::PreState,
         sequencer_commitments: Vec<SequencerCommitment>,
-        slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
+        slot_headers: VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
+        cache_prune_l2_heights: &[u64],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
@@ -415,6 +447,14 @@ where
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
 
+        let mut fork_manager =
+            ForkManager::new(forks, sequencer_commitments[0].l2_start_block_number);
+
+        // Reuseable log caches
+        let mut cumulative_state_log = None;
+        let mut cumulative_offchain_log = None;
+        let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();
+
         for (sequencer_commitment, da_block_headers) in
             sequencer_commitments.into_iter().zip_eq(slot_headers)
         {
@@ -432,7 +472,6 @@ where
             let mut index_headers = 0;
             let mut current_da_height = da_block_headers[index_headers].height();
             let mut l2_height = sequencer_commitment.l2_start_block_number;
-            let mut fork_manager = ForkManager::new(forks, l2_height);
 
             let state_change_count: u32 = guest.read_from_host();
             let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
@@ -444,8 +483,7 @@ where
                     .unwrap();
 
                 let spec_id = fork_manager.active_fork().spec_id;
-                let (mut l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat
-                {
+                let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
                     guest.read_from_host::<(
                         L2Block<Self::Transaction>,
                         <C::Storage as Storage>::Witness,
@@ -473,6 +511,8 @@ where
                         parsed_txs.into(),
                         blobs.into(),
                         l2_block.deposit_data,
+                        l2_block.da_slot_height,
+                        l2_block.da_slot_hash,
                     );
                     (sc, state_witness, offchain_witness)
                 };
@@ -556,10 +596,12 @@ where
                         sequencer_pub_key,
                         &current_state_root,
                         pre_state.clone(),
+                        cumulative_state_log,
+                        cumulative_offchain_log,
                         state_witness,
                         offchain_witness,
                         &da_block_headers[index_headers],
-                        &mut l2_block,
+                        &l2_block,
                     )
                     // TODO: this can be just ignoring the failing seq. com.
                     // We can count a failed soft confirmation as a valid state transition.
@@ -575,6 +617,20 @@ where
                 prev_soft_confirmation_hash = Some(l2_block.hash());
 
                 soft_confirmation_hashes.push(l2_block.hash());
+
+                let mut state_log = result.state_log;
+                let mut offchain_log = result.offchain_log;
+                // prune cache logs if it is hinted from native
+                if cache_prune_l2_heights_iter
+                    .next_if_eq(&&l2_height)
+                    .is_some()
+                {
+                    state_log.prune_half();
+                    offchain_log.prune_half();
+                }
+
+                cumulative_state_log = Some(state_log);
+                cumulative_offchain_log = Some(offchain_log);
             }
 
             assert_eq!(

@@ -76,9 +76,13 @@ pub struct StateRootTransition {
 /// - T - generic for transaction receipt contents
 /// - W - generic for witness
 /// - Da - generic for DA layer
-pub struct SoftConfirmationResult<Cs, W> {
+pub struct SoftConfirmationResult<Cs, W, SL> {
     /// Contains state root before and after applying txs
     pub state_root_transition: StateRootTransition,
+    /// Cache of the read and writes happened on the state.
+    pub state_log: SL,
+    /// Cache of the read and writes happened on the offchain state.
+    pub offchain_log: SL,
     /// Container for all state alterations that happened during soft confirmation execution
     pub change_set: Cs,
     /// Witness after applying the whole block
@@ -121,6 +125,9 @@ pub trait StateTransitionFunction<Da: DaSpec> {
     /// State of the rollup after transition.
     type ChangeSet;
 
+    /// State cache logs to be reused for the next runs.
+    type StateLog;
+
     /// Witness is a data that is produced during actual batch execution
     /// or validated together with proof during verification
     type Witness: Default
@@ -160,11 +167,16 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         sequencer_public_key: &[u8],
         pre_state_root: &StorageRootHash,
         pre_state: Self::PreState,
+        cumulative_state_log: Option<Self::StateLog>,
+        cumulative_offchain_log: Option<Self::StateLog>,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        soft_confirmation: &mut L2Block<Self::Transaction>,
-    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness>, StateTransitionError>;
+        l2_block: &L2Block<Self::Transaction>,
+    ) -> Result<
+        SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
+        StateTransitionError,
+    >;
 
     /// Runs a vector of Soft Confirmations
     /// Used for proving the L2 block state transitions
@@ -180,6 +192,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         pre_state: Self::PreState,
         sequencer_commitments: Vec<SequencerCommitment>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
+        cache_prune_l2_heights: &[u64],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput;
 }

@@ -6,12 +6,12 @@ use core::mem;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
-use super::CacheLog;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
+use crate::storage::cache::{CacheLog, OrderedWrites, ReadWriteLog};
 use crate::storage::{
-    CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
-    StateValueCodec, Storage, StorageKey, StorageProof, StorageValue,
+    CacheKey, CacheValue, EncodeKeyLike, NativeStorage, StateCodec, StateValueCodec, Storage,
+    StorageKey, StorageProof, StorageValue,
 };
 use crate::{ValueExists, Version};
 
@@ -202,6 +202,22 @@ impl<S: Storage> StateDelta<S> {
         }
     }
 
+    fn with_witness_and_log(
+        storage: S,
+        witness: S::Witness,
+        state_log: ReadWriteLog,
+        version: Option<Version>,
+    ) -> Self {
+        Self {
+            storage,
+            cache_log: state_log.into_cache_log(),
+            uncommitted_writes: BTreeMap::default(),
+            ordered_storage_reads: Vec::default(),
+            witness,
+            version,
+        }
+    }
+
     fn commit(mut self) -> Self {
         let writes = mem::take(&mut self.uncommitted_writes);
         for (key, value) in writes {
@@ -215,17 +231,17 @@ impl<S: Storage> StateDelta<S> {
         self
     }
 
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    fn freeze(&mut self) -> (ReadWriteLog, S::Witness) {
         let ordered_reads = mem::take(&mut self.ordered_storage_reads);
-        let ordered_writes = mem::take(&mut self.cache_log).take_writes();
+        let cache_log = mem::take(&mut self.cache_log);
 
-        let ordered_reads_writes = OrderedReadsAndWrites {
+        let read_write_log = ReadWriteLog {
             ordered_reads,
-            ordered_writes,
+            cache_log,
         };
         let witness = mem::take(&mut self.witness);
 
-        (ordered_reads_writes, witness)
+        (read_write_log, witness)
     }
 }
 
@@ -297,13 +313,8 @@ impl<S: Storage> AccessoryDelta<S> {
         self
     }
 
-    fn freeze(&mut self) -> OrderedReadsAndWrites {
-        let ordered_writes = mem::take(&mut self.committed_writes).into_iter().collect();
-
-        OrderedReadsAndWrites {
-            ordered_reads: Vec::default(),
-            ordered_writes,
-        }
+    fn freeze(&mut self) -> OrderedWrites {
+        mem::take(&mut self.committed_writes).into_iter().collect()
     }
 }
 
@@ -362,6 +373,21 @@ impl<S: Storage> OffchainDelta<S> {
         }
     }
 
+    fn with_witness_and_log(
+        storage: S,
+        witness: S::Witness,
+        offchain_log: ReadWriteLog,
+        version: Option<Version>,
+    ) -> Self {
+        Self {
+            storage,
+            cache_log: offchain_log.into_cache_log(),
+            uncommitted_writes: BTreeMap::default(),
+            witness,
+            version,
+        }
+    }
+
     fn commit(mut self) -> Self {
         let writes = mem::take(&mut self.uncommitted_writes);
         for (key, value) in writes {
@@ -375,16 +401,16 @@ impl<S: Storage> OffchainDelta<S> {
         self
     }
 
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
-        let ordered_writes = mem::take(&mut self.cache_log).take_writes();
+    fn freeze(&mut self) -> (ReadWriteLog, S::Witness) {
+        let cache_log = mem::take(&mut self.cache_log);
 
-        let ordered_reads_writes = OrderedReadsAndWrites {
+        let read_write_log = ReadWriteLog {
             ordered_reads: Vec::default(),
-            ordered_writes,
+            cache_log,
         };
         let witness = mem::take(&mut self.witness);
 
-        (ordered_reads_writes, witness)
+        (read_write_log, witness)
     }
 }
 
@@ -478,6 +504,27 @@ impl<S: Storage> StateCheckpoint<S> {
         }
     }
 
+    /// Creates a new [`StateCheckpoint`] instance without any changes, backed
+    /// by the given [`Storage`], witness, and prepopulated state cache log.
+    pub fn with_witness_and_log(
+        inner: S,
+        state_witness: S::Witness,
+        offchain_witness: S::Witness,
+        state_log: ReadWriteLog,
+        offchain_log: ReadWriteLog,
+    ) -> Self {
+        Self {
+            delta: StateDelta::with_witness_and_log(inner.clone(), state_witness, state_log, None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            offchain_delta: OffchainDelta::with_witness_and_log(
+                inner,
+                offchain_witness,
+                offchain_log,
+                None,
+            ),
+        }
+    }
+
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
     pub fn to_revertable(self) -> WorkingSet<S> {
         WorkingSet {
@@ -495,7 +542,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call [`Storage::validate_and_commit`] or some
     /// of the other related [`Storage`] methods. Note that this data is moved
     /// **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
-    pub fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    pub fn freeze(&mut self) -> (ReadWriteLog, S::Witness) {
         self.delta.freeze()
     }
 
@@ -505,7 +552,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call
     /// [`Storage::validate_and_commit_with_accessory_update`], together with
     /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
+    pub fn freeze_non_provable(&mut self) -> OrderedWrites {
         self.accessory_delta.freeze()
     }
 
@@ -515,7 +562,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call
     /// [`Storage::validate_and_commit_with_accessory_update`], together with
     /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_offchain(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    pub fn freeze_offchain(&mut self) -> (ReadWriteLog, S::Witness) {
         self.offchain_delta.freeze()
     }
 }
@@ -546,6 +593,25 @@ impl<S: Storage> WorkingSet<S> {
     /// and a custom witness value.
     pub fn with_witness(inner: S, state_witness: S::Witness, offchain_witness: S::Witness) -> Self {
         StateCheckpoint::with_witness(inner, state_witness, offchain_witness).to_revertable()
+    }
+
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`],
+    /// a custom witness value and a prepopulated state log to use as cache.
+    pub fn with_witness_and_log(
+        inner: S,
+        state_witness: S::Witness,
+        offchain_witness: S::Witness,
+        state_log: ReadWriteLog,
+        offchain_log: ReadWriteLog,
+    ) -> Self {
+        StateCheckpoint::with_witness_and_log(
+            inner,
+            state_witness,
+            offchain_witness,
+            state_log,
+            offchain_log,
+        )
+        .to_revertable()
     }
 
     /// Returns a handler for the accessory state (non-JMT state).

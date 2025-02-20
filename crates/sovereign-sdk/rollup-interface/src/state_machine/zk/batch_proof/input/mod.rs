@@ -60,6 +60,9 @@ pub struct BatchProofCircuitInput<'txs, Witness, Da: DaSpec, Tx: Clone + BorshSe
     /// Sequencer commitments that will be proven.
     /// Only applies to V3
     pub sequencer_commitments: Vec<SequencerCommitment>,
+    /// L2 heights in which the guest should prune the log caches to avoid OOM.
+    /// Only applies to V3
+    pub cache_prune_l2_heights: Vec<u64>,
 }
 
 impl<'txs, Witness, Da, Tx> BatchProofCircuitInput<'txs, Witness, Da, Tx>
@@ -152,6 +155,7 @@ where
                 short_header_proofs: self.short_header_proofs,
                 da_block_headers_of_soft_confirmations: self.da_block_headers_of_l2_blocks,
                 sequencer_commitments: self.sequencer_commitments,
+                cache_prune_l2_heights: self.cache_prune_l2_heights,
             },
             BatchProofCircuitInputV3Part2(x),
         )

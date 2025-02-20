@@ -7,6 +7,7 @@ use sov_schema_db::DB;
 use sov_state::storage::NativeStorage;
 pub use sov_state::ProverStorage;
 
+#[derive(Clone)]
 pub struct ProverStorageManager {
     state_db: Arc<DB>,
     native_db: Arc<DB>,

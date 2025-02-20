@@ -34,4 +34,6 @@ pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
     /// Short header proofs for verifying system transactions
     pub short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>,
+    /// L2 heights in which the guest should prune the log caches to avoid OOM.
+    pub cache_prune_l2_heights: Vec<u64>,
 }

@@ -68,6 +68,7 @@ where
                 pre_state,
                 data.sequencer_commitments,
                 data.da_block_headers_of_soft_confirmations,
+                &data.cache_prune_l2_heights,
                 forks,
             );
 

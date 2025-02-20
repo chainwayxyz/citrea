@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use jmt::KeyHash;
 use sov_modules_core::{
-    OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
+    OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::zk::StorageRootHash;
@@ -59,13 +59,13 @@ where
 
     fn compute_state_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided jmt proof
-        for (key, read_value) in state_accesses.ordered_reads {
+        for (key, read_value) in state_log.ordered_reads() {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
             let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_hint();
@@ -79,17 +79,16 @@ where
             }
         }
 
-        let mut diff = Vec::with_capacity(state_accesses.ordered_writes.len());
+        let mut diff = vec![];
 
         // Compute the jmt update from the write batch
-        let batch = state_accesses
-            .ordered_writes
-            .into_iter()
+        let batch = state_log
+            .iter_ordered_writes()
             .map(|(key, value)| {
                 let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
                 let key_bytes = key.key.clone();
-                let value_bytes = value.map(|v| v.value.clone());
+                let value_bytes = value.as_ref().map(|v| v.value.clone());
 
                 // Seems like we can get rid of the extra clone here
                 diff.push((key_bytes, value_bytes.clone()));
@@ -121,8 +120,8 @@ where
     fn commit(
         &self,
         _node_batch: &Self::StateUpdate,
-        _accessory_writes: &OrderedReadsAndWrites,
-        _offchain_writes: &OrderedReadsAndWrites,
+        _accessory_writes: &OrderedWrites,
+        _offchain_log: &ReadWriteLog,
     ) {
     }
 
