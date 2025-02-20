@@ -113,6 +113,7 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
     fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
         let tx = TransactionSignedNoHash::try_from(evm_tx)?;
         let tx: TransactionSigned = tx.into();
+        // TODO: Use constant sys tx signature once we update reth
         let sys_tx_signature = reth_primitives::Signature::new(
             U256::ZERO,
             U256::ZERO,
