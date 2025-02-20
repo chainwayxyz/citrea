@@ -76,7 +76,9 @@ macro_rules! impl_borsh_codec {
     ($t:tt) => {
         impl StateKeyCodec<$t> for BorshCodec {
             fn encode_key(&self, value: &$t) -> Vec<u8> {
-                borsh::to_vec(value).expect("Failed to serialize key")
+                let mut buf = Vec::with_capacity(8);
+                BorshSerialize::serialize(value, &mut buf).unwrap();
+                buf
             }
         }
 
@@ -84,7 +86,9 @@ macro_rules! impl_borsh_codec {
             type Error = std::io::Error;
 
             fn encode_value(&self, value: &$t) -> Vec<u8> {
-                borsh::to_vec(value).expect("Failed to serialize value")
+                let mut buf = Vec::with_capacity(8);
+                BorshSerialize::serialize(value, &mut buf).unwrap();
+                buf
             }
 
             fn try_decode_value(&self, bytes: &[u8]) -> Result<$t, Self::Error> {
@@ -121,6 +125,8 @@ where
     T: BorshSerialize,
 {
     fn encode_key_like(&self, borrowed: &[T]) -> Vec<u8> {
-        borsh::to_vec(borrowed).unwrap()
+        let mut buf = Vec::with_capacity(64);
+        BorshSerialize::serialize(borrowed, &mut buf).unwrap();
+        buf
     }
 }
