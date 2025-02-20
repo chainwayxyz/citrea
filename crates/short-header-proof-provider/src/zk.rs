@@ -45,7 +45,13 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             })
             .1;
 
-        let shp = Da::ShortHeaderProof::try_from_slice(&shp).unwrap();
-        Ok(shp.verify_with_params(block_hash, txs_commitment).is_ok())
+        let shp = Da::ShortHeaderProof::try_from_slice(&shp)
+            .expect("Should deserialize short header proof");
+
+        if let Ok(l1_update_info) = shp.verify() {
+            return Ok(txs_commitment == l1_update_info.tx_commitment
+                && block_hash == l1_update_info.header_hash);
+        }
+        return Ok(false);
     }
 }
