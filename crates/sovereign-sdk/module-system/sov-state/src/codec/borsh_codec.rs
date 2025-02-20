@@ -11,19 +11,25 @@ pub struct BorshCodec;
 
 impl StateKeyCodec<AlloyU256> for BorshCodec {
     fn encode_key(&self, value: &AlloyU256) -> Vec<u8> {
-        borsh::to_vec(value.as_limbs()).expect("Failed to serialize key")
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value.as_limbs(), &mut buf).unwrap();
+        buf
     }
 }
 
 impl StateKeyCodec<AlloyAddress> for BorshCodec {
     fn encode_key(&self, value: &AlloyAddress) -> Vec<u8> {
-        borsh::to_vec(&value.0 .0).expect("Failed to serialize key")
+        let mut buf = Vec::with_capacity(20);
+        BorshSerialize::serialize(&value.0 .0, &mut buf).unwrap();
+        buf
     }
 }
 
 impl StateKeyCodec<ModuleAddress> for BorshCodec {
     fn encode_key(&self, value: &ModuleAddress) -> Vec<u8> {
-        borsh::to_vec(&value).expect("Failed to serialize key")
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(&value, &mut buf).unwrap();
+        buf
     }
 }
 
@@ -31,8 +37,9 @@ impl StateValueCodec<AlloyU256> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &AlloyU256) -> Vec<u8> {
-        let t = value.as_limbs();
-        borsh::to_vec(t).unwrap()
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value.as_limbs(), &mut buf).unwrap();
+        buf
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<AlloyU256, Self::Error> {
@@ -41,12 +48,13 @@ impl StateValueCodec<AlloyU256> for BorshCodec {
     }
 }
 
-impl<T> StateKeyCodec<Vec<T>> for BorshCodec
-where
-    T: BorshSerialize,
-{
-    fn encode_key(&self, value: &Vec<T>) -> Vec<u8> {
-        borsh::to_vec(value).expect("Failed to serialize key")
+// This one is needed for PublicKey only.
+// FIXME: Remove before mainnet
+impl StateKeyCodec<Vec<u8>> for BorshCodec {
+    fn encode_key(&self, value: &Vec<u8>) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + value.len());
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
     }
 }
 
