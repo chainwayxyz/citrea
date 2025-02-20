@@ -89,7 +89,9 @@ impl StateValueCodec<AccountInfo> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &AccountInfo) -> Vec<u8> {
-        borsh::to_vec(&value).unwrap()
+        let mut buf = Vec::with_capacity(32 + 8 + 32 + 1);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<AccountInfo, Self::Error> {

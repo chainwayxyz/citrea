@@ -1,5 +1,5 @@
 use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
 use sov_modules_core::{Address as ModuleAddress, EncodeKeyLike};
 
 use super::{StateCodec, StateKeyCodec};
@@ -11,19 +11,25 @@ pub struct BorshCodec;
 
 impl StateKeyCodec<AlloyU256> for BorshCodec {
     fn encode_key(&self, value: &AlloyU256) -> Vec<u8> {
-        borsh::to_vec(value.as_limbs()).expect("Failed to serialize key")
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value.as_limbs(), &mut buf).unwrap();
+        buf
     }
 }
 
 impl StateKeyCodec<AlloyAddress> for BorshCodec {
     fn encode_key(&self, value: &AlloyAddress) -> Vec<u8> {
-        borsh::to_vec(&value.0 .0).expect("Failed to serialize key")
+        let mut buf = Vec::with_capacity(20);
+        BorshSerialize::serialize(&value.0 .0, &mut buf).unwrap();
+        buf
     }
 }
 
 impl StateKeyCodec<ModuleAddress> for BorshCodec {
     fn encode_key(&self, value: &ModuleAddress) -> Vec<u8> {
-        borsh::to_vec(&value).expect("Failed to serialize key")
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(&value, &mut buf).unwrap();
+        buf
     }
 }
 
@@ -31,8 +37,9 @@ impl StateValueCodec<AlloyU256> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &AlloyU256) -> Vec<u8> {
-        let t = value.as_limbs();
-        borsh::to_vec(t).unwrap()
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value.as_limbs(), &mut buf).unwrap();
+        buf
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<AlloyU256, Self::Error> {
@@ -41,26 +48,35 @@ impl StateValueCodec<AlloyU256> for BorshCodec {
     }
 }
 
-impl<T> StateKeyCodec<Vec<T>> for BorshCodec
-where
-    T: BorshSerialize,
+// This one is needed for PublicKey only.
+// FIXME: Remove before mainnet
+impl StateKeyCodec<Vec<u8>> for BorshCodec {
+    fn encode_key(&self, value: &Vec<u8>) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + value.len());
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
+    }
+}
+// FIXME: Remove before mainnet
+impl EncodeKeyLike<[u8], Vec<u8>> for BorshCodec
 {
-    fn encode_key(&self, value: &Vec<T>) -> Vec<u8> {
-        borsh::to_vec(value).expect("Failed to serialize key")
+    fn encode_key_like(&self, borrowed: &[u8]) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + borrowed.len());
+        BorshSerialize::serialize(borrowed, &mut buf).unwrap();
+        buf
     }
 }
 
-impl<T> StateValueCodec<Vec<T>> for BorshCodec
-where
-    T: BorshSerialize + BorshDeserialize,
-{
+impl StateValueCodec<Vec<u8>> for BorshCodec {
     type Error = std::io::Error;
 
-    fn encode_value(&self, value: &Vec<T>) -> Vec<u8> {
-        borsh::to_vec(value).expect("Failed to serialize value")
+    fn encode_value(&self, value: &Vec<u8>) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + value.len());
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
     }
 
-    fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<T>, Self::Error> {
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<u8>, Self::Error> {
         borsh::from_slice(bytes)
     }
 }
@@ -69,7 +85,9 @@ macro_rules! impl_borsh_codec {
     ($t:tt) => {
         impl StateKeyCodec<$t> for BorshCodec {
             fn encode_key(&self, value: &$t) -> Vec<u8> {
-                borsh::to_vec(value).expect("Failed to serialize key")
+                let mut buf = Vec::with_capacity(8);
+                BorshSerialize::serialize(value, &mut buf).unwrap();
+                buf
             }
         }
 
@@ -77,7 +95,9 @@ macro_rules! impl_borsh_codec {
             type Error = std::io::Error;
 
             fn encode_value(&self, value: &$t) -> Vec<u8> {
-                borsh::to_vec(value).expect("Failed to serialize value")
+                let mut buf = Vec::with_capacity(8);
+                BorshSerialize::serialize(value, &mut buf).unwrap();
+                buf
             }
 
             fn try_decode_value(&self, bytes: &[u8]) -> Result<$t, Self::Error> {
@@ -104,16 +124,5 @@ impl StateCodec for BorshCodec {
 
     fn value_codec(&self) -> &Self::ValueCodec {
         self
-    }
-}
-
-// In borsh, a slice is encoded the same way as a vector except in edge case where
-// T is zero-sized, in which case Vec<T> is not borsh encodable.
-impl<T> EncodeKeyLike<[T], Vec<T>> for BorshCodec
-where
-    T: BorshSerialize,
-{
-    fn encode_key_like(&self, borrowed: &[T]) -> Vec<u8> {
-        borsh::to_vec(borrowed).unwrap()
     }
 }

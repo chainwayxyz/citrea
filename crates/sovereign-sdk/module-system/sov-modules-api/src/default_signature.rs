@@ -336,7 +336,9 @@ impl BorshSerialize for DefaultPublicKey {
 
 impl StateKeyCodec<DefaultPublicKey> for BorshCodec {
     fn encode_key(&self, value: &DefaultPublicKey) -> Vec<u8> {
-        borsh::to_vec(value).expect("Failed to serialize key")
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
     }
 }
 
@@ -344,7 +346,9 @@ impl StateValueCodec<DefaultPublicKey> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &DefaultPublicKey) -> Vec<u8> {
-        borsh::to_vec(&value).unwrap()
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<DefaultPublicKey, Self::Error> {
