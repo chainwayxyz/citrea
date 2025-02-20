@@ -406,6 +406,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                     parsed_txs.into(),
                     blobs.into(),
                     l2_block.deposit_data,
+                    l2_block.da_slot_height,
+                    l2_block.da_slot_hash,
                 )
             };
 

@@ -471,8 +471,6 @@ where
         // create the soft confirmation header
         let header = L2Header::new(
             l2_height,
-            da_block.header().height(),
-            da_block.header().hash().into(),
             da_block.header().txs_commitment().into(),
             self.soft_confirmation_hash,
             soft_confirmation_result.state_root_transition.final_root,
@@ -487,8 +485,17 @@ where
             &blobs,
             &txs,
             deposit_data.clone(),
+            da_block.header().height(),
+            da_block.header().hash().into(),
         )?;
-        let l2_block = L2Block::new(signed_header, txs.into(), blobs.into(), deposit_data);
+        let l2_block = L2Block::new(
+            signed_header,
+            txs.into(),
+            blobs.into(),
+            deposit_data,
+            da_block.header().height(),
+            da_block.header().hash().into(),
+        );
 
         debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
@@ -811,6 +818,7 @@ where
         Ok(tx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn sign_soft_confirmation<'txs>(
         &mut self,
         active_spec: SpecId,
@@ -818,14 +826,25 @@ where
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
         deposit_data: Vec<Vec<u8>>,
+        da_slot_height: u64,
+        da_slot_hash: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
         match active_spec {
-            SpecId::Genesis => {
-                self.sign_soft_confirmation_batch_v1(header, blobs, txs, deposit_data)
-            }
-            SpecId::Kumquat => {
-                self.sign_soft_confirmation_batch_v2(header, blobs, txs, deposit_data)
-            }
+            SpecId::Genesis => self.sign_soft_confirmation_batch_v1(
+                header,
+                blobs,
+                deposit_data,
+                da_slot_height,
+                da_slot_hash,
+            ),
+            SpecId::Kumquat => self.sign_soft_confirmation_batch_v2(
+                header,
+                blobs,
+                txs,
+                deposit_data,
+                da_slot_height,
+                da_slot_hash,
+            ),
             _ => self.sign_soft_confirmation_header(header),
         }
     }
@@ -852,9 +871,17 @@ where
         blobs: &'txs [Vec<u8>],
         txs: &'txs [StfTransaction<Da::Spec>],
         deposit_data: Vec<Vec<u8>>,
+        da_slot_height: u64,
+        da_slot_hash: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
-        let soft_confirmation =
-            &UnsignedSoftConfirmation::from((&header, blobs.to_vec(), txs, deposit_data));
+        let soft_confirmation = &UnsignedSoftConfirmation::new(
+            &header,
+            blobs.to_vec(),
+            txs,
+            deposit_data,
+            da_slot_height,
+            da_slot_hash,
+        );
 
         let digest =
             soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
@@ -873,19 +900,24 @@ where
     /// TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
     ///   when removing this fn
     /// FIXME: ^
-    fn sign_soft_confirmation_batch_v1<'txs>(
+    fn sign_soft_confirmation_batch_v1(
         &mut self,
         header: L2Header,
-        blobs: &'txs [Vec<u8>],
-        txs: &'txs [StfTransaction<Da::Spec>],
+        blobs: &[Vec<u8>],
         deposit_data: Vec<Vec<u8>>,
+        da_slot_height: u64,
+        da_slot_hash: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
         use digest::Digest;
 
-        let soft_confirmation =
-            &UnsignedSoftConfirmation::from((&header, blobs.to_vec(), txs, deposit_data));
-        let raw = borsh::to_vec(&UnsignedSoftConfirmationV1::from(soft_confirmation.clone()))
-            .map_err(|e| anyhow!(e))?;
+        let soft_confirmation = &UnsignedSoftConfirmationV1::new(
+            &header,
+            blobs.to_vec(),
+            deposit_data,
+            da_slot_height,
+            da_slot_hash,
+        );
+        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
         let hash = <DefaultContext as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
