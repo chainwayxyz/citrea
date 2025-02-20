@@ -19,13 +19,16 @@ use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::types::PruningNodeType;
 use citrea_storage_ops::pruning::PruningConfig;
+use short_header_proof_provider::{
+    NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
+};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,
 };
-use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
+use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
@@ -144,7 +147,13 @@ pub async fn start_rollup(
         )
         .await
         .expect("Dependencies setup should work");
-
+    match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+        MockDaSpec,
+    >::new(ledger_db.clone())))
+    {
+        Ok(_) => tracing::debug!("Short header proof provider set"),
+        Err(_) => tracing::error!("Short header proof provider already set"),
+    };
     let sequencer_client_url = rollup_config
         .runner
         .clone()

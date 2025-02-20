@@ -19,6 +19,9 @@ use citrea_storage_ops::pruning::types::PruningNodeType;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
+use short_header_proof_provider::{
+    NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
+};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
@@ -209,6 +212,14 @@ where
             soft_confirmation_channel.1
         }
         _ => None,
+    };
+
+    match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+        <S as RollupBlueprint>::DaSpec,
+    >::new(ledger_db.clone())))
+    {
+        Ok(_) => tracing::debug!("Short header proof provider set"),
+        Err(_) => tracing::error!("Short header proof provider already set"),
     };
 
     let rpc_storage = storage_manager.create_final_view_storage();
