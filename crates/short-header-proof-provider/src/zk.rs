@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
+use std::ops::RangeInclusive;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::DaSpec;
@@ -10,6 +11,7 @@ use super::ShortHeaderProofProvider;
 use crate::ShortHeaderProofProviderError;
 
 pub struct ZkShortHeaderProofProviderService<Da: DaSpec> {
+    queried_and_verified_hashes: RefCell<Vec<[u8; 32]>>,
     short_header_proofs: RefCell<VecDeque<([u8; 32], Vec<u8>)>>,
     phantom: PhantomData<Da>,
 }
@@ -18,6 +20,7 @@ impl<Da: DaSpec> ZkShortHeaderProofProviderService<Da> {
     pub fn new(short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>) -> Self {
         Self {
             short_header_proofs: RefCell::new(short_header_proofs),
+            queried_and_verified_hashes: RefCell::new(Vec::new()),
             phantom: PhantomData,
         }
     }
@@ -32,6 +35,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
         &self,
         block_hash: [u8; 32],
         txs_commitment: [u8; 32],
+        _l2_height: u64,
     ) -> Result<bool, ShortHeaderProofProviderError> {
         let shp = self
             .short_header_proofs
@@ -49,9 +53,23 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             .expect("Should deserialize short header proof");
 
         if let Ok(l1_update_info) = shp.verify() {
+            self.queried_and_verified_hashes
+                .borrow_mut()
+                .push(block_hash);
             return Ok(txs_commitment == l1_update_info.tx_commitment
                 && block_hash == l1_update_info.header_hash);
         }
-        return Ok(false);
+        Ok(false)
+    }
+
+    fn clear_queried_hashes(&self) {
+        self.queried_and_verified_hashes.borrow_mut().clear();
+    }
+
+    fn take_queried_hashes(&self, _l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]> {
+        self.queried_and_verified_hashes
+            .borrow_mut()
+            .drain(..)
+            .collect()
     }
 }

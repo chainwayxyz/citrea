@@ -83,6 +83,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
+    l2_height: u64,
 ) -> Result<Vec<ExecutionResult>, SoftConfirmationModuleCallError> {
     if txs.is_empty() {
         return Ok(vec![]);
@@ -118,7 +119,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 return Err(SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
-            post_fork2_system_tx_handler(tx)?;
+            post_fork2_system_tx_handler(tx, l2_height)?;
         } else {
             should_be_end_of_sys_txs = true;
         }
@@ -164,6 +165,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
 
 fn post_fork2_system_tx_handler(
     tx: &TransactionSignedEcRecovered,
+    l2_height: u64,
 ) -> Result<(), SoftConfirmationModuleCallError> {
     let function_selector: [u8; 4] = tx.input()[0..4]
         .try_into()
@@ -179,9 +181,11 @@ fn post_fork2_system_tx_handler(
         let txs_commitment: [u8; 32] = tx.input()[36..68]
             .try_into()
             .expect("Should have txs commitment parameter");
-        match shp_provider
-            .get_and_verify_short_header_proof_by_l1_hash(l1_block_hash, txs_commitment)
-        {
+        match shp_provider.get_and_verify_short_header_proof_by_l1_hash(
+            l1_block_hash,
+            txs_commitment,
+            l2_height,
+        ) {
             Ok(true) => return Ok(()),
             Ok(false) => {
                 // Failed to verify shp

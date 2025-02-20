@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -10,6 +10,7 @@ use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
 use serde::{Deserialize, Serialize};
+use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use sov_db::schema::types::SoftConfirmationNumber;
@@ -329,9 +330,6 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
     let mut da_block_headers_of_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
 
-    let mut l1_hash_set = HashSet::new();
-    let mut short_header_proofs = VecDeque::new();
-
     for sequencer_commitment in sequencer_commitments.iter() {
         // get the l2 height ranges of each seq_commitments
         let start_l2 = sequencer_commitment.l2_start_block_number;
@@ -355,15 +353,6 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
-            let shp = ledger_db
-                .get_short_header_proof_by_l1_hash(&soft_confirmation.da_slot_hash)?
-                .expect("Must have short header proof");
-
-            // If first time, insert and push to the vector
-            if l1_hash_set.insert(soft_confirmation.da_slot_hash) {
-                short_header_proofs.push_back((soft_confirmation.da_slot_hash, shp));
-            }
-
             if da_block_headers_to_push.is_empty()
                 || da_block_headers_to_push.last().unwrap().height()
                     != soft_confirmation.da_slot_height
@@ -416,16 +405,17 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     }
 
     // Replay transactions in the commitment blocks and collect cumulative witnesses
-    let (state_transition_witnesses, cache_prune_l2_heights) = generate_cumulative_witness(
-        &committed_l2_blocks,
-        ledger_db,
-        da_service,
-        l1_block_cache.clone(),
-        storage_manager,
-        sequencer_k256_pub_key,
-        sequencer_pub_key,
-    )
-    .await?;
+    let (state_transition_witnesses, cache_prune_l2_heights, short_header_proofs) =
+        generate_cumulative_witness(
+            &committed_l2_blocks,
+            ledger_db,
+            da_service,
+            l1_block_cache.clone(),
+            storage_manager,
+            sequencer_k256_pub_key,
+            sequencer_pub_key,
+        )
+        .await?;
 
     Ok((
         short_header_proofs,
@@ -444,7 +434,13 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     storage_manager: &ProverStorageManager,
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
-) -> anyhow::Result<(VecDeque<Vec<(ArrayWitness, ArrayWitness)>>, Vec<u64>)> {
+) -> anyhow::Result<(
+    VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
+    Vec<u64>,
+    VecDeque<([u8; 32], Vec<u8>)>,
+)> {
+    let mut short_header_proofs: VecDeque<([u8; 32], Vec<u8>)> = VecDeque::new();
+
     let mut state_transition_witnesses = VecDeque::with_capacity(committed_l2_blocks.len());
 
     let mut init_state_root = ledger_db
@@ -469,6 +465,11 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         )
         .spec_id
             >= SpecId::Fork2;
+
+        SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .unwrap()
+            .clear_queried_hashes();
 
         for l2_block in l2_blocks_in_commitment {
             let l2_height = l2_block.l2_height();
@@ -533,10 +534,33 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             ));
         }
 
+        let new_hashes = SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .unwrap()
+            .take_queried_hashes(
+                l2_blocks_in_commitment[0].l2_height()
+                    ..=l2_blocks_in_commitment
+                        .last()
+                        .expect("must have at least one")
+                        .l2_height(),
+            );
+
+        for hash in new_hashes {
+            let serialized_shp = ledger_db
+                .get_short_header_proof_by_l1_hash(&hash)?
+                .expect("Should exist");
+
+            short_header_proofs.push_back((hash, serialized_shp));
+        }
+
         state_transition_witnesses.push_back(witnesses);
     }
 
-    Ok((state_transition_witnesses, cache_prune_l2_heights))
+    Ok((
+        state_transition_witnesses,
+        cache_prune_l2_heights,
+        short_header_proofs,
+    ))
 }
 
 /// TODO: This check needs a rewrite for sure.

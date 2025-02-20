@@ -1866,6 +1866,7 @@ dependencies = [
  "rs_merkle",
  "serde",
  "sha2",
+ "short-header-proof-provider",
  "sov-db",
  "sov-ledger-rpc",
  "sov-mock-da",

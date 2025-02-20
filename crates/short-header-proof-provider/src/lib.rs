@@ -2,6 +2,8 @@
 mod native;
 mod zk;
 
+use std::ops::RangeInclusive;
+
 #[cfg(feature = "native")]
 pub use native::*;
 use once_cell::sync::OnceCell;
@@ -23,7 +25,14 @@ pub trait ShortHeaderProofProvider: Send + Sync {
         &self,
         l1_hash: [u8; 32],
         txs_commitment: [u8; 32],
+        l2_height: u64, // needed on the native implementation to track queries to the provider
     ) -> Result<bool, ShortHeaderProofProviderError>;
+
+    /// Clears quried short header proofs
+    fn clear_queried_hashes(&self);
+
+    /// Takes the queried short header proofs
+    fn take_queried_hashes(&self, l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]>;
 }
 
 pub static SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvider>> =

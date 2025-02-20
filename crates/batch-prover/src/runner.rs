@@ -190,6 +190,7 @@ where
 
         let l2_height = soft_confirmation.l2_height;
 
+        // TODO: this is a problem after sequencer puts set block info system transactions in blocks
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
             soft_confirmation.da_slot_height,
@@ -197,6 +198,7 @@ where
         )
         .await?;
 
+        tracing::info!("Short header proof da hash: {:?}", current_l1_block.hash());
         // Save short header proof to ledger db for Native Short Header Proof Provider Service
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
             Da::block_to_short_header_proof(current_l1_block.clone());

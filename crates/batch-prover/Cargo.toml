@@ -14,6 +14,7 @@ citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf" }
 prover-services = { path = "../prover-services" }
+short-header-proof-provider = { path = "../short-header-proof-provider", features = ["native"] }
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-ledger-rpc = { path = "../sovereign-sdk/full-node/sov-ledger-rpc", features = ["client"] }
