@@ -189,7 +189,8 @@ mod test {
                 block.txdata.len() as u32,
                 882547,
                 <[u8; 32]>::from_hex(
-                    "a4d7206595b921ee04f46e76fda0175dea5ad8d227af75110490d05b6a90df9c",
+                    // Witness root
+                    "9d652dffd72f7201dd0dbb598f864561a31183d10b9258bd4b35589ec3b0e91b",
                 )
                 .unwrap(),
             ),
@@ -222,7 +223,7 @@ mod test {
         assert_eq!(
             l1_update.tx_commitment,
             <[u8; 32]>::from_hex(
-                "a4d7206595b921ee04f46e76fda0175dea5ad8d227af75110490d05b6a90df9c"
+                "9d652dffd72f7201dd0dbb598f864561a31183d10b9258bd4b35589ec3b0e91b"
             )
             .unwrap()
         );
