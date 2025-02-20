@@ -7,8 +7,8 @@ resolver = "2"
 [workspace]
 
 [dependencies]
-risc0-zkvm = { version = "1.2.3", default-features = false, features = ["unstable"] }
-risc0-zkvm-platform = { version = "1.2.3", features = ["heap-embedded-alloc"] }
+risc0-zkvm = { version = "1.2.4", default-features = false, features = ["unstable"] }
+risc0-zkvm-platform = { version = "1.2.4", features = ["heap-embedded-alloc"] }
 
 anyhow = "1.0.95"
 bitcoin-da = { path = "../../../../crates/bitcoin-da", default-features = false }

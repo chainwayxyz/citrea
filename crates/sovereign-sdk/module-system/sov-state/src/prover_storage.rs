@@ -7,7 +7,7 @@ use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use sov_modules_core::{
-    CacheKey, NativeStorage, OrderedReadsAndWrites, Storage, StorageKey, StorageProof,
+    CacheKey, NativeStorage, OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof,
     StorageValue, Witness,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
@@ -119,7 +119,7 @@ impl Storage for ProverStorage {
 
     fn compute_state_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let version = self.version();
@@ -142,7 +142,7 @@ impl Storage for ProverStorage {
         witness.add_hint(&prev_root.0);
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
-        for (key, read_value) in state_accesses.ordered_reads {
+        for (key, read_value) in state_log.ordered_reads() {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
             let (result, proof) = jmt.get_with_proof(key_hash, version)?;
@@ -152,25 +152,22 @@ impl Storage for ProverStorage {
             witness.add_hint(&proof);
         }
 
-        let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
+        let mut key_preimages = vec![];
 
-        let mut diff = Vec::with_capacity(state_accesses.ordered_writes.len());
+        let mut diff = vec![];
 
         // Compute the jmt update from the write batch
-        let batch = state_accesses
-            .ordered_writes
-            .into_iter()
-            .map(|(key, value)| {
-                let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
+        let batch = state_log.iter_ordered_writes().map(|(key, value)| {
+            let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-                let key_bytes = key.key.clone();
-                let value_bytes = value.map(|v| v.value.clone());
+            let key_bytes = key.key.clone();
+            let value_bytes = value.as_ref().map(|v| v.value.clone());
 
-                diff.push((key_bytes, value_bytes.clone()));
-                key_preimages.push((key_hash, key));
+            diff.push((key_bytes, value_bytes.clone()));
+            key_preimages.push((key_hash, key.clone()));
 
-                (key_hash, value_bytes.map(|v| (*v).to_vec()))
-            });
+            (key_hash, value_bytes.map(|v| (*v).to_vec()))
+        });
 
         let next_version = version + 1;
 
@@ -203,8 +200,8 @@ impl Storage for ProverStorage {
     fn commit(
         &self,
         state_update: &Self::StateUpdate,
-        accessory_writes: &OrderedReadsAndWrites,
-        offchain_writes: &OrderedReadsAndWrites,
+        accessory_writes: &OrderedWrites,
+        offchain_log: &ReadWriteLog,
     ) {
         let next_version = self.version() + 1;
 
@@ -228,7 +225,6 @@ impl Storage for ProverStorage {
         self.native_db
             .set_values(
                 accessory_writes
-                    .ordered_writes
                     .iter()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
                 next_version,
@@ -237,9 +233,8 @@ impl Storage for ProverStorage {
 
         self.native_db
             .set_values(
-                offchain_writes
-                    .ordered_writes
-                    .iter()
+                offchain_log
+                    .iter_ordered_writes()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
                 next_version,
             )

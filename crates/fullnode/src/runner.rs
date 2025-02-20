@@ -168,7 +168,7 @@ where
         let da_slot_height = soft_confirmation.da_slot_height;
         let da_slot_hash = soft_confirmation.da_slot_hash;
 
-        let mut l2_block: L2Block<StfTransaction<Da::Spec>> = if current_spec >= SpecId::Kumquat {
+        let l2_block: L2Block<StfTransaction<Da::Spec>> = if current_spec >= SpecId::Kumquat {
             soft_confirmation
                 .clone()
                 .try_into()
@@ -210,10 +210,12 @@ where
             sequencer_pub_key,
             &self.state_root,
             pre_state,
+            None,
+            None,
             Default::default(),
             Default::default(),
             current_l1_block.header(),
-            &mut l2_block,
+            &l2_block,
         )?;
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;

@@ -35,7 +35,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::storage::NativeStorage;
-use sov_state::{ArrayWitness, ProverStorage};
+use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 use tracing::{debug, info, instrument};
 
@@ -260,7 +260,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaBatchProver<Self::DaService, LedgerDB>,
-        BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB, ArrayWitness>,
+        BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
     )> {
         match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<

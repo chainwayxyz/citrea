@@ -15,6 +15,13 @@ pub struct CacheKey {
     pub key: RefCount<[u8]>,
 }
 
+impl CacheKey {
+    /// Returns the heap size of the `CacheKey`
+    pub fn size(&self) -> usize {
+        self.key.len()
+    }
+}
+
 impl fmt::Display for CacheKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO revisit how we display keys
@@ -29,14 +36,19 @@ pub struct CacheValue {
     pub value: RefCount<[u8]>,
 }
 
+impl CacheValue {
+    /// Returns the heap size of the `CacheValue`
+    pub fn size(&self) -> usize {
+        self.value.len()
+    }
+}
+
 impl fmt::Display for CacheValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO revisit how we display values
         write!(f, "{:?}", self.value)
     }
 }
-
-// TODO: I don't believe this is necessary
 
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
@@ -46,6 +58,7 @@ impl fmt::Display for CacheValue {
 /// 3. Otherwise, retain the read.
 /// 4. A write is retained unless it is followed by another write.
 #[derive(PartialEq, Eq, Debug, Clone)]
+#[repr(u8)]
 pub(crate) enum Access {
     Read(Option<CacheValue>),
     ReadThenWrite {
@@ -92,6 +105,20 @@ impl Access {
             // We can do this unconditionally, since overwriting a value with itself is a no-op
             Access::Write(value) => *value = new_value,
         }
+    }
+
+    pub fn size(&self) -> usize {
+        let inner_size = match self {
+            Access::Read(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
+            Access::ReadThenWrite { original, modified } => {
+                let original_size = original.as_ref().map(|v| v.size()).unwrap_or_default();
+                let modified_size = modified.as_ref().map(|v| v.size()).unwrap_or_default();
+                original_size + modified_size
+            }
+            Access::Write(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
+        };
+        // 1 byte enum tag
+        1 + inner_size
     }
 
     pub fn merge(&mut self, rhs: Self) -> Result<(), MergeError> {
@@ -238,16 +265,13 @@ impl CacheLog {
 }
 
 impl CacheLog {
-    /// Returns the owned set of key/value pairs of the cache.
-    pub fn take_writes(self) -> Vec<(CacheKey, Option<CacheValue>)> {
-        self.log
-            .into_iter()
-            .filter_map(|(k, v)| match v {
-                Access::Read(_) => None,
-                Access::ReadThenWrite { modified, .. } => Some((k, modified)),
-                Access::Write(write) => Some((k, write)),
-            })
-            .collect()
+    /// Iterate over key/value pairs of write cache
+    pub fn iter_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
+        self.log.iter().filter_map(|(k, v)| match v {
+            Access::Read(_) => None,
+            Access::ReadThenWrite { modified, .. } => Some((k, modified)),
+            Access::Write(write) => Some((k, write)),
+        })
     }
 
     /// Returns a value corresponding to the key.
@@ -290,6 +314,43 @@ impl CacheLog {
                 vacancy.insert(Access::Write(value));
             }
         }
+    }
+
+    /// Marks all cache entries as read.
+    pub fn mark_all_as_read(&mut self) {
+        for (_, access) in self.log.iter_mut() {
+            match access {
+                Access::Write(val) => {
+                    let val = val.take();
+                    *access = Access::Read(val);
+                }
+                Access::ReadThenWrite { modified, .. } => {
+                    let val = modified.take();
+                    *access = Access::Read(val);
+                }
+                Access::Read(_) => {}
+            }
+        }
+    }
+
+    /// Prunes half of the cache efficiently
+    pub fn prune_half(&mut self) {
+        if self.log.is_empty() {
+            return;
+        }
+
+        let mid_idx = self.log.len() / 2;
+        let mid_key = self.log.keys().nth(mid_idx).expect("must exist").clone();
+        self.log.split_off(&mid_key);
+    }
+
+    /// Returns the estimated heap size of the `CacheLog`. This doesn't account for
+    /// pointer and node overhead coming from BTreeMap.
+    pub fn estimated_size(&self) -> usize {
+        self.log.iter().fold(0, |mut acc, (key, access)| {
+            acc += key.size() + access.size();
+            acc
+        })
     }
 
     /// Merges two cache logs in a way that preserves the first read (from self) and the last write (from rhs)
@@ -356,14 +417,46 @@ impl CacheLog {
     }
 }
 
-/// A struct that contains the values read from the DB and the values to be written, both in
-/// deterministic order.
-#[derive(Debug, Default)]
-pub struct OrderedReadsAndWrites {
-    /// Ordered reads.
-    pub ordered_reads: Vec<(CacheKey, Option<CacheValue>)>,
-    /// Ordered writes.
-    pub ordered_writes: Vec<(CacheKey, Option<CacheValue>)>,
+/// Type alias which contains ordered storage reads
+pub type OrderedReads = Vec<(CacheKey, Option<CacheValue>)>;
+
+/// Type alias which contains ordered storage writes
+pub type OrderedWrites = Vec<(CacheKey, Option<CacheValue>)>;
+
+/// `ReadWriteLog` is a container structure for ordered reads and writes. It also
+/// holds on to the `CacheLog` to allow reuse.
+#[derive(Default)]
+pub struct ReadWriteLog {
+    pub(crate) ordered_reads: OrderedReads,
+    pub(crate) cache_log: CacheLog,
+}
+
+impl ReadWriteLog {
+    /// Returns slice of ordered reads
+    pub fn ordered_reads(&self) -> &[(CacheKey, Option<CacheValue>)] {
+        self.ordered_reads.as_slice()
+    }
+
+    /// Returns an iterator over ordered writes
+    pub fn iter_ordered_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
+        self.cache_log.iter_writes()
+    }
+
+    /// Converts this into a `CacheLog` for reuse. Marks all entries as `Access::Read` before returning.
+    pub fn into_cache_log(mut self) -> CacheLog {
+        self.cache_log.mark_all_as_read();
+        self.cache_log
+    }
+
+    /// Returns the estimated cache size
+    pub fn estimated_cache_size(&self) -> usize {
+        self.cache_log.estimated_size()
+    }
+
+    /// Prunes the cache into half unconditionally.
+    pub fn prune_half(&mut self) {
+        self.cache_log.prune_half();
+    }
 }
 
 #[cfg(test)]

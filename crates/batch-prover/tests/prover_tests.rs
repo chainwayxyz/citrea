@@ -366,6 +366,7 @@ fn make_transition_data(
         short_header_proofs: VecDeque::new(),
         final_state_root: [0; 32],
         sequencer_commitments: vec![],
+        cache_prune_l2_heights: vec![],
     }
 }
 

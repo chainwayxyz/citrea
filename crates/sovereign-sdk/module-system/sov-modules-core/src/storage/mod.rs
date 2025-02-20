@@ -214,7 +214,7 @@ pub trait Storage: Clone {
     #[allow(clippy::type_complexity)]
     fn compute_state_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<
         (
@@ -229,21 +229,21 @@ pub trait Storage: Clone {
     fn commit(
         &self,
         node_batch: &Self::StateUpdate,
-        accessory_update: &OrderedReadsAndWrites,
-        offchain_update: &OrderedReadsAndWrites,
+        accessory_writes: &OrderedWrites,
+        offchain_log: &ReadWriteLog,
     );
 
     /// A version of [`Storage::validate_and_commit`] that allows for "accessory" non-JMT updates.
     fn validate_and_commit_with_accessory_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
-        accessory_update: &OrderedReadsAndWrites,
-        offchain_update: &OrderedReadsAndWrites,
+        accessory_writes: &OrderedWrites,
+        offchain_log: &ReadWriteLog,
     ) -> Result<StorageRootHash, anyhow::Error> {
         let (state_root_transition, node_batch, _) =
-            self.compute_state_update(state_accesses, witness)?;
-        self.commit(&node_batch, accessory_update, offchain_update);
+            self.compute_state_update(state_log, witness)?;
+        self.commit(&node_batch, accessory_writes, offchain_log);
 
         Ok(state_root_transition.final_root)
     }
@@ -254,12 +254,12 @@ pub trait Storage: Clone {
     /// `self.compute_state_update & self.commit`
     fn validate_and_commit(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_log: &ReadWriteLog,
         witness: &mut Self::Witness,
     ) -> Result<StorageRootHash, anyhow::Error> {
         Self::validate_and_commit_with_accessory_update(
             self,
-            state_accesses,
+            state_log,
             witness,
             &Default::default(),
             &Default::default(),

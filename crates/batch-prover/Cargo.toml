@@ -22,6 +22,7 @@ sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 # 3rd-party deps
 alloy-primitives = { workspace = true }
