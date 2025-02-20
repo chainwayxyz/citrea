@@ -8013,6 +8013,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "smallvec",
  "sov-modules-core",
  "sov-prover-storage-manager",
  "sov-rollup-interface",

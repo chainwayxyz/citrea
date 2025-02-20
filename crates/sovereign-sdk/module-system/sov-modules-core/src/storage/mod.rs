@@ -95,7 +95,7 @@ impl StorageKey {
         let encoded_key = codec.encode_key_like(key);
 
         let mut full_key = Vec::<u8>::with_capacity(prefix.len() + encoded_key.len());
-        full_key.extend(prefix.as_vec());
+        full_key.extend(prefix.as_slice());
         full_key.extend(&encoded_key);
 
         Self {
@@ -106,7 +106,7 @@ impl StorageKey {
     /// Creates a new [`StorageKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            key: RefCount::from(prefix.to_vec()),
+            key: RefCount::from(prefix.as_slice().to_vec()),
         }
     }
 }

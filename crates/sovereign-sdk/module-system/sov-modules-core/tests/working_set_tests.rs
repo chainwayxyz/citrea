@@ -8,7 +8,7 @@ fn test_workingset_get() {
     let codec = BcsCodec {};
     let storage = new_orphan_storage(tempdir.path()).unwrap();
 
-    let prefix = sov_modules_core::Prefix::new(vec![1, 2, 3]);
+    let prefix = sov_modules_core::Prefix::from_vec(vec![1, 2, 3]);
     let storage_key = StorageKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = StorageValue::new(&vec![7, 8, 9], &codec);
 

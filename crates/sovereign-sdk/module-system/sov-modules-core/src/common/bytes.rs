@@ -3,7 +3,10 @@
 use alloc::vec::Vec;
 use core::{fmt, str};
 
+#[cfg(feature = "sync")]
+use borsh::{BorshDeserialize, BorshSerialize};
 use sha2::Digest;
+use smallvec::SmallVec;
 
 use crate::module::Context;
 
@@ -13,17 +16,25 @@ use crate::module::Context;
 /// access them, as required by the module API. This also means that you might get key collisions,
 /// so it becomes necessary to prepend a prefix to each key.
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(
-    feature = "sync",
-    derive(
-        serde::Serialize,
-        serde::Deserialize,
-        borsh::BorshDeserialize,
-        borsh::BorshSerialize
-    )
-)]
+#[cfg_attr(feature = "sync", derive(serde::Serialize, serde::Deserialize,))]
 pub struct Prefix {
-    prefix: Vec<u8>,
+    prefix: PrefixInner,
+}
+type PrefixInner = SmallVec<[u8; 64]>;
+
+#[cfg(feature = "sync")]
+impl BorshSerialize for Prefix {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        BorshSerialize::serialize(self.prefix.as_slice(), writer)
+    }
+}
+
+#[cfg(feature = "sync")]
+impl BorshDeserialize for Prefix {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let buf: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(Self::from_vec(buf))
+    }
 }
 
 impl fmt::Display for Prefix {
@@ -47,19 +58,23 @@ impl Extend<u8> for Prefix {
 }
 
 impl Prefix {
+    /// Creates a new prefix from a byte slice.
+    pub fn from_slice(prefix: &[u8]) -> Self {
+        Self {
+            prefix: PrefixInner::from_slice(prefix),
+        }
+    }
+
     /// Creates a new prefix from a byte vector.
-    pub fn new(prefix: Vec<u8>) -> Self {
-        Self { prefix }
+    pub fn from_vec(prefix: Vec<u8>) -> Self {
+        Self {
+            prefix: PrefixInner::from_vec(prefix),
+        }
     }
 
-    /// Returns a reference to the vector containing the prefix.
-    pub fn as_vec(&self) -> &Vec<u8> {
-        &self.prefix
-    }
-
-    /// Returns a clone of the vector containing the prefix.
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.prefix.clone()
+    /// Returns a reference to the slice containing the prefix.
+    pub fn as_slice(&self) -> &[u8] {
+        self.prefix.as_slice()
     }
 
     /// Returns the length in bytes of the prefix.
@@ -67,20 +82,17 @@ impl Prefix {
         self.prefix.len()
     }
 
-    /// Returns `true` if the prefix is empty, `false` otherwise.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.prefix.is_empty()
+    /// Copy elements from a slice and append them to the prefix.
+    pub fn extend_from_slice(&mut self, bytes: &[u8]) {
+        self.prefix.extend_from_slice(bytes);
     }
 
     /// Returns a new prefix allocated on the fly, by extending the current
     /// prefix with the given bytes.
     pub fn extended(&self, bytes: &[u8]) -> Self {
-        let mut new_prefix = Vec::with_capacity(self.len() + bytes.len());
-        new_prefix.extend_from_slice(self.as_vec());
+        let mut new_prefix = self.prefix.clone();
         new_prefix.extend_from_slice(bytes);
-
-        Self::new(new_prefix)
+        Self { prefix: new_prefix }
     }
 }
 
@@ -157,6 +169,6 @@ impl ModulePrefix {
 impl From<ModulePrefix> for Prefix {
     fn from(prefix: ModulePrefix) -> Self {
         let combined_prefix = prefix.combine_prefix();
-        Prefix::new(combined_prefix)
+        Prefix::from_vec(combined_prefix)
     }
 }
