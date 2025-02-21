@@ -5,7 +5,7 @@ use borsh::BorshSerialize;
 use super::BatchProofCircuitInput;
 use crate::da::{BlobReaderTrait, DaSpec};
 use crate::soft_confirmation::SignedSoftConfirmationV1;
-use crate::witness::OldWitness;
+use crate::witness::PreFork2Witness;
 use crate::zk::StorageRootHash;
 
 /// Data required to verify a state transition.
@@ -29,7 +29,7 @@ pub struct BatchProofCircuitInputV1<Da: DaSpec> {
     /// The soft confirmations that are inside the sequencer commitments.
     pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmationV1>>,
     /// Corresponding witness for the soft confirmations.
-    pub state_transition_witnesses: VecDeque<Vec<OldWitness>>,
+    pub state_transition_witnesses: VecDeque<Vec<PreFork2Witness>>,
     /// DA block headers the L2 blocks were constructed on.
     pub da_block_headers_of_l2_blocks: VecDeque<Vec<Da::BlockHeader>>,
     /// Sequencer soft confirmation public key.
@@ -113,7 +113,12 @@ where
             state_transition_witnesses: input
                 .state_transition_witnesses
                 .into_iter()
-                .map(|witnesses| witnesses.into_iter().map(|(witness, _)| witness.into()).collect())
+                .map(|witnesses| {
+                    witnesses
+                        .into_iter()
+                        .map(|(witness, _)| witness.into())
+                        .collect()
+                })
                 .collect(),
             da_block_headers_of_l2_blocks: input.da_block_headers_of_l2_blocks,
             sequencer_public_key: input.sequencer_public_key,

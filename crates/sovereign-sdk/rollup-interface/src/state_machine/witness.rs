@@ -4,9 +4,9 @@ use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-/// OldWitness should only be used for forks < Fork2
+/// PreFork2Witness should only be used for forks < Fork2
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct OldWitness {
+pub struct PreFork2Witness {
     next_idx: usize,
     hints: Vec<Vec<u8>>,
 }
@@ -44,7 +44,7 @@ impl Witness {
     }
 }
 
-impl From<Witness> for OldWitness {
+impl From<Witness> for PreFork2Witness {
     fn from(value: Witness) -> Self {
         Self {
             next_idx: 0,
