@@ -589,9 +589,8 @@ where
 
         let soft_confirmation_hash = l2_block.hash();
 
-        let blobs = Some(l2_block.compute_blobs());
-
-        self.ledger_db.commit_l2_block(l2_block, tx_hashes, blobs)?;
+        self.ledger_db
+            .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
 
         // connect L1 and L2 height
         self.ledger_db.extend_l2_range_of_l1_slot(

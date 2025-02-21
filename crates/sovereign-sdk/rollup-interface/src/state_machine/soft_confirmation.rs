@@ -106,7 +106,6 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     pub fn new(
         header: SignedL2Header,
         txs: Cow<'txs, [Tx]>,
-        // blobs: Cow<'txs, [Vec<u8>]>,
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
@@ -190,7 +189,8 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     }
 
     /// Borsh serialize all txs as blobs
-    pub fn compute_blobs(&self) -> Vec<Vec<u8>> {
+    /// Required for backward compatiblity
+    fn compute_blobs(&self) -> Vec<Vec<u8>> {
         self.txs
             .iter()
             .map(|tx| borsh::to_vec(tx).unwrap())
