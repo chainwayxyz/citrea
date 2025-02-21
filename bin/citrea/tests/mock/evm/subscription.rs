@@ -51,6 +51,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });

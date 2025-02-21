@@ -63,6 +63,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
             rollup_config,
             Some(config1),
             None,
+            false,
         )
         .await;
     });
@@ -89,6 +90,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
             rollup_config,
             None,
             None,
+            false,
         )
         .await;
     });
@@ -152,6 +154,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
             rollup_config,
             Some(config1),
             None,
+            false,
         )
         .await;
     });
@@ -225,6 +228,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(config1),
             None,
+            false,
         )
         .await;
     });
@@ -318,6 +322,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(config1),
             None,
+            true,
         )
         .await;
     });
@@ -425,6 +430,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -450,6 +456,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
             rollup_config,
             None,
             None,
+            false,
         )
         .await;
     });
@@ -475,6 +482,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
             rollup_config,
             None,
             None,
+            false,
         )
         .await;
     });

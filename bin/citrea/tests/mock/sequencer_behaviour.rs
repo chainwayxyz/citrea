@@ -58,6 +58,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -166,6 +167,7 @@ async fn test_sequencer_commitment_threshold() {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -375,6 +377,7 @@ async fn test_gas_limit_too_high() {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -400,6 +403,7 @@ async fn test_gas_limit_too_high() {
             rollup_config,
             None,
             None,
+            false,
         )
         .await;
     });
@@ -516,6 +520,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });

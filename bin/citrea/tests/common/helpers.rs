@@ -53,6 +53,7 @@ pub enum NodeMode {
     LightClientProver(SocketAddr),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     runtime_genesis_paths: GenesisPaths,
@@ -61,6 +62,7 @@ pub async fn start_rollup(
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
     network: Option<Network>,
+    let_hell_loose: bool,
 ) -> TaskManager<()> {
     // create rollup config default creator function and use them here for the configs
 
@@ -156,24 +158,26 @@ pub async fn start_rollup(
     };
 
     // I am sorry
-    unsafe {
-        let s = SHORT_HEADER_PROOF_PROVIDER.get().unwrap();
-        use short_header_proof_provider::ShortHeaderProofProvider;
+    if let_hell_loose {
+        unsafe {
+            let s = SHORT_HEADER_PROOF_PROVIDER.get().unwrap();
+            use short_header_proof_provider::ShortHeaderProofProvider;
 
-        fn downcast_box<T>(trait_obj: Box<dyn ShortHeaderProofProvider>) -> Box<T> {
-            unsafe { Box::from_raw(Box::into_raw(trait_obj) as *mut T) }
+            fn downcast_box<T>(trait_obj: Box<dyn ShortHeaderProofProvider>) -> Box<T> {
+                unsafe { Box::from_raw(Box::into_raw(trait_obj) as *mut T) }
+            }
+            use sov_mock_da::MockDaSpec;
+            let leaked: &dyn ShortHeaderProofProvider = &**s; // Leak reference
+            let boxed_trait: Box<dyn ShortHeaderProofProvider> =
+                Box::from_raw(leaked as *const _ as *mut _);
+
+            let mut concrete: Box<NativeShortHeaderProofProviderService<MockDaSpec>> =
+                downcast_box(boxed_trait);
+
+            concrete.ledger_db = ledger_db.clone();
+
+            std::mem::forget(concrete);
         }
-        use sov_mock_da::MockDaSpec;
-        let leaked: &dyn ShortHeaderProofProvider = &**s; // Leak reference
-        let boxed_trait: Box<dyn ShortHeaderProofProvider> =
-            Box::from_raw(leaked as *const _ as *mut _);
-
-        let mut concrete: Box<NativeShortHeaderProofProviderService<MockDaSpec>> =
-            downcast_box(boxed_trait);
-
-        concrete.ledger_db = ledger_db.clone();
-
-        std::mem::forget(concrete);
     }
 
     let sequencer_client_url = rollup_config

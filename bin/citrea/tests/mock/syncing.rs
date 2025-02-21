@@ -56,6 +56,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -93,6 +94,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             rollup_config,
             None,
             None,
+            false,
         )
         .await;
     });
@@ -295,6 +297,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -324,6 +327,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             rollup_config,
             None,
             None,
+            false,
         )
         .await;
     });
@@ -444,6 +448,7 @@ async fn test_full_node_sync_status() {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -481,6 +486,7 @@ async fn test_full_node_sync_status() {
             rollup_config,
             None,
             None,
+            false,
         )
         .await;
     });
@@ -572,6 +578,7 @@ async fn test_healthcheck() {
         rollup_config,
         Some(sequencer_config),
         None,
+        false,
     )
     .await;
 
@@ -595,6 +602,7 @@ async fn test_healthcheck() {
         rollup_config,
         None,
         None,
+        false,
     )
     .await;
 
