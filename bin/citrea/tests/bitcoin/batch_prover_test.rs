@@ -5,8 +5,10 @@ use std::time::{Duration, Instant};
 use alloy_primitives::{Address, U64};
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin::hashes::Hash;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
+use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
@@ -765,6 +767,90 @@ async fn test_fork_elf_switching() -> Result<()> {
     use_network_forks(Network::TestNetworkWithForks);
 
     TestCaseRunner::new(ForkElfSwitchingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct L1HashOutputTest;
+
+#[async_trait]
+impl TestCase for L1HashOutputTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_soft_confirmations_per_commitment: 50,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+
+        sequencer.client.send_publish_batch_request().await?;
+        let start_l1_height = da.get_finalized_height(None).await?;
+
+        sequencer.client.wait_for_l2_block(1, None).await?;
+
+        da.generate(100).await?;
+
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.send_publish_batch_request().await?;
+
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        let zkp = batch_prover
+            .client
+            .http_client()
+            .get_batch_proofs_by_slot_height(U64::from(finalized_height))
+            .await?
+            .expect("Should exist");
+
+        assert_eq!(zkp.len(), 1);
+
+        let l1_hashes: Vec<[u8; 32]> = zkp[0]
+            .proof_output
+            .l1_hashes_added_to_light_client_contract
+            .iter()
+            .map(|h| h.0)
+            .collect();
+
+        assert_eq!(l1_hashes.len(), 101);
+
+        for (height, hash) in (start_l1_height..=start_l1_height + 100).zip(l1_hashes) {
+            let hash_from_rpc = sequencer.da.get_block_hash(height).await?;
+
+            assert_eq!(hash_from_rpc.as_raw_hash().to_byte_array(), hash);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_batch_proof_l1_hashes_added_output() -> Result<()> {
+    TestCaseRunner::new(L1HashOutputTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
