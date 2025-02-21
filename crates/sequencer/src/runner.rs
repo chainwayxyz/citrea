@@ -192,11 +192,12 @@ where
                 if soft_confirmation_info.l2_height == 1 {
                     last_l1_hash_of_evm = None;
                 }
-
+                let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
+                    .expect("should deserialize");
                 let system_events = populate_system_events(
                     &soft_confirmation_info,
                     last_l1_hash_of_evm,
-                    Some(self.config.bridge_initialize_params.clone()),
+                    bridge_init_param.as_slice(),
                 );
                 let evm = citrea_evm::Evm::<DefaultContext>::default();
                 let system_signer = evm

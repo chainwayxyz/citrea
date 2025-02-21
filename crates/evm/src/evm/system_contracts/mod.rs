@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 use alloy_primitives::{address, Address, Bytes, U256};
 use alloy_sol_types::{sol, SolCall};
-use citrea_primitives::PRE_FORK2_BRIDGE_INITIALIZE_PARAMS;
 
 // BitcoinLightClient wrapper.
 sol! {
@@ -80,12 +79,8 @@ impl BridgeWrapper {
         address!("3100000000000000000000000000000000000002")
     }
 
-    pub(crate) fn initialize(params: Option<String>) -> Bytes {
+    pub(crate) fn initialize(params: &[u8]) -> Bytes {
         // Hardcoded until better times.
-
-        let params =
-            hex::decode(params.unwrap_or(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS.to_string())).unwrap();
-
         let mut func_selector = Vec::with_capacity(4 + params.len());
         func_selector.extend(BridgeContract::initializeCall::SELECTOR);
         func_selector.extend(params);

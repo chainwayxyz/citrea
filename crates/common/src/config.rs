@@ -355,7 +355,7 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
-            bridge_initialize_params: PRE_FORK2_BRIDGE_INITIALIZE_PARAMS.to_string(),
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
         }
     }
@@ -630,7 +630,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: PRE_FORK2_BRIDGE_INITIALIZE_PARAMS.to_string(),
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(config, expected);
     }
@@ -689,7 +689,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: PRE_FORK2_BRIDGE_INITIALIZE_PARAMS.to_string(),
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(sequencer_config, expected);
     }

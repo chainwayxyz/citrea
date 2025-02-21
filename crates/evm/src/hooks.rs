@@ -1,6 +1,7 @@
 use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use citrea_primitives::PRE_FORK2_BRIDGE_INITIALIZE_PARAMS;
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
@@ -85,7 +86,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             system_events = populate_system_events(
                 soft_confirmation_info,
                 self.last_l1_hash.get(working_set),
-                None,
+                PRE_FORK2_BRIDGE_INITIALIZE_PARAMS,
             )
         }
 
@@ -381,11 +382,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 }
 
 /// Populates system events based on the current soft confirmation info.
-pub fn populate_system_events(
+pub fn populate_system_events<'a>(
     soft_confirmation_info: &HookSoftConfirmationInfo,
     last_l1_hash_of_evm: Option<B256>,
-    bridge_initialize_params: Option<String>,
-) -> Vec<SystemEvent> {
+    bridge_initialize_params: &'a [u8],
+) -> Vec<SystemEvent<'a>> {
     let mut system_events = vec![];
     if let Some(last_l1_hash) = last_l1_hash_of_evm {
         if last_l1_hash != soft_confirmation_info.da_slot_hash {
