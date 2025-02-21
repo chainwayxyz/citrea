@@ -81,7 +81,7 @@ where
 
         let pre_state = crate::stateful_statediff::build_pre_state(state_log.ordered_reads());
         let post_state =
-            crate::stateful_statediff::build_post_state(state_log.iter_ordered_writes().rev());
+            crate::stateful_statediff::build_post_state(state_log.iter_ordered_writes());
 
         let _st_statediff = crate::stateful_statediff::compress_state(pre_state, post_state);
 

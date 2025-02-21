@@ -266,7 +266,7 @@ impl CacheLog {
 
 impl CacheLog {
     /// Iterate over key/value pairs of write cache
-    pub fn iter_writes(&self) -> impl DoubleEndedIterator<Item = (&CacheKey, &Option<CacheValue>)> {
+    pub fn iter_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
         self.log.iter().filter_map(|(k, v)| match v {
             Access::Read(_) => None,
             Access::ReadThenWrite { modified, .. } => Some((k, modified)),
@@ -438,7 +438,7 @@ impl ReadWriteLog {
     }
 
     /// Returns an iterator over ordered writes
-    pub fn iter_ordered_writes(&self) -> impl DoubleEndedIterator<Item = (&CacheKey, &Option<CacheValue>)> {
+    pub fn iter_ordered_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
         self.cache_log.iter_writes()
     }
 
