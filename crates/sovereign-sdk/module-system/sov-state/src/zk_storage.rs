@@ -1,8 +1,9 @@
 use jmt::KeyHash;
 use sov_modules_core::{
-    OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof, StorageValue, Witness,
+    OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof, StorageValue,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use crate::DefaultHasher;

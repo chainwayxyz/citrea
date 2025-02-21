@@ -8,9 +8,10 @@ use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use sov_modules_core::{
     CacheKey, NativeStorage, OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof,
-    StorageValue, Witness,
+    StorageValue,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_schema_db::SchemaBatch;
 

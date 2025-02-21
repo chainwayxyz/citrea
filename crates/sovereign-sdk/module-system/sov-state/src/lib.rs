@@ -16,8 +16,9 @@ pub use zk_storage::ZkStorage;
 pub mod config;
 pub use config::Config;
 pub use sov_modules_core::{
-    storage, CacheLog, OrderedReads, OrderedWrites, Prefix, ReadWriteLog, Storage, Witness,
+    storage, CacheLog, OrderedReads, OrderedWrites, Prefix, ReadWriteLog, Storage,
 };
+pub use sov_rollup_interface::witness::Witness;
 
 /// The default Witness type used in merkle proofs for storage access, typically found as a type parameter for [`ProverStorage`].
 /// The default Hasher type used in merkle proofs for storage access, typically found as a type parameter for [`ProverStorage`].

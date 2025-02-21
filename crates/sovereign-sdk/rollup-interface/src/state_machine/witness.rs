@@ -1,3 +1,5 @@
+//! Defines versioned witness types to be used.
+
 use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -38,8 +40,7 @@ impl Witness {
     /// Get the next deserializable hint
     pub fn get_hint<T: BorshDeserialize>(&mut self) -> T {
         let hint = self.hints.pop_front().expect("No more hints left");
-        T::deserialize_reader(&mut hint.as_slice())
-            .expect("Hint deserialization should never fail")
+        T::deserialize_reader(&mut hint.as_slice()).expect("Hint deserialization should never fail")
     }
 }
 
