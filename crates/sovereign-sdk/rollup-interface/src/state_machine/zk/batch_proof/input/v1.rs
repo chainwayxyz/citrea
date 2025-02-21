@@ -1,17 +1,12 @@
 use std::collections::VecDeque;
 
 use borsh::BorshSerialize;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 
 use super::BatchProofCircuitInput;
 use crate::da::{BlobReaderTrait, DaSpec};
 use crate::soft_confirmation::SignedSoftConfirmationV1;
 use crate::zk::StorageRootHash;
 
-#[derive(Serialize, Deserialize)]
-// Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
-// StateTransitionFunction, DA, and Zkvm traits.
 /// Data required to verify a state transition.
 pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
     /// The state root before the state transition
@@ -96,7 +91,6 @@ impl<'txs, Witness, Da, Tx> From<BatchProofCircuitInput<'txs, Witness, Da, Tx>>
 where
     Da: DaSpec,
     Tx: Clone + BorshSerialize,
-    Witness: Serialize + DeserializeOwned,
 {
     fn from(input: BatchProofCircuitInput<'txs, Witness, Da, Tx>) -> Self {
         BatchProofCircuitInputV1 {

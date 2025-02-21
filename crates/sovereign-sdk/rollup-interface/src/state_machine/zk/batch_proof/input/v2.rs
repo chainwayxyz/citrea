@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmation;
@@ -15,7 +14,7 @@ pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone + BorshSeriali
     pub VecDeque<Vec<(SignedSoftConfirmation<'txs, Tx>, Witness, Witness)>>,
 );
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 /// First part of the Kumquat elf input

@@ -11,15 +11,17 @@ use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::zk::{SparseMerkleProofSha2, StorageRootHash};
 use sov_rollup_interface::RefCount;
 
-use crate::common::{Prefix, Version, Witness};
+use crate::common::{Prefix, Version};
 
 mod cache;
 mod codec;
 mod scratchpad;
+mod witness;
 
 pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
+pub use witness::*;
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
@@ -178,9 +180,6 @@ pub struct StorageProof {
 
 /// An interface for storing and retrieving values in the storage.
 pub trait Storage: Clone {
-    /// The witness type for this storage instance.
-    type Witness: Witness + Send + Sync;
-
     /// The runtime config for this storage instance.
     type RuntimeConfig;
 
@@ -188,7 +187,7 @@ pub trait Storage: Clone {
     type StateUpdate;
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue>;
+    fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.
     ///
@@ -202,11 +201,7 @@ pub trait Storage: Clone {
     }
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get_offchain(
-        &self,
-        _key: &StorageKey,
-        _witness: &mut Self::Witness,
-    ) -> Option<StorageValue> {
+    fn get_offchain(&self, _key: &StorageKey, _witness: &mut Witness) -> Option<StorageValue> {
         None
     }
 
@@ -215,7 +210,7 @@ pub trait Storage: Clone {
     fn compute_state_update(
         &self,
         state_log: &ReadWriteLog,
-        witness: &mut Self::Witness,
+        witness: &mut Witness,
     ) -> Result<
         (
             StateRootTransition,
@@ -237,7 +232,7 @@ pub trait Storage: Clone {
     fn validate_and_commit_with_accessory_update(
         &self,
         state_log: &ReadWriteLog,
-        witness: &mut Self::Witness,
+        witness: &mut Witness,
         accessory_writes: &OrderedWrites,
         offchain_log: &ReadWriteLog,
     ) -> Result<StorageRootHash, anyhow::Error> {
@@ -255,7 +250,7 @@ pub trait Storage: Clone {
     fn validate_and_commit(
         &self,
         state_log: &ReadWriteLog,
-        witness: &mut Self::Witness,
+        witness: &mut Witness,
     ) -> Result<StorageRootHash, anyhow::Error> {
         Self::validate_and_commit_with_accessory_update(
             self,

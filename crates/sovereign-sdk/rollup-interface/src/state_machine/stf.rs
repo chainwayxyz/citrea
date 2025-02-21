@@ -7,8 +7,6 @@
 use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use super::da::SequencerCommitment;
 use super::zk::{StorageRootHash, ZkvmGuest};
@@ -130,14 +128,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
 
     /// Witness is a data that is produced during actual batch execution
     /// or validated together with proof during verification
-    type Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static;
+    type Witness: Default + BorshSerialize + BorshDeserialize + 'static;
 
     /// Perform one-time initialization for the genesis block and
     /// returns the resulting root hash and changeset.
