@@ -138,7 +138,7 @@ impl Storage for ProverStorage {
         let prev_root = jmt
             .get_root_hash(version)
             .expect("Previous root hash was just populated");
-        witness.add_state_root_hint(prev_root.0);
+        witness.add_prev_state_root_hint(prev_root.0);
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
         for (key, read_value) in state_log.ordered_reads() {
@@ -175,7 +175,7 @@ impl Storage for ProverStorage {
             .expect("JMT update must succeed");
 
         witness.add_update_proof_hint(update_proof);
-        witness.add_state_root_hint(new_root.0);
+        witness.add_final_state_root_hint(new_root.0);
 
         let state_update = ProverStateUpdate {
             node_batch: tree_update.node_batch,

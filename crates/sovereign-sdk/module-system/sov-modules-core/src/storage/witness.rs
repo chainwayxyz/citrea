@@ -10,9 +10,9 @@ use crate::StorageValue;
 #[derive(Default, Debug, BorshDeserialize, BorshSerialize)]
 pub struct Witness {
     storage_hints: VecDeque<Option<StorageValue>>,
-    state_root_hints: VecDeque<[u8; 32]>,
+    state_root_hints: [[u8; 32]; 2],
     read_proof_hints: VecDeque<SparseMerkleProof<Sha256>>,
-    update_proof_hints: VecDeque<UpdateMerkleProof<Sha256>>,
+    update_proof_hint: Option<UpdateMerkleProof<Sha256>>,
 }
 
 #[cfg(feature = "native")]
@@ -22,9 +22,14 @@ impl Witness {
         self.storage_hints.push_back(storage_hint);
     }
 
-    /// Add state root hint.
-    pub fn add_state_root_hint(&mut self, state_root_hint: [u8; 32]) {
-        self.state_root_hints.push_back(state_root_hint);
+    /// Add prev state root hint.
+    pub fn add_prev_state_root_hint(&mut self, prev_state_root: [u8; 32]) {
+        self.state_root_hints[0] = prev_state_root;
+    }
+
+    /// Add final state root hint.
+    pub fn add_final_state_root_hint(&mut self, final_state_root: [u8; 32]) {
+        self.state_root_hints[1] = final_state_root;
     }
 
     /// Add read proof hint.
@@ -34,7 +39,8 @@ impl Witness {
 
     /// Add update proof hint.
     pub fn add_update_proof_hint(&mut self, update_proof_hint: UpdateMerkleProof<Sha256>) {
-        self.update_proof_hints.push_back(update_proof_hint);
+        assert!(self.update_proof_hint.is_none(), "Must not add update proof twice");
+        self.update_proof_hint = Some(update_proof_hint);
     }
 }
 
@@ -46,11 +52,14 @@ impl Witness {
             .expect("No more storage hints left")
     }
 
-    /// Get next state root hint.
-    pub fn get_state_root_hint(&mut self) -> [u8; 32] {
-        self.state_root_hints
-            .pop_front()
-            .expect("No more state root hints left")
+    /// Get prev state root hint.
+    pub fn get_prev_state_root_hint(&mut self) -> [u8; 32] {
+        self.state_root_hints[0]
+    }
+
+    /// Get finalstate root hint.
+    pub fn get_final_state_root_hint(&mut self) -> [u8; 32] {
+        self.state_root_hints[1]
     }
 
     /// Get next read proof hint.
@@ -62,8 +71,6 @@ impl Witness {
 
     /// Get next update proof hint.
     pub fn get_update_proof_hint(&mut self) -> UpdateMerkleProof<Sha256> {
-        self.update_proof_hints
-            .pop_front()
-            .expect("No more update proof hints left")
+        self.update_proof_hint.take().expect("No update proof found")
     }
 }

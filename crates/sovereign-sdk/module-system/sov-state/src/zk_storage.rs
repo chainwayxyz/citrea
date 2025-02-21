@@ -35,7 +35,7 @@ impl Storage for ZkStorage {
         state_log: &ReadWriteLog,
         witness: &mut Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
-        let prev_state_root = witness.get_state_root_hint();
+        let prev_state_root = witness.get_prev_state_root_hint();
 
         // For each value that's been read from the tree, verify the provided jmt proof
         for (key, read_value) in state_log.ordered_reads() {
@@ -72,7 +72,7 @@ impl Storage for ZkStorage {
 
         let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> =
             witness.get_update_proof_hint();
-        let new_root: [u8; 32] = witness.get_state_root_hint();
+        let new_root: [u8; 32] = witness.get_final_state_root_hint();
         update_proof
             .verify_update(
                 jmt::RootHash(prev_state_root),
