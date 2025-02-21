@@ -5,8 +5,6 @@ use std::collections::BTreeMap;
 use std::io::{Error, ErrorKind, Read, Write};
 
 use alloy_primitives::{Address, B256, U256};
-// use alloy_primitives::{address, keccak256, Address, BlockNumber, Bloom, Bytes, B256, U256};
-// use borsh::io::{Error, Write};
 use borsh::{BorshDeserialize, BorshSerialize};
 use compression::{CodeHashChange, SlotChange};
 use serde::{Deserialize, Serialize};
@@ -84,15 +82,17 @@ pub(crate) fn build_pre_state(ordered_reads: &[(CacheKey, Option<CacheValue>)]) 
 }
 
 /// A diff of the state, represented as a list of key-value pairs.
-pub type UntypedStateDiff = Vec<(RefCount<[u8]>, Option<RefCount<[u8]>>)>;
+pub type UnparsedStateDiff = Vec<(RefCount<[u8]>, Option<RefCount<[u8]>>)>;
 
 pub(crate) struct PostState {
     evm_accounts_prefork2: BTreeMap<Address, Option<DbAccountInfo>>,
     evm_storage_prefork2: BTreeMap<Address, BTreeMap<U256, Option<U256>>>,
     evm_accounts: BTreeMap<u64, Option<DbAccountInfo>>,
+    evm_account_address: Vec<Address>,
+    evm_account_count: Option<u64>,
     evm_storage: BTreeMap<U256, Option<U256>>,
-    // TODO other typed key->values
-    untyped: UntypedStateDiff,
+    evm_latest_block_hashes: Vec<(u64, B256)>,
+    unparsed: UnparsedStateDiff,
 }
 
 pub(crate) fn build_post_state<'a>(
@@ -102,8 +102,11 @@ pub(crate) fn build_post_state<'a>(
     let mut evm_accounts_prefork2: BTreeMap<Address, Option<DbAccountInfo>> = BTreeMap::new();
     let mut evm_storage_prefork2: BTreeMap<Address, _> = BTreeMap::new();
     let mut evm_accounts = BTreeMap::new();
+    let mut evm_account_address = Vec::new();
+    let mut evm_account_count = None;
     let mut evm_storage = BTreeMap::new();
-    let mut untyped = UntypedStateDiff::new();
+    let mut evm_latest_block_hashes = Vec::new();
+    let mut unparsed = UnparsedStateDiff::new();
 
     for (cache_key, cache_value) in ordered_writes.into_iter() {
         let (key, value) = (
@@ -141,6 +144,23 @@ pub(crate) fn build_post_state<'a>(
                     info
                 });
             }
+            _evm_account_address @ b"Evm/i/" => {
+                // Ignore removals
+                if value.is_some() {
+                    let address = Address::from_slice(&key[6..(6 + 20)]);
+                    // ignore indices because we can recover them from account count
+                    evm_account_address.push(address);
+                }
+            }
+            _account_count @ b"Evm/n/" => {
+                if evm_account_count.is_none() {
+                    // Ignore removals
+                    if let Some(value) = value {
+                        let count = borsh::from_slice(value).unwrap();
+                        evm_account_count = Some(count);
+                    }
+                }
+            }
             _storage @ b"Evm/S/" => {
                 let storage_key: U256 = borsh_u256_from_slice(&key[6..]);
 
@@ -148,11 +168,36 @@ pub(crate) fn build_post_state<'a>(
                     .entry(storage_key)
                     .or_insert_with(|| value.map(borsh_u256_from_slice));
             }
+            _latest_block_hashes @ b"Evm/h/" => {
+                // Ignore removals
+                if let Some(value) = value {
+                    let block_number: U256 = bcs::from_bytes(&key[6..]).unwrap();
+                    let block_number: u64 = block_number
+                        .try_into()
+                        .expect("Block number should fit into u64");
+                    let block_hash: B256 = bcs::from_bytes(value).unwrap();
+
+                    evm_latest_block_hashes.push((block_number, block_hash));
+                }
+            }
             _ => {
+                // Here goes:
+                // - SoftConfirmationRuleEnforcer/authority/
+                // - SoftConfirmationRuleEnforcer/data/
+                // - Accounts/public_keys_post_fork2/
+                // - Accounts/accounts_post_fork2/
+                // - Evm/cfg/
+                // - Evm/head/
+                // - Evm/head_rlp/
+                // - Evm/c/ - old code, new is Evm/occ/ which is not stored on DA
+                // - Evm/last_l1_hash/
+
+                // let hx_key = alloy_primitives::hex::encode(key);
+                // println!("unknown key: {}", hx_key);
                 let key_bytes = cache_key.key.clone();
                 let value_bytes = cache_value.as_ref().map(|v| v.value.clone());
 
-                untyped.push((key_bytes, value_bytes));
+                unparsed.push((key_bytes, value_bytes));
             }
         }
     }
@@ -160,13 +205,16 @@ pub(crate) fn build_post_state<'a>(
         evm_accounts_prefork2,
         evm_storage_prefork2,
         evm_accounts,
+        evm_account_count,
+        evm_account_address,
         evm_storage,
-        untyped,
+        evm_latest_block_hashes,
+        unparsed,
     }
 }
 
 /// Reflects account change
-#[derive(BorshSerialize, Debug)]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct AccountChange {
     balance: SlotChange,
     nonce: SlotChange,
@@ -174,24 +222,56 @@ pub struct AccountChange {
 }
 
 /// Reflects storage change
-#[derive(BorshSerialize, Debug)]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct StorageChange {
-    #[borsh(serialize_with = "borsh_ser_btree_u256")]
+    #[borsh(serialize_with = "ser_btree_u256", deserialize_with = "der_btree_u256")]
     storage: BTreeMap<U256, Option<SlotChange>>,
 }
 
+/// Reflects new Evm.latest_block_hashes
+// TODO maybe keep (u64, B256) in StatefulStateDiff but compress on borsh serde?
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub struct LatestBlockHashes {
+    starting_block_number: u64,
+    #[borsh(serialize_with = "ser_vec_b256", deserialize_with = "der_vec_b256")]
+    block_hashes: Vec<B256>,
+}
+
 /// Reflects all state change
-#[derive(BorshSerialize, Debug)]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct StatefulStateDiff {
-    #[borsh(serialize_with = "borsh_ser_btree_address")]
+    // TODO: Remove before mainnet
+    #[borsh(
+        serialize_with = "ser_btree_address",
+        deserialize_with = "der_btree_address"
+    )]
     evm_accounts_prefork2: BTreeMap<Address, AccountChange>,
-    #[borsh(serialize_with = "borsh_ser_btree_address")]
+
+    // TODO: Remove before mainnet
+    #[borsh(
+        serialize_with = "ser_btree_address",
+        deserialize_with = "der_btree_address"
+    )]
     evm_storage_prefork2: BTreeMap<Address, StorageChange>,
+
     evm_accounts: Vec<(u64, Option<AccountChange>)>,
-    #[borsh(serialize_with = "borsh_ser_evm_storage")]
+    #[borsh(
+        serialize_with = "ser_vec_address",
+        deserialize_with = "der_vec_address"
+    )]
+    evm_account_address: Vec<Address>,
+
+    evm_account_count: Option<u64>,
+    #[borsh(
+        serialize_with = "ser_evm_storage",
+        deserialize_with = "der_evm_storage"
+    )]
     evm_storage: Vec<(U256, Option<SlotChange>)>,
-    // TODO other typed key->values
-    untyped: UntypedStateDiff,
+
+    evm_latest_block_hashes: Option<LatestBlockHashes>,
+
+    /// All unparsed diff goes here.
+    pub unparsed: UnparsedStateDiff,
 }
 
 pub(crate) fn compress_state(pre_state: PreState, post_state: PostState) -> StatefulStateDiff {
@@ -314,80 +394,85 @@ pub(crate) fn compress_state(pre_state: PreState, post_state: PostState) -> Stat
         }
     }
 
+    let evm_latest_block_hashes = if post_state.evm_latest_block_hashes.is_empty() {
+        None
+    } else {
+        Some(LatestBlockHashes {
+            starting_block_number: post_state.evm_latest_block_hashes[0].0,
+            block_hashes: post_state
+                .evm_latest_block_hashes
+                .into_iter()
+                .map(|(_i, hash)| hash)
+                .collect(),
+        })
+    };
+
     StatefulStateDiff {
         evm_accounts_prefork2: changed_evm_accounts_prefork2,
         evm_storage_prefork2: changed_evm_storage_prefork2,
         evm_accounts: changed_evm_accounts,
+        evm_account_address: post_state.evm_account_address,
+        evm_account_count: post_state.evm_account_count,
         evm_storage: changed_evm_storage,
-        untyped: post_state.untyped,
+        evm_latest_block_hashes,
+        unparsed: post_state.unparsed,
     }
 }
 
-#[derive(Default, BorshSerialize, BorshDeserialize, Deserialize, Serialize, Debug, Clone)]
+#[derive(Default, Debug, BorshSerialize, BorshDeserialize, Deserialize, Serialize)]
 struct DbAccountInfo {
-    #[borsh(serialize_with = "borsh_ser_u256", deserialize_with = "borsh_der_u256")]
+    #[borsh(serialize_with = "ser_u256", deserialize_with = "der_u256")]
     balance: U256,
     nonce: u64,
     #[borsh(
-        serialize_with = "borsh_ser_option_b256",
-        deserialize_with = "borsh_der_option_b256"
+        serialize_with = "ser_option_b256",
+        deserialize_with = "der_option_b256"
     )]
     code_hash: Option<B256>,
 }
 
-// borsh serializers:
+// borsh serializers and deserializers:
 
-// fn borsh_ser_address<W: Write>(x: &Address, writer: &mut W) -> Result<(), Error> {
-//     let t = x.0 .0;
-//     BorshSerialize::serialize(&t, writer)
-// }
-
-fn borsh_ser_u256<W: Write>(x: &U256, writer: &mut W) -> Result<(), Error> {
+fn ser_u256<W: Write>(x: &U256, writer: &mut W) -> Result<(), Error> {
     let t = x.as_limbs();
     BorshSerialize::serialize(t, writer)
 }
 
-fn borsh_der_u256<R: Read>(reader: &mut R) -> Result<U256, Error> {
+fn der_u256<R: Read>(reader: &mut R) -> Result<U256, Error> {
     let t: [u64; 4] = BorshDeserialize::deserialize_reader(reader)?;
     Ok(U256::from_limbs(t))
 }
 
-// fn borsh_ser_option_u256<W: Write>(x: &Option<U256>, writer: &mut W) -> Result<(), Error> {
-//     let t = x.map(|x| x.to_be_bytes::<32>());
-//     BorshSerialize::serialize(&t, writer)
-// }
+fn ser_vec_b256<W: Write>(xs: &Vec<B256>, writer: &mut W) -> Result<(), Error> {
+    let len = u32::try_from(xs.len()).map_err(|_| ErrorKind::InvalidData)?;
+    BorshSerialize::serialize(&len, writer)?;
+    for x in xs {
+        BorshSerialize::serialize(&(x.0), writer)?;
+    }
+    Ok(())
+}
 
-// fn borsh_ser_b256<W: Write>(x: &B256, writer: &mut W) -> Result<(), Error> {
-//     let t = x.0;
-//     BorshSerialize::serialize(&t, writer)
-// }
+fn der_vec_b256<R: Read>(reader: &mut R) -> Result<Vec<B256>, Error> {
+    let len: u32 = BorshDeserialize::deserialize_reader(reader)?;
+    let mut res = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        let bytes: [u8; 32] = BorshDeserialize::deserialize_reader(reader)?;
+        res.push(B256::from_slice(&bytes));
+    }
+    Ok(res)
+}
 
-// fn borsh_ser_vec_b256<W: Write>(x: &Vec<B256>, writer: &mut W) -> Result<(), Error> {
-//     let t: Vec<_> = x.into_iter().map(|x| x.0).collect();
-//     BorshSerialize::serialize(&t, writer)
-// }
-
-fn borsh_ser_option_b256<W: Write>(x: &Option<B256>, writer: &mut W) -> Result<(), Error> {
+fn ser_option_b256<W: Write>(x: &Option<B256>, writer: &mut W) -> Result<(), Error> {
     let t = x.map(|x| x.0);
     BorshSerialize::serialize(&t, writer)
 }
 
-fn borsh_der_option_b256<R: Read>(reader: &mut R) -> Result<Option<B256>, Error> {
+fn der_option_b256<R: Read>(reader: &mut R) -> Result<Option<B256>, Error> {
     let s: Option<[u8; 32]> = BorshDeserialize::deserialize_reader(reader)?;
     Ok(s.map(B256::from))
 }
 
-// fn borsh_ser_bytes<W: Write>(x: &Bytes, writer: &mut W) -> Result<(), Error> {
-//     let t = &x.0;
-//     BorshSerialize::serialize(&t, writer)
-// }
-
-// fn borsh_ser_bloom<W: Write>(x: &Bloom, writer: &mut W) -> Result<(), Error> {
-//     let t = x.0 .0;
-//     BorshSerialize::serialize(&t, writer)
-// }
-
-fn borsh_ser_btree_address<V: BorshSerialize, W: Write>(
+fn ser_btree_address<V: BorshSerialize, W: Write>(
     x: &BTreeMap<Address, V>,
     writer: &mut W,
 ) -> Result<(), Error> {
@@ -400,20 +485,69 @@ fn borsh_ser_btree_address<V: BorshSerialize, W: Write>(
     Ok(())
 }
 
-fn borsh_ser_btree_u256<V: BorshSerialize, W: Write>(
+fn der_btree_address<V: BorshDeserialize, R: Read>(
+    reader: &mut R,
+) -> Result<BTreeMap<Address, V>, Error> {
+    let len: u32 = BorshDeserialize::deserialize_reader(reader)?;
+    let mut v = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        let addr: [u8; 20] = BorshDeserialize::deserialize_reader(reader)?;
+        let key = Address::from(addr);
+        let value = BorshDeserialize::deserialize_reader(reader)?;
+        v.push((key, value));
+    }
+    let res: BTreeMap<_, _> = v.into_iter().collect();
+    Ok(res)
+}
+
+fn ser_vec_address<W: Write>(xs: &Vec<Address>, writer: &mut W) -> Result<(), Error> {
+    let len = u32::try_from(xs.len()).map_err(|_| ErrorKind::InvalidData)?;
+    BorshSerialize::serialize(&len, writer)?;
+    for x in xs {
+        BorshSerialize::serialize(&(x.0 .0), writer)?;
+    }
+    Ok(())
+}
+
+fn der_vec_address<R: Read>(reader: &mut R) -> Result<Vec<Address>, Error> {
+    let len: u32 = BorshDeserialize::deserialize_reader(reader)?;
+    let mut res = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        let bytes: [u8; 20] = BorshDeserialize::deserialize_reader(reader)?;
+        res.push(Address::from(bytes));
+    }
+    Ok(res)
+}
+
+fn ser_btree_u256<V: BorshSerialize, W: Write>(
     x: &BTreeMap<U256, V>,
     writer: &mut W,
 ) -> Result<(), Error> {
     let len = u32::try_from(x.len()).map_err(|_| ErrorKind::InvalidData)?;
     BorshSerialize::serialize(&len, writer)?;
     for (key, value) in x {
-        BorshSerialize::serialize(key.as_le_slice(), writer)?;
+        BorshSerialize::serialize(key.as_limbs(), writer)?;
         BorshSerialize::serialize(value, writer)?;
     }
     Ok(())
 }
 
-fn borsh_ser_evm_storage<W: Write>(
+fn der_btree_u256<V: BorshDeserialize, R: Read>(
+    reader: &mut R,
+) -> Result<BTreeMap<U256, V>, Error> {
+    let len: u32 = BorshDeserialize::deserialize_reader(reader)?;
+    let mut v = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        let limbs = BorshDeserialize::deserialize_reader(reader)?;
+        let key = U256::from_limbs(limbs);
+        let value = BorshDeserialize::deserialize_reader(reader)?;
+        v.push((key, value));
+    }
+    let res: BTreeMap<_, _> = v.into_iter().collect();
+    Ok(res)
+}
+
+fn ser_evm_storage<W: Write>(
     evm_storage: &Vec<(U256, Option<SlotChange>)>,
     writer: &mut W,
 ) -> Result<(), Error> {
@@ -424,4 +558,16 @@ fn borsh_ser_evm_storage<W: Write>(
         BorshSerialize::serialize(slot_change, writer)?;
     }
     Ok(())
+}
+
+fn der_evm_storage<R: Read>(reader: &mut R) -> Result<Vec<(U256, Option<SlotChange>)>, Error> {
+    let len: u32 = BorshDeserialize::deserialize_reader(reader)?;
+    let mut res = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        let limbs = BorshDeserialize::deserialize_reader(reader)?;
+        let key = U256::from_limbs(limbs);
+        let value = BorshDeserialize::deserialize_reader(reader)?;
+        res.push((key, value));
+    }
+    Ok(res)
 }

@@ -152,8 +152,13 @@ impl Storage for ProverStorage {
             witness.add_hint(&proof);
         }
 
-        let mut key_preimages = vec![];
+        let pre_state = crate::stateful_statediff::build_pre_state(state_log.ordered_reads());
+        let post_state =
+            crate::stateful_statediff::build_post_state(state_log.iter_ordered_writes());
 
+        let _st_statediff = crate::stateful_statediff::compress_state(pre_state, post_state);
+
+        let mut key_preimages = vec![];
         let mut diff = vec![];
 
         // Compute the jmt update from the write batch
@@ -174,6 +179,23 @@ impl Storage for ProverStorage {
         let (new_root, update_proof, tree_update) = jmt
             .put_value_set_with_proof(batch, next_version)
             .expect("JMT update must succeed");
+
+        let unparsed_len: usize = _st_statediff
+            .unparsed
+            .iter()
+            .map(|(_k, v)| if let Some(x) = v { x.len() } else { 0 })
+            .sum();
+        let ststdiff = borsh::to_vec(&_st_statediff).unwrap();
+        let _orig: crate::stateful_statediff::StatefulStateDiff =
+            borsh::from_slice(&ststdiff).unwrap(); // check if we can parse it
+        let prevdiff = borsh::to_vec(&diff).unwrap();
+
+        println!(
+            "ststdiff: {} bytes, diff: {} bytes, ststdiff unparsed: {} bytes \n",
+            ststdiff.len(),
+            prevdiff.len(),
+            unparsed_len
+        );
 
         witness.add_hint(&update_proof);
         witness.add_hint(&new_root.0);

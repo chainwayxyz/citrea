@@ -113,6 +113,21 @@ where
             )
             .expect("Updates must be valid");
 
+        let unparsed_len: usize = _st_statediff
+            .unparsed
+            .iter()
+            .map(|(_k, v)| if let Some(x) = v { x.len() } else { 0 })
+            .sum();
+        let ststdiff = borsh::to_vec(&_st_statediff).unwrap();
+        let prevdiff = borsh::to_vec(&diff).unwrap();
+
+        println!(
+            "zk: ststdiff: {} bytes, diff: {} bytes, ststdiff unparsed: {} bytes \n",
+            ststdiff.len(),
+            prevdiff.len(),
+            unparsed_len
+        );
+
         Ok((
             StateRootTransition {
                 init_root: prev_state_root,
