@@ -5,7 +5,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{native_debug, native_error, Context, DaSpec, SpecId, WorkingSet};
 use sov_rollup_interface::stf::{
-    SoftConfirmationError, SoftConfirmationHookError, StateTransitionError, StateTransitionFunction,
+    SoftConfirmationError, SoftConfirmationHookError, StateTransitionError,
 };
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -55,7 +55,7 @@ where
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         blobs: &[Vec<u8>],
-        txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
+        txs: &[Transaction],
         sc_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
         if soft_confirmation_info.current_spec >= SpecId::Kumquat {

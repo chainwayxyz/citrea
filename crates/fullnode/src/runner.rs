@@ -19,7 +19,7 @@ use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::transaction::PreFork2Transaction;
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{DaSpec, L2Block, SpecId};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -27,7 +27,6 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use tokio::select;
@@ -37,9 +36,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
-
-type StfTransaction<Da> =
-    <StfBlueprint<DefaultContext, Da, CitreaRuntime<DefaultContext, Da>> as StateTransitionFunction<Da>>::Transaction;
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<Da, DB>
@@ -168,7 +164,7 @@ where
         let da_slot_height = soft_confirmation.da_slot_height;
         let da_slot_hash = soft_confirmation.da_slot_hash;
 
-        let l2_block: L2Block<StfTransaction<Da::Spec>> = if current_spec >= SpecId::Kumquat {
+        let l2_block: L2Block<Transaction> = if current_spec >= SpecId::Kumquat {
             soft_confirmation
                 .clone()
                 .try_into()
@@ -179,12 +175,12 @@ where
                 .try_into()
                 .context("Failed to parse transactions")?;
 
-            let (parsed_txs, blobs): (Vec<StfTransaction<Da::Spec>>, Vec<Vec<u8>>) = l2_block
+            let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
                 .txs
                 .iter()
                 .map(|tx| {
                     let blob = borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                    let tx: StfTransaction<Da::Spec> = tx.clone().into();
+                    let tx: Transaction = tx.clone().into();
                     (tx, blob)
                 })
                 .unzip();

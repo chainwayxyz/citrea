@@ -46,7 +46,6 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
-use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -64,9 +63,6 @@ use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
-
-type StfTransaction<Da> =
-    <StfBlueprint<DefaultContext, Da, CitreaRuntime<DefaultContext, Da>> as StateTransitionFunction<Da>>::Transaction;
 
 /// Represents information about the current DA state.
 ///
@@ -890,7 +886,7 @@ where
         raw_message: Vec<u8>,
         working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         spec_id: SpecId,
-    ) -> anyhow::Result<StfTransaction<Da::Spec>> {
+    ) -> anyhow::Result<Transaction> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
         let nonce = self.get_nonce(working_set, spec_id)?;
@@ -913,7 +909,7 @@ where
         active_spec: SpecId,
         header: L2Header,
         blobs: &'txs [Vec<u8>],
-        txs: &'txs [StfTransaction<Da::Spec>],
+        txs: &'txs [Transaction],
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
@@ -958,7 +954,7 @@ where
         &mut self,
         header: L2Header,
         blobs: &'txs [Vec<u8>],
-        txs: &'txs [StfTransaction<Da::Spec>],
+        txs: &'txs [Transaction],
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
