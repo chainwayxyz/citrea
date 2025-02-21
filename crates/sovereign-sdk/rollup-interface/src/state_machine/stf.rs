@@ -128,10 +128,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
 
     /// Witness is a data that is produced during actual batch execution
     /// or validated together with proof during verification
-    type Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + 'static;
+    type Witness: Default + BorshSerialize + BorshDeserialize + 'static;
 
     /// Perform one-time initialization for the genesis block and
     /// returns the resulting root hash and changeset.

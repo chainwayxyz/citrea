@@ -201,11 +201,7 @@ pub trait Storage: Clone {
     }
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get_offchain(
-        &self,
-        _key: &StorageKey,
-        _witness: &mut Witness,
-    ) -> Option<StorageValue> {
+    fn get_offchain(&self, _key: &StorageKey, _witness: &mut Witness) -> Option<StorageValue> {
         None
     }
 

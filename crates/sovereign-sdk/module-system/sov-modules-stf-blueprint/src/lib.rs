@@ -250,11 +250,8 @@ where
         _current_spec: SpecId,
         working_set: WorkingSet<C::Storage>,
         pre_state: <Self as StateTransitionFunction<Da>>::PreState,
-    ) -> SoftConfirmationResult<
-        C::Storage,
-        Witness,
-        <Self as StateTransitionFunction<Da>>::StateLog,
-    > {
+    ) -> SoftConfirmationResult<C::Storage, Witness, <Self as StateTransitionFunction<Da>>::StateLog>
+    {
         let (
             state_root_transition,
             state_log,
@@ -484,17 +481,12 @@ where
 
                 let spec_id = fork_manager.active_fork().spec_id;
                 let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
-                    guest.read_from_host::<(
-                        L2Block<Self::Transaction>,
-                        Witness,
-                        Witness,
-                    )>()
+                    guest.read_from_host::<(L2Block<Self::Transaction>, Witness, Witness)>()
                 } else {
-                    let (l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
-                        L2Block<PreFork2Transaction<C>>,
-                        Witness,
-                        Witness,
-                    )>();
+                    let (l2_block, state_witness, offchain_witness) =
+                        guest
+                            .read_from_host::<(L2Block<PreFork2Transaction<C>>, Witness, Witness)>(
+                            );
                     let (parsed_txs, blobs): (Vec<Self::Transaction>, Vec<Vec<u8>>) = l2_block
                         .txs
                         .iter()

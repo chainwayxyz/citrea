@@ -70,7 +70,8 @@ impl Storage for ZkStorage {
             })
             .collect::<Vec<_>>();
 
-        let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> = witness.get_update_proof_hint();
+        let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> =
+            witness.get_update_proof_hint();
         let new_root: [u8; 32] = witness.get_state_root_hint();
         update_proof
             .verify_update(

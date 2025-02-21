@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jmt::proof::{SparseMerkleProof, UpdateMerkleProof};
 use sha2::Sha256;
+
 use crate::StorageValue;
 
 /// Witness type to provide values read from storage, and their proof.
@@ -40,21 +41,29 @@ impl Witness {
 impl Witness {
     /// Get next storage read hint.
     pub fn get_storage_hint(&mut self) -> Option<StorageValue> {
-        self.storage_hints.pop_front().expect("No more storage hints left")
+        self.storage_hints
+            .pop_front()
+            .expect("No more storage hints left")
     }
 
     /// Get next state root hint.
     pub fn get_state_root_hint(&mut self) -> [u8; 32] {
-        self.state_root_hints.pop_front().expect("No more state root hints left")
+        self.state_root_hints
+            .pop_front()
+            .expect("No more state root hints left")
     }
 
     /// Get next read proof hint.
     pub fn get_read_proof_hint(&mut self) -> SparseMerkleProof<Sha256> {
-        self.read_proof_hints.pop_front().expect("No more read proof hints left")
+        self.read_proof_hints
+            .pop_front()
+            .expect("No more read proof hints left")
     }
 
     /// Get next update proof hint.
     pub fn get_update_proof_hint(&mut self) -> UpdateMerkleProof<Sha256> {
-        self.update_proof_hints.pop_front().expect("No more update proof hints left")
+        self.update_proof_hints
+            .pop_front()
+            .expect("No more update proof hints left")
     }
 }

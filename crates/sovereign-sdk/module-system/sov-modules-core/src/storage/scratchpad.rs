@@ -492,11 +492,7 @@ impl<S: Storage> StateCheckpoint<S> {
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`] and witness.
-    pub fn with_witness(
-        inner: S,
-        state_witness: Witness,
-        offchain_witness: Witness,
-    ) -> Self {
+    pub fn with_witness(inner: S, state_witness: Witness, offchain_witness: Witness) -> Self {
         Self {
             delta: StateDelta::with_witness(inner.clone(), state_witness, None),
             accessory_delta: AccessoryDelta::new(inner.clone(), None),
