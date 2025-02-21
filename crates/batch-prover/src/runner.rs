@@ -198,7 +198,6 @@ where
         )
         .await?;
 
-        tracing::info!("Short header proof da hash: {:?}", current_l1_block.hash());
         // Save short header proof to ledger db for Native Short Header Proof Provider Service
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
             Da::block_to_short_header_proof(current_l1_block.clone());

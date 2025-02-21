@@ -170,6 +170,8 @@ where
             let mut working_set_to_discard = WorkingSet::new(prestate.clone());
 
             let evm = citrea_evm::Evm::<DefaultContext>::default();
+            // TODO: after L2Block refactor PR, we'll need to use L1 block and
+            // Bitcoin light client contract state for this
             let mut last_l1_hash_of_evm = evm.last_l1_hash.get(&mut working_set_to_discard);
             if let Err(err) = self.stf.begin_soft_confirmation(
                 pub_key,
@@ -199,7 +201,6 @@ where
                     last_l1_hash_of_evm,
                     bridge_init_param.as_slice(),
                 );
-                let evm = citrea_evm::Evm::<DefaultContext>::default();
                 let system_signer = evm
                     .account_info(
                         &SYSTEM_SIGNER,
@@ -290,6 +291,7 @@ where
                         if invalid_senders.contains(&evm_tx.transaction_id.sender) {
                             continue;
                         }
+
                         let mut buf = vec![];
                         evm_tx
                             .to_recovered_transaction()
@@ -331,51 +333,40 @@ where
                                         sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
                                         sov_rollup_interface::stf::StateTransitionError::HookError(soft_confirmation_hook_error) => panic!("Hook error: {:?}", soft_confirmation_hook_error),
                                         sov_rollup_interface::stf::StateTransitionError::ModuleCallError(soft_confirmation_module_call_error) => match soft_confirmation_module_call_error {
-                                            // if we are exceeding block gas limit with a transaction
-                                            // we should inspect the gas usage and act accordingly
-                                            // if there is room for another transaction
-                                            // keep trying txs
-                                            // if not, break
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
-                                                cumulative_gas,
-                                                tx_gas_used: _,
-                                                block_gas_limit
-                                            } => {
-                                               if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
-                                                break;
-                                               } else {
-                                                invalid_senders.insert(evm_tx.transaction_id.sender);
-                                                working_set_to_discard = working_set.revert().to_revertable();
-                                                continue;
-                                               }
-                                            },
-                                            // we configure mempool to never accept blob transactions
-                                            // to mitigate potential bugs in reth-mempool we should look into continue instead of panicking here
+                                                                                        cumulative_gas,
+                                                                                        tx_gas_used: _,
+                                                                                        block_gas_limit
+                                                                                    } => {
+                                                                                       if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
+                                                                                        break;
+                                                                                       } else {
+                                                                                        invalid_senders.insert(evm_tx.transaction_id.sender);
+                                                                                        working_set_to_discard = working_set.revert().to_revertable();
+                                                                                        continue;
+                                                                                       }
+                                                                                    },
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
-                                            // Discard tx if it fails to execute
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
-                                                invalid_senders.insert(evm_tx.transaction_id.sender);
-                                                working_set_to_discard = working_set.revert().to_revertable();
-                                                continue;
-                                            },
-                                            // we won't try to execute system transactions here before fork2
+                                                                                        invalid_senders.insert(evm_tx.transaction_id.sender);
+                                                                                        working_set_to_discard = working_set.revert().to_revertable();
+                                                                                        continue;
+                                                                                    },
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx if soft_confirmation_info.current_spec < SpecId::Fork2 => panic!("tried to execute system transaction"),
-                                            // After fork2, we should never get this error
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx  => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
-                                                l1_fee_failed_txs.push(*evm_tx.hash());
-                                                invalid_senders.insert(evm_tx.transaction_id.sender);
-                                                working_set_to_discard = working_set.revert().to_revertable();
-                                                continue;
-                                            },
+                                                                                        l1_fee_failed_txs.push(*evm_tx.hash());
+                                                                                        invalid_senders.insert(evm_tx.transaction_id.sender);
+                                                                                        working_set_to_discard = working_set.revert().to_revertable();
+                                                                                        continue;
+                                                                                    },
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTxNotSerializable => panic!("Fed a non-serializable tx"),
-                                            // we don't call the rule enforcer in the sequencer -- yet at least
                                             sov_modules_api::SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
-                                            // We don't use short header proof provider in sequencer
                                             sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofNotFound => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => panic!("System tx after user tx"),
-                                        },
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxParseError => panic!("Sequencer produced incorrectly formatted system tx"),
+                                                                                    },
                                     }
                         };
 
@@ -418,6 +409,7 @@ where
             "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
         );
 
+        // TODO: after L2Block refactor PR, we'll need to change native provider
         // Save short header proof to ledger db for Native Short Header Proof Provider Service
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
             Da::block_to_short_header_proof(da_block.clone());

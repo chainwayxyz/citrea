@@ -38,7 +38,7 @@ use crate::errors::L1ProcessingError;
 const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
 
 type CommitmentStateTransitionData<'txs, Da> = (
-    VecDeque<([u8; 32], Vec<u8>)>,
+    VecDeque<Vec<u8>>,
     VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
     Vec<u64>,
     VecDeque<Vec<L2Block<'txs, Transaction>>>,
@@ -437,9 +437,9 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 ) -> anyhow::Result<(
     VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
     Vec<u64>,
-    VecDeque<([u8; 32], Vec<u8>)>,
+    VecDeque<Vec<u8>>,
 )> {
-    let mut short_header_proofs: VecDeque<([u8; 32], Vec<u8>)> = VecDeque::new();
+    let mut short_header_proofs: VecDeque<Vec<u8>> = VecDeque::new();
 
     let mut state_transition_witnesses = VecDeque::with_capacity(committed_l2_blocks.len());
 
@@ -550,7 +550,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                 .get_short_header_proof_by_l1_hash(&hash)?
                 .expect("Should exist");
 
-            short_header_proofs.push_back((hash, serialized_shp));
+            short_header_proofs.push_back(serialized_shp);
         }
 
         state_transition_witnesses.push_back(witnesses);

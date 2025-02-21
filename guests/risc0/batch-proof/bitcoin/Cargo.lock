@@ -987,7 +987,6 @@ dependencies = [
  "alloy-sol-types",
  "borsh",
  "citrea-primitives",
- "hex",
  "reth-primitives",
  "reth-primitives-traits",
  "revm",

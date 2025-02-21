@@ -121,7 +121,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 return Err(SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
-            post_fork2_system_tx_handler(evm.evm.db_mut(), tx, l2_height)?;
+            post_fork2_system_tx_verifier(evm.evm.db_mut(), tx, l2_height)?;
         } else {
             should_be_end_of_sys_txs = true;
         }
@@ -165,25 +165,25 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     Ok(tx_results)
 }
 
-fn post_fork2_system_tx_handler<C: sov_modules_api::Context>(
+fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
     db: &mut EvmDb<C>,
     tx: &TransactionSignedEcRecovered,
     l2_height: u64,
 ) -> Result<(), SoftConfirmationModuleCallError> {
     let function_selector: [u8; 4] = tx.input()[0..4]
         .try_into()
-        .expect("Sys tx should have function selector");
+        .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
 
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36]
             .try_into()
-            .expect("Should have block hash parameter");
+            .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
         let shp_provider = SHORT_HEADER_PROOF_PROVIDER
             .get()
             .expect("Short header proof provider not set");
         let txs_commitment: [u8; 32] = tx.input()[36..68]
             .try_into()
-            .expect("Should have txs commitment parameter");
+            .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
 
         let last_l1_height = db
             .storage(BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256::ZERO)

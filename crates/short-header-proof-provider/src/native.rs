@@ -50,11 +50,10 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                     .expect("Should lock quried and verified hashes")
                     .insert(l2_height, block_hash);
 
-                let prev_hash_cond = if prev_block_hash == [0; 32] {
-                    true
-                } else {
-                    prev_block_hash == l1_update_info.prev_header_hash
-                };
+                // the contract will return 0000...00 if we are pushing the first L1 block
+                // hence we accept given prev_hash
+                let prev_hash_cond = prev_block_hash == [0; 32]
+                    || prev_block_hash == l1_update_info.prev_header_hash;
 
                 return Ok(txs_commitment == l1_update_info.tx_commitment
                     && block_hash == l1_update_info.header_hash

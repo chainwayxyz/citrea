@@ -271,6 +271,8 @@ pub enum SoftConfirmationModuleCallError {
     ShortHeaderProofVerificationError,
     /// Some System transaction was placed after a user transaction in the block
     EvmSystemTransactionPlacedAfterUserTx,
+    /// System tx failed to parse
+    EvmSystemTxParseError,
 }
 
 #[derive(Debug, PartialEq)]
@@ -353,10 +355,10 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
                 block_gas_limit,
             } => {
                 write!(
-                    f,
-                    "EVM gas used exceeds block gas limit: cumulative_gas: {}, tx_gas_used: {}, block_gas_limit: {}",
-                    cumulative_gas, tx_gas_used, block_gas_limit
-                )
+                            f,
+                            "EVM gas used exceeds block gas limit: cumulative_gas: {}, tx_gas_used: {}, block_gas_limit: {}",
+                            cumulative_gas, tx_gas_used, block_gas_limit
+                        )
             }
             SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
                 write!(f, "EVM transaction execution error")
@@ -384,6 +386,9 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => {
                 write!(f, "EVM system transaction placed after user tx")
+            }
+            SoftConfirmationModuleCallError::EvmSystemTxParseError => {
+                write!(f, "EVM system transaction parse error")
             }
         }
     }

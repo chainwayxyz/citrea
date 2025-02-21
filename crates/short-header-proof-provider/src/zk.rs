@@ -12,12 +12,12 @@ use crate::ShortHeaderProofProviderError;
 
 pub struct ZkShortHeaderProofProviderService<Da: DaSpec> {
     queried_and_verified_hashes: RefCell<Vec<[u8; 32]>>,
-    short_header_proofs: RefCell<VecDeque<([u8; 32], Vec<u8>)>>,
+    short_header_proofs: RefCell<VecDeque<Vec<u8>>>,
     phantom: PhantomData<Da>,
 }
 
 impl<Da: DaSpec> ZkShortHeaderProofProviderService<Da> {
-    pub fn new(short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>) -> Self {
+    pub fn new(short_header_proofs: VecDeque<Vec<u8>>) -> Self {
         Self {
             short_header_proofs: RefCell::new(short_header_proofs),
             queried_and_verified_hashes: RefCell::new(Vec::new()),
@@ -48,8 +48,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
                     "Should have short header proof for l1 hash: {:?}",
                     block_hash
                 )
-            })
-            .1;
+            });
 
         let shp = Da::ShortHeaderProof::try_from_slice(&shp)
             .expect("Should deserialize short header proof");
