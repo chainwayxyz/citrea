@@ -5,7 +5,8 @@ use citrea_primitives::forks::{
 };
 use citrea_risc0_adapter::guest::Risc0Guest;
 use citrea_stf::runtime::CitreaRuntime;
-use citrea_stf::StfVerifier;
+use citrea_stf::verifier::StateTransitionVerifier;
+
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -105,8 +106,11 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StfVerifier<BitcoinSpec, ZkDefaultContext, CitreaRuntime<_, _>> =
-        StfVerifier::new(stf);
+    let mut stf_verifier: StateTransitionVerifier<
+        ZkDefaultContext,
+        BitcoinSpec,
+        CitreaRuntime<_, _>,
+    > = StateTransitionVerifier::new(stf);
 
     let out = stf_verifier.run_sequencer_commitments_in_da_slot(
         &guest,
