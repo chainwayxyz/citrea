@@ -3,7 +3,6 @@
 
 use std::collections::VecDeque;
 
-use borsh::BorshSerialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
@@ -30,7 +29,7 @@ use sov_rollup_interface::soft_confirmation::{
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
-    StateTransitionError, TransactionDigest,
+    StateTransitionError,
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
@@ -174,7 +173,7 @@ where
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        verify_tx_merkle_root::<C, Transaction>(current_spec, l2_block).map_err(|_| {
+        verify_tx_merkle_root::<C>(current_spec, l2_block).map_err(|_| {
             StateTransitionError::SoftConfirmationError(SoftConfirmationError::InvalidTxMerkleRoot)
         })?;
 
@@ -696,9 +695,9 @@ fn verify_genesis_signature(
     Ok(())
 }
 
-fn verify_tx_merkle_root<C: Context + Spec, Tx: Clone + BorshSerialize + TransactionDigest>(
+fn verify_tx_merkle_root<C: Context + Spec>(
     current_spec: SpecId,
-    l2_block: &L2Block<'_, Tx>,
+    l2_block: &L2Block<'_, Transaction>,
 ) -> Result<(), StateTransitionError> {
     let tx_hashes: Vec<[u8; 32]> = if current_spec >= SpecId::Kumquat {
         l2_block

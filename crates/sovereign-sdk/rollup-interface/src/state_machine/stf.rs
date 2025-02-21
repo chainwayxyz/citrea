@@ -82,12 +82,6 @@ pub struct SoftConfirmationResult<Cs, W, SL> {
     pub state_diff: StateDiff,
 }
 
-/// Transaction should provide its hash in order to put Receipt by hash.
-pub trait TransactionDigest {
-    /// Compute digest for the whole Transaction struct
-    fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D>;
-}
-
 #[derive(Debug, PartialEq)]
 /// Error in the soft confirmation itself
 pub enum SoftConfirmationError {
