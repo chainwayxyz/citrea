@@ -3,6 +3,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sov_rollup_interface::RefCount;
 
 /// A witness is a value produced during native execution that is then used by
 /// the zkVM circuit to produce proofs.
@@ -22,10 +23,26 @@ pub trait Witness:
     ///
     /// This method **SHOULD** only be called from the native execution
     /// environment.
-    fn add_hint<T: BorshSerialize>(&mut self, hint: &T);
+    fn add_hint<T: BorshSerialize>(&mut self, hint: &T) {
+        let hint_serialized = borsh::to_vec(hint).unwrap();
+        self.add_hint_raw(RefCount::from(hint_serialized));
+    }
+
+    /// Adds a raw "hint" to the witness value, which can be later
+    /// read by the zkVM circuit.
+    ///
+    /// This method **SHOULD** only be called from the native execution
+    /// environment.
+    fn add_hint_raw(&mut self, hint: RefCount<[u8]>);
 
     /// Retrieves a "hint" from the witness value.
-    fn get_hint<T: BorshDeserialize>(&mut self) -> T;
+    fn get_hint<T: BorshDeserialize>(&mut self) -> T {
+        let hint = self.get_hint_raw();
+        borsh::from_slice(&hint).unwrap()
+    }
+
+    /// Retrieves a raw "hint" from the witness value.
+    fn get_hint_raw(&mut self) -> RefCount<[u8]>;
 
     /// Adds all hints from `rhs` to `self`.
     fn merge(&mut self, rhs: &mut Self);

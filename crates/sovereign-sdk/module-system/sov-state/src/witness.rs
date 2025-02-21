@@ -1,6 +1,9 @@
+use std::{collections::VecDeque, mem};
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::Witness;
+use sov_rollup_interface::RefCount;
 
 /// A [`Vec`]-based implementation of [`Witness`] with no special logic.
 ///
@@ -19,23 +22,21 @@ use sov_modules_core::Witness;
 /// ```
 #[derive(Default, BorshDeserialize, BorshSerialize, Debug, Serialize, Deserialize)]
 pub struct ArrayWitness {
+    // keeping this field for backwards compatibility
     next_idx: usize,
-    hints: Vec<Vec<u8>>,
+    hints: VecDeque<RefCount<[u8]>>,
 }
 
 impl Witness for ArrayWitness {
-    fn add_hint<T: BorshSerialize>(&mut self, hint: &T) {
-        self.hints.push(borsh::to_vec(hint).unwrap())
+    fn add_hint_raw(&mut self, hint: RefCount<[u8]>) {
+        self.hints.push_back(hint);
     }
 
-    fn get_hint<T: BorshDeserialize>(&mut self) -> T {
-        let idx = self.next_idx;
-        self.next_idx += 1;
-        T::deserialize_reader(&mut std::io::Cursor::new(&self.hints[idx]))
-            .expect("Hint deserialization should never fail")
+    fn get_hint_raw(&mut self) -> RefCount<[u8]> {
+        self.hints.pop_front().expect("Not enough hints in the witness")
     }
 
     fn merge(&mut self, rhs: &mut Self) {
-        self.hints.extend(rhs.hints.drain(rhs.next_idx..))
+        self.hints.extend(mem::take(&mut rhs.hints))
     }
 }
