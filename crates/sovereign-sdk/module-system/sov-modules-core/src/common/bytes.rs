@@ -6,7 +6,7 @@ use core::{fmt, str};
 #[cfg(feature = "sync")]
 use borsh::{BorshDeserialize, BorshSerialize};
 use sha2::Digest;
-use smallvec::SmallVec;
+use tinyvec::TinyVec;
 
 use crate::module::Context;
 
@@ -18,14 +18,16 @@ use crate::module::Context;
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "sync", derive(serde::Serialize, serde::Deserialize,))]
 pub struct Prefix {
-    prefix: PrefixInner,
+    pub(crate) data: SmallData,
 }
-type PrefixInner = SmallVec<[u8; 64]>;
+
+/// Mostly always inlined data
+pub type SmallData = TinyVec<[u8; 64]>;
 
 #[cfg(feature = "sync")]
 impl BorshSerialize for Prefix {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        BorshSerialize::serialize(self.prefix.as_slice(), writer)
+        BorshSerialize::serialize(self.data.as_slice(), writer)
     }
 }
 
@@ -39,7 +41,7 @@ impl BorshDeserialize for Prefix {
 
 impl fmt::Display for Prefix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let buf = self.prefix.as_ref();
+        let buf = self.data.as_ref();
         match str::from_utf8(buf) {
             Ok(s) => {
                 write!(f, "{:?}", s)
@@ -53,46 +55,34 @@ impl fmt::Display for Prefix {
 
 impl Extend<u8> for Prefix {
     fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
-        self.prefix.extend(iter)
+        self.data.extend(iter)
     }
 }
 
 impl Prefix {
     /// Creates a new prefix from a byte slice.
     pub fn from_slice(prefix: &[u8]) -> Self {
-        Self {
-            prefix: PrefixInner::from_slice(prefix),
-        }
+        let mut data = SmallData::default();
+        data.extend_from_slice(prefix);
+        Self { data }
     }
 
     /// Creates a new prefix from a byte vector.
     pub fn from_vec(prefix: Vec<u8>) -> Self {
-        Self {
-            prefix: PrefixInner::from_vec(prefix),
-        }
-    }
-
-    /// Returns a reference to the slice containing the prefix.
-    pub fn as_slice(&self) -> &[u8] {
-        self.prefix.as_slice()
-    }
-
-    /// Returns the length in bytes of the prefix.
-    pub fn len(&self) -> usize {
-        self.prefix.len()
+        Self::from_slice(&prefix)
     }
 
     /// Copy elements from a slice and append them to the prefix.
     pub fn extend_from_slice(&mut self, bytes: &[u8]) {
-        self.prefix.extend_from_slice(bytes);
+        self.data.extend_from_slice(bytes);
     }
 
     /// Returns a new prefix allocated on the fly, by extending the current
     /// prefix with the given bytes.
     pub fn extended(&self, bytes: &[u8]) -> Self {
-        let mut new_prefix = self.prefix.clone();
+        let mut new_prefix = self.data.clone();
         new_prefix.extend_from_slice(bytes);
-        Self { prefix: new_prefix }
+        Self { data: new_prefix }
     }
 }
 
