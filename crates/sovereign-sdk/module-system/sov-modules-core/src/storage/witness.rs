@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 
 /// A [`Vec`]-based implementation of [`Witness`] with no special logic.
@@ -17,21 +19,19 @@ use borsh::{BorshDeserialize, BorshSerialize};
 /// ```
 #[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
 pub struct Witness {
-    next_idx: usize,
-    hints: Vec<Vec<u8>>,
+    hints: VecDeque<Vec<u8>>,
 }
 
 impl Witness {
     /// Add a serializable hint
     pub fn add_hint<T: BorshSerialize>(&mut self, hint: &T) {
-        self.hints.push(borsh::to_vec(hint).unwrap())
+        self.hints.push_back(borsh::to_vec(hint).unwrap())
     }
 
     /// Get the next deserializable hint
     pub fn get_hint<T: BorshDeserialize>(&mut self) -> T {
-        let idx = self.next_idx;
-        self.next_idx += 1;
-        T::deserialize_reader(&mut std::io::Cursor::new(&self.hints[idx]))
+        let hint = self.hints.pop_front().expect("No more hints left");
+        T::deserialize_reader(&mut hint.as_slice())
             .expect("Hint deserialization should never fail")
     }
 }
