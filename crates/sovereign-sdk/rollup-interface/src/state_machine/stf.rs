@@ -108,8 +108,7 @@ pub trait TransactionDigest {
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
 pub trait StateTransitionFunction<Da: DaSpec> {
     /// The type of rollup transaction
-    type Transaction: std::fmt::Debug
-        + TransactionDigest
+    type Transaction: TransactionDigest
         + Clone
         + BorshDeserialize
         + BorshSerialize
