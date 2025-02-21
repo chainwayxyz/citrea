@@ -27,6 +27,14 @@ pub struct ArrayWitness {
     hints: VecDeque<RefCount<[u8]>>,
 }
 
+// Witness type is very complexly tied to different trait types, and it is hard to make it
+// not require Send + Sync. For native, RefCount = Arc, and it is already Send + Sync.
+// For zk RefCount = Rc, but zk is single-threaded, hence this does the trick.
+#[cfg(not(feature = "native"))]
+unsafe impl Send for ArrayWitness {}
+#[cfg(not(feature = "native"))]
+unsafe impl Sync for ArrayWitness {}
+
 impl Witness for ArrayWitness {
     fn add_hint_raw(&mut self, hint: RefCount<[u8]>) {
         self.hints.push_back(hint);
