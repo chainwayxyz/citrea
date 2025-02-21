@@ -20,7 +20,7 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{DaSpec, L2Block, SlotData, SpecId};
 use sov_modules_core::storage::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -236,35 +236,10 @@ where
         self.fork_manager.register_block(l2_height)?;
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let l2_block: L2Block<Transaction> = if current_spec >= SpecId::Kumquat {
-            soft_confirmation
-                .clone()
-                .try_into()
-                .context("Failed to parse transactions")?
-        } else {
-            let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
-                .clone()
-                .try_into()
-                .context("Failed to parse transactions")?;
-
-            let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
-                .txs
-                .iter()
-                .map(|tx| {
-                    let blob = borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                    let tx = tx.clone().into();
-                    (tx, blob)
-                })
-                .unzip();
-            L2Block::new(
-                l2_block.header,
-                parsed_txs.into(),
-                blobs.into(),
-                l2_block.deposit_data,
-                l2_block.da_slot_height,
-                l2_block.da_slot_hash,
-            )
-        };
+        let l2_block: L2Block<Transaction> = soft_confirmation
+            .clone()
+            .try_into()
+            .context("Failed to parse transactions")?;
 
         let sequencer_pub_key = if current_spec >= SpecId::Fork2 {
             self.sequencer_k256_pub_key.as_slice()

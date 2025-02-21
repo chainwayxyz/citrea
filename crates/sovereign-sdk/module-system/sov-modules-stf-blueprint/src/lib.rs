@@ -17,7 +17,7 @@ use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     native_debug, BasicAddress, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     UnsignedSoftConfirmation, WorkingSet,
@@ -158,11 +158,10 @@ where
     pub fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        blobs: &[Vec<u8>],
         txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
         batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        self.apply_sov_txs_inner(soft_confirmation_info, blobs, txs, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
     }
 
     /// Verify l2_block hash and signature
@@ -399,12 +398,7 @@ where
             &soft_confirmation_info,
         )?;
 
-        self.apply_soft_confirmation_txs(
-            &soft_confirmation_info,
-            &l2_block.blobs,
-            &l2_block.txs,
-            &mut working_set,
-        )?;
+        self.apply_soft_confirmation_txs(&soft_confirmation_info, &l2_block.txs, &mut working_set)?;
 
         self.end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
 
@@ -482,40 +476,11 @@ where
                     .register_block(soft_confirmation_l2_height)
                     .unwrap();
 
-                let spec_id = fork_manager.active_fork().spec_id;
-                let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
-                    guest.read_from_host::<(
-                        L2Block<Self::Transaction>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
-                    )>()
-                } else {
-                    let (l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
-                        L2Block<PreFork2Transaction<C>>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
-                    )>();
-                    let (parsed_txs, blobs): (Vec<Self::Transaction>, Vec<Vec<u8>>) = l2_block
-                        .txs
-                        .iter()
-                        .map(|tx| {
-                            let blob =
-                                borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                            let tx: Self::Transaction = tx.clone().into();
-                            (tx, blob)
-                        })
-                        .unzip();
-
-                    let sc = L2Block::new(
-                        l2_block.header,
-                        parsed_txs.into(),
-                        blobs.into(),
-                        l2_block.deposit_data,
-                        l2_block.da_slot_height,
-                        l2_block.da_slot_hash,
-                    );
-                    (sc, state_witness, offchain_witness)
-                };
+                let (l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
+                    L2Block<Self::Transaction>,
+                    <C::Storage as Storage>::Witness,
+                    <C::Storage as Storage>::Witness,
+                )>();
 
                 assert_eq!(
                     l2_block.l2_height(),

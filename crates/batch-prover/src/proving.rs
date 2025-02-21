@@ -14,7 +14,7 @@ use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -367,35 +367,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
 
-            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-            let l2_block: L2Block<Transaction> = if spec_id >= SpecId::Kumquat {
-                soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?
-            } else {
-                let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?;
-
-                let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
-                    .txs
-                    .iter()
-                    .map(|tx| {
-                        let blob =
-                            borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                        let tx = tx.clone().into();
-                        (tx, blob)
-                    })
-                    .unzip();
-                L2Block::new(
-                    l2_block.header,
-                    parsed_txs.into(),
-                    blobs.into(),
-                    l2_block.deposit_data,
-                    l2_block.da_slot_height,
-                    l2_block.da_slot_hash,
-                )
-            };
+            let l2_block: L2Block<Transaction> = soft_confirmation
+                .try_into()
+                .context("Failed to parse transactions")?;
 
             l2_blocks.push(l2_block);
         }
