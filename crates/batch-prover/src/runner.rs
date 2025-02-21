@@ -297,13 +297,6 @@ where
             soft_confirmation_result.state_diff,
         )?;
 
-        // Save witnesses data to ledger db
-        self.ledger_db.set_l2_witness(
-            l2_height,
-            &soft_confirmation_result.witness,
-            &soft_confirmation_result.offchain_witness,
-        )?;
-
         self.storage_manager
             .finalize_storage(soft_confirmation_result.change_set);
 

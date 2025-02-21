@@ -28,7 +28,7 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_state::ArrayWitness;
+use sov_state::Witness;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
@@ -39,7 +39,7 @@ const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
 
 type CommitmentStateTransitionData<'txs, Da> = (
     VecDeque<Vec<u8>>,
-    VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
+    VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<L2Block<'txs, Transaction>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
@@ -72,7 +72,7 @@ pub(crate) async fn data_to_prove<'txs, Da, DB>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<'txs, ArrayWitness, Da::Spec, Transaction>>,
+        Vec<BatchProofCircuitInput<'txs, Witness, Da::Spec, Transaction>>,
     ),
     L1ProcessingError,
 >
@@ -243,7 +243,7 @@ pub(crate) async fn prove_l1<Da, Vm, DB>(
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block: &Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<'_, ArrayWitness, Da::Spec, Transaction>>,
+    inputs: Vec<BatchProofCircuitInput<'_, Witness, Da::Spec, Transaction>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -435,7 +435,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> anyhow::Result<(
-    VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
+    VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<u8>>,
 )> {
@@ -566,7 +566,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 /// TODO: This check needs a rewrite for sure.
 /// We could check on the sequencer commitments range only and not generate inputs
 pub(crate) fn state_transition_already_proven<Da: DaService>(
-    input: &BatchProofCircuitInput<ArrayWitness, Da::Spec, Transaction>,
+    input: &BatchProofCircuitInput<Witness, Da::Spec, Transaction>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool {
     for proof in proofs {

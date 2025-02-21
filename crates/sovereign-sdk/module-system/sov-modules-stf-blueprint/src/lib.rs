@@ -34,7 +34,7 @@ use sov_rollup_interface::stf::{
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
-use sov_state::{ReadWriteLog, Storage};
+use sov_state::{ReadWriteLog, Storage, Witness};
 
 mod stf_blueprint;
 
@@ -252,7 +252,7 @@ where
         pre_state: <Self as StateTransitionFunction<Da>>::PreState,
     ) -> SoftConfirmationResult<
         C::Storage,
-        <C::Storage as Storage>::Witness,
+        Witness,
         <Self as StateTransitionFunction<Da>>::StateLog,
     > {
         let (
@@ -322,7 +322,7 @@ where
     type ChangeSet = C::Storage;
     type StateLog = ReadWriteLog;
 
-    type Witness = <C::Storage as Storage>::Witness;
+    type Witness = Witness;
 
     fn init_chain(
         &self,
@@ -486,14 +486,14 @@ where
                 let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
                     guest.read_from_host::<(
                         L2Block<Self::Transaction>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
+                        Witness,
+                        Witness,
                     )>()
                 } else {
                     let (l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
                         L2Block<PreFork2Transaction<C>>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
+                        Witness,
+                        Witness,
                     )>();
                     let (parsed_txs, blobs): (Vec<Self::Transaction>, Vec<Vec<u8>>) = l2_block
                         .txs

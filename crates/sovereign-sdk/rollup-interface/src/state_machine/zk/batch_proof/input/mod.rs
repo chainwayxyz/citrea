@@ -1,8 +1,6 @@
 use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use v2::{BatchProofCircuitInputV2Part1, BatchProofCircuitInputV2Part2};
 use v3::{BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2};
 
@@ -18,7 +16,7 @@ pub mod v2;
 /// Removes dependency on da_data so we input less data to the circuit
 pub mod v3;
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 /// Data required to verify a state transition.
@@ -69,7 +67,6 @@ impl<'txs, Witness, Da, Tx> BatchProofCircuitInput<'txs, Witness, Da, Tx>
 where
     Da: DaSpec,
     Tx: Clone + BorshSerialize,
-    Witness: Serialize + DeserializeOwned,
 {
     /// Into Kumquat expected inputs
     pub fn into_v2_parts(

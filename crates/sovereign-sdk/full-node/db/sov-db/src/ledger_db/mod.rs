@@ -3,8 +3,6 @@ use std::sync::Arc;
 
 use borsh::BorshSerialize;
 use rocksdb::WriteBatch;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::soft_confirmation::L2Block;
@@ -18,7 +16,7 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot,
-    L2RangeByL1Height, L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
+    L2RangeByL1Height, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
     PendingSequencerCommitmentL2Range, ProofsBySlotNumberV2, ProverLastScannedSlot,
     ProverStateDiffs, ShortHeaderProofBySlotHash, SlotByHash, SoftConfirmationByHash,
@@ -536,24 +534,6 @@ impl LightClientProverLedgerOps for LedgerDB {
 }
 
 impl BatchProverLedgerOps for LedgerDB {
-    /// Get the witness by L2 height
-    #[instrument(level = "trace", skip_all, err)]
-    fn get_l2_witness<Witness: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<(Witness, Witness)>> {
-        let buf = self
-            .db
-            .get::<L2Witness>(&SoftConfirmationNumber(l2_height))?;
-        if let Some((state_buf, offchain_buf)) = buf {
-            let state_witness = bincode::deserialize(&state_buf)?;
-            let offchain_witness = bincode::deserialize(&offchain_buf)?;
-            Ok(Some((state_witness, offchain_witness)))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Stores proof related data on disk, accessible via l1 slot height
     #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
     fn insert_batch_proof_data_by_l1_height(
@@ -589,27 +569,6 @@ impl BatchProverLedgerOps for LedgerDB {
         l1_height: u64,
     ) -> anyhow::Result<Option<Vec<StoredBatchProof>>> {
         self.db.get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))
-    }
-
-    /// Set the witness by L2 height
-    #[instrument(level = "trace", skip_all, err, ret)]
-    fn set_l2_witness<Witness: Serialize>(
-        &self,
-        l2_height: u64,
-        state_witness: &Witness,
-        offchain_witness: &Witness,
-    ) -> anyhow::Result<()> {
-        let state_buf = bincode::serialize(state_witness)?;
-        let offchain_buf = bincode::serialize(offchain_witness)?;
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2Witness>(
-            &SoftConfirmationNumber(l2_height),
-            &(state_buf, offchain_buf),
-        )?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
     }
 
     fn set_l2_state_diff(

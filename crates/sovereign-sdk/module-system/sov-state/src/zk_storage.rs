@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use jmt::KeyHash;
 use sov_modules_core::{
     OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof, StorageValue, Witness,
@@ -10,65 +8,40 @@ use sov_rollup_interface::zk::StorageRootHash;
 use crate::DefaultHasher;
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
-#[derive(Default)]
-pub struct ZkStorage<W>
-where
-    W: Witness + Send + Sync,
-{
-    _phantom_data: PhantomData<W>,
-}
+#[derive(Default, Clone)]
+pub struct ZkStorage;
 
-impl<W> Clone for ZkStorage<W>
-where
-    W: Witness + Send + Sync,
-{
-    fn clone(&self) -> Self {
-        Self {
-            _phantom_data: Default::default(),
-        }
-    }
-}
-
-impl<W> ZkStorage<W>
-where
-    W: Witness + Send + Sync,
-{
+impl ZkStorage {
     /// Creates a new [`ZkStorage`] instance. Identical to [`Default::default`].
     pub fn new() -> Self {
-        Self {
-            _phantom_data: Default::default(),
-        }
+        Self {}
     }
 }
 
-impl<W> Storage for ZkStorage<W>
-where
-    W: Witness + Send + Sync,
-{
-    type Witness = W;
+impl Storage for ZkStorage {
     type RuntimeConfig = ();
     type StateUpdate = ();
 
-    fn get(&self, _key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
-        witness.get_hint()
+    fn get(&self, _key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
+        witness.get_storage_hint()
     }
 
-    fn get_offchain(&self, _key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
-        witness.get_hint()
+    fn get_offchain(&self, _key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
+        witness.get_storage_hint()
     }
 
     fn compute_state_update(
         &self,
         state_log: &ReadWriteLog,
-        witness: &mut Self::Witness,
+        witness: &mut Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
-        let prev_state_root = witness.get_hint();
+        let prev_state_root = witness.get_state_root_hint();
 
         // For each value that's been read from the tree, verify the provided jmt proof
         for (key, read_value) in state_log.ordered_reads() {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
-            let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_hint();
+            let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_read_proof_hint();
             match read_value {
                 Some(val) => proof.verify_existence(
                     jmt::RootHash(prev_state_root),
@@ -97,8 +70,8 @@ where
             })
             .collect::<Vec<_>>();
 
-        let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> = witness.get_hint();
-        let new_root: [u8; 32] = witness.get_hint();
+        let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> = witness.get_update_proof_hint();
+        let new_root: [u8; 32] = witness.get_state_root_hint();
         update_proof
             .verify_update(
                 jmt::RootHash(prev_state_root),

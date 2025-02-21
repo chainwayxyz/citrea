@@ -7,8 +7,6 @@
 use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use super::da::SequencerCommitment;
 use super::zk::{StorageRootHash, ZkvmGuest};
@@ -133,10 +131,6 @@ pub trait StateTransitionFunction<Da: DaSpec> {
     type Witness: Default
         + BorshSerialize
         + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
         + 'static;
 
     /// Perform one-time initialization for the genesis block and

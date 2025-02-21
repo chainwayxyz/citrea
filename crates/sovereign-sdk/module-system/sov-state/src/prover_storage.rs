@@ -15,7 +15,7 @@ use sov_rollup_interface::zk::StorageRootHash;
 use sov_schema_db::SchemaBatch;
 
 use crate::config::Config;
-use crate::{DefaultHasher, DefaultWitness};
+use crate::DefaultHasher;
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
@@ -89,23 +89,22 @@ pub struct ProverStateUpdate {
 }
 
 impl Storage for ProverStorage {
-    type Witness = DefaultWitness;
     type RuntimeConfig = Config;
     type StateUpdate = ProverStateUpdate;
 
-    fn get(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
+    fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         let val = self.read_value(key);
-        witness.add_hint(&val);
+        witness.add_storage_hint(val.clone());
         val
     }
 
-    fn get_offchain(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
+    fn get_offchain(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         let val = self
             .native_db
             .get_value_option(key.as_ref(), self.version())
             .unwrap()
             .map(Into::into);
-        witness.add_hint(&val);
+        witness.add_storage_hint(val.clone());
         val
     }
 
@@ -120,7 +119,7 @@ impl Storage for ProverStorage {
     fn compute_state_update(
         &self,
         state_log: &ReadWriteLog,
-        witness: &mut Self::Witness,
+        witness: &mut Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
@@ -139,7 +138,7 @@ impl Storage for ProverStorage {
         let prev_root = jmt
             .get_root_hash(version)
             .expect("Previous root hash was just populated");
-        witness.add_hint(&prev_root.0);
+        witness.add_state_root_hint(prev_root.0);
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
         for (key, read_value) in state_log.ordered_reads() {
@@ -149,7 +148,7 @@ impl Storage for ProverStorage {
             if result.as_deref() != read_value.as_ref().map(|f| f.value.as_ref()) {
                 anyhow::bail!("Bug! Incorrect value read from jmt");
             }
-            witness.add_hint(&proof);
+            witness.add_read_proof_hint(proof);
         }
 
         let mut key_preimages = vec![];
@@ -175,8 +174,8 @@ impl Storage for ProverStorage {
             .put_value_set_with_proof(batch, next_version)
             .expect("JMT update must succeed");
 
-        witness.add_hint(&update_proof);
-        witness.add_hint(&new_root.0);
+        witness.add_update_proof_hint(update_proof);
+        witness.add_state_root_hint(new_root.0);
 
         let state_update = ProverStateUpdate {
             node_batch: tree_update.node_batch,
