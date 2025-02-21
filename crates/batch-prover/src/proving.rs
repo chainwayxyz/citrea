@@ -72,7 +72,7 @@ pub(crate) async fn data_to_prove<'txs, Da, DB>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<'txs, Witness, Da::Spec, Transaction>>,
+        Vec<BatchProofCircuitInput<'txs, Da::Spec, Transaction>>,
     ),
     L1ProcessingError,
 >
@@ -243,7 +243,7 @@ pub(crate) async fn prove_l1<Da, Vm, DB>(
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block: &Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<'_, Witness, Da::Spec, Transaction>>,
+    inputs: Vec<BatchProofCircuitInput<'_, Da::Spec, Transaction>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -566,7 +566,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 /// TODO: This check needs a rewrite for sure.
 /// We could check on the sequencer commitments range only and not generate inputs
 pub(crate) fn state_transition_already_proven<Da: DaService>(
-    input: &BatchProofCircuitInput<Witness, Da::Spec, Transaction>,
+    input: &BatchProofCircuitInput<Da::Spec, Transaction>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool {
     for proof in proofs {
