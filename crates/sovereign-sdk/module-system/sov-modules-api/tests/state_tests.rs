@@ -3,7 +3,7 @@ use sov_modules_api::*;
 use sov_modules_core::StateValueCodec;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::codec::BorshCodec;
-use sov_state::{ArrayWitness, DefaultWitness, Prefix, ProverStorage, Storage, ZkStorage};
+use sov_state::{Prefix, ProverStorage, Storage, Witness, ZkStorage};
 
 enum Operation {
     Merge,
@@ -167,7 +167,7 @@ fn test_witness_round_trip() {
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let witness: ArrayWitness = {
+    let witness: Witness = {
         let storage = new_orphan_storage(tempdir.path()).unwrap();
         // let storage = ProverStorage::<DefaultWitness, DefaultHasher>::with_path(path).unwrap();
         let mut working_set = WorkingSet::new(storage.clone());
@@ -183,7 +183,7 @@ fn test_witness_round_trip() {
     };
 
     {
-        let storage = ZkStorage::<DefaultWitness>::new();
+        let storage = ZkStorage::new();
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
         state_value.set(&11, &mut working_set);

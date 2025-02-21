@@ -34,7 +34,7 @@ use sov_rollup_interface::stf::{
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
-use sov_state::{ReadWriteLog, Storage};
+use sov_state::{ReadWriteLog, Storage, Witness};
 
 mod stf_blueprint;
 
@@ -246,7 +246,7 @@ where
         _current_spec: SpecId,
         working_set: WorkingSet<C::Storage>,
         pre_state: C::Storage,
-    ) -> SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness, ReadWriteLog> {
+    ) -> SoftConfirmationResult<C::Storage, Witness, ReadWriteLog> {
         let (
             state_root_transition,
             state_log,
@@ -349,16 +349,14 @@ where
         pre_state: C::Storage,
         cumulative_state_log: Option<ReadWriteLog>,
         cumulative_offchain_log: Option<ReadWriteLog>,
-        state_witness: <C::Storage as Storage>::Witness,
-        offchain_witness: <C::Storage as Storage>::Witness,
+        state_witness: Witness,
+        offchain_witness: Witness,
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
         l2_block: &L2Block<Transaction>,
-    ) -> Result<
-        SoftConfirmationResult<C::Storage, <C::Storage as Storage>::Witness, ReadWriteLog>,
-        StateTransitionError,
-    > {
+    ) -> Result<SoftConfirmationResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError>
+    {
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(l2_block, *pre_state_root, current_spec);
 
@@ -472,17 +470,12 @@ where
 
                 let spec_id = fork_manager.active_fork().spec_id;
                 let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
-                    guest.read_from_host::<(
-                        L2Block<Transaction>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
-                    )>()
+                    guest.read_from_host::<(L2Block<Transaction>, Witness, Witness)>()
                 } else {
-                    let (l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
-                        L2Block<PreFork2Transaction<C>>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
-                    )>();
+                    let (l2_block, state_witness, offchain_witness) =
+                        guest
+                            .read_from_host::<(L2Block<PreFork2Transaction<C>>, Witness, Witness)>(
+                            );
                     let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
                         .txs
                         .iter()

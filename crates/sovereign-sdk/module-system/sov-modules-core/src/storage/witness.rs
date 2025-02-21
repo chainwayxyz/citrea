@@ -1,6 +1,4 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
-use sov_modules_core::Witness;
 
 /// A [`Vec`]-based implementation of [`Witness`] with no special logic.
 ///
@@ -17,25 +15,23 @@ use sov_modules_core::Witness;
 /// assert_eq!(witness.get_hint::<u64>(), 1u64);
 /// assert_eq!(witness.get_hint::<u64>(), 2u64);
 /// ```
-#[derive(Default, BorshDeserialize, BorshSerialize, Debug, Serialize, Deserialize)]
-pub struct ArrayWitness {
+#[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
+pub struct Witness {
     next_idx: usize,
     hints: Vec<Vec<u8>>,
 }
 
-impl Witness for ArrayWitness {
-    fn add_hint<T: BorshSerialize>(&mut self, hint: &T) {
+impl Witness {
+    /// Add a serializable hint
+    pub fn add_hint<T: BorshSerialize>(&mut self, hint: &T) {
         self.hints.push(borsh::to_vec(hint).unwrap())
     }
 
-    fn get_hint<T: BorshDeserialize>(&mut self) -> T {
+    /// Get the next deserializable hint
+    pub fn get_hint<T: BorshDeserialize>(&mut self) -> T {
         let idx = self.next_idx;
         self.next_idx += 1;
         T::deserialize_reader(&mut std::io::Cursor::new(&self.hints[idx]))
             .expect("Hint deserialization should never fail")
-    }
-
-    fn merge(&mut self, rhs: &mut Self) {
-        self.hints.extend(rhs.hints.drain(rhs.next_idx..))
     }
 }
