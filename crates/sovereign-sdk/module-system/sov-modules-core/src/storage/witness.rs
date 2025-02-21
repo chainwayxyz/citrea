@@ -2,6 +2,13 @@ use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
+/// OldWitness should only be used for forks < Fork2
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct OldWitness {
+    next_idx: usize,
+    hints: Vec<Vec<u8>>,
+}
+
 /// A [`Vec`]-based implementation of [`Witness`] with no special logic.
 ///
 /// # Example
@@ -33,5 +40,14 @@ impl Witness {
         let hint = self.hints.pop_front().expect("No more hints left");
         T::deserialize_reader(&mut hint.as_slice())
             .expect("Hint deserialization should never fail")
+    }
+}
+
+impl From<Witness> for OldWitness {
+    fn from(value: Witness) -> Self {
+        Self {
+            next_idx: 0,
+            hints: value.hints.into(),
+        }
     }
 }
