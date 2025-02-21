@@ -23,11 +23,11 @@ impl Storage for ZkStorage {
     type StateUpdate = ();
 
     fn get(&self, _key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
-        witness.get_storage_hint()
+        witness.get_hint()
     }
 
     fn get_offchain(&self, _key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
-        witness.get_storage_hint()
+        witness.get_hint()
     }
 
     fn compute_state_update(
@@ -35,13 +35,13 @@ impl Storage for ZkStorage {
         state_log: &ReadWriteLog,
         witness: &mut Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
-        let prev_state_root = witness.get_prev_state_root_hint();
+        let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided jmt proof
         for (key, read_value) in state_log.ordered_reads() {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
-            let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_read_proof_hint();
+            let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_hint();
             match read_value {
                 Some(val) => proof.verify_existence(
                     jmt::RootHash(prev_state_root),
@@ -70,9 +70,8 @@ impl Storage for ZkStorage {
             })
             .collect::<Vec<_>>();
 
-        let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> =
-            witness.get_update_proof_hint();
-        let new_root: [u8; 32] = witness.get_final_state_root_hint();
+        let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> = witness.get_hint();
+        let new_root: [u8; 32] = witness.get_hint();
         update_proof
             .verify_update(
                 jmt::RootHash(prev_state_root),
