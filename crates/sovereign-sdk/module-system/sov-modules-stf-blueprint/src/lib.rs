@@ -3,7 +3,6 @@
 
 use std::collections::VecDeque;
 
-use borsh::BorshSerialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
@@ -18,7 +17,7 @@ use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     native_debug, BasicAddress, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     UnsignedSoftConfirmation, WorkingSet,
@@ -31,7 +30,7 @@ use sov_rollup_interface::soft_confirmation::{
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
-    StateTransitionError, TransactionDigest,
+    StateTransitionError,
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
@@ -159,11 +158,10 @@ where
     pub fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        blobs: &[Vec<u8>],
         txs: &[Transaction],
         batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        self.apply_sov_txs_inner(soft_confirmation_info, blobs, txs, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
     }
 
     /// Verify l2_block hash and signature
@@ -175,7 +173,7 @@ where
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        verify_tx_merkle_root::<C, Transaction>(current_spec, l2_block).map_err(|_| {
+        verify_tx_merkle_root::<C>(current_spec, l2_block).map_err(|_| {
             StateTransitionError::SoftConfirmationError(SoftConfirmationError::InvalidTxMerkleRoot)
         })?;
 
@@ -384,12 +382,7 @@ where
             &soft_confirmation_info,
         )?;
 
-        self.apply_soft_confirmation_txs(
-            &soft_confirmation_info,
-            &l2_block.blobs,
-            &l2_block.txs,
-            &mut working_set,
-        )?;
+        self.apply_soft_confirmation_txs(&soft_confirmation_info, &l2_block.txs, &mut working_set)?;
 
         self.end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
 
@@ -469,35 +462,8 @@ where
                     .register_block(soft_confirmation_l2_height)
                     .unwrap();
 
-                let spec_id = fork_manager.active_fork().spec_id;
-                let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
-                    guest.read_from_host::<(L2Block<Transaction>, Witness, Witness)>()
-                } else {
-                    let (l2_block, state_witness, offchain_witness) =
-                        guest
-                            .read_from_host::<(L2Block<PreFork2Transaction<C>>, Witness, Witness)>(
-                            );
-                    let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
-                        .txs
-                        .iter()
-                        .map(|tx| {
-                            let blob =
-                                borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                            let tx: Transaction = tx.clone().into();
-                            (tx, blob)
-                        })
-                        .unzip();
-
-                    let sc = L2Block::new(
-                        l2_block.header,
-                        parsed_txs.into(),
-                        blobs.into(),
-                        l2_block.deposit_data,
-                        l2_block.da_slot_height,
-                        l2_block.da_slot_hash,
-                    );
-                    (sc, state_witness, offchain_witness)
-                };
+                let (l2_block, state_witness, offchain_witness) =
+                    guest.read_from_host::<(L2Block<Transaction>, Witness, Witness)>();
 
                 assert_eq!(
                     l2_block.l2_height(),
@@ -702,9 +668,9 @@ fn verify_genesis_signature(
     Ok(())
 }
 
-fn verify_tx_merkle_root<C: Context + Spec, Tx: Clone + BorshSerialize + TransactionDigest>(
+fn verify_tx_merkle_root<C: Context + Spec>(
     current_spec: SpecId,
-    l2_block: &L2Block<'_, Tx>,
+    l2_block: &L2Block<'_, Transaction>,
 ) -> Result<(), StateTransitionError> {
     let tx_hashes: Vec<[u8; 32]> = if current_spec >= SpecId::Kumquat {
         l2_block

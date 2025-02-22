@@ -90,9 +90,6 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     pub header: SignedL2Header,
     /// Txs of signed batch
     pub txs: Cow<'txs, [Tx]>,
-    /// Blobs of signed batch
-    /// TODO remove before mainnet
-    pub blobs: Cow<'txs, [Vec<u8>]>,
     /// Deposit data
     /// TODO remove before mainnet
     pub deposit_data: Vec<Vec<u8>>,
@@ -109,7 +106,6 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     pub fn new(
         header: SignedL2Header,
         txs: Cow<'txs, [Tx]>,
-        blobs: Cow<'txs, [Vec<u8>]>,
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
@@ -117,7 +113,6 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
         Self {
             header,
             txs,
-            blobs,
             deposit_data,
             da_slot_hash,
             da_slot_height,
@@ -191,6 +186,15 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     /// state root
     pub fn state_root(&self) -> [u8; 32] {
         self.header.inner.state_root
+    }
+
+    /// Borsh serialize all txs as blobs
+    /// Required for backward compatiblity
+    fn compute_blobs(&self) -> Vec<Vec<u8>> {
+        self.txs
+            .iter()
+            .map(|tx| borsh::to_vec(tx).unwrap())
+            .collect()
     }
 }
 
@@ -275,7 +279,7 @@ impl<'txs, Tx: Clone + BorshSerialize> From<&'txs L2Block<'_, Tx>>
             da_slot_height: block.da_slot_height(),
             da_slot_hash: block.da_slot_hash(),
             da_slot_txs_commitment: header.da_slot_txs_commitment,
-            blobs: block.blobs.to_vec(),
+            blobs: block.compute_blobs(),
             txs: &block.txs,
             deposit_data: block.deposit_data.clone(),
             l1_fee_rate: header.l1_fee_rate,
@@ -292,7 +296,7 @@ impl<'txs, Tx: Clone + BorshSerialize> From<&'txs L2Block<'_, Tx>> for UnsignedS
             da_slot_height: block.da_slot_height(),
             da_slot_hash: block.da_slot_hash(),
             da_slot_txs_commitment: header.da_slot_txs_commitment,
-            blobs: block.blobs.to_vec(),
+            blobs: block.compute_blobs(),
             deposit_data: block.deposit_data.clone(),
             l1_fee_rate: header.l1_fee_rate,
             timestamp: header.timestamp,
@@ -435,7 +439,7 @@ impl<'txs, Tx: Clone + BorshSerialize> From<L2Block<'_, Tx>> for SignedSoftConfi
             da_slot_hash: input.da_slot_hash(),
             da_slot_txs_commitment: input.da_slot_txs_commitment(),
             l1_fee_rate: input.l1_fee_rate(),
-            blobs: Cow::Owned(input.blobs.to_vec()),
+            blobs: Cow::Owned(input.compute_blobs()),
             txs: Cow::Owned(input.txs.to_vec()),
             signature: input.signature().to_vec(),
             deposit_data: input.deposit_data().to_vec(),
@@ -455,7 +459,7 @@ impl<Tx: Clone + BorshSerialize> From<L2Block<'_, Tx>> for SignedSoftConfirmatio
             da_slot_hash: input.da_slot_hash(),
             da_slot_txs_commitment: input.da_slot_txs_commitment(),
             l1_fee_rate: input.l1_fee_rate(),
-            txs: input.blobs.to_vec(),
+            txs: input.compute_blobs(),
             signature: input.signature().to_vec(),
             deposit_data: input.deposit_data().to_vec(),
             pub_key: input.pub_key().to_vec(),

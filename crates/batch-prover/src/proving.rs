@@ -14,7 +14,7 @@ use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -366,35 +366,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
 
-            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-            let l2_block: L2Block<Transaction> = if spec_id >= SpecId::Kumquat {
-                soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?
-            } else {
-                let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?;
-
-                let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
-                    .txs
-                    .iter()
-                    .map(|tx| {
-                        let blob =
-                            borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                        let tx = tx.clone().into();
-                        (tx, blob)
-                    })
-                    .unzip();
-                L2Block::new(
-                    l2_block.header,
-                    parsed_txs.into(),
-                    blobs.into(),
-                    l2_block.deposit_data,
-                    l2_block.da_slot_height,
-                    l2_block.da_slot_hash,
-                )
-            };
+            let l2_block: L2Block<Transaction> = soft_confirmation
+                .try_into()
+                .context("Failed to parse transactions")?;
 
             l2_blocks.push(l2_block);
         }
@@ -453,17 +427,20 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
+    // If executed with Fork2 elf, should use cache
+    let should_use_cache = fork_from_block_number(
+        committed_l2_blocks
+            .back()
+            .expect("must have at least one commitment")
+            .last()
+            .expect("must have at least one l2 block")
+            .l2_height(),
+    )
+    .spec_id
+        >= SpecId::Fork2;
+
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
-        // If executed with Fork2 elf, should use cache
-        let should_use_cache = fork_from_block_number(
-            l2_blocks_in_commitment
-                .last()
-                .expect("must have at least one")
-                .l2_height(),
-        )
-        .spec_id
-            >= SpecId::Fork2;
 
         SHORT_HEADER_PROOF_PROVIDER
             .get()
