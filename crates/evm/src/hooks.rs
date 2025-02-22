@@ -136,15 +136,20 @@ impl<C: sov_modules_api::Context> Evm<C> {
             );
         }
 
-        // if height > 256, start removing the oldest block
-        // keeping only 256 most recent blocks
-        // this first happens on txs in block 257
-        // remove block 0, keep blocks 1-256
-        // then on block 258
-        // remove block 1, keep blocks 2-257
-        if self.block_env.number > U256::from(256) {
-            self.latest_block_hashes
-                .remove(&(self.block_env.number - U256::from(257)), working_set);
+        if current_spec < CitreaSpecId::Fork2 {
+            // There is no reason to remove them from the state at all.
+            // We remove them only before Fork2 for backwards compatibility.
+
+            // if height > 256, start removing the oldest block
+            // keeping only 256 most recent blocks
+            // this first happens on txs in block 257
+            // remove block 0, keep blocks 1-256
+            // then on block 258
+            // remove block 1, keep blocks 2-257
+            if self.block_env.number > U256::from(256) {
+                self.latest_block_hashes
+                    .remove(&(self.block_env.number - U256::from(257)), working_set);
+            }
         }
 
         self.last_l1_hash
