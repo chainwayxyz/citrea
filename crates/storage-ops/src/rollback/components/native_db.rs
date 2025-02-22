@@ -23,7 +23,7 @@ pub(crate) fn rollback_native_db(native_db: Arc<sov_schema_db::DB>, down_to_bloc
     while let Some(Ok(entry)) = iter.next() {
         let version = entry.key.1;
         // The version value is always ahead of block number by one.
-        if version >= target_version {
+        if version > target_version {
             keys_to_delete.push(entry.key);
             counter += 1;
         }

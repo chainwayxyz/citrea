@@ -1,13 +1,15 @@
 use std::fs;
+use std::panic::AssertUnwindSafe;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::rollback::Rollback;
-use reth_primitives::BlockNumberOrTag;
+use futures::FutureExt;
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -24,7 +26,7 @@ use crate::mock::evm::init_test_rollup;
 
 /// Trigger rollback native DB data.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_rollback() -> Result<(), anyhow::Error> {
+async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
     citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -152,7 +154,31 @@ async fn test_rollback() -> Result<(), anyhow::Error> {
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await.unwrap();
 
+    // Check soft confirmations have been rolled back in Ledger DB
     wait_for_l2_block(&seq_test_client, 40, None).await;
+
+    // Check state DB is rolled back.
+    let get_balance_result = seq_test_client
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Latest)))
+        .await;
+    assert!(get_balance_result.is_ok());
+    assert_eq!(
+        get_balance_result.unwrap(),
+        U256::from(40000000000000000000u128)
+    );
+
+    // Check native DB is rolled back
+    let check_block_by_number_result = AssertUnwindSafe(
+        seq_test_client.eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number(41))),
+    )
+    .catch_unwind()
+    .await;
+    assert!(check_block_by_number_result.is_err());
+
+    // Should NOT panic as the data we're requesting here is correct
+    seq_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number(40)))
+        .await;
 
     seq_task.abort();
 
