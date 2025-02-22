@@ -12,6 +12,7 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
+alloy-primitives = { workspace = true, default-features = false }
 alloy-rlp = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc", "bytes"] }
@@ -21,6 +22,7 @@ serde = { workspace = true, features = ["rc"] }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-core = { path = "../sov-modules-core" }
 sov-db = { path = "../../full-node/db/sov-db", optional = true }
+sov-schema-db = { path = "../../full-node/db/sov-schema-db", optional = true }
 jmt = { workspace = true }
 sha2 = { workspace = true }
 
@@ -30,4 +32,4 @@ proptest = { workspace = true }
 
 [features]
 default = []
-native = ["sov-db"]
+native = ["sov-db", "sov-schema-db"]

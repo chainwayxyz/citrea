@@ -16,6 +16,16 @@ const MAX_BATCHES_PER_REQUEST: u64 = 20;
 /// The maximum number of soft confirmations that can be requested in a single RPC range query
 const MAX_SOFT_CONFIRMATIONS_PER_REQUEST: u64 = 20;
 
+fn check_if_l2_block_pruned(ledger_db: &LedgerDB, l2_height: u64) -> Result<(), anyhow::Error> {
+    let last_pruned_l2_height = ledger_db.get_last_pruned_l2_height()?;
+    if let Some(last_pruned_l2_height) = last_pruned_l2_height {
+        if l2_height <= last_pruned_l2_height {
+            anyhow::bail!("Soft confirmation at height {} has been pruned.", l2_height);
+        }
+    }
+    Ok(())
+}
+
 use super::{L2GenesisStateRoot, LedgerDB, ProofsBySlotNumberV2, SharedLedgerOps};
 
 impl LedgerRpcProvider for LedgerDB {
@@ -26,6 +36,8 @@ impl LedgerRpcProvider for LedgerDB {
         let batch_num = self.resolve_soft_confirmation_identifier(batch_id)?;
         Ok(match batch_num {
             Some(num) => {
+                check_if_l2_block_pruned(self, num.0)?;
+
                 if let Some(stored_batch) = self.db.get::<SoftConfirmationByNumber>(&num)? {
                     Some(stored_batch.try_into()?)
                 } else {
@@ -93,6 +105,8 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         l2_height: u64,
     ) -> Result<sov_rollup_interface::rpc::SoftConfirmationStatus, anyhow::Error> {
+        check_if_l2_block_pruned(self, l2_height)?;
+
         if self
             .db
             .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(l2_height))

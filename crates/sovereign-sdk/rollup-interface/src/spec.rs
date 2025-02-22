@@ -46,7 +46,6 @@ impl SpecId {
         match n {
             0 => Some(SpecId::Genesis),
             1 => Some(SpecId::Kumquat),
-            #[cfg(feature = "testing")]
             2 => Some(SpecId::Fork2),
             #[cfg(feature = "testing")]
             3 => Some(SpecId::Fork3),

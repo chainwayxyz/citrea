@@ -47,8 +47,6 @@ impl TestCase for GenerateProofInput {
                 base_fee_tx_size: 100_000_000,
                 max_account_slots: 1_000_000,
             },
-            test_mode: false,
-            block_production_interval_ms: 500,
             ..Default::default()
         }
     }
@@ -67,22 +65,41 @@ impl TestCase for GenerateProofInput {
 
         let file = File::open(&self.transactions_file_path).unwrap();
         let reader = BufReader::new(file);
+        let signed_txs = reader.lines().map(|line| line.unwrap()).collect::<Vec<_>>();
+        let mut signed_txs_iter = signed_txs.iter().filter(|tx| !tx.trim().is_empty());
 
-        // Send each transaction from the file
-        for line in reader.lines() {
-            let signed_tx = line.unwrap();
+        // 2 full commitments
+        let blocks = sequencer.config.node.min_soft_confirmations_per_commitment * 2;
+        let tx_per_block = signed_txs.len() as u64 / blocks;
 
-            // Skip empty lines
-            if signed_tx.trim().is_empty() {
-                continue;
+        for block in 1..=blocks {
+            for _ in 0..tx_per_block {
+                let signed_tx = signed_txs_iter.next().unwrap();
+
+                sequencer
+                    .client
+                    .http_client()
+                    .eth_send_raw_transaction(hex::decode(signed_tx).unwrap().into())
+                    .await
+                    .unwrap();
             }
 
-            sequencer
-                .client
-                .http_client()
-                .eth_send_raw_transaction(hex::decode(signed_tx).unwrap().into())
-                .await
-                .unwrap();
+            // if last block, ensure all txs are in the mempool
+            if block == blocks {
+                for signed_tx in signed_txs_iter.by_ref() {
+                    sequencer
+                        .client
+                        .http_client()
+                        .eth_send_raw_transaction(hex::decode(signed_tx).unwrap().into())
+                        .await
+                        .unwrap();
+                }
+            }
+
+            // wait short time to ensure all txs are in the mempool
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
         println!("All txs sent");
 
@@ -158,6 +175,7 @@ async fn guest_cycles() {
     env::set_var("RISC0_PPROF_OUT", "profile.pb");
     let prover = default_prover();
 
+    println!("Started proving at {}", chrono::Local::now());
     let ProveInfo { stats, .. } = prover
         .prove_with_opts(exec_env, &elf, &ProverOpts::groth16())
         .unwrap();

@@ -17,6 +17,7 @@ members = [
   "crates/storage-ops",
   "crates/risc0",
   "crates/sequencer",
+  "crates/short-header-proof-provider",
   "crates/soft-confirmation-rule-enforcer",
   # "crates/sp1",
   # Sovereign sdk
@@ -113,12 +114,12 @@ tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
-risc0-binfmt = "1.2.1"
-risc0-zkvm = { version = "1.2.1", default-features = false }
-risc0-zkvm-platform = "1.2.1"
-risc0-zkp = "1.2.1"
-risc0-circuit-rv32im = "1.2.1"
-risc0-build = "1.2.1"
+risc0-binfmt = "1.2.4"
+risc0-zkvm = { version = "1.2.4", default-features = false }
+risc0-zkvm-platform = "1.2.4"
+risc0-zkp = "1.2.4"
+risc0-circuit-rv32im = "1.2.4"
+risc0-build = "1.2.4"
 
 # EVM dependencies
 revm-inspectors = { version = "=0.8.1", default-features = false }
@@ -141,6 +142,7 @@ reth-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "1ba631ba9581973
 reth-stages = { git = "https://github.com/paradigmxyz/reth", rev = "1ba631ba9581973e7c6cadeea92cfe1802aceb4a", default-features = false }
 
 revm = { version = "14.0.3", features = ["serde"], default-features = false }
+revm-precompile = { version = "11.0.3", default-features = false, features = ['secp256r1'] }
 revm-primitives = { version = "10.0.0", default-features = false }
 alloy-genesis = { version = "0.4.2", default-features = false }
 alloy-trie = { version = "0.6", default-features = false }
@@ -156,7 +158,7 @@ alloy-eips = { version = "0.4.2", default-features = false }
 alloy-consensus = { version = "0.4.2", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.4.2", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "56abf56" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "535704321136f15f589a7555f6aec1d2f3d1278e" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }

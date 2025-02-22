@@ -1,11 +1,13 @@
 use std::collections::{BTreeMap, VecDeque};
+use std::sync::Arc;
 
 use rand::{thread_rng, Rng};
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRInclusionProof, MMRNative};
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
 pub(crate) fn create_mock_batch_proof(
@@ -16,13 +18,13 @@ pub(crate) fn create_mock_batch_proof(
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2::<MockDaSpec> {
+    let bp = BatchProofCircuitOutputV2 {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: BTreeMap::new(),
-        da_slot_hash: MockHash([5; 32]),
+        da_slot_hash: [5; 32],
         sequencer_commitments_range: (0, 0),
         sequencer_public_key: [9; 32].to_vec(),
         sequencer_da_public_key: [9; 32].to_vec(),
@@ -59,17 +61,17 @@ pub(crate) fn create_serialized_mock_proof(
     final_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
-    state_diff: Option<BTreeMap<Vec<u8>, Option<Vec<u8>>>>,
+    state_diff: Option<CumulativeStateDiff>,
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2::<MockDaSpec> {
+    let bp = BatchProofCircuitOutputV2 {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
-        da_slot_hash: MockHash([5; 32]),
+        da_slot_hash: [5; 32],
         sequencer_commitments_range: (0, 0),
         sequencer_public_key: [9; 32].to_vec(),
         sequencer_da_public_key: [9; 32].to_vec(),
@@ -122,7 +124,7 @@ pub(crate) fn create_new_method_id_tx(
     blob
 }
 
-pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec<u8>>> {
+pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, Option<Arc<[u8]>>> {
     let mut rng = thread_rng();
     let mut map = BTreeMap::new();
     let mut total_size: u64 = 0;
@@ -150,7 +152,10 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Opt
         };
 
         // Add to the map
-        map.insert(key, value);
+        map.insert(
+            Arc::from(key.into_boxed_slice()),
+            value.map(|v| Arc::from(v.into_boxed_slice())),
+        );
 
         // Update the total size
         total_size += key_size + value_size;

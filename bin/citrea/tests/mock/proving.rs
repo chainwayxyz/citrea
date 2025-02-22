@@ -46,6 +46,8 @@ async fn full_node_verify_proof_and_store() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -77,6 +79,8 @@ async fn full_node_verify_proof_and_store() {
             None,
             rollup_config,
             None,
+            None,
+            false,
         )
         .await;
     });
@@ -102,6 +106,8 @@ async fn full_node_verify_proof_and_store() {
             None,
             rollup_config,
             None,
+            None,
+            false,
         )
         .await;
     });
@@ -179,7 +185,10 @@ async fn full_node_verify_proof_and_store() {
 
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
-    let proof_height = full_node_proof[0].proof_output.last_l2_height;
+    let proof_height = full_node_proof[0]
+        .proof_output
+        .last_l2_height
+        .expect("V2 proof should have field");
     let soft_confirmation = full_node_test_client
         .ledger_get_soft_confirmation_by_number::<MockDaSpec>(proof_height.to())
         .await
@@ -238,6 +247,8 @@ async fn test_batch_prover_prove_rpc() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -270,6 +281,8 @@ async fn test_batch_prover_prove_rpc() {
             None,
             rollup_config,
             None,
+            None,
+            false,
         )
         .await;
     });
@@ -295,6 +308,8 @@ async fn test_batch_prover_prove_rpc() {
             None,
             rollup_config,
             None,
+            None,
+            false,
         )
         .await;
     });

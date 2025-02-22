@@ -7,13 +7,19 @@ use core::fmt;
 use sov_rollup_interface::RefCount;
 
 use crate::common::{MergeError, ReadError};
-use crate::storage::{Storage, StorageKey, StorageValue};
 
 /// A key for a cache set.
 #[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
 pub struct CacheKey {
     /// The key of the cache entry.
-    pub key: RefCount<Vec<u8>>,
+    pub key: RefCount<[u8]>,
+}
+
+impl CacheKey {
+    /// Returns the heap size of the `CacheKey`
+    pub fn size(&self) -> usize {
+        self.key.len()
+    }
 }
 
 impl fmt::Display for CacheKey {
@@ -27,7 +33,14 @@ impl fmt::Display for CacheKey {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CacheValue {
     /// The value of the cache entry.
-    pub value: RefCount<Vec<u8>>,
+    pub value: RefCount<[u8]>,
+}
+
+impl CacheValue {
+    /// Returns the heap size of the `CacheValue`
+    pub fn size(&self) -> usize {
+        self.value.len()
+    }
 }
 
 impl fmt::Display for CacheValue {
@@ -37,8 +50,6 @@ impl fmt::Display for CacheValue {
     }
 }
 
-// TODO: I don't believe this is necessary
-
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
 /// The rules for defining causality are as follows:
@@ -47,6 +58,7 @@ impl fmt::Display for CacheValue {
 /// 3. Otherwise, retain the read.
 /// 4. A write is retained unless it is followed by another write.
 #[derive(PartialEq, Eq, Debug, Clone)]
+#[repr(u8)]
 pub(crate) enum Access {
     Read(Option<CacheValue>),
     ReadThenWrite {
@@ -93,6 +105,20 @@ impl Access {
             // We can do this unconditionally, since overwriting a value with itself is a no-op
             Access::Write(value) => *value = new_value,
         }
+    }
+
+    pub fn size(&self) -> usize {
+        let inner_size = match self {
+            Access::Read(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
+            Access::ReadThenWrite { original, modified } => {
+                let original_size = original.as_ref().map(|v| v.size()).unwrap_or_default();
+                let modified_size = modified.as_ref().map(|v| v.size()).unwrap_or_default();
+                original_size + modified_size
+            }
+            Access::Write(value) => value.as_ref().map(|v| v.size()).unwrap_or_default(),
+        };
+        // 1 byte enum tag
+        1 + inner_size
     }
 
     pub fn merge(&mut self, rhs: Self) -> Result<(), MergeError> {
@@ -239,16 +265,13 @@ impl CacheLog {
 }
 
 impl CacheLog {
-    /// Returns the owned set of key/value pairs of the cache.
-    pub fn take_writes(self) -> Vec<(CacheKey, Option<CacheValue>)> {
-        self.log
-            .into_iter()
-            .filter_map(|(k, v)| match v {
-                Access::Read(_) => None,
-                Access::ReadThenWrite { modified, .. } => Some((k, modified)),
-                Access::Write(write) => Some((k, write)),
-            })
-            .collect()
+    /// Iterate over key/value pairs of write cache
+    pub fn iter_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
+        self.log.iter().filter_map(|(k, v)| match v {
+            Access::Read(_) => None,
+            Access::ReadThenWrite { modified, .. } => Some((k, modified)),
+            Access::Write(write) => Some((k, write)),
+        })
     }
 
     /// Returns a value corresponding to the key.
@@ -291,6 +314,43 @@ impl CacheLog {
                 vacancy.insert(Access::Write(value));
             }
         }
+    }
+
+    /// Marks all cache entries as read.
+    pub fn mark_all_as_read(&mut self) {
+        for (_, access) in self.log.iter_mut() {
+            match access {
+                Access::Write(val) => {
+                    let val = val.take();
+                    *access = Access::Read(val);
+                }
+                Access::ReadThenWrite { modified, .. } => {
+                    let val = modified.take();
+                    *access = Access::Read(val);
+                }
+                Access::Read(_) => {}
+            }
+        }
+    }
+
+    /// Prunes half of the cache efficiently
+    pub fn prune_half(&mut self) {
+        if self.log.is_empty() {
+            return;
+        }
+
+        let mid_idx = self.log.len() / 2;
+        let mid_key = self.log.keys().nth(mid_idx).expect("must exist").clone();
+        self.log.split_off(&mid_key);
+    }
+
+    /// Returns the estimated heap size of the `CacheLog`. This doesn't account for
+    /// pointer and node overhead coming from BTreeMap.
+    pub fn estimated_size(&self) -> usize {
+        self.log.iter().fold(0, |mut acc, (key, access)| {
+            acc += key.size() + access.size();
+            acc
+        })
     }
 
     /// Merges two cache logs in a way that preserves the first read (from self) and the last write (from rhs)
@@ -357,138 +417,45 @@ impl CacheLog {
     }
 }
 
-/// Caches reads and writes for a (key, value) pair. On the first read the value is fetched
-/// from an external source represented by the `ValueReader` trait. On following reads,
-/// the cache checks if the value we read was inserted before.
+/// Type alias which contains ordered storage reads
+pub type OrderedReads = Vec<(CacheKey, Option<CacheValue>)>;
+
+/// Type alias which contains ordered storage writes
+pub type OrderedWrites = Vec<(CacheKey, Option<CacheValue>)>;
+
+/// `ReadWriteLog` is a container structure for ordered reads and writes. It also
+/// holds on to the `CacheLog` to allow reuse.
 #[derive(Default)]
-pub struct StorageInternalCache {
-    /// Transaction cache.
-    pub tx_cache: CacheLog,
-    /// Ordered reads and writes.
-    pub ordered_db_reads: Vec<(CacheKey, Option<CacheValue>)>,
-    /// Version for versioned usage with cache
-    pub version: Option<u64>,
-    /// What storage is used for the cache
-    pub mode: CacheMode,
+pub struct ReadWriteLog {
+    pub(crate) ordered_reads: OrderedReads,
+    pub(crate) cache_log: CacheLog,
 }
 
-/// The mode of the cache.
-/// State for storage cache, Offchain for offchain storage cache.
-#[derive(Default)]
-pub enum CacheMode {
-    /// Storage mode for serving state.
-    #[default]
-    State,
-    /// Offchain mode for serving offchain state.
-    Offchain,
-}
-
-impl StorageInternalCache {
-    /// Wrapper around default that can create the cache with knowledge of the version
-    pub fn new(version: Option<u64>, mode: CacheMode) -> Self {
-        StorageInternalCache {
-            version,
-            ordered_db_reads: Vec::new(),
-            tx_cache: CacheLog::default(),
-            mode,
-        }
+impl ReadWriteLog {
+    /// Returns slice of ordered reads
+    pub fn ordered_reads(&self) -> &[(CacheKey, Option<CacheValue>)] {
+        self.ordered_reads.as_slice()
     }
 
-    /// Gets a value from the cache or reads it from the provided `ValueReader`.
-    pub fn get_or_fetch<S: Storage>(
-        &mut self,
-        key: &StorageKey,
-        value_reader: &S,
-        witness: &mut S::Witness,
-    ) -> Option<StorageValue> {
-        let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = self.get_value_from_cache(&cache_key);
-
-        match cache_value {
-            ValueExists::Yes(cache_value_exists) => cache_value_exists.map(Into::into),
-            // If the value does not exist in the cache, then fetch it from an external source.
-            ValueExists::No => {
-                let storage_value = match self.mode {
-                    CacheMode::State => value_reader.get(key, self.version, witness),
-                    CacheMode::Offchain => value_reader.get_offchain(key, self.version, witness),
-                };
-                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
-
-                self.add_read(cache_key, cache_value);
-                storage_value
-            }
-        }
+    /// Returns an iterator over ordered writes
+    pub fn iter_ordered_writes(&self) -> impl Iterator<Item = (&CacheKey, &Option<CacheValue>)> {
+        self.cache_log.iter_writes()
     }
 
-    /// Gets a keyed value from the cache, returning a wrapper on whether it exists.
-    pub fn try_get(&self, key: &StorageKey) -> ValueExists {
-        let cache_key = key.to_cache_key_version(self.version);
-        self.get_value_from_cache(&cache_key)
+    /// Converts this into a `CacheLog` for reuse. Marks all entries as `Access::Read` before returning.
+    pub fn into_cache_log(mut self) -> CacheLog {
+        self.cache_log.mark_all_as_read();
+        self.cache_log
     }
 
-    /// Replaces the keyed value on the storage.
-    pub fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = value.into_cache_value();
-        self.tx_cache.add_write(cache_key, Some(cache_value));
+    /// Returns the estimated cache size
+    pub fn estimated_cache_size(&self) -> usize {
+        self.cache_log.estimated_size()
     }
 
-    /// Deletes a keyed value from the cache.
-    pub fn delete(&mut self, key: &StorageKey) {
-        let cache_key = key.to_cache_key_version(self.version);
-        self.tx_cache.add_write(cache_key, None);
-    }
-
-    fn get_value_from_cache(&self, cache_key: &CacheKey) -> ValueExists {
-        self.tx_cache.get_value(cache_key)
-    }
-
-    /// Merges the provided `StorageInternalCache` into this one.
-    pub fn merge_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_left(rhs.tx_cache)
-    }
-
-    /// Merges the reads of the provided `StorageInternalCache` into this one.
-    pub fn merge_reads_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_reads_left(rhs.tx_cache)
-    }
-
-    /// Merges the writes of the provided `StorageInternalCache` into this one.
-    pub fn merge_writes_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_writes_left(rhs.tx_cache)
-    }
-
-    fn add_read(&mut self, key: CacheKey, value: Option<CacheValue>) {
-        self.tx_cache
-            .add_read(key.clone(), value.clone())
-            // It is ok to panic here, we must guarantee that the cache is consistent.
-            .unwrap_or_else(|e| panic!("Inconsistent read from the cache: {e:?}"));
-
-        if matches!(self.mode, CacheMode::State) {
-            self.ordered_db_reads.push((key, value));
-        }
-    }
-}
-
-/// A struct that contains the values read from the DB and the values to be written, both in
-/// deterministic order.
-#[derive(Debug, Default)]
-pub struct OrderedReadsAndWrites {
-    /// Ordered reads.
-    pub ordered_reads: Vec<(CacheKey, Option<CacheValue>)>,
-    /// Ordered writes.
-    pub ordered_writes: Vec<(CacheKey, Option<CacheValue>)>,
-}
-
-impl From<StorageInternalCache> for OrderedReadsAndWrites {
-    fn from(val: StorageInternalCache) -> Self {
-        // Because BTreeMap is used there is no need to sort writes by key. It is already sorted.
-        let writes = val.tx_cache.take_writes();
-
-        Self {
-            ordered_reads: val.ordered_db_reads,
-            ordered_writes: writes,
-        }
+    /// Prunes the cache into half unconditionally.
+    pub fn prune_half(&mut self) {
+        self.cache_log.prune_half();
     }
 }
 
@@ -501,13 +468,13 @@ mod tests {
 
     pub fn create_key(key: u8) -> CacheKey {
         CacheKey {
-            key: RefCount::new(alloc::vec![key]),
+            key: RefCount::from(alloc::vec![key]),
         }
     }
 
     pub fn create_value(v: u8) -> Option<CacheValue> {
         Some(CacheValue {
-            value: RefCount::new(alloc::vec![v]),
+            value: RefCount::from(alloc::vec![v]),
         })
     }
 

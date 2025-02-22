@@ -31,8 +31,6 @@ fn module_info_tests() {
 fn module_dispatch_tests() {
     set_constants_manifest();
     let t = trybuild::TestCases::new();
-    t.pass("tests/dispatch/derive_genesis.rs");
-    t.pass("tests/dispatch/derive_dispatch.rs");
     t.compile_fail("tests/dispatch/missing_serialization.rs");
 }
 
@@ -43,24 +41,9 @@ fn rpc_tests() {
     t.pass("tests/rpc/derive_rpc.rs");
     t.pass("tests/rpc/derive_rpc_with_where.rs");
     t.pass("tests/rpc/expose_rpc.rs");
-    t.pass("tests/rpc/expose_rpc_associated_types.rs");
-    t.pass("tests/rpc/expose_rpc_associated_types_nested.rs");
 
     t.compile_fail("tests/rpc/expose_rpc_associated_type_not_static.rs");
     t.compile_fail("tests/rpc/expose_rpc_first_generic_not_context.rs");
-}
-
-#[test]
-fn cli_wallet_arg_tests() {
-    set_constants_manifest();
-    let t: trybuild::TestCases = trybuild::TestCases::new();
-
-    t.pass("tests/cli_wallet_arg/derive_enum_named_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_struct_unnamed_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_struct_named_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_enum_mixed_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_enum_unnamed_fields.rs");
-    t.pass("tests/cli_wallet_arg/derive_wallet.rs");
 }
 
 #[test]

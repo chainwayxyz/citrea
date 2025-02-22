@@ -13,7 +13,7 @@ pub use query::*;
 mod tests;
 
 // "Given DA slot hasn't been used for more than N soft confirmation blocks."
-use sov_modules_api::{Context, DaSpec, ModuleInfo, StateValue, WorkingSet};
+use sov_modules_api::{Address, Context, DaSpec, ModuleInfo, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -38,7 +38,7 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// Authority address. Address of the sequencer.
     /// This address is allowed to modify the max L2 blocks per L1.
     #[state]
-    pub(crate) authority: StateValue<C::Address, BcsCodec>,
+    pub(crate) authority: StateValue<Address, BcsCodec>,
     /// Phantom state using the da type.
     /// This is used to make sure that the state is generic over the DA type.
     #[allow(dead_code)]
@@ -49,9 +49,9 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
 impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnforcer<C, Da> {
     type Context = C;
 
-    type Config = SoftConfirmationRuleEnforcerConfig<C>;
+    type Config = SoftConfirmationRuleEnforcerConfig;
 
-    type CallMessage = CallMessage<C>;
+    type CallMessage = CallMessage;
 
     fn call(
         &mut self,

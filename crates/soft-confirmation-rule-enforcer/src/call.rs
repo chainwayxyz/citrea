@@ -2,7 +2,8 @@ use core::result::Result;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, SoftConfirmationModuleCallError, StateValueAccessor, WorkingSet,
+    Address, CallResponse, Context, DaSpec, SoftConfirmationModuleCallError, StateValueAccessor,
+    WorkingSet,
 };
 
 use crate::SoftConfirmationRuleEnforcer;
@@ -17,11 +18,11 @@ use crate::SoftConfirmationRuleEnforcer;
     serde::Serialize,
     serde::Deserialize,
 )]
-pub enum CallMessage<C: Context> {
+pub enum CallMessage {
     /// Change the authority of soft confirmation rule enforcing.
     ChangeAuthority {
         /// The sov address of the new authority.
-        new_authority: C::Address,
+        new_authority: Address,
     },
     /// Remove a sequencer from the sequencer registry.
     ModifyMaxL2BlocksPerL1 {
@@ -32,7 +33,7 @@ pub enum CallMessage<C: Context> {
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     /// Returns the address of authority.
-    fn get_authority(&self, working_set: &mut WorkingSet<C::Storage>) -> C::Address {
+    fn get_authority(&self, working_set: &mut WorkingSet<C::Storage>) -> Address {
         self.authority
             .get(working_set)
             .expect("Authority must be set")
@@ -40,7 +41,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
 
     pub(crate) fn change_authority(
         &self,
-        address: C::Address,
+        address: Address,
         context: &C,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {

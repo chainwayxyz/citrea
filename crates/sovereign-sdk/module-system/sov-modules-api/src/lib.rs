@@ -1,7 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-#[cfg(feature = "native")]
-pub mod cli;
 mod containers;
 pub mod default_context;
 pub mod default_signature;
@@ -193,10 +191,11 @@ pub use sov_modules_core::{
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::soft_confirmation::{
-    SignedSoftConfirmation, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1,
+    L2Block, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1,
 };
 pub use sov_rollup_interface::stf::StateDiff;
 pub use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+pub use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 pub use sov_rollup_interface::zk::Zkvm;
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
 
@@ -323,24 +322,4 @@ where
     }
 
     Ok(sorted_values)
-}
-
-/// This trait is implemented by types that can be used as arguments in the sov-cli wallet.
-/// The recommended way to implement this trait is using the provided derive macro (`#[derive(CliWalletArg)]`).
-/// Currently, this trait is a thin wrapper around [`clap::Parser`]
-#[cfg(feature = "native")]
-pub trait CliWalletArg: From<Self::CliStringRepr> {
-    /// The type that is used to represent this type in the CLI. Typically,
-    /// this type implements the clap::Subcommand trait.
-    type CliStringRepr;
-}
-
-/// A trait that needs to be implemented for a *runtime* to be used with the CLI wallet
-#[cfg(feature = "native")]
-pub trait CliWallet: sov_modules_core::DispatchCall {
-    /// The type that is used to represent this type in the CLI. Typically,
-    /// this type implements the clap::Subcommand trait. This type is generic to
-    /// allow for different representations of the same type in the interface; a
-    /// typical end-usage will impl traits only in the case where `CliStringRepr<T>: Into::RuntimeCall`
-    type CliStringRepr<T>;
 }

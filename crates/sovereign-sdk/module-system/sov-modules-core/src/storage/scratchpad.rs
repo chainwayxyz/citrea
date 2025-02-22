@@ -1,23 +1,29 @@
 //! Runtime state machine definitions.
 
 use alloc::collections::BTreeMap;
-use core::{fmt, mem};
+use core::mem;
 
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
+use crate::storage::cache::{CacheLog, OrderedWrites, ReadWriteLog};
 use crate::storage::{
-    CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
-    StateValueCodec, Storage, StorageInternalCache, StorageKey, StorageProof, StorageValue,
+    CacheKey, CacheValue, EncodeKeyLike, NativeStorage, StateCodec, StateValueCodec, Storage,
+    StorageKey, StorageProof, StorageValue,
 };
-use crate::{CacheMode, Version};
+use crate::{ValueExists, Version};
 
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
     /// Get a value from the storage.
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue>;
+
+    /// Get a value from the storage with cache info.
+    /// true if the value is read from the cache, false otherwise.
+    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool);
 
     /// Replaces a storage value.
     fn set(&mut self, key: &StorageKey, value: StorageValue);
@@ -87,6 +93,32 @@ pub trait StateReaderAndWriter {
         self.get_decoded(&storage_key, codec)
     }
 
+    /// Same thing as `get_value`, but also verifies the value with a given function only when the
+    /// value is not found in the cache and read from the storage.
+    fn get_value_with_cache_info<Q, K, V, Codec>(
+        &mut self,
+        prefix: &Prefix,
+        storage_key: &Q,
+        codec: &Codec,
+    ) -> (Option<V>, bool)
+    where
+        Q: ?Sized,
+        Codec: StateCodec,
+        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Codec::ValueCodec: StateValueCodec<V>,
+    {
+        let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
+        let (storage_value, read_from_cache) = self.get_with_cache_info(&storage_key);
+
+        let value = storage_value.map(|storage_value| {
+            codec
+                .value_codec()
+                .decode_value_unwrap(storage_value.value())
+        });
+
+        (value, read_from_cache)
+    }
+
     /// Get a singleton value from the storage. For more information, check [StorageKey::singleton].
     fn get_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
     where
@@ -146,164 +178,298 @@ pub trait StateReaderAndWriter {
     }
 }
 
-/// A working set accumulates reads and writes on top of the underlying DB,
-/// automating witness creation.
-pub struct Delta<S: Storage> {
-    inner: S,
-    witness: S::Witness,
-    cache: StorageInternalCache,
+struct StateDelta<S: Storage> {
+    storage: S,
+    cache_log: CacheLog,
+    uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>,
+    ordered_storage_reads: Vec<(CacheKey, Option<CacheValue>)>,
+    witness: Witness,
+    version: Option<Version>,
 }
 
-impl<S: Storage> Delta<S> {
-    fn new(inner: S, version: Option<u64>) -> Self {
-        Self::with_witness(inner, Default::default(), version)
+impl<S: Storage> StateDelta<S> {
+    fn new(storage: S, version: Option<Version>) -> Self {
+        Self::with_witness(storage, Default::default(), version)
     }
 
-    fn with_witness(inner: S, witness: S::Witness, version: Option<u64>) -> Self {
+    fn with_witness(storage: S, witness: Witness, version: Option<Version>) -> Self {
         Self {
-            inner,
+            storage,
+            cache_log: CacheLog::default(),
+            uncommitted_writes: BTreeMap::default(),
+            ordered_storage_reads: Vec::default(),
             witness,
-            cache: StorageInternalCache::new(version, CacheMode::State),
+            version,
         }
     }
 
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
-        let cache = mem::take(&mut self.cache);
+    fn with_witness_and_log(
+        storage: S,
+        witness: Witness,
+        state_log: ReadWriteLog,
+        version: Option<Version>,
+    ) -> Self {
+        Self {
+            storage,
+            cache_log: state_log.into_cache_log(),
+            uncommitted_writes: BTreeMap::default(),
+            ordered_storage_reads: Vec::default(),
+            witness,
+            version,
+        }
+    }
+
+    fn commit(mut self) -> Self {
+        let writes = mem::take(&mut self.uncommitted_writes);
+        for (key, value) in writes {
+            self.cache_log.add_write(key, value);
+        }
+        self
+    }
+
+    fn revert(mut self) -> Self {
+        self.uncommitted_writes.clear();
+        self
+    }
+
+    fn freeze(&mut self) -> (ReadWriteLog, Witness) {
+        let ordered_reads = mem::take(&mut self.ordered_storage_reads);
+        let cache_log = mem::take(&mut self.cache_log);
+
+        let read_write_log = ReadWriteLog {
+            ordered_reads,
+            cache_log,
+        };
         let witness = mem::take(&mut self.witness);
 
-        (cache.into(), witness)
+        (read_write_log, witness)
     }
 }
 
-impl<S: Storage> fmt::Debug for Delta<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Delta").finish()
-    }
-}
-
-impl<S: Storage> StateReaderAndWriter for Delta<S> {
+impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        self.cache.get_or_fetch(key, &self.inner, &mut self.witness)
+        let cache_key = key.to_cache_key_version(self.version);
+
+        if let Some(value) = self.uncommitted_writes.get(&cache_key) {
+            return value.as_ref().cloned().map(Into::into);
+        }
+
+        match self.cache_log.get_value(&cache_key) {
+            ValueExists::Yes(value) => value.map(Into::into),
+            ValueExists::No => {
+                let storage_value = self.storage.get(key, &mut self.witness);
+                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
+
+                self.cache_log
+                    .add_read(cache_key.clone(), cache_value.clone())
+                    .expect("Read from CacheLog failed");
+                self.ordered_storage_reads.push((cache_key, cache_value));
+
+                storage_value
+            }
+        }
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.cache.set(key, value)
-    }
-
-    fn delete(&mut self, key: &StorageKey) {
-        self.cache.delete(key)
-    }
-}
-
-#[derive(Default)]
-struct RevertableWrites {
-    pub cache: BTreeMap<CacheKey, Option<CacheValue>>,
-    pub version: Option<u64>,
-}
-
-struct AccessoryDelta<S: Storage> {
-    // This inner storage is never accessed inside the zkVM because reads are
-    // not allowed, so it can result as dead code.
-    storage: S,
-    writes: RevertableWrites,
-}
-
-impl<S: Storage> AccessoryDelta<S> {
-    fn new(storage: S, version: Option<u64>) -> Self {
-        let writes = match version {
-            None => Default::default(),
-            Some(v) => RevertableWrites {
-                cache: Default::default(),
-                version: Some(v),
-            },
-        };
-        Self { storage, writes }
-    }
-
-    fn freeze(&mut self) -> OrderedReadsAndWrites {
-        let writes = mem::take(&mut self.writes);
-        let ordered_writes = writes
-            .cache
-            .into_iter()
-            .map(|write| (write.0, write.1))
-            .collect();
-
-        OrderedReadsAndWrites {
-            ordered_writes,
-            ..Default::default()
-        }
-    }
-}
-
-impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        let cache_key = key.to_cache_key_version(self.writes.version);
-        if let Some(value) = self.writes.cache.get(&cache_key) {
-            return value.clone().map(Into::into);
-        }
-        self.storage.get_accessory(key, self.writes.version)
-    }
-
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.writes.cache.insert(
-            key.to_cache_key_version(self.writes.version),
+        self.uncommitted_writes.insert(
+            key.to_cache_key_version(self.version),
             Some(value.into_cache_value()),
         );
     }
 
     fn delete(&mut self, key: &StorageKey) {
-        self.writes
-            .cache
-            .insert(key.to_cache_key_version(self.writes.version), None);
+        self.uncommitted_writes
+            .insert(key.to_cache_key_version(self.version), None);
+    }
+
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!("Only Offchain state supports get_with_cache_info")
+    }
+}
+
+struct AccessoryDelta<S: Storage> {
+    storage: S,
+    committed_writes: BTreeMap<CacheKey, Option<CacheValue>>,
+    uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>,
+    version: Option<Version>,
+}
+
+impl<S: Storage> AccessoryDelta<S> {
+    fn new(storage: S, version: Option<Version>) -> Self {
+        Self {
+            storage,
+            committed_writes: BTreeMap::default(),
+            uncommitted_writes: BTreeMap::default(),
+            version,
+        }
+    }
+
+    fn commit(mut self) -> Self {
+        self.committed_writes.append(&mut self.uncommitted_writes);
+        self
+    }
+
+    fn revert(mut self) -> Self {
+        self.uncommitted_writes.clear();
+        self
+    }
+
+    fn freeze(&mut self) -> OrderedWrites {
+        mem::take(&mut self.committed_writes).into_iter().collect()
+    }
+}
+
+impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        let cache_key = key.to_cache_key_version(self.version);
+
+        if let Some(value) = self.uncommitted_writes.get(&cache_key) {
+            return value.as_ref().cloned().map(Into::into);
+        }
+
+        if let Some(value) = self.committed_writes.get(&cache_key) {
+            return value.as_ref().cloned().map(Into::into);
+        }
+
+        self.storage.get_accessory(key)
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        self.uncommitted_writes.insert(
+            key.to_cache_key_version(self.version),
+            Some(value.into_cache_value()),
+        );
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        self.uncommitted_writes
+            .insert(key.to_cache_key_version(self.version), None);
+    }
+
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!("Only Offchain state supports get_with_cache_info")
     }
 }
 
 struct OffchainDelta<S: Storage> {
     storage: S,
-    witness: S::Witness,
-    cache: StorageInternalCache,
+    cache_log: CacheLog,
+    uncommitted_writes: BTreeMap<CacheKey, Option<CacheValue>>,
+    witness: Witness,
+    version: Option<Version>,
 }
 
 impl<S: Storage> OffchainDelta<S> {
-    fn new(storage: S, version: Option<u64>) -> Self {
+    fn new(storage: S, version: Option<Version>) -> Self {
         Self::with_witness(storage, Default::default(), version)
     }
 
-    fn with_witness(storage: S, witness: S::Witness, version: Option<u64>) -> Self {
+    fn with_witness(storage: S, witness: Witness, version: Option<Version>) -> Self {
         Self {
             storage,
+            cache_log: CacheLog::default(),
+            uncommitted_writes: BTreeMap::default(),
             witness,
-            cache: StorageInternalCache::new(version, CacheMode::Offchain),
+            version,
         }
     }
 
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
-        let cache = mem::take(&mut self.cache);
+    fn with_witness_and_log(
+        storage: S,
+        witness: Witness,
+        offchain_log: ReadWriteLog,
+        version: Option<Version>,
+    ) -> Self {
+        Self {
+            storage,
+            cache_log: offchain_log.into_cache_log(),
+            uncommitted_writes: BTreeMap::default(),
+            witness,
+            version,
+        }
+    }
 
+    fn commit(mut self) -> Self {
+        let writes = mem::take(&mut self.uncommitted_writes);
+        for (key, value) in writes {
+            self.cache_log.add_write(key, value);
+        }
+        self
+    }
+
+    fn revert(mut self) -> Self {
+        self.uncommitted_writes.clear();
+        self
+    }
+
+    fn freeze(&mut self) -> (ReadWriteLog, Witness) {
+        let cache_log = mem::take(&mut self.cache_log);
+
+        let read_write_log = ReadWriteLog {
+            ordered_reads: Vec::default(),
+            cache_log,
+        };
         let witness = mem::take(&mut self.witness);
 
-        // Since mem::take leaves Default::default() in place, we need to reset
-        // the cache mode to Offchain.
-        // TODO: change freeze signature to consume self
-
-        self.cache.mode = CacheMode::Offchain;
-
-        (cache.into(), witness)
+        (read_write_log, witness)
     }
 }
 
 impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        self.cache
-            .get_or_fetch(key, &self.storage, &mut self.witness)
+        let cache_key = key.to_cache_key_version(self.version);
+
+        if let Some(value) = self.uncommitted_writes.get(&cache_key) {
+            return value.as_ref().cloned().map(Into::into);
+        }
+
+        match self.cache_log.get_value(&cache_key) {
+            ValueExists::Yes(value) => value.map(Into::into),
+            ValueExists::No => {
+                let storage_value = self.storage.get_offchain(key, &mut self.witness);
+                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
+
+                self.cache_log
+                    .add_read(cache_key, cache_value)
+                    .expect("Read from CacheLog failed");
+
+                storage_value
+            }
+        }
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.cache.set(key, value)
+        self.uncommitted_writes.insert(
+            key.to_cache_key_version(self.version),
+            Some(value.into_cache_value()),
+        );
     }
 
     fn delete(&mut self, key: &StorageKey) {
-        self.cache.delete(key)
+        self.uncommitted_writes
+            .insert(key.to_cache_key_version(self.version), None);
+    }
+
+    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+        let cache_key = key.to_cache_key_version(self.version);
+
+        if let Some(value) = self.uncommitted_writes.get(&cache_key) {
+            return (value.as_ref().cloned().map(Into::into), true);
+        }
+
+        match self.cache_log.get_value(&cache_key) {
+            ValueExists::Yes(value) => (value.map(Into::into), true),
+            ValueExists::No => {
+                let storage_value = self.storage.get_offchain(key, &mut self.witness);
+                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
+
+                self.cache_log
+                    .add_read(cache_key, cache_value)
+                    .expect("Read from CacheLog failed");
+
+                (storage_value, false)
+            }
+        }
     }
 }
 
@@ -313,7 +479,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
 ///  1. With [`WorkingSet::checkpoint`].
 ///  2. With [`WorkingSet::revert`].
 pub struct StateCheckpoint<S: Storage> {
-    delta: Delta<S>,
+    delta: StateDelta<S>,
     accessory_delta: AccessoryDelta<S>,
     offchain_delta: OffchainDelta<S>,
 }
@@ -327,24 +493,41 @@ impl<S: Storage> StateCheckpoint<S> {
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`] and witness.
-    pub fn with_witness(
-        inner: S,
-        state_witness: <S as Storage>::Witness,
-        offchain_witness: <S as Storage>::Witness,
-    ) -> Self {
+    pub fn with_witness(inner: S, state_witness: Witness, offchain_witness: Witness) -> Self {
         Self {
-            delta: Delta::with_witness(inner.clone(), state_witness, None),
+            delta: StateDelta::with_witness(inner.clone(), state_witness, None),
             accessory_delta: AccessoryDelta::new(inner.clone(), None),
             offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
+        }
+    }
+
+    /// Creates a new [`StateCheckpoint`] instance without any changes, backed
+    /// by the given [`Storage`], witness, and prepopulated state cache log.
+    pub fn with_witness_and_log(
+        inner: S,
+        state_witness: Witness,
+        offchain_witness: Witness,
+        state_log: ReadWriteLog,
+        offchain_log: ReadWriteLog,
+    ) -> Self {
+        Self {
+            delta: StateDelta::with_witness_and_log(inner.clone(), state_witness, state_log, None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            offchain_delta: OffchainDelta::with_witness_and_log(
+                inner,
+                offchain_witness,
+                offchain_log,
+                None,
+            ),
         }
     }
 
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
     pub fn to_revertable(self) -> WorkingSet<S> {
         WorkingSet {
-            delta: RevertableWriter::new(self.delta, None),
-            offchain_delta: RevertableWriter::new(self.offchain_delta, None),
-            accessory_delta: RevertableWriter::new(self.accessory_delta, None),
+            delta: self.delta,
+            offchain_delta: self.offchain_delta,
+            accessory_delta: self.accessory_delta,
             archival_working_set: None,
             archival_accessory_working_set: None,
             archival_offchain_working_set: None,
@@ -356,7 +539,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call [`Storage::validate_and_commit`] or some
     /// of the other related [`Storage`] methods. Note that this data is moved
     /// **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
-    pub fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    pub fn freeze(&mut self) -> (ReadWriteLog, Witness) {
         self.delta.freeze()
     }
 
@@ -366,7 +549,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call
     /// [`Storage::validate_and_commit_with_accessory_update`], together with
     /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
+    pub fn freeze_non_provable(&mut self) -> OrderedWrites {
         self.accessory_delta.freeze()
     }
 
@@ -376,7 +559,7 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call
     /// [`Storage::validate_and_commit_with_accessory_update`], together with
     /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_offchain(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+    pub fn freeze_offchain(&mut self) -> (ReadWriteLog, Witness) {
         self.offchain_delta.freeze()
     }
 }
@@ -386,9 +569,9 @@ impl<S: Storage> StateCheckpoint<S> {
 /// 1. By using the checkpoint() method, where all the changes are added to the underlying StateCheckpoint.
 /// 2. By using the revert method, where the most recent changes are reverted and the previous `StateCheckpoint` is returned.
 pub struct WorkingSet<S: Storage> {
-    delta: RevertableWriter<Delta<S>>,
-    accessory_delta: RevertableWriter<AccessoryDelta<S>>,
-    offchain_delta: RevertableWriter<OffchainDelta<S>>,
+    delta: StateDelta<S>,
+    accessory_delta: AccessoryDelta<S>,
+    offchain_delta: OffchainDelta<S>,
     archival_working_set: Option<ArchivalJmtWorkingSet<S>>,
     archival_offchain_working_set: Option<ArchivalOffchainWorkingSet<S>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<S>>,
@@ -405,8 +588,27 @@ impl<S: Storage> WorkingSet<S> {
 
     /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
     /// and a custom witness value.
-    pub fn with_witness(inner: S, state_witness: S::Witness, offchain_witness: S::Witness) -> Self {
+    pub fn with_witness(inner: S, state_witness: Witness, offchain_witness: Witness) -> Self {
         StateCheckpoint::with_witness(inner, state_witness, offchain_witness).to_revertable()
+    }
+
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`],
+    /// a custom witness value and a prepopulated state log to use as cache.
+    pub fn with_witness_and_log(
+        inner: S,
+        state_witness: Witness,
+        offchain_witness: Witness,
+        state_log: ReadWriteLog,
+        offchain_log: ReadWriteLog,
+    ) -> Self {
+        StateCheckpoint::with_witness_and_log(
+            inner,
+            state_witness,
+            offchain_witness,
+            state_log,
+            offchain_log,
+        )
+        .to_revertable()
     }
 
     /// Returns a handler for the accessory state (non-JMT state).
@@ -427,17 +629,20 @@ impl<S: Storage> WorkingSet<S> {
 
     /// Returns a handler for the archival state (JMT state).
     fn archival_state(&mut self, version: Version) -> ArchivalJmtWorkingSet<S> {
-        ArchivalJmtWorkingSet::new(&self.delta.inner.inner, version)
+        let storage = self.delta.storage.clone_with_version(version);
+        ArchivalJmtWorkingSet::new(storage, version)
     }
 
     /// Returns a handler for the archival offchain state.
     fn archival_offchain_state(&mut self, version: Version) -> ArchivalOffchainWorkingSet<S> {
-        ArchivalOffchainWorkingSet::new(&self.offchain_delta.inner.storage, version)
+        let storage = self.offchain_delta.storage.clone_with_version(version);
+        ArchivalOffchainWorkingSet::new(storage, version)
     }
 
     /// Returns a handler for the archival accessory state (non-JMT state).
     fn archival_accessory_state(&mut self, version: Version) -> ArchivalAccessoryWorkingSet<S> {
-        ArchivalAccessoryWorkingSet::new(&self.accessory_delta.inner.storage, version)
+        let storage = self.accessory_delta.storage.clone_with_version(version);
+        ArchivalAccessoryWorkingSet::new(storage, version)
     }
 
     /// Sets archival version for a working set
@@ -480,8 +685,8 @@ impl<S: Storage> WorkingSet<S> {
     where
         S: NativeStorage,
     {
-        // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
-        self.delta.inner.inner.get_with_proof(key, version)
+        // First inner is `R.clone()evertableWriter` and second inner is actually a `Storage` instance
+        self.delta.storage.get_with_proof(key, version)
     }
 
     /// Get the root hash of the tree.
@@ -490,7 +695,12 @@ impl<S: Storage> WorkingSet<S> {
         S: NativeStorage,
     {
         // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
-        self.delta.inner.inner.get_root_hash(version)
+        self.delta.storage.get_root_hash(version)
+    }
+
+    /// Get the last pruned L2 height.
+    pub fn get_last_pruned_l2_height(&mut self) -> Result<Option<u64>, anyhow::Error> {
+        self.delta.storage.get_last_pruned_l2_height()
     }
 }
 
@@ -514,6 +724,10 @@ impl<S: Storage> StateReaderAndWriter for WorkingSet<S> {
             None => self.delta.delete(key),
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
         }
+    }
+
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!("Only Offchain state supports get_with_cache_info")
     }
 }
 
@@ -548,6 +762,10 @@ impl<'a, S: Storage> StateReaderAndWriter for AccessoryWorkingSet<'a, S> {
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
         }
     }
+
+    fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+        unimplemented!()
+    }
 }
 
 /// A wrapper over [`WorkingSet`] that only allows access to the accessory
@@ -577,6 +795,13 @@ impl<'a, S: Storage> StateReaderAndWriter for OffchainWorkingSet<'a, S> {
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
         }
     }
+
+    fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.get_with_cache_info(key),
+            Some(ref mut archival_working_set) => archival_working_set.get_with_cache_info(key),
+        }
+    }
 }
 
 /// Module for archival state
@@ -585,34 +810,28 @@ pub mod archival_state {
 
     /// Archival JMT
     pub struct ArchivalJmtWorkingSet<S: Storage> {
-        delta: RevertableWriter<Delta<S>>,
+        delta: StateDelta<S>,
     }
 
     impl<S: Storage> ArchivalJmtWorkingSet<S> {
         /// create a new instance of ArchivalJmtWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: RevertableWriter::new(
-                    Delta::new(inner.clone(), Some(version)),
-                    Some(version),
-                ),
+                delta: StateDelta::new(inner, Some(version)),
             }
         }
     }
 
     /// Archival Accessory
     pub struct ArchivalAccessoryWorkingSet<S: Storage> {
-        delta: RevertableWriter<AccessoryDelta<S>>,
+        delta: AccessoryDelta<S>,
     }
 
     impl<S: Storage> ArchivalAccessoryWorkingSet<S> {
         /// create a new instance of ArchivalAccessoryWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: RevertableWriter::new(
-                    AccessoryDelta::new(inner.clone(), Some(version)),
-                    Some(version),
-                ),
+                delta: AccessoryDelta::new(inner, Some(version)),
             }
         }
     }
@@ -628,6 +847,10 @@ pub mod archival_state {
 
         fn delete(&mut self, key: &StorageKey) {
             self.delta.delete(key)
+        }
+
+        fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+            unimplemented!("Only Offchain state supports get_with_cache_info")
         }
     }
 
@@ -647,21 +870,22 @@ pub mod archival_state {
         fn delete(&mut self, key: &StorageKey) {
             self.delta.delete(key)
         }
+
+        fn get_with_cache_info(&mut self, _key: &StorageKey) -> (Option<StorageValue>, bool) {
+            unimplemented!("Only Offchain state supports get_with_cache_info")
+        }
     }
 
     /// Archival Offchain
     pub struct ArchivalOffchainWorkingSet<S: Storage> {
-        delta: RevertableWriter<OffchainDelta<S>>,
+        delta: OffchainDelta<S>,
     }
 
     impl<S: Storage> ArchivalOffchainWorkingSet<S> {
         /// create a new instance of ArchivalOffchainWorkingSet
-        pub fn new(inner: &S, version: Version) -> Self {
+        pub fn new(inner: S, version: Version) -> Self {
             Self {
-                delta: RevertableWriter::new(
-                    OffchainDelta::new(inner.clone(), Some(version)),
-                    Some(version),
-                ),
+                delta: OffchainDelta::new(inner, Some(version)),
             }
         }
     }
@@ -682,70 +906,9 @@ pub mod archival_state {
         fn delete(&mut self, key: &StorageKey) {
             self.delta.delete(key)
         }
-    }
-}
 
-struct RevertableWriter<T> {
-    inner: T,
-    writes: BTreeMap<CacheKey, Option<CacheValue>>,
-    version: Option<u64>,
-}
-
-impl<T: fmt::Debug> fmt::Debug for RevertableWriter<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RevertableWriter")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-impl<T> RevertableWriter<T>
-where
-    T: StateReaderAndWriter,
-{
-    fn new(inner: T, version: Option<u64>) -> Self {
-        Self {
-            inner,
-            writes: Default::default(),
-            version,
+        fn get_with_cache_info(&mut self, key: &StorageKey) -> (Option<StorageValue>, bool) {
+            self.delta.get_with_cache_info(key)
         }
-    }
-
-    fn commit(mut self) -> T {
-        for (k, v) in self.writes.into_iter() {
-            if let Some(v) = v {
-                self.inner.set(&k.into(), v.into());
-            } else {
-                self.inner.delete(&k.into());
-            }
-        }
-
-        self.inner
-    }
-
-    fn revert(self) -> T {
-        self.inner
-    }
-}
-
-impl<T: StateReaderAndWriter> StateReaderAndWriter for RevertableWriter<T> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        if let Some(value) = self.writes.get(&key.to_cache_key_version(self.version)) {
-            value.as_ref().cloned().map(Into::into)
-        } else {
-            self.inner.get(key)
-        }
-    }
-
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.writes.insert(
-            key.to_cache_key_version(self.version),
-            Some(value.into_cache_value()),
-        );
-    }
-
-    fn delete(&mut self, key: &StorageKey) {
-        self.writes
-            .insert(key.to_cache_key_version(self.version), None);
     }
 }

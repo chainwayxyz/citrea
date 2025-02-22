@@ -18,20 +18,19 @@ mod iterator;
 mod metrics;
 pub mod schema;
 mod schema_batch;
-pub mod snapshot;
 #[cfg(feature = "test-utils")]
 pub mod test;
+pub mod transaction;
 
 use std::path::Path;
 use std::time::Instant;
 
 use ::metrics::{gauge, histogram};
 use anyhow::format_err;
-use iterator::ScanDirection;
-pub use iterator::{RawDbReverseIterator, SchemaIterator, SeekKeyEncoder};
+pub use iterator::{RawDbReverseIterator, ScanDirection, SchemaIterator, SeekKeyEncoder};
 pub use rocksdb;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
-use rocksdb::{DBIterator, ReadOptions};
+use rocksdb::{DBIterator, ReadOptions, WriteBatch};
 use thiserror::Error;
 use tracing::info;
 
@@ -49,6 +48,31 @@ pub struct DB {
 }
 
 impl DB {
+    /// Opens the DB with a tempdir. Should only be used in tests
+    #[cfg(feature = "test-utils")]
+    pub fn open_temp(
+        name: &'static str,
+        column_families: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        let mut options = RawRocksdbOptions::default();
+        options.db_options.create_if_missing(true);
+        options.db_options.create_missing_column_families(true);
+
+        let tmpdir = tempfile::tempdir().unwrap();
+        DB::open_with_cfds(
+            &options.db_options,
+            tmpdir.path(),
+            name,
+            column_families.into_iter().map(|cf_name| {
+                let mut cf_opts = rocksdb::Options::default();
+                cf_opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+                cf_opts.set_block_based_table_factory(&options.block_options);
+                rocksdb::ColumnFamilyDescriptor::new(cf_name, cf_opts)
+            }),
+        )
+        .unwrap()
+    }
+
     /// Opens a database backed by RocksDB, using the provided column family names and default
     /// column family options.
     pub fn open(
@@ -229,7 +253,8 @@ impl DB {
         Ok(())
     }
 
-    fn iter_with_direction<S: Schema>(
+    /// Returns a [`SchemaIterator`] on a certain schema with the provided read options and direction.
+    pub fn iter_with_direction<S: Schema>(
         &self,
         opts: ReadOptions,
         direction: ScanDirection,
@@ -344,6 +369,11 @@ impl DB {
         Ok(())
     }
 
+    /// Write raw rocksdb WriteBatch
+    pub fn write(&self, batch: WriteBatch) -> anyhow::Result<()> {
+        Ok(self.inner.write(batch)?)
+    }
+
     /// Returns the handle for a rocksdb column family.
     pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
         self.inner.cf_handle(cf_name).ok_or_else(|| {
@@ -358,6 +388,11 @@ impl DB {
     /// This is only used for testing `get_approximate_sizes_cf` in unit tests.
     pub fn flush_cf(&self, cf_name: &str) -> anyhow::Result<()> {
         Ok(self.inner.flush_cf(self.get_cf_handle(cf_name)?)?)
+    }
+
+    /// Force flush db
+    pub fn flush(&self) -> anyhow::Result<()> {
+        Ok(self.inner.flush()?)
     }
 
     /// Returns the current RocksDB property value for the provided column family name
@@ -383,10 +418,30 @@ impl DB {
         rocksdb::checkpoint::Checkpoint::new(&self.inner)?.create_checkpoint(path)?;
         Ok(())
     }
+
+    /// Create backup at directory specified by `backup_path`
+    pub fn create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&backup_path)?;
+
+        let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path.as_ref())?;
+        let env = rocksdb::Env::new()?;
+        let mut backup_engine = rocksdb::backup::BackupEngine::open(&backup_opts, &env)?;
+
+        backup_engine.create_new_backup_flush(&self.inner, false)?;
+
+        info!(
+            db_name = self.name,
+            path = ?backup_path.as_ref(),
+            "Created database backup"
+        );
+
+        Ok(())
+    }
 }
 
 /// Raw rocksdb config wrapper. Useful to convert user provided config into
 /// the actual rocksdb config with all defaults set.
+#[derive(Default)]
 pub struct RawRocksdbOptions {
     /// Global db options
     pub db_options: rocksdb::Options,

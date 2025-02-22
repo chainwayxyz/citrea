@@ -1,10 +1,12 @@
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
+use citrea_common::backup::BackupManager;
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::tasks::manager::TaskManager;
@@ -15,14 +17,18 @@ use citrea_common::{
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
+use citrea_storage_ops::pruning::types::PruningNodeType;
 use citrea_storage_ops::pruning::PruningConfig;
+use short_header_proof_provider::{
+    NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
+};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,
 };
-use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
+use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
@@ -47,6 +53,7 @@ pub enum NodeMode {
     LightClientProver(SocketAddr),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     runtime_genesis_paths: GenesisPaths,
@@ -54,6 +61,8 @@ pub async fn start_rollup(
     light_client_prover_config: Option<LightClientProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
+    network: Option<Network>,
+    let_hell_loose: bool,
 ) -> TaskManager<()> {
     // create rollup config default creator function and use them here for the configs
 
@@ -61,7 +70,7 @@ pub async fn start_rollup(
     // Fake receipts are receipts without the proof, they only include the journal, which makes them suitable for testing and development
     std::env::set_var("RISC0_DEV_MODE", "1");
 
-    let mock_demo_rollup = MockDemoRollup::new(Network::Nightly);
+    let mock_demo_rollup = MockDemoRollup::new(network.unwrap_or(Network::Nightly));
 
     if sequencer_config.is_some() && rollup_prover_config.is_some() {
         panic!("Both sequencer and batch prover config cannot be set at the same time");
@@ -72,6 +81,8 @@ pub async fn start_rollup(
     if rollup_prover_config.is_some() && light_client_prover_config.is_some() {
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
+
+    let backup_manager = Arc::new(BackupManager::new("test".to_string(), None, None));
 
     let (tables, migrations) = if sequencer_config.is_some() {
         (
@@ -123,9 +134,8 @@ pub async fn start_rollup(
     let Storage {
         ledger_db,
         storage_manager,
-        prover_storage,
     } = mock_demo_rollup
-        .setup_storage(&rollup_config, &rocksdb_config)
+        .setup_storage(&rollup_config, &rocksdb_config, &backup_manager)
         .expect("Storage setup should work");
 
     let Dependencies {
@@ -139,6 +149,36 @@ pub async fn start_rollup(
         )
         .await
         .expect("Dependencies setup should work");
+    match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+        MockDaSpec,
+    >::new(ledger_db.clone())))
+    {
+        Ok(_) => tracing::debug!("Short header proof provider set"),
+        Err(_) => tracing::error!("Short header proof provider already set"),
+    };
+
+    // I am sorry
+    if let_hell_loose {
+        unsafe {
+            let s = SHORT_HEADER_PROOF_PROVIDER.get().unwrap();
+            use short_header_proof_provider::ShortHeaderProofProvider;
+
+            fn downcast_box<T>(trait_obj: Box<dyn ShortHeaderProofProvider>) -> Box<T> {
+                unsafe { Box::from_raw(Box::into_raw(trait_obj) as *mut T) }
+            }
+            use sov_mock_da::MockDaSpec;
+            let leaked: &dyn ShortHeaderProofProvider = &**s; // Leak reference
+            let boxed_trait: Box<dyn ShortHeaderProofProvider> =
+                Box::from_raw(leaked as *const _ as *mut _);
+
+            let mut concrete: Box<NativeShortHeaderProofProviderService<MockDaSpec>> =
+                downcast_box(boxed_trait);
+
+            concrete.ledger_db = ledger_db.clone();
+
+            std::mem::forget(concrete);
+        }
+    }
 
     let sequencer_client_url = rollup_config
         .runner
@@ -149,13 +189,16 @@ pub async fn start_rollup(
     } else {
         None
     };
+
+    let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_module = mock_demo_rollup
         .setup_rpc(
-            &prover_storage,
+            rpc_storage,
             ledger_db.clone(),
             da_service.clone(),
             sequencer_client_url,
             soft_confirmation_rx,
+            &backup_manager,
         )
         .expect("RPC module setup should work");
 
@@ -176,9 +219,9 @@ pub async fn start_rollup(
             da_service,
             ledger_db,
             storage_manager,
-            prover_storage,
             soft_confirmation_channel.0,
             rpc_module,
+            backup_manager,
         )
         .unwrap();
 
@@ -208,9 +251,9 @@ pub async fn start_rollup(
                 da_service,
                 ledger_db.clone(),
                 storage_manager,
-                prover_storage,
                 soft_confirmation_channel.0,
                 rpc_module,
+                backup_manager,
             )
             .instrument(span.clone())
             .await
@@ -263,6 +306,7 @@ pub async fn start_rollup(
                 da_service,
                 ledger_db,
                 rpc_module,
+                backup_manager,
             )
             .instrument(span.clone())
             .await
@@ -300,8 +344,8 @@ pub async fn start_rollup(
             da_service,
             ledger_db.clone(),
             storage_manager,
-            prover_storage,
             soft_confirmation_channel.0,
+            backup_manager,
         )
         .instrument(span.clone())
         .await
@@ -327,8 +371,11 @@ pub async fn start_rollup(
 
         // Spawn pruner if configs are set
         if let Some(pruner) = pruner {
-            task_manager
-                .spawn(|cancellation_token| async move { pruner.run(cancellation_token).await });
+            task_manager.spawn(|cancellation_token| async move {
+                pruner
+                    .run(PruningNodeType::FullNode, cancellation_token)
+                    .await
+            });
         }
 
         task_manager.spawn(|cancellation_token| async move {
@@ -365,11 +412,16 @@ pub fn create_default_rollup_config(
                 32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124,
                 137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
             ],
+            sequencer_k256_public_key: vec![
+                3, 99, 96, 232, 86, 49, 12, 229, 210, 148, 232, 190, 51, 252, 128, 112, 119, 220,
+                86, 172, 128, 217, 93, 156, 212, 221, 189, 33, 50, 94, 255, 115, 247,
+            ],
             sequencer_da_pub_key: sequencer_da_pub_key.clone(),
             prover_da_pub_key: prover_da_pub_key.clone(),
         },
         storage: StorageConfig {
             path: rollup_path.to_path_buf(),
+            backup_path: None,
             db_max_open_files: None,
         },
         rpc: RpcConfig {
@@ -381,6 +433,7 @@ pub fn create_default_rollup_config(
             batch_requests_limit: 50,
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
+            api_key: None,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)

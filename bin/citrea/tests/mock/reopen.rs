@@ -46,6 +46,8 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -70,6 +72,8 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             None,
+            None,
+            false,
         )
         .await;
     });
@@ -151,6 +155,8 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             None,
+            None,
+            false,
         )
         .await;
     });
@@ -211,6 +217,8 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -260,6 +268,8 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            true,
         )
         .await;
     });
@@ -325,6 +335,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -357,6 +369,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     None,
                     rollup_config,
                     None,
+                    None,
+                    false,
                 )
                 .await;
             });
@@ -427,6 +441,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     None,
                     rollup_config,
                     None,
+                    None,
+                    false,
                 )
                 .await;
             });
@@ -481,6 +497,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     None,
                     rollup_config,
                     None,
+                    None,
+                    false,
                 )
                 .await;
             });

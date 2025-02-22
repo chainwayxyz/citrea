@@ -13,7 +13,6 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, StateMapAccessor, StateValueAccessor, WorkingSet};
-use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::ProverStorage;
 
@@ -57,15 +56,12 @@ impl BlockchainTestCase {
         &self,
         evm: &mut Evm<DefaultContext>,
         txs: Vec<RlpEvmTransaction>,
-        mut working_set: WorkingSet<ProverStorage<SnapshotManager>>,
-        storage: ProverStorage<SnapshotManager>,
+        mut working_set: WorkingSet<ProverStorage>,
+        storage: ProverStorage,
         root: &[u8; 32],
         l2_height: u64,
         current_spec: SovSpecId,
-    ) -> (
-        WorkingSet<ProverStorage<SnapshotManager>>,
-        ProverStorage<SnapshotManager>,
-    ) {
+    ) -> (WorkingSet<ProverStorage>, ProverStorage) {
         let l1_fee_rate = 0;
         // Call begin_soft_confirmation_hook
         let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -83,8 +79,7 @@ impl BlockchainTestCase {
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
         let dummy_address = generate_address::<DefaultContext>("dummy");
-        let context =
-            DefaultContext::new(dummy_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = DefaultContext::new(dummy_address, l2_height, current_spec, l1_fee_rate);
         let _ = evm.execute_call(txs, &context, &mut working_set);
 
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);

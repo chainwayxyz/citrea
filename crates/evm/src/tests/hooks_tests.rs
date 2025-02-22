@@ -14,7 +14,7 @@ use sov_rollup_interface::spec::SpecId;
 use super::genesis_tests::GENESIS_DA_TXS_COMMITMENT;
 use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::tests::genesis_tests::BENEFICIARY;
-use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
+use crate::tests::utils::{get_evm, get_evm_pre_fork2, get_evm_test_config, GENESIS_STATE_ROOT};
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
@@ -25,7 +25,7 @@ lazy_static! {
 #[test]
 fn begin_soft_confirmation_hook_creates_pending_block() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -60,7 +60,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
 #[test]
 fn end_soft_confirmation_hook_sets_head() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&get_evm_test_config());
 
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -139,7 +139,7 @@ fn end_soft_confirmation_hook_sets_head() {
 
 #[test]
 fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
-    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&get_evm_test_config());
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -253,7 +253,7 @@ fn create_pending_transaction(index: u64, nonce: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
 
     // hack to get the root hash
     let binding = evm
@@ -390,7 +390,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
         pre_state_root: root,
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -433,7 +433,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             da_slot_height: 1,
             da_slot_txs_commitment: random_32_bytes,
             pre_state_root: random_32_bytes,
-            current_spec: SpecId::Kumquat,
+            current_spec: SpecId::Fork2,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -457,7 +457,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_height: 1,
         da_slot_txs_commitment: random_32_bytes,
         pre_state_root: random_32_bytes,
-        current_spec: SpecId::Kumquat,
+        current_spec: SpecId::Fork2,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,

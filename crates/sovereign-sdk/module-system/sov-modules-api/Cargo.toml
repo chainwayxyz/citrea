@@ -15,6 +15,7 @@ resolver = "2"
 jsonrpsee = { workspace = true, optional = true }
 anyhow = { workspace = true }
 digest = { workspace = true }
+k256 = { workspace = true, features = ["ecdsa", "serde", "pem"]}
 sov-state = { path = "../sov-state" }
 sov-modules-core = { path = "../sov-modules-core" }
 sov-rollup-interface = { path = "../../rollup-interface" }
@@ -40,7 +41,6 @@ bincode = { workspace = true }
 tempfile = { workspace = true }
 sov-modules-api = { path = ".", features = ["native"] }
 sov-modules-core = { path = "../sov-modules-core", features = ["mocks"] }
-sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-db = { path = "../../full-node/db/sov-db" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = [
     "test-utils",

@@ -5,7 +5,7 @@ use std::time::Duration;
 use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
-use bitcoin_da::spec::{BitcoinSpec, RollupParams};
+use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::GroupCommitments;
@@ -25,7 +25,8 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -609,6 +610,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
+                    method_id: [
+                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
+                        248465296, 3556276186
+                    ]
+                    .into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(200),
                     method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
                 }
             ],
@@ -620,7 +629,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     method_id: new_batch_proof_method_id,
-                    activation_l2_height: 200,
+                    activation_l2_height: 210,
                 }),
                 1,
             )
@@ -662,8 +671,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
+                    method_id: [
+                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
+                        248465296, 3556276186
+                    ]
+                    .into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(200),
                     method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
-                }
+                },
             ]
         );
 
@@ -688,10 +705,18 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
-                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                    method_id: [
+                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
+                        248465296, 3556276186
+                    ]
+                    .into()
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(200),
+                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(210),
                     method_id: new_batch_proof_method_id.into()
                 }
             ]
@@ -726,10 +751,18 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
-                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                    method_id: [
+                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
+                        248465296, 3556276186
+                    ]
+                    .into()
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(200),
+                    method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                },
+                BatchProofMethodIdRpcResponse {
+                    height: U64::from(210),
                     method_id: new_batch_proof_method_id.into()
                 }
             ]
@@ -839,13 +872,13 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let method_ids = lcp_output.batch_proof_method_ids;
         let genesis_state_root = lcp_output.state_root;
 
-        let fork1_height: u64 = method_ids[1].height.to();
+        let fork2_height: u64 = method_ids[2].height.to();
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
             [1u8; 32],
-            fork1_height + 1,
-            method_ids[1].method_id.into(),
+            fork2_height + 1,
+            method_ids[2].method_id.into(),
             None,
             false,
         );
@@ -857,8 +890,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
             [3u8; 32],
-            fork1_height * 3,
-            method_ids[1].method_id.into(),
+            fork2_height * 3,
+            method_ids[2].method_id.into(),
             None,
             false,
         );
@@ -871,8 +904,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let unparsable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [3u8; 32],
             [5u8; 32],
-            fork1_height * 4,
-            method_ids[1].method_id.into(),
+            fork2_height * 4,
+            method_ids[2].method_id.into(),
             None,
             true,
         );
@@ -884,8 +917,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
             [2u8; 32],
-            fork1_height * 2,
-            method_ids[1].method_id.into(),
+            fork2_height * 2,
+            method_ids[2].method_id.into(),
             None,
             false,
         );
@@ -899,7 +932,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let unverifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [3u8; 32],
             [4u8; 32],
-            fork1_height * 4,
+            fork2_height * 4,
             random_method_id,
             None,
             false,
@@ -934,7 +967,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
         // The unverifiable batch proof and malformed journal batch proof should not have updated the state root or the last l2 height
         assert_eq!(lcp_output.state_root, [3u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height * 3));
+        assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 3));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         Ok(())
@@ -1048,7 +1081,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let method_ids = lcp_output.batch_proof_method_ids;
         let genesis_state_root = lcp_output.state_root;
 
-        let fork1_height: u64 = method_ids[1].height.to();
+        let fork2_height: u64 = method_ids[2].height.to();
 
         // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
         // But the compressed size will go down to 100kb
@@ -1058,8 +1091,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let verifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
             [1u8; 32],
-            fork1_height + 1,
-            method_ids[1].method_id.into(),
+            fork2_height + 1,
+            method_ids[2].method_id.into(),
             Some(state_diff_100kb.clone()),
             false,
         );
@@ -1097,7 +1130,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // The batch proof should have updated the state root and the last l2 height
         assert_eq!(lcp_output.state_root, [1u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height + 1));
+        assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         // Now generate another proof but this time:
@@ -1111,8 +1144,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let verifiable_130kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
             [2u8; 32],
-            fork1_height * 2,
-            method_ids[1].method_id.into(),
+            fork2_height * 2,
+            method_ids[2].method_id.into(),
             Some(state_diff_130kb),
             false,
         );
@@ -1182,7 +1215,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
         assert_eq!(lcp_output.state_root, [1u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height + 1));
+        assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
         // There are two chunks so the size should be 2
         assert_eq!(lcp_output.mmr_guest.size, U64::from(2));
@@ -1197,7 +1230,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
         assert_eq!(lcp_output.state_root, [1u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height + 1));
+        assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
         // There are now four chunks in total so the size should be 4
         assert_eq!(lcp_output.mmr_guest.size, U64::from(4));
@@ -1213,7 +1246,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // The batch proof should have updated the state root and the last l2 height
         assert_eq!(lcp_output.state_root, [2u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height * 2));
+        assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 2));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         let random_method_id = [1u32; 8];
@@ -1222,7 +1255,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let unverifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
             [3u8; 32],
-            fork1_height * 3,
+            fork2_height * 3,
             random_method_id,
             Some(state_diff_100kb),
             false,
@@ -1259,7 +1292,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // The batch proof should NOT have updated the state root and the last l2 height
         // Because it is not verified
         assert_eq!(lcp_output.state_root, [2u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height * 2));
+        assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 2));
         // Also should not leave unchained outputs
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
@@ -1275,7 +1308,7 @@ async fn test_verify_chunked_txs_in_light_client() -> Result<()> {
         .await
 }
 
-pub fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec<u8>>> {
+pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, Option<Arc<[u8]>>> {
     let mut rng = thread_rng();
     let mut map = BTreeMap::new();
     let mut total_size: u64 = 0;
@@ -1303,7 +1336,10 @@ pub fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec
         };
 
         // Add to the map
-        map.insert(key, value);
+        map.insert(
+            Arc::from(key.into_boxed_slice()),
+            value.map(|v| Arc::from(v.into_boxed_slice())),
+        );
 
         // Update the total size
         total_size += key_size + value_size;
@@ -1317,29 +1353,17 @@ fn create_serialized_fake_receipt_batch_proof(
     final_state_root: [u8; 32],
     last_l2_height: u64,
     method_id: [u32; 8],
-    state_diff: Option<BTreeMap<Vec<u8>, Option<Vec<u8>>>>,
+    state_diff: Option<CumulativeStateDiff>,
     malformed_journal: bool,
 ) -> Vec<u8> {
-    let sequencer_da_public_key = vec![
-        2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71, 236, 37, 185, 161, 53, 187,
-        218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215, 125, 201,
-    ];
-    let sequencer_public_key = vec![
-        32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214,
-        80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
-    ];
-    let batch_proof_output = BatchProofCircuitOutputV2::<BitcoinSpec> {
+    let batch_proof_output = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         last_l2_height,
-        da_slot_hash: [0u8; 32].into(),
-        prev_soft_confirmation_hash: [0u8; 32],
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
-        sequencer_commitments_range: (0, 0),
-        sequencer_da_public_key,
-        sequencer_public_key,
-        preproven_commitments: vec![],
+        sequencer_commitment_merkle_roots: vec![],
+        l1_hashes_added_to_light_client_contract: vec![],
     };
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 

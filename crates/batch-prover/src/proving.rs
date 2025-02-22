@@ -1,19 +1,23 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use anyhow::anyhow;
-use borsh::{BorshDeserialize, BorshSerialize};
+use anyhow::{anyhow, Context};
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::extract_sequencer_commitments;
+use citrea_common::da::{extract_sequencer_commitments, get_da_block_at_height};
 use citrea_common::utils::{check_l2_block_exists, filter_out_proven_commitments};
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput};
-use sov_modules_api::{SlotData, SpecId, Zkvm};
+use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use sov_db::schema::types::SoftConfirmationNumber;
+use sov_modules_api::transaction::Transaction;
+use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
+use sov_modules_stf_blueprint::StfBlueprint;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
@@ -21,14 +25,24 @@ use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_state::Witness;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
-use crate::da_block_handler::{
-    break_sequencer_commitments_into_groups, get_batch_proof_circuit_input_from_commitments,
-};
+use crate::da_block_handler::break_sequencer_commitments_into_groups;
 use crate::errors::L1ProcessingError;
+
+const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
+
+type CommitmentStateTransitionData<'txs, Da> = (
+    VecDeque<Vec<u8>>,
+    VecDeque<Vec<(Witness, Witness)>>,
+    Vec<u64>,
+    VecDeque<Vec<L2Block<'txs, Transaction>>>,
+    VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
+);
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 /// Enum to determine how to group commitments
@@ -43,10 +57,13 @@ pub enum GroupCommitments {
     OneByOne,
 }
 
-pub(crate) async fn data_to_prove<'txs, Da, DB, Witness, Tx>(
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn data_to_prove<'txs, Da, DB>(
     da_service: Arc<Da>,
     ledger: DB,
+    storage_manager: &ProverStorageManager,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     l1_block: &<Da as DaService>::FilteredBlock,
@@ -54,15 +71,13 @@ pub(crate) async fn data_to_prove<'txs, Da, DB, Witness, Tx>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<'txs, Witness, Da::Spec, Tx>>,
+        Vec<BatchProofCircuitInput<'txs, Da::Spec, Transaction>>,
     ),
     L1ProcessingError,
 >
 where
     Da: DaService,
     DB: BatchProverLedgerOps,
-    Witness: DeserializeOwned,
-    Tx: Clone + BorshDeserialize + 'txs,
 {
     let l1_height = l1_block.header().height();
 
@@ -93,10 +108,12 @@ where
         });
     }
 
-    let (sequencer_commitments, preproven_commitments) =
+    let (mut sequencer_commitments, preproven_commitments) =
         filter_out_proven_commitments(&ledger, &sequencer_commitments).map_err(|e| {
             L1ProcessingError::Other(format!("Error filtering out proven commitments: {}", e))
         })?;
+
+    sequencer_commitments.sort();
 
     if sequencer_commitments.is_empty() {
         return Err(L1ProcessingError::DuplicateCommitments { l1_height });
@@ -139,14 +156,19 @@ where
         );
 
         let (
+            short_header_proofs,
             state_transition_witnesses,
-            soft_confirmations,
-            da_block_headers_of_soft_confirmations,
+            cache_prune_l2_heights,
+            l2_blocks,
+            da_block_headers_of_l2_blocks,
         ) = get_batch_proof_circuit_input_from_commitments(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
             &ledger,
             &l1_block_cache,
+            storage_manager,
+            &sequencer_k256_pub_key,
+            &sequencer_pub_key,
         )
         .await
         .map_err(|e| {
@@ -183,15 +205,15 @@ where
             )))?
             .prev_hash;
 
-        let input: BatchProofCircuitInput<Witness, Da::Spec, Tx> = BatchProofCircuitInput {
+        let input = BatchProofCircuitInput {
             initial_state_root,
             da_data: da_data.clone(),
             da_block_header_of_commitments: da_block_header_of_commitments.clone(),
             inclusion_proof: inclusion_proof.clone(),
             completeness_proof: completeness_proof.clone(),
-            soft_confirmations,
+            l2_blocks,
             state_transition_witnesses,
-            da_block_headers_of_soft_confirmations,
+            da_block_headers_of_l2_blocks,
             preproven_commitments: preproven_commitments.to_vec(),
             sequencer_commitments_range: (
                 *sequencer_commitments_range.start() as u32,
@@ -201,6 +223,10 @@ where
             sequencer_da_public_key: sequencer_da_pub_key.clone(),
             final_state_root,
             prev_soft_confirmation_hash: initial_soft_confirmation_hash,
+            short_header_proofs,
+            sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
+                .to_vec(),
+            cache_prune_l2_heights,
         };
 
         batch_proof_circuit_inputs.push(input);
@@ -209,21 +235,19 @@ where
     Ok((sequencer_commitments, batch_proof_circuit_inputs))
 }
 
-pub(crate) async fn prove_l1<Da, Vm, DB, Witness, Tx>(
+pub(crate) async fn prove_l1<Da, Vm, DB>(
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger: DB,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block: &Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<'_, Witness, Da::Spec, Tx>>,
+    inputs: Vec<BatchProofCircuitInput<'_, Da::Spec, Transaction>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
-    Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
-    Tx: Clone + BorshSerialize,
 {
     let submitted_proofs = ledger
         .get_proofs_by_l1_height(l1_block.header().height())?
@@ -231,7 +255,7 @@ where
 
     // Add each non-proven proof's data to ProverService
     for input in inputs {
-        if !state_transition_already_proven::<Witness, Da, Tx>(&input, &submitted_proofs) {
+        if !state_transition_already_proven::<Da>(&input, &submitted_proofs) {
             let range_end = input.sequencer_commitments_range.1;
 
             let last_seq_com = sequencer_commitments
@@ -252,8 +276,7 @@ where
 
             let input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
-                // TODO: activate this once we freeze Kumquat ELFs
-                // SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
+                SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
                 _ => borsh::to_vec(&input.into_v3_parts())?,
             };
 
@@ -277,6 +300,7 @@ where
         ledger.clone(),
         txs_and_proofs,
         code_commitments_by_spec.clone(),
+        l1_block.header().height(),
     )
     .await?;
 
@@ -289,18 +313,253 @@ where
     Ok(())
 }
 
-pub(crate) fn state_transition_already_proven<Witness, Da, Tx>(
-    input: &BatchProofCircuitInput<Witness, Da::Spec, Tx>,
-    proofs: &Vec<StoredBatchProof>,
-) -> bool
-where
+pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
+    'txs,
     Da: DaService,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
-    Tx: Clone,
-{
+    DB: BatchProverLedgerOps,
+>(
+    sequencer_commitments: &[SequencerCommitment],
+    da_service: &Arc<Da>,
+    ledger_db: &DB,
+    l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
+    storage_manager: &ProverStorageManager,
+    sequencer_k256_pub_key: &[u8],
+    sequencer_pub_key: &[u8],
+) -> Result<CommitmentStateTransitionData<'txs, Da>, anyhow::Error> {
+    let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
+    let mut da_block_headers_of_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
+
+    for sequencer_commitment in sequencer_commitments.iter() {
+        // get the l2 height ranges of each seq_commitments
+        let start_l2 = sequencer_commitment.l2_start_block_number;
+        let end_l2 = sequencer_commitment.l2_end_block_number;
+
+        let soft_confirmations_in_commitment = ledger_db
+            .get_soft_confirmation_range(
+                &(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)),
+            )
+            .context("Failed to get soft confirmations")?;
+        assert_eq!(
+            soft_confirmations_in_commitment
+                .last()
+                .expect("at least one must exist")
+                .l2_height,
+            end_l2,
+            "Should not try to create circuit input without ensuring the prover is synced"
+        );
+
+        let mut l2_blocks = Vec::with_capacity(soft_confirmations_in_commitment.len());
+        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
+            vec![];
+        for soft_confirmation in soft_confirmations_in_commitment {
+            if da_block_headers_to_push.is_empty()
+                || da_block_headers_to_push.last().unwrap().height()
+                    != soft_confirmation.da_slot_height
+            {
+                let filtered_block = get_da_block_at_height(
+                    da_service,
+                    soft_confirmation.da_slot_height,
+                    l1_block_cache.clone(),
+                )
+                .await
+                .context("Error fetching DA block")?;
+                da_block_headers_to_push.push(filtered_block.header().clone());
+            }
+
+            let l2_block: L2Block<Transaction> = soft_confirmation
+                .try_into()
+                .context("Failed to parse transactions")?;
+
+            l2_blocks.push(l2_block);
+        }
+        committed_l2_blocks.push_back(l2_blocks);
+
+        da_block_headers_of_l2_blocks.push_back(da_block_headers_to_push);
+    }
+
+    // Replay transactions in the commitment blocks and collect cumulative witnesses
+    let (state_transition_witnesses, cache_prune_l2_heights, short_header_proofs) =
+        generate_cumulative_witness(
+            &committed_l2_blocks,
+            ledger_db,
+            da_service,
+            l1_block_cache.clone(),
+            storage_manager,
+            sequencer_k256_pub_key,
+            sequencer_pub_key,
+        )
+        .await?;
+
+    Ok((
+        short_header_proofs,
+        state_transition_witnesses,
+        cache_prune_l2_heights,
+        committed_l2_blocks,
+        da_block_headers_of_l2_blocks,
+    ))
+}
+
+async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerOps>(
+    committed_l2_blocks: &VecDeque<Vec<L2Block<'txs, Transaction>>>,
+    ledger_db: &DB,
+    da_service: &Arc<Da>,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    storage_manager: &ProverStorageManager,
+    sequencer_k256_pub_key: &[u8],
+    sequencer_pub_key: &[u8],
+) -> anyhow::Result<(
+    VecDeque<Vec<(Witness, Witness)>>,
+    Vec<u64>,
+    VecDeque<Vec<u8>>,
+)> {
+    let mut short_header_proofs: VecDeque<Vec<u8>> = VecDeque::new();
+
+    let mut state_transition_witnesses = VecDeque::with_capacity(committed_l2_blocks.len());
+
+    let mut init_state_root = ledger_db
+        .get_l2_state_root(committed_l2_blocks[0][0].l2_height() - 1)?
+        .expect("L2 state root must exist");
+
+    let mut cumulative_state_log = None;
+    let mut cumulative_offchain_log = None;
+    let mut cache_prune_l2_heights = vec![];
+
+    let mut stf =
+        StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
+
+    for l2_blocks_in_commitment in committed_l2_blocks {
+        let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
+        // If executed with Fork2 elf, should use cache
+        let should_use_cache = fork_from_block_number(
+            l2_blocks_in_commitment
+                .last()
+                .expect("must have at least one")
+                .l2_height(),
+        )
+        .spec_id
+            >= SpecId::Fork2;
+
+        SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .unwrap()
+            .clear_queried_hashes();
+
+        for l2_block in l2_blocks_in_commitment {
+            let l2_height = l2_block.l2_height();
+            let l1_block = get_da_block_at_height(
+                da_service,
+                l2_block.da_slot_height(),
+                l1_block_cache.clone(),
+            )
+            .await?;
+
+            let pre_state = storage_manager.create_storage_for_l2_height(l2_height);
+            let current_spec = fork_from_block_number(l2_height).spec_id;
+
+            let sequencer_public_key = if current_spec >= SpecId::Fork2 {
+                sequencer_k256_pub_key
+            } else {
+                sequencer_pub_key
+            };
+
+            let soft_confirmation_result = stf.apply_soft_confirmation(
+                current_spec,
+                sequencer_public_key,
+                &init_state_root,
+                pre_state,
+                cumulative_state_log.take(),
+                cumulative_offchain_log.take(),
+                Default::default(),
+                Default::default(),
+                l1_block.header(),
+                l2_block,
+            )?;
+
+            assert_eq!(
+                l2_block.state_root(),
+                soft_confirmation_result.state_root_transition.final_root,
+                "State root mismatch when regenerating witnesses"
+            );
+
+            init_state_root = soft_confirmation_result.state_root_transition.final_root;
+
+            if should_use_cache {
+                let mut state_log = soft_confirmation_result.state_log;
+                let mut offchain_log = soft_confirmation_result.offchain_log;
+
+                // If cache grew too large, zkvm will error with OOM, hence, we pass
+                // when to prune as hint
+                if state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
+                    > MAX_CUMULATIVE_CACHE_SIZE
+                {
+                    state_log.prune_half();
+                    offchain_log.prune_half();
+                    cache_prune_l2_heights.push(l2_height);
+                }
+
+                cumulative_state_log = Some(state_log);
+                cumulative_offchain_log = Some(offchain_log);
+            }
+
+            witnesses.push((
+                soft_confirmation_result.witness,
+                soft_confirmation_result.offchain_witness,
+            ));
+        }
+
+        let new_hashes = SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .unwrap()
+            .take_queried_hashes(
+                l2_blocks_in_commitment[0].l2_height()
+                    ..=l2_blocks_in_commitment
+                        .last()
+                        .expect("must have at least one")
+                        .l2_height(),
+            );
+
+        for hash in new_hashes {
+            let serialized_shp = ledger_db
+                .get_short_header_proof_by_l1_hash(&hash)?
+                .expect("Should exist");
+
+            short_header_proofs.push_back(serialized_shp);
+        }
+
+        state_transition_witnesses.push_back(witnesses);
+    }
+
+    Ok((
+        state_transition_witnesses,
+        cache_prune_l2_heights,
+        short_header_proofs,
+    ))
+}
+
+/// TODO: This check needs a rewrite for sure.
+/// We could check on the sequencer commitments range only and not generate inputs
+pub(crate) fn state_transition_already_proven<Da: DaService>(
+    input: &BatchProofCircuitInput<Da::Spec, Transaction>,
+    proofs: &Vec<StoredBatchProof>,
+) -> bool {
     for proof in proofs {
-        if proof.proof_output.initial_state_root == input.initial_state_root.as_ref()
-            && proof.proof_output.sequencer_commitments_range == input.sequencer_commitments_range
+        let (initial_state_root, sequencer_commitments_range) = match &proof.proof_output {
+            StoredBatchProofOutput::V1(output) => (
+                output.initial_state_root,
+                output.sequencer_commitments_range,
+            ),
+            StoredBatchProofOutput::V2(output) => (
+                output.initial_state_root,
+                output.sequencer_commitments_range,
+            ),
+            StoredBatchProofOutput::V3(output) => (
+                output.initial_state_root,
+                (u32::MAX, u32::MAX), // TODO: find another way for v3
+            ),
+        };
+
+        if initial_state_root == input.initial_state_root.as_ref()
+            && sequencer_commitments_range == input.sequencer_commitments_range
         {
             return true;
         }
@@ -312,6 +571,7 @@ pub(crate) async fn extract_and_store_proof<DB, Da, Vm>(
     ledger_db: DB,
     txs_and_proofs: Vec<(<Da as DaService>::TransactionId, Proof)>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    l1_height: u64,
 ) -> Result<(), anyhow::Error>
 where
     Da: DaService,
@@ -323,35 +583,24 @@ where
 
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
-        let (last_active_spec_id, circuit_output) = match Vm::extract_output::<
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec>,
+        let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
+            BatchProofCircuitOutputV3,
         >(&proof)
         {
-            Ok(output) => (
-                fork_from_block_number(output.last_l2_height).spec_id,
-                output,
-            ),
+            Ok(output) => (SpecId::Fork2, StoredBatchProofOutput::V3(output)),
             Err(e) => {
-                info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                let output = Vm::extract_output::<BatchProofCircuitOutputV1<Da::Spec>>(&proof)
-                    .expect("Should be able to extract either pre or post fork 1 output");
-                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec> {
-                    initial_state_root: output.initial_state_root,
-                    final_state_root: output.final_state_root,
-                    state_diff: output.state_diff,
-                    da_slot_hash: output.da_slot_hash,
-                    sequencer_commitments_range: output.sequencer_commitments_range,
-                    sequencer_public_key: output.sequencer_public_key,
-                    sequencer_da_public_key: output.sequencer_da_public_key,
-                    preproven_commitments: output.preproven_commitments,
-                    // We don't have these fields in pre fork 1
-                    // That's why we serve them as 0
-                    prev_soft_confirmation_hash: [0; 32],
-                    final_soft_confirmation_hash: [0; 32],
-                    last_l2_height: 0,
-                };
-                // If we got output of pre fork 1 that means we are in genesis
-                (SpecId::Genesis, batch_proof_output)
+                info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+                match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
+                    Ok(output) => (SpecId::Kumquat, StoredBatchProofOutput::V2(output)),
+                    Err(e) => {
+                        info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
+                        let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
+                            .expect("Should be able to extract either pre or post fork 1 output");
+
+                        // If we got output of pre fork 1 that means we are in genesis
+                        (SpecId::Genesis, StoredBatchProofOutput::V1(output))
+                    }
+                }
             }
         };
 
@@ -364,32 +613,13 @@ where
         Vm::verify(proof.as_slice(), code_commitment)
             .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
-        debug!("circuit output: {:?}", circuit_output);
-
-        let slot_hash = circuit_output.da_slot_hash.into();
-
-        let stored_batch_proof_output = StoredBatchProofOutput {
-            initial_state_root: circuit_output.initial_state_root.as_ref().to_vec(),
-            final_state_root: circuit_output.final_state_root.as_ref().to_vec(),
-            state_diff: circuit_output.state_diff,
-            da_slot_hash: slot_hash,
-            sequencer_commitments_range: circuit_output.sequencer_commitments_range,
-            sequencer_public_key: circuit_output.sequencer_public_key,
-            sequencer_da_public_key: circuit_output.sequencer_da_public_key,
-            preproven_commitments: circuit_output.preproven_commitments,
-            prev_soft_confirmation_hash: circuit_output.prev_soft_confirmation_hash,
-            final_soft_confirmation_hash: circuit_output.final_soft_confirmation_hash,
-            last_l2_height: circuit_output.last_l2_height,
-        };
-        let l1_height = ledger_db
-            .get_l1_height_of_l1_hash(slot_hash)?
-            .expect("l1 height should exist");
+        debug!("circuit output: {:?}", batch_proof_output);
 
         if let Err(e) = ledger_db.insert_batch_proof_data_by_l1_height(
             l1_height,
             tx_id_u8,
             proof,
-            stored_batch_proof_output,
+            batch_proof_output,
         ) {
             panic!("Failed to put proof data in the ledger db: {}", e);
         }
@@ -414,10 +644,7 @@ pub(crate) fn save_commitments<DB>(
         let l2_end_height = sequencer_commitment.l2_end_block_number;
         for i in l2_start_height..=l2_end_height {
             ledger_db
-                .put_soft_confirmation_status(
-                    SoftConfirmationNumber(i),
-                    SoftConfirmationStatus::Proven,
-                )
+                .put_l2_block_status(SoftConfirmationNumber(i), SoftConfirmationStatus::Proven)
                 .unwrap_or_else(|_| {
                     panic!(
                         "Failed to put soft confirmation status in the ledger db {}",

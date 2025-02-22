@@ -117,13 +117,14 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-RISC0_DEV_MODE=1 ./citrea-v0.6.2-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+RISC0_DEV_MODE=1 ./citrea-v0.6.3-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
 
 ```sh
 SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1 \
+SEQUENCER_K256_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364 \
 SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
 PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
 NODE_URL=http://0.0.0.0:18443 \
@@ -147,12 +148,12 @@ SYNC_BLOCKS_COUNT=10 \
 RUST_LOG=info \
 JSON_LOGS=1 \
 RISC0_DEV_MODE=1  \
-./citrea-v0.6.2-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v0.6.3-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-RISC0_DEV_MODE=1 ./citrea-v0.6.2-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+RISC0_DEV_MODE=1 ./citrea-v0.6.3-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -160,6 +161,7 @@ or if you wish to use environment variables for configuring your node:
 
 ```sh
 SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1 \
+SEQUENCER_K256_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364 \
 SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
 PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
 NODE_URL=http://0.0.0.0:18443 \
@@ -183,7 +185,7 @@ SYNC_BLOCKS_COUNT=10 \
 RUST_LOG=info \
 JSON_LOGS=1 \
 RISC0_DEV_MODE=1  \
-./citrea-v0.6.2-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v0.6.3-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
@@ -230,6 +232,7 @@ If you'd like to use environment variables to pass configs instead of using .tom
 
 ```sh
 SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1 \
+SEQUENCER_K256_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364 \
 SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
 PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
 NODE_URL=http://0.0.0.0:18443 \

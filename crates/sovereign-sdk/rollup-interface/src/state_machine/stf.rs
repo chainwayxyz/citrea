@@ -4,18 +4,9 @@
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
 
-use std::collections::VecDeque;
-
-use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-
-use super::zk::{StorageRootHash, ZkvmGuest};
-use crate::da::DaSpec;
-use crate::fork::Fork;
-use crate::soft_confirmation::SignedSoftConfirmation;
-use crate::spec::SpecId;
+use super::zk::StorageRootHash;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
+use crate::RefCount;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;
@@ -52,39 +43,12 @@ pub struct ApplySequencerCommitmentsOutput {
     pub last_l2_height: u64,
     /// Last soft confirmation hash
     pub final_soft_confirmation_hash: [u8; 32],
-}
-
-/// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftConfirmationReceipt<DS: DaSpec> {
-    /// L2 block height
-    pub l2_height: u64,
-    /// DA layer block number
-    pub da_slot_height: u64,
-    /// DA layer block hash
-    pub da_slot_hash: <DS as DaSpec>::SlotHash,
-    /// DA layer transactions commitment
-    pub da_slot_txs_commitment: <DS as DaSpec>::SlotHash,
-    /// The canonical hash of this batch
-    pub hash: [u8; 32],
-    /// The canonical hash of the previous batch
-    pub prev_hash: [u8; 32],
-    /// The receipts of all the transactions in this batch.
-    pub tx_hashes: Vec<[u8; 32]>,
-    /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
-    pub soft_confirmation_signature: Vec<u8>,
-    /// Sequencer public key
-    pub pub_key: Vec<u8>,
-    /// Deposit data from the L1 chain
-    pub deposit_data: Vec<Vec<u8>>,
-    /// Base layer fee rate sats/wei etc. per byte.
-    pub l1_fee_rate: u128,
-    /// Sequencer's block timestamp
-    pub timestamp: u64,
+    /// Sequencer commitment hashes
+    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
 }
 
 /// A diff of the state, represented as a list of key-value pairs.
-pub type StateDiff = Vec<(Vec<u8>, Option<Vec<u8>>)>;
+pub type StateDiff = Vec<(RefCount<[u8]>, Option<RefCount<[u8]>>)>;
 
 /// Helper struct which contains initial and final state roots.
 pub struct StateRootTransition {
@@ -101,9 +65,13 @@ pub struct StateRootTransition {
 /// - T - generic for transaction receipt contents
 /// - W - generic for witness
 /// - Da - generic for DA layer
-pub struct SoftConfirmationResult<Cs, W> {
+pub struct SoftConfirmationResult<Cs, W, SL> {
     /// Contains state root before and after applying txs
     pub state_root_transition: StateRootTransition,
+    /// Cache of the read and writes happened on the state.
+    pub state_log: SL,
+    /// Cache of the read and writes happened on the offchain state.
+    pub offchain_log: SL,
     /// Container for all state alterations that happened during soft confirmation execution
     pub change_set: Cs,
     /// Witness after applying the whole block
@@ -118,103 +86,6 @@ pub struct SoftConfirmationResult<Cs, W> {
 pub trait TransactionDigest {
     /// Compute digest for the whole Transaction struct
     fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D>;
-}
-
-// TODO(@preston-evans98): update spec with simplified API
-/// State transition function defines business logic that responsible for changing state.
-/// Terminology:
-///  - state root: root hash of state merkle tree
-///  - block: DA layer block
-///  - batch: Set of transactions grouped together, or block on L2
-///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
-pub trait StateTransitionFunction<Da: DaSpec> {
-    /// The type of rollup transaction
-    type Transaction: TransactionDigest
-        + Clone
-        + BorshDeserialize
-        + BorshSerialize
-        + Send
-        + Sync
-        + 'static;
-
-    /// The initial params of the rollup.
-    type GenesisParams;
-
-    /// State of the rollup before transition.
-    type PreState;
-
-    /// State of the rollup after transition.
-    type ChangeSet;
-
-    /// The contents of a transaction receipt. This is the data that is persisted in the database
-    type TxReceiptContents: Serialize + DeserializeOwned + Clone;
-
-    /// The contents of a batch receipt. This is the data that is persisted in the database
-    type BatchReceiptContents: Serialize + DeserializeOwned + Clone;
-
-    /// Witness is a data that is produced during actual batch execution
-    /// or validated together with proof during verification
-    type Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static;
-
-    /// Perform one-time initialization for the genesis block and
-    /// returns the resulting root hash and changeset.
-    /// If the init chain fails we panic.
-    fn init_chain(
-        &self,
-        genesis_state: Self::PreState,
-        params: Self::GenesisParams,
-    ) -> (StorageRootHash, Self::ChangeSet);
-
-    /// Called at each **Soft confirmation block**
-    /// If slot is started in Full Node mode, default witness should be provided.
-    /// If slot is started in Zero Knowledge mode, witness from execution should be provided.
-    ///
-    /// Checks for soft confirmation signature, data correctness (pre state root is correct etc.) and applies batches of transactions to the rollup,
-    /// The blobs are contained into a slot whose data is contained within the `slot_data` parameter,
-    /// this parameter is mainly used within the begin_slot hook.
-    /// The concrete blob type is defined by the DA layer implementation,
-    /// which is why we use a generic here instead of an associated type.
-    ///
-    /// Commits state changes to the database
-    #[allow(clippy::type_complexity)]
-    #[allow(clippy::too_many_arguments)]
-    fn apply_soft_confirmation(
-        &mut self,
-        current_spec: SpecId,
-        sequencer_public_key: &[u8],
-        pre_state_root: &StorageRootHash,
-        pre_state: Self::PreState,
-        state_witness: Self::Witness,
-        offchain_witness: Self::Witness,
-        slot_header: &Da::BlockHeader,
-        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-    ) -> Result<SoftConfirmationResult<Self::ChangeSet, Self::Witness>, StateTransitionError>;
-
-    /// Runs a vector of Soft Confirmations
-    /// Used for proving the L2 block state transitions
-    // TODO: don't use tuple as return type.
-    #[allow(clippy::type_complexity)]
-    #[allow(clippy::too_many_arguments)]
-    fn apply_soft_confirmations_from_sequencer_commitments(
-        &mut self,
-        guest: &impl ZkvmGuest,
-        sequencer_public_key: &[u8],
-        sequencer_da_public_key: &[u8],
-        initial_state_root: &StorageRootHash,
-        pre_state: Self::PreState,
-        da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        sequencer_commitments_range: (u32, u32),
-        slot_headers: VecDeque<Vec<Da::BlockHeader>>,
-        preproven_commitment_indicies: Vec<usize>,
-        forks: &[Fork],
-    ) -> ApplySequencerCommitmentsOutput;
 }
 
 #[derive(Debug, PartialEq)]
@@ -237,6 +108,8 @@ pub enum SoftConfirmationError {
     InvalidSovTxSignature,
     /// The soft confirmation includes a sov-tx that can not be runtime decoded
     SovTxCantBeRuntimeDecoded,
+    /// The soft confirmation includes an invalid tx merkle root
+    InvalidTxMerkleRoot,
     /// Any other error that can occur during the application of a soft confirmation
     /// These can come from runtime hooks etc.
     Other(String),
@@ -283,6 +156,14 @@ pub enum SoftConfirmationModuleCallError {
     RuleEnforcerUnauthorized,
     /// The EVM transaction type is not supported
     EvmTxTypeNotSupported(String),
+    /// Short Header Proof Not Found
+    ShortHeaderProofNotFound,
+    /// Short Header Proof Verification Error
+    ShortHeaderProofVerificationError,
+    /// Some System transaction was placed after a user transaction in the block
+    EvmSystemTransactionPlacedAfterUserTx,
+    /// System tx failed to parse
+    EvmSystemTxParseError,
 }
 
 #[derive(Debug, PartialEq)]
@@ -329,6 +210,9 @@ impl std::fmt::Display for SoftConfirmationError {
             SoftConfirmationError::SovTxCantBeRuntimeDecoded => {
                 write!(f, "Sov tx can't be runtime decoded")
             }
+            SoftConfirmationError::InvalidTxMerkleRoot => {
+                write!(f, "Invalid tx merkle root")
+            }
         }
     }
 }
@@ -362,10 +246,10 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
                 block_gas_limit,
             } => {
                 write!(
-                    f,
-                    "EVM gas used exceeds block gas limit: cumulative_gas: {}, tx_gas_used: {}, block_gas_limit: {}",
-                    cumulative_gas, tx_gas_used, block_gas_limit
-                )
+                            f,
+                            "EVM gas used exceeds block gas limit: cumulative_gas: {}, tx_gas_used: {}, block_gas_limit: {}",
+                            cumulative_gas, tx_gas_used, block_gas_limit
+                        )
             }
             SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
                 write!(f, "EVM transaction execution error")
@@ -384,6 +268,18 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::EvmTxNotSerializable => {
                 write!(f, "EVM tx not serializable")
+            }
+            SoftConfirmationModuleCallError::ShortHeaderProofNotFound => {
+                write!(f, "Short header proof not found")
+            }
+            SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => {
+                write!(f, "Short header proof verification error")
+            }
+            SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => {
+                write!(f, "EVM system transaction placed after user tx")
+            }
+            SoftConfirmationModuleCallError::EvmSystemTxParseError => {
+                write!(f, "EVM system transaction parse error")
             }
         }
     }

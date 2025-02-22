@@ -11,7 +11,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, Spec, WorkingSet};
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{ProverStorage, Storage};
 
@@ -32,11 +32,7 @@ lazy_static! {
 
 pub(crate) fn get_evm_with_storage(
     config: &EvmConfig,
-) -> (
-    Evm<C>,
-    WorkingSet<ProverStorage<SnapshotManager>>,
-    ProverStorage<SnapshotManager>,
-) {
+) -> (Evm<C>, WorkingSet<ProverStorage>, ProverStorage) {
     let tmpdir = tempfile::tempdir().unwrap();
     let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(prover_storage.clone());
@@ -51,6 +47,12 @@ pub(crate) fn get_evm_with_storage(
 }
 
 pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
+    get_evm_with_spec(config, SovSpecId::Fork2)
+}
+
+pub(crate) fn get_evm_pre_fork2(
+    config: &EvmConfig,
+) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
     get_evm_with_spec(config, SovSpecId::Kumquat)
 }
 
@@ -98,15 +100,15 @@ pub(crate) fn get_evm_with_spec(
 
 pub(crate) fn commit(
     working_set: WorkingSet<<C as Spec>::Storage>,
-    storage: ProverStorage<SnapshotManager>,
+    storage: ProverStorage,
 ) -> [u8; 32] {
     // Save checkpoint
     let mut checkpoint = working_set.checkpoint();
 
-    let (cache_log, mut witness) = checkpoint.freeze();
+    let (state_log, mut witness) = checkpoint.freeze();
 
     let (state_root_transition, authenticated_node_batch, _) = storage
-        .compute_state_update(cache_log, &mut witness)
+        .compute_state_update(&state_log, &mut witness)
         .expect("jellyfish merkle tree update must succeed");
 
     let working_set = checkpoint.to_revertable();
@@ -323,7 +325,11 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
     config
 }
 
-pub(crate) fn get_fork_fn_only_fork1() -> impl Fn(u64) -> Fork {
+pub(crate) fn get_fork_fn_only_fork2() -> impl Fn(u64) -> Fork {
+    |_: u64| Fork::new(SovSpecId::Fork2, 0)
+}
+
+pub(crate) fn get_fork_fn_only_kumquat() -> impl Fn(u64) -> Fork {
     |_: u64| Fork::new(SovSpecId::Kumquat, 0)
 }
 

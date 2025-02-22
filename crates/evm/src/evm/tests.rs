@@ -2,15 +2,12 @@ use std::str::FromStr;
 
 use alloy_primitives::{Address, TxKind};
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{
-    BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, Output, SpecId, U256,
-};
-use revm::{Database, DatabaseCommit};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
 use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use self::executor::CitreaEvm;
-use super::db::{DBError, EvmDb};
+use super::db::EvmDb;
 use super::db_init::InitEvmDb;
 use super::executor;
 use super::handler::CitreaExternalExt;
@@ -35,9 +32,7 @@ fn simple_contract_execution_sov_state() {
     simple_contract_execution(evm_db);
 }
 
-fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + InitEvmDb>(
-    mut evm_db: DB,
-) {
+fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) {
     let dev_signer = TestSigner::new_random();
     let caller = dev_signer.address();
     evm_db.insert_account_info(
@@ -69,8 +64,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
             ..Default::default()
         };
 
-        let result =
-            execute_tx(&mut evm_db, block_env, tx, cfg_env.clone(), &mut citrea_ext).unwrap();
+        let result = execute_tx(&mut evm_db, block_env, tx, cfg_env.clone(), &mut citrea_ext);
         contract_address(&result).expect("Expected successful contract creation")
     };
 
@@ -90,8 +84,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
             tx,
             cfg_env.clone(),
             &mut citrea_ext,
-        )
-        .unwrap();
+        );
     }
 
     let get_res = {
@@ -109,8 +102,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
             tx,
             cfg_env.clone(),
             &mut citrea_ext,
-        )
-        .unwrap();
+        );
 
         let out = output(result);
         U256::from_be_slice(out.to_vec().as_slice())
@@ -132,8 +124,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
             tx,
             cfg_env.clone(),
             &mut citrea_ext,
-        )
-        .unwrap();
+        );
 
         assert!(matches!(result, ExecutionResult::Revert { .. }));
     }
@@ -159,13 +150,14 @@ fn output(result: ExecutionResult) -> alloy_primitives::Bytes {
     }
 }
 
-pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
-    db: DB,
+pub(crate) fn execute_tx<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
+    db: &mut EvmDb<C>,
     block_env: BlockEnv,
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
-) -> Result<ExecutionResult, EVMError<DB::Error>> {
-    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
-    evm.transact_commit(tx)
+) -> ExecutionResult {
+    let citrea_spec = db.citrea_spec;
+    let mut evm = CitreaEvm::new(db, citrea_spec, block_env, config_env, ext);
+    evm.transact_commit(tx).unwrap()
 }

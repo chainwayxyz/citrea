@@ -21,7 +21,7 @@ use tracing::instrument::Instrument;
 
 use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
-use crate::verifier::MockDaSpec;
+use crate::verifier::{MockDaSpec, MockShortHeaderProof};
 use crate::{MockBlockHeader, MockHash};
 
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
@@ -348,7 +348,6 @@ impl DaService for MockDaService {
     type HeaderStream = MockDaBlockHeaderStream;
     type TransactionId = MockHash;
     type Error = anyhow::Error;
-    type BlockHash = [u8; 32];
 
     /// Decompress and deserialize chunks
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -530,12 +529,12 @@ impl DaService for MockDaService {
 
     async fn get_block_by_hash(
         &self,
-        hash: Self::BlockHash,
+        hash: <Self::Spec as DaSpec>::SlotHash,
     ) -> Result<Self::FilteredBlock, Self::Error> {
         self.blocks
             .lock()
             .await
-            .get_by_hash(hash)
+            .get_by_hash(hash.0)
             .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
     }
 
@@ -547,9 +546,14 @@ impl DaService for MockDaService {
     }
 
     fn block_to_short_header_proof(
-        _block: Self::FilteredBlock,
+        block: Self::FilteredBlock,
     ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
-        unimplemented!()
+        MockShortHeaderProof {
+            header_hash: block.header.hash.0,
+            prev_header_hash: block.header.prev_hash.0,
+            txs_commitment: block.header.txs_commitment.0,
+            height: block.header.height,
+        }
     }
 }
 

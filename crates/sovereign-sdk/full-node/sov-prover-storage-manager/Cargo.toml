@@ -20,16 +20,9 @@ sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-schema-db = { path = "../db/sov-schema-db", features = ["test-utils"] }
 tempfile = { workspace = true }
-criterion = "0.5.1"
 rand = { workspace = true }
-
-[[bench]]
-name = "single_thread_storage_bench"
-path = "benches/single_thread_progression.rs"
-harness = false
 
 [features]
 default = []

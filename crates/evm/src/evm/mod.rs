@@ -1,9 +1,11 @@
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_primitives::{address, Address, B256, U256};
+use borsh::{BorshDeserialize, BorshSerialize};
 use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
+use sov_state::storage::StateValueCodec;
 use sov_state::Prefix;
 
 pub(crate) mod conversions;
@@ -15,7 +17,8 @@ pub(crate) mod handler;
 pub(crate) mod primitive_types;
 /// System contracts used for system transactions
 pub mod system_contracts;
-pub(crate) mod system_events;
+/// System events used for creating system transactions
+pub mod system_events;
 
 #[cfg(feature = "native")]
 pub(crate) mod call;
@@ -26,7 +29,7 @@ pub(crate) mod compat;
 mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
-use sov_state::codec::BcsCodec;
+use sov_state::codec::{BcsCodec, BorshCodec};
 
 #[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
@@ -57,6 +60,44 @@ pub struct AccountInfo {
     pub nonce: u64,
     /// Code hash
     pub code_hash: Option<B256>,
+}
+
+impl BorshSerialize for AccountInfo {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        let balance = self.balance.as_limbs();
+        let nonce = self.nonce;
+        let code_hash = self.code_hash.as_ref().map(|v| &v.0);
+        BorshSerialize::serialize(balance, writer)?;
+        BorshSerialize::serialize(&nonce, writer)?;
+        BorshSerialize::serialize(&code_hash, writer)
+    }
+}
+
+impl BorshDeserialize for AccountInfo {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let balance: [u64; 4] = BorshDeserialize::deserialize_reader(reader)?;
+        let nonce = BorshDeserialize::deserialize_reader(reader)?;
+        let code_hash: Option<[u8; 32]> = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(Self {
+            balance: U256::from_limbs(balance),
+            nonce,
+            code_hash: code_hash.map(|v| B256::from_slice(&v)),
+        })
+    }
+}
+
+impl StateValueCodec<AccountInfo> for BorshCodec {
+    type Error = std::io::Error;
+
+    fn encode_value(&self, value: &AccountInfo) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(32 + 8 + 32 + 1);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
+    }
+
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<AccountInfo, Self::Error> {
+        borsh::from_slice(bytes)
+    }
 }
 
 /// Stores information about an EVM account and a corresponding account state.

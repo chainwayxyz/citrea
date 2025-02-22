@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, DaSpec, StateValueAccessor, WorkingSet};
+use sov_modules_api::{Address, Context, DaSpec, StateValueAccessor, WorkingSet};
 
 use crate::{RuleEnforcerData, SoftConfirmationRuleEnforcer};
 
 /// Config for the SoftConfirmationRuleEnforcer module.
 /// Sets max L2 blocks per L1 and authority.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct SoftConfirmationRuleEnforcerConfig<C: Context> {
+pub struct SoftConfirmationRuleEnforcerConfig {
     /// Authority address. Address of the sequencer.
     /// This address is allowed to modify the max L2 blocks per L1.
-    pub(crate) authority: C::Address,
+    pub(crate) authority: Address,
     ///  Maximum number of L2 blocks per L1 slot.
     pub(crate) max_l2_blocks_per_l1: u32,
 }

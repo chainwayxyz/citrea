@@ -28,6 +28,7 @@ citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 citrea-storage-ops = { path = "../../crates/storage-ops" }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 prover-services = { path = "../../crates/prover-services" }
+short-header-proof-provider = { path = "../../crates/short-header-proof-provider", features = ["native"] }
 
 # Sovereign-SDK deps
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
@@ -80,6 +81,7 @@ alloy-rpc-types = { workspace = true }
 alloy-rpc-types-trace = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
+chrono = { workspace = true }
 futures = { workspace = true }
 jmt = { workspace = true }
 rand = { workspace = true }

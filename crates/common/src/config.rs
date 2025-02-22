@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use citrea_primitives::PRE_FORK2_BRIDGE_INITIALIZE_PARAMS;
 use citrea_storage_ops::pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -81,6 +82,8 @@ pub struct RpcConfig {
     /// Maximum number of subscription connections
     #[serde(default = "default_max_subscriptions_per_connection")]
     pub max_subscriptions_per_connection: u32,
+    /// API key for protected JSON-RPC methods
+    pub api_key: Option<String>,
 }
 
 impl FromEnv for RpcConfig {
@@ -113,6 +116,7 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_subscriptions_per_connection),
+            api_key: std::env::var("RPC_API_KEY").ok(),
         })
     }
 }
@@ -157,6 +161,9 @@ const fn default_max_subscriptions_per_connection() -> u32 {
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
     pub path: PathBuf,
+    /// Optional path for storing database backups
+    /// If not specified, backup path will need to be provided on each backup creation
+    pub backup_path: Option<PathBuf>,
     /// File descriptor limit for RocksDB
     pub db_max_open_files: Option<i32>,
 }
@@ -165,6 +172,9 @@ impl FromEnv for StorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             path: std::env::var("STORAGE_PATH")?.into(),
+            backup_path: std::env::var("STORAGE_BACKUP_PATH")
+                .ok()
+                .and_then(|v| v.parse().ok()),
             db_max_open_files: std::env::var("DB_MAX_OPEN_FILES")
                 .ok()
                 .and_then(|val| val.parse().ok()),
@@ -178,6 +188,9 @@ pub struct RollupPublicKeys {
     /// Soft confirmation signing public key of the Sequencer
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
+    /// Soft confirmation signing k256 public key of the Sequencer
+    #[serde(with = "hex::serde")]
+    pub sequencer_k256_public_key: Vec<u8>,
     /// DA Signing Public Key of the Sequencer
     /// serialized as hex
     #[serde(with = "hex::serde")]
@@ -192,6 +205,7 @@ impl FromEnv for RollupPublicKeys {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             sequencer_public_key: hex::decode(std::env::var("SEQUENCER_PUBLIC_KEY")?)?,
+            sequencer_k256_public_key: hex::decode(std::env::var("SEQUENCER_K256_PUBLIC_KEY")?)?,
             sequencer_da_pub_key: hex::decode(std::env::var("SEQUENCER_DA_PUB_KEY")?)?,
             prover_da_pub_key: hex::decode(std::env::var("PROVER_DA_PUB_KEY")?)?,
         })
@@ -327,6 +341,8 @@ pub struct SequencerConfig {
     pub da_update_interval_ms: u64,
     /// Block production interval in ms
     pub block_production_interval_ms: u64,
+    /// Bridge system contract initialize function parameters
+    pub bridge_initialize_params: String,
 }
 
 impl Default for SequencerConfig {
@@ -339,6 +355,7 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
         }
     }
@@ -357,6 +374,7 @@ impl FromEnv for SequencerConfig {
             mempool_conf: SequencerMempoolConfig::from_env()?,
             da_update_interval_ms: std::env::var("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: std::env::var("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
+            bridge_initialize_params: std::env::var("BRIDGE_INITIALIZE_PARAMS")?,
         })
     }
 }
@@ -479,6 +497,7 @@ mod tests {
             r#"
             [public_keys]
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
+            sequencer_k256_public_key = "000000000000000000000000000000000000000000000000000000000000000000"
             sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
             prover_da_pub_key = ""
 
@@ -524,6 +543,7 @@ mod tests {
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
+                backup_path: None,
                 db_max_open_files: Some(123),
             },
             rpc: RpcConfig {
@@ -535,9 +555,11 @@ mod tests {
                 batch_requests_limit: 50,
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                api_key: None,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],
+                sequencer_k256_public_key: vec![0; 33],
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
@@ -576,6 +598,7 @@ mod tests {
             deposit_mempool_fetch_limit = 10
             da_update_interval_ms = 1000
             block_production_interval_ms = 1000
+            bridge_initialize_params = "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
             [mempool_conf]
             pending_tx_limit = 100000
             pending_tx_size = 200
@@ -607,6 +630,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(config, expected);
     }
@@ -644,6 +668,7 @@ mod tests {
         std::env::set_var("BASE_FEE_TX_LIMIT", "100000");
         std::env::set_var("BASE_FEE_TX_SIZE", "200");
         std::env::set_var("MAX_ACCOUNT_SLOTS", "16");
+        std::env::set_var("BRIDGE_INITIALIZE_PARAMS", "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000");
 
         let sequencer_config = SequencerConfig::from_env().unwrap();
 
@@ -664,6 +689,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(sequencer_config, expected);
     }
@@ -673,6 +699,10 @@ mod tests {
         std::env::set_var(
             "SEQUENCER_PUBLIC_KEY",
             "0000000000000000000000000000000000000000000000000000000000000000",
+        );
+        std::env::set_var(
+            "SEQUENCER_K256_PUBLIC_KEY",
+            "000000000000000000000000000000000000000000000000000000000000000000",
         );
         std::env::set_var(
             "SEQUENCER_DA_PUB_KEY",
@@ -714,9 +744,11 @@ mod tests {
                 batch_requests_limit: default_batch_requests_limit(),
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                api_key: None,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
+                backup_path: None,
                 db_max_open_files: Some(123),
             },
             runner: Some(RunnerConfig {
@@ -731,6 +763,7 @@ mod tests {
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],
+                sequencer_k256_public_key: vec![0; 33],
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },

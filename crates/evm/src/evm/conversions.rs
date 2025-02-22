@@ -7,6 +7,7 @@ use revm::primitives::{AccountInfo as ReVmAccountInfo, SpecId, TransactTo, TxEnv
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
+use crate::SYSTEM_SIGNER;
 
 impl From<AccountInfo> for ReVmAccountInfo {
     fn from(info: AccountInfo) -> Self {
@@ -112,6 +113,18 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
     fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
         let tx = TransactionSignedNoHash::try_from(evm_tx)?;
         let tx: TransactionSigned = tx.into();
+        // TODO: Use constant sys tx signature once we update reth
+        let sys_tx_signature = reth_primitives::Signature::new(
+            U256::ZERO,
+            U256::ZERO,
+            alloy_primitives::Parity::Parity(false),
+        );
+        if tx.signature == sys_tx_signature {
+            return Ok(TransactionSignedEcRecovered::from_signed_transaction(
+                tx,
+                SYSTEM_SIGNER,
+            ));
+        }
         let tx = tx
             .into_ecrecovered()
             .ok_or(ConversionError::FailedToDecodeSignedTransaction)?;

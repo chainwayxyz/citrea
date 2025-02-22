@@ -57,6 +57,8 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -164,6 +166,8 @@ async fn test_sequencer_commitment_threshold() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -219,7 +223,7 @@ async fn test_sequencer_commitment_threshold() {
 }
 
 /// Run the sequencer.
-/// Send a traensaction that can cover base fee and prioiity fee but not the L1 fee.
+/// Send a transaction that can cover base fee and priority fee but not the L1 fee.
 /// Check if the transaction is removed from the mempool and not included in the block.
 #[tokio::test(flavor = "multi_thread")]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
@@ -372,6 +376,8 @@ async fn test_gas_limit_too_high() {
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });
@@ -396,6 +402,8 @@ async fn test_gas_limit_too_high() {
             None,
             rollup_config,
             None,
+            None,
+            false,
         )
         .await;
     });
@@ -511,6 +519,8 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             None,
             rollup_config,
             Some(sequencer_config),
+            None,
+            false,
         )
         .await;
     });

@@ -1,19 +1,15 @@
 use std::collections::VecDeque;
 
 use borsh::BorshSerialize;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 
 use super::BatchProofCircuitInput;
 use crate::da::{BlobReaderTrait, DaSpec};
 use crate::soft_confirmation::SignedSoftConfirmationV1;
+use crate::witness::PreFork2Witness;
 use crate::zk::StorageRootHash;
 
-#[derive(Serialize, Deserialize)]
-// Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
-// StateTransitionFunction, DA, and Zkvm traits.
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
+pub struct BatchProofCircuitInputV1<Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
@@ -33,9 +29,9 @@ pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
     /// The soft confirmations that are inside the sequencer commitments.
     pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmationV1>>,
     /// Corresponding witness for the soft confirmations.
-    pub state_transition_witnesses: VecDeque<Vec<Witness>>,
-    /// DA block headers the soft confirmations was constructed on.
-    pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
+    pub state_transition_witnesses: VecDeque<Vec<PreFork2Witness>>,
+    /// DA block headers the L2 blocks were constructed on.
+    pub da_block_headers_of_l2_blocks: VecDeque<Vec<Da::BlockHeader>>,
     /// Sequencer soft confirmation public key.
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public_key: Vec<u8>,
@@ -44,9 +40,7 @@ pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
 }
-impl<Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
-    for BatchProofCircuitInputV1<Witness, Da>
-{
+impl<Da: DaSpec> BorshSerialize for BatchProofCircuitInputV1<Da> {
     /// Pre fork 1 serialization
     /// An additional [u8; 32] is added to the end of the bitcoin da header
     /// So the genesis fork guest fails to deserialize the header
@@ -74,9 +68,8 @@ impl<Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
         BorshSerialize::serialize(&self.state_transition_witnesses, writer)?;
 
         // for every Da::BlockHeader we serialize it and remove last 32 bytes
-        writer
-            .write_all(&(self.da_block_headers_of_soft_confirmations.len() as u32).to_le_bytes())?;
-        for header_vec in &self.da_block_headers_of_soft_confirmations {
+        writer.write_all(&(self.da_block_headers_of_l2_blocks.len() as u32).to_le_bytes())?;
+        for header_vec in &self.da_block_headers_of_l2_blocks {
             writer.write_all(&(header_vec.len() as u32).to_le_bytes())?;
             for header in header_vec {
                 let original = borsh::to_vec(header)?;
@@ -92,14 +85,12 @@ impl<Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
     }
 }
 
-impl<'txs, Witness, Da, Tx> From<BatchProofCircuitInput<'txs, Witness, Da, Tx>>
-    for BatchProofCircuitInputV1<Witness, Da>
+impl<'txs, Da, Tx> From<BatchProofCircuitInput<'txs, Da, Tx>> for BatchProofCircuitInputV1<Da>
 where
     Da: DaSpec,
-    Tx: Clone,
-    Witness: Serialize + DeserializeOwned,
+    Tx: Clone + BorshSerialize,
 {
-    fn from(input: BatchProofCircuitInput<'txs, Witness, Da, Tx>) -> Self {
+    fn from(input: BatchProofCircuitInput<'txs, Da, Tx>) -> Self {
         BatchProofCircuitInputV1 {
             initial_state_root: input.initial_state_root,
             final_state_root: input.final_state_root,
@@ -110,7 +101,7 @@ where
             completeness_proof: input.completeness_proof,
             preproven_commitments: input.preproven_commitments,
             soft_confirmations: input
-                .soft_confirmations
+                .l2_blocks
                 .into_iter()
                 .map(|confirmations| {
                     confirmations
@@ -122,9 +113,14 @@ where
             state_transition_witnesses: input
                 .state_transition_witnesses
                 .into_iter()
-                .map(|witnesses| witnesses.into_iter().map(|(witness, _)| witness).collect())
+                .map(|witnesses| {
+                    witnesses
+                        .into_iter()
+                        .map(|(witness, _)| witness.into())
+                        .collect()
+                })
                 .collect(),
-            da_block_headers_of_soft_confirmations: input.da_block_headers_of_soft_confirmations,
+            da_block_headers_of_l2_blocks: input.da_block_headers_of_l2_blocks,
             sequencer_public_key: input.sequencer_public_key,
             sequencer_da_public_key: input.sequencer_da_public_key,
             sequencer_commitments_range: input.sequencer_commitments_range,

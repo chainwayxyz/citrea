@@ -6,25 +6,29 @@ use alloy_primitives::U64;
 use anyhow::{bail, Context as _};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
-use citrea_common::utils::soft_confirmation_to_receipt;
+use citrea_common::utils::compute_tx_hashes;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::{Context, SignedSoftConfirmation, Spec};
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
+use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::transaction::Transaction;
+use sov_modules_api::{DaSpec, L2Block, SpecId};
+use sov_modules_stf_blueprint::StfBlueprint;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
+use sov_state::storage::NativeStorage;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -33,40 +37,34 @@ use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 
-type StfTransaction<C, Da, RT> =
-    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
-
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Da, C, DB, RT>
+pub struct CitreaFullnode<Da, DB>
 where
     Da: DaService,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     DB: NodeLedgerOps + Clone,
-    RT: Runtime<C, Da::Spec>,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
-    stf: StfBlueprint<C, Da::Spec, RT>,
-    storage_manager: ProverStorageManager<Da::Spec>,
+    stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
+    storage_manager: ProverStorageManager,
     ledger_db: DB,
     state_root: StorageRootHash,
     soft_confirmation_hash: SoftConfirmationHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
-    phantom: std::marker::PhantomData<C>,
+    sequencer_k256_pub_key: Vec<u8>,
     include_tx_body: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
+    backup_manager: Arc<BackupManager>,
 }
 
-impl<Da, C, DB, RT> CitreaFullnode<Da, C, DB, RT>
+impl<Da, DB> CitreaFullnode<Da, DB>
 where
     Da: DaService<Error = anyhow::Error>,
-    C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
-    RT: Runtime<C, Da::Spec>,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -77,13 +75,14 @@ where
     pub fn new(
         runner_config: RunnerConfig,
         init_params: InitParams,
-        stf: StfBlueprint<C, Da::Spec, RT>,
+        stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
         ledger_db: DB,
-        storage_manager: ProverStorageManager<Da::Spec>,
+        storage_manager: ProverStorageManager,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<Self, anyhow::Error> {
         let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
@@ -100,12 +99,13 @@ where
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
-            phantom: std::marker::PhantomData,
+            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             include_tx_body: runner_config.include_tx_body,
             sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             soft_confirmation_tx,
+            backup_manager,
         })
     }
 
@@ -124,6 +124,16 @@ where
         )
         .await?;
 
+        // Save short header proof to ledger db for Native Short Header Proof Provider Service
+        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+            Da::block_to_short_header_proof(current_l1_block.clone());
+        self.ledger_db
+            .put_short_header_proof_by_l1_hash(
+                &current_l1_block.hash(),
+                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            )
+            .expect("Should save short header proof to ledger db");
+
         info!(
             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
             l2_height,
@@ -135,30 +145,44 @@ where
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
-        let pre_state = self
-            .storage_manager
-            .create_storage_on_l2_height(l2_height)?;
-
-        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
-            soft_confirmation
-                .clone()
-                .try_into()
-                .context("Failed to parse transactions")?;
+        let pre_state = self.storage_manager.create_storage_for_next_l2_height();
+        assert_eq!(
+            pre_state.version(),
+            l2_height,
+            "Prover storage version is corrupted"
+        );
+        let tx_bodies = soft_confirmation
+            .txs
+            .clone()
+            .map(|txs| txs.into_iter().map(|tx| tx.tx).collect::<Vec<_>>());
 
         // Register this new block with the fork manager to active
         // the new fork on the next block.
         self.fork_manager.register_block(l2_height)?;
-
         let current_spec = self.fork_manager.active_fork().spec_id;
+
+        let l2_block: L2Block<Transaction> = soft_confirmation
+            .clone()
+            .try_into()
+            .context("Failed to parse transactions")?;
+
+        let sequencer_pub_key = if current_spec >= SpecId::Fork2 {
+            self.sequencer_k256_pub_key.as_slice()
+        } else {
+            self.sequencer_pub_key.as_slice()
+        };
+
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             current_spec,
-            self.sequencer_pub_key.as_slice(),
+            sequencer_pub_key,
             &self.state_root,
             pre_state,
+            None,
+            None,
             Default::default(),
             Default::default(),
             current_l1_block.header(),
-            &mut signed_soft_confirmation,
+            &l2_block,
         )?;
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
@@ -168,21 +192,17 @@ where
         }
 
         self.storage_manager
-            .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
+            .finalize_storage(soft_confirmation_result.change_set);
 
-        self.storage_manager.finalize_l2(l2_height)?;
-
+        let tx_hashes = compute_tx_hashes::<DefaultContext, _>(&l2_block.txs, current_spec);
         let tx_bodies = if self.include_tx_body {
-            Some(signed_soft_confirmation.blobs().to_owned())
+            tx_bodies
         } else {
             None
         };
 
-        let receipt =
-            soft_confirmation_to_receipt::<C, _, Da::Spec>(signed_soft_confirmation, current_spec);
-
         self.ledger_db
-            .commit_soft_confirmation(next_state_root.as_ref(), receipt, tx_bodies)?;
+            .commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
@@ -232,6 +252,8 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
+        let backup_manager = self.backup_manager.clone();
+
         loop {
             select! {
                 _ = &mut l2_sync_worker => {},
@@ -240,8 +262,11 @@ where
                     // However, when an L2 block fails to process for whatever reason, we want to block this process
                     // and make sure that we start processing L2 blocks in queue.
                     if pending_l2_blocks.is_empty() {
-                        for (index, l2_block) in l2_blocks.iter().enumerate() {
+
+                                for (index, l2_block) in l2_blocks.iter().enumerate() {
+                            let _l2_lock = backup_manager.start_l2_processing().await;
                             if let Err(e) = self.process_l2_block(l2_block).await {
+
                                 error!("Could not process L2 block: {}", e);
                                 // This block failed to process, add remaining L2 blocks to queue including this one.
                                 let remaining_l2s = l2_blocks[index..].to_vec();
@@ -259,6 +284,7 @@ where
                         continue;
                     }
                     while let Some(l2_block) = pending_l2_blocks.front() {
+                        let _l2_lock = backup_manager.start_l2_processing().await;
                         match self.process_l2_block(l2_block).await {
                             Ok(_) => {
                                 pending_l2_blocks.pop_front();

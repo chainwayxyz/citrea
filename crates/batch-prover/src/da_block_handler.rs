@@ -1,31 +1,28 @@
 use std::collections::{HashMap, VecDeque};
-use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context as _};
-use borsh::{BorshDeserialize, BorshSerialize};
+use anyhow::anyhow;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::{get_da_block_at_height, sync_l1};
+use citrea_common::da::sync_l1;
 use citrea_common::utils::merge_state_diffs;
-use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
+use citrea_common::{BatchProverConfig, ProverGuestRunConfig, RollupPublicKeys};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::ParallelProverService;
 use rand::Rng;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
-use sov_modules_api::{DaSpec, StateDiff, Zkvm};
+use sov_modules_api::{StateDiff, Zkvm};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -34,69 +31,63 @@ use crate::errors::L1ProcessingError;
 use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
-type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
-    VecDeque<Vec<(Witness, Witness)>>,
-    VecDeque<Vec<SignedSoftConfirmation<'txs, Tx>>>,
-    VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
-);
-
-pub struct L1BlockHandler<Vm, Da, DB, Witness, Tx>
+pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm + 'static,
     DB: BatchProverLedgerOps,
-    Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: BatchProverConfig,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     ledger_db: DB,
     da_service: Arc<Da>,
+    storage_manager: ProverStorageManager,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
-    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
-    _witness: PhantomData<Witness>,
-    _tx: PhantomData<Tx>,
+    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    backup_manager: Arc<BackupManager>,
 }
 
-impl<Vm, Da, DB, Witness, Tx> L1BlockHandler<Vm, Da, DB, Witness, Tx>
+impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: BatchProverLedgerOps + Clone + 'static,
-    Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
-    Tx: Clone + BorshDeserialize + BorshSerialize,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: BatchProverConfig,
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
+        storage_manager: ProverStorageManager,
         da_service: Arc<Da>,
-        sequencer_pub_key: Vec<u8>,
-        sequencer_da_pub_key: Vec<u8>,
+        public_keys: RollupPublicKeys,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         elfs_by_spec: HashMap<SpecId, Vec<u8>>,
         skip_submission_until_l1: u64,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+        backup_manager: Arc<BackupManager>,
     ) -> Self {
         Self {
             prover_config,
             prover_service,
             ledger_db,
+            storage_manager,
             da_service,
-            sequencer_pub_key,
-            sequencer_da_pub_key,
+            sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
+            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             code_commitments_by_spec,
             elfs_by_spec,
             skip_submission_until_l1,
             l1_block_cache,
-            pending_l1_blocks: VecDeque::new(),
-            _witness: PhantomData,
-            _tx: PhantomData,
+            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            backup_manager,
         }
     }
 
@@ -112,30 +103,27 @@ where
                 .expect("Failed to clear pending proving sessions");
         }
 
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            l1_tx,
+            self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             BATCH_PROVER_METRICS.scan_l1_block.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
+        let backup_manager = self.backup_manager.clone();
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
         loop {
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
-                    l1_rx.close();
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    self.pending_l1_blocks.push_back(l1_block);
-                },
                 _ = interval.tick() => {
+                    let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_l1_block().await {
                         error!("Could not process L1 block and generate proof: {:?}", e);
                     }
@@ -145,9 +133,10 @@ where
     }
 
     async fn process_l1_block(&mut self) -> Result<(), anyhow::Error> {
-        while !self.pending_l1_blocks.is_empty() {
-            let l1_block = self
-                .pending_l1_blocks
+        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
+
+        while !pending_l1_blocks.is_empty() {
+            let l1_block = pending_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
@@ -174,14 +163,16 @@ where
 
                 BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                self.pending_l1_blocks.pop_front();
+                pending_l1_blocks.pop_front();
                 continue;
             }
 
-            let data_to_prove = data_to_prove::<Da, DB, Witness, Tx>(
+            let data_to_prove = data_to_prove::<Da, DB>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
+                &self.storage_manager,
                 self.sequencer_pub_key.clone(),
+                self.sequencer_k256_pub_key.clone(),
                 self.sequencer_da_pub_key.clone(),
                 self.l1_block_cache.clone(),
                 l1_block,
@@ -200,7 +191,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        self.pending_l1_blocks.pop_front();
+                        pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::DuplicateCommitments { l1_height } => {
@@ -219,7 +210,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        self.pending_l1_blocks.pop_front();
+                        pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::L2RangeMissing {
@@ -256,7 +247,7 @@ where
             };
 
             if should_prove {
-                prove_l1::<Da, Vm, DB, Witness, Tx>(
+                prove_l1::<Da, Vm, DB>(
                     self.prover_service.clone(),
                     self.ledger_db.clone(),
                     self.code_commitments_by_spec.clone(),
@@ -279,7 +270,7 @@ where
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-            self.pending_l1_blocks.pop_front();
+            pending_l1_blocks.pop_front();
         }
         Ok(())
     }
@@ -292,104 +283,12 @@ where
             self.ledger_db.clone(),
             txs_and_proofs,
             self.code_commitments_by_spec.clone(),
+            0, // TODO: since we don't support session recovery any more put in 0 to make it work
         )
         .await?;
 
         Ok(())
     }
-}
-
-pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
-    'txs,
-    Da: DaService,
-    DB: BatchProverLedgerOps,
-    Witness: DeserializeOwned,
-    Tx: Clone + BorshDeserialize + 'txs,
->(
-    sequencer_commitments: &[SequencerCommitment],
-    da_service: &Arc<Da>,
-    ledger_db: &DB,
-    l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
-) -> Result<CommitmentStateTransitionData<'txs, Witness, Da, Tx>, anyhow::Error> {
-    let mut state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>> =
-        VecDeque::with_capacity(sequencer_commitments.len());
-    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Tx>>> =
-        VecDeque::with_capacity(sequencer_commitments.len());
-    let mut da_block_headers_of_soft_confirmations: VecDeque<
-        Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
-    > = VecDeque::with_capacity(sequencer_commitments.len());
-    for sequencer_commitment in sequencer_commitments.iter() {
-        // get the l2 height ranges of each seq_commitments
-        let mut witnesses = Vec::with_capacity(
-            (sequencer_commitment.l2_end_block_number - sequencer_commitment.l2_start_block_number
-                + 1) as usize,
-        );
-        let start_l2 = sequencer_commitment.l2_start_block_number;
-        let end_l2 = sequencer_commitment.l2_end_block_number;
-        let soft_confirmations_in_commitment = match ledger_db.get_soft_confirmation_range(
-            &(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)),
-        ) {
-            Ok(soft_confirmations) => soft_confirmations,
-            Err(e) => {
-                return Err(anyhow!(
-                    "Failed to get soft confirmations from the ledger db: {}",
-                    e
-                ));
-            }
-        };
-        let mut commitment_soft_confirmations =
-            Vec::with_capacity(soft_confirmations_in_commitment.len());
-        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
-            vec![];
-        for soft_confirmation in soft_confirmations_in_commitment {
-            if da_block_headers_to_push.is_empty()
-                || da_block_headers_to_push.last().unwrap().height()
-                    != soft_confirmation.da_slot_height
-            {
-                let filtered_block = match get_da_block_at_height(
-                    da_service,
-                    soft_confirmation.da_slot_height,
-                    l1_block_cache.clone(),
-                )
-                .await
-                {
-                    Ok(block) => block,
-                    Err(_) => {
-                        return Err(anyhow!(
-                            "Error while fetching DA block at height: {}",
-                            soft_confirmation.da_slot_height
-                        ));
-                    }
-                };
-                da_block_headers_to_push.push(filtered_block.header().clone());
-            }
-            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
-                .try_into()
-                .context("Failed to parse transactions")?;
-            commitment_soft_confirmations.push(signed_soft_confirmation);
-        }
-        soft_confirmations.push_back(commitment_soft_confirmations);
-
-        da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
-        for l2_height in
-            sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
-        {
-            let (state_witness, offchain_witness) = match ledger_db
-                .get_l2_witness::<Witness>(l2_height)
-            {
-                Ok(inner) => inner.expect("Witnesses must be present"),
-                Err(e) => return Err(anyhow!("Failed to get witness from the ledger db: {}", e)),
-            };
-
-            witnesses.push((state_witness, offchain_witness));
-        }
-        state_transition_witnesses.push_back(witnesses);
-    }
-    Ok((
-        state_transition_witnesses,
-        soft_confirmations,
-        da_block_headers_of_soft_confirmations,
-    ))
 }
 
 pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(

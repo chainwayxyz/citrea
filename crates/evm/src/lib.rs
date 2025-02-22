@@ -10,10 +10,12 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
+pub use hooks::populate_system_events;
 #[cfg(feature = "native")]
 use primitive_types::DoNotUseSealedBlock;
 #[cfg(feature = "native")]
 use primitive_types::DoNotUseTransactionSignedAndRecovered;
+use sov_state::codec::BorshCodec;
 pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(feature = "native")]
@@ -82,7 +84,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account address to account id.
     #[state(rename = "i")]
-    pub(crate) account_idxs: sov_modules_api::StateMap<Address, AccountId, BcsCodec>,
+    pub account_idxs: sov_modules_api::StateMap<Address, AccountId, BorshCodec>,
 
     /// Mapping from account address to account state.
     #[state(rename = "a")]
@@ -90,19 +92,19 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account id to account state.
     #[state(rename = "t")]
-    pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BcsCodec>,
+    pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BorshCodec>,
 
     /// The total number of accounts.
     #[state(rename = "n")]
-    pub(crate) account_amount: sov_modules_api::StateValue<u64, BcsCodec>,
+    pub(crate) account_amount: sov_modules_api::StateValue<u64, BorshCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
     pub(crate) code: sov_modules_api::StateMap<B256, revm::primitives::Bytecode, BcsCodec>,
 
     /// Mapping from storage hash ( sha256(address | key) ) to storage value.
-    #[state(rename = "s")]
-    pub storage: sov_modules_api::StateMap<U256, U256, BcsCodec>,
+    #[state(rename = "S")]
+    pub storage: sov_modules_api::StateMap<U256, U256, BorshCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     /// This is the new offchain version which is not counted in the state diff.
@@ -113,7 +115,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Chain configuration. This field is set in genesis.
     #[state]
-    pub(crate) cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
+    pub cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
     #[memory]
@@ -136,7 +138,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Last seen L1 block hash.
     #[state(rename = "l")]
-    pub(crate) last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
+    pub last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
 
     /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
     /// Removes the oldest blockhash in `finalize_hook`

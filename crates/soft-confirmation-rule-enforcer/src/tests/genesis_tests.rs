@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{DaSpec, Module, Spec, StateValueAccessor, WorkingSet};
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::ProverStorage;
 
 use crate::{SoftConfirmationRuleEnforcer, SoftConfirmationRuleEnforcerConfig};
@@ -12,11 +12,11 @@ use crate::{SoftConfirmationRuleEnforcer, SoftConfirmationRuleEnforcerConfig};
 type C = DefaultContext;
 
 lazy_static! {
-    pub(crate) static ref TEST_CONFIG: SoftConfirmationRuleEnforcerConfig<C> =
+    pub(crate) static ref TEST_CONFIG: SoftConfirmationRuleEnforcerConfig =
         SoftConfirmationRuleEnforcerConfig {
             max_l2_blocks_per_l1: 10,
             authority: <DefaultContext as Spec>::Address::from_str(
-                "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+                "sov1kqrxxkwkf7t7kfuegllwkzp6jc6r6h66pgkfe7pggtm0gayl756qku2u5p"
             )
             .unwrap(),
         };
@@ -47,10 +47,10 @@ fn genesis_data() {
 }
 
 pub(crate) fn get_soft_confirmation_rule_enforcer<Da: DaSpec>(
-    config: &SoftConfirmationRuleEnforcerConfig<C>,
+    config: &SoftConfirmationRuleEnforcerConfig,
 ) -> (
     SoftConfirmationRuleEnforcer<C, Da>,
-    WorkingSet<ProverStorage<SnapshotManager>>,
+    WorkingSet<ProverStorage>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
