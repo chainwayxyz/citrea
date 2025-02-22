@@ -457,6 +457,11 @@ impl ReadWriteLog {
     pub fn prune_half(&mut self) {
         self.cache_log.prune_half();
     }
+
+    /// Read value from the cache
+    pub fn get_value(&self, key: &CacheKey) -> ValueExists {
+        self.cache_log.get_value(key)
+    }
 }
 
 #[cfg(test)]
