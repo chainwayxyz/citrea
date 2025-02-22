@@ -11,7 +11,7 @@ pub struct PreFork2Witness {
     hints: Vec<Vec<u8>>,
 }
 
-/// A [`Vec`]-based implementation of [`Witness`] with no special logic.
+/// A [`VecDeque`]-based implementation of [`Witness`] with no special logic.
 ///
 /// # Example
 ///
