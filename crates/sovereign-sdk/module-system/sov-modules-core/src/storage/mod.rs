@@ -8,6 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "sync")]
 use serde::Serialize;
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::{SparseMerkleProofSha2, StorageRootHash};
 use sov_rollup_interface::RefCount;
 
@@ -16,12 +17,10 @@ use crate::common::{Prefix, Version};
 mod cache;
 mod codec;
 mod scratchpad;
-mod witness;
 
 pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
-pub use witness::*;
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.

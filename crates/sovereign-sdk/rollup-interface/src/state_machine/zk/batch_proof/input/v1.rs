@@ -5,10 +5,11 @@ use borsh::BorshSerialize;
 use super::BatchProofCircuitInput;
 use crate::da::{BlobReaderTrait, DaSpec};
 use crate::soft_confirmation::SignedSoftConfirmationV1;
+use crate::witness::PreFork2Witness;
 use crate::zk::StorageRootHash;
 
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
+pub struct BatchProofCircuitInputV1<Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
@@ -28,7 +29,7 @@ pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
     /// The soft confirmations that are inside the sequencer commitments.
     pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmationV1>>,
     /// Corresponding witness for the soft confirmations.
-    pub state_transition_witnesses: VecDeque<Vec<Witness>>,
+    pub state_transition_witnesses: VecDeque<Vec<PreFork2Witness>>,
     /// DA block headers the L2 blocks were constructed on.
     pub da_block_headers_of_l2_blocks: VecDeque<Vec<Da::BlockHeader>>,
     /// Sequencer soft confirmation public key.
@@ -39,9 +40,7 @@ pub struct BatchProofCircuitInputV1<Witness, Da: DaSpec> {
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
 }
-impl<Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
-    for BatchProofCircuitInputV1<Witness, Da>
-{
+impl<Da: DaSpec> BorshSerialize for BatchProofCircuitInputV1<Da> {
     /// Pre fork 1 serialization
     /// An additional [u8; 32] is added to the end of the bitcoin da header
     /// So the genesis fork guest fails to deserialize the header
@@ -86,13 +85,12 @@ impl<Witness: borsh::BorshSerialize, Da: DaSpec> BorshSerialize
     }
 }
 
-impl<'txs, Witness, Da, Tx> From<BatchProofCircuitInput<'txs, Witness, Da, Tx>>
-    for BatchProofCircuitInputV1<Witness, Da>
+impl<'txs, Da, Tx> From<BatchProofCircuitInput<'txs, Da, Tx>> for BatchProofCircuitInputV1<Da>
 where
     Da: DaSpec,
     Tx: Clone + BorshSerialize,
 {
-    fn from(input: BatchProofCircuitInput<'txs, Witness, Da, Tx>) -> Self {
+    fn from(input: BatchProofCircuitInput<'txs, Da, Tx>) -> Self {
         BatchProofCircuitInputV1 {
             initial_state_root: input.initial_state_root,
             final_state_root: input.final_state_root,
@@ -115,7 +113,12 @@ where
             state_transition_witnesses: input
                 .state_transition_witnesses
                 .into_iter()
-                .map(|witnesses| witnesses.into_iter().map(|(witness, _)| witness).collect())
+                .map(|witnesses| {
+                    witnesses
+                        .into_iter()
+                        .map(|(witness, _)| witness.into())
+                        .collect()
+                })
                 .collect(),
             da_block_headers_of_l2_blocks: input.da_block_headers_of_l2_blocks,
             sequencer_public_key: input.sequencer_public_key,
