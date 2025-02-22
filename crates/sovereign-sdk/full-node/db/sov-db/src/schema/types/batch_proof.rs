@@ -97,7 +97,7 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 final_soft_confirmation_hash: None,
                 last_l2_height: None,
                 last_active_spec_id: Some(U8::from(value.last_active_spec_id as u8)),
-                l1_hashes_added_to_light_client_contract: vec![],
+                last_l1_hash_on_bitcoin_light_client_contract: None,
             },
             StoredBatchProofOutput::V2(value) => Self {
                 initial_state_root: value.initial_state_root.to_vec(),
@@ -119,7 +119,7 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 )),
                 last_l2_height: Some(U64::from(value.last_l2_height)),
                 last_active_spec_id: None,
-                l1_hashes_added_to_light_client_contract: vec![],
+                last_l1_hash_on_bitcoin_light_client_contract: None,
             },
             StoredBatchProofOutput::V3(value) => Self {
                 initial_state_root: value.initial_state_root.to_vec(),
@@ -136,11 +136,9 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 )),
                 last_l2_height: Some(U64::from(value.last_l2_height)),
                 last_active_spec_id: None,
-                l1_hashes_added_to_light_client_contract: value
-                    .l1_hashes_added_to_light_client_contract
-                    .iter()
-                    .map(|v| SerializableHash(*v))
-                    .collect(),
+                last_l1_hash_on_bitcoin_light_client_contract: Some(SerializableHash(
+                    value.last_l1_hash_on_bitcoin_light_client_contract,
+                )),
             },
         }
     }

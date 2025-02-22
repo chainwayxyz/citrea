@@ -357,8 +357,8 @@ pub struct BatchProofOutputRpcResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_l2_height: Option<U64>,
     /// L1 hashes that were added to the Bitcoin light client contract
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub l1_hashes_added_to_light_client_contract: Vec<SerializableHash>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_l1_hash_on_bitcoin_light_client_contract: Option<SerializableHash>,
 }
 
 /// Custom serialization for BTreeMap
