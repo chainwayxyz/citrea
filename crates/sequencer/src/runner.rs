@@ -42,7 +42,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, VerifableShortHeaderProof};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
@@ -157,6 +157,7 @@ where
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
+        coinbase_depth: u64,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         let start = Instant::now();
 
@@ -196,6 +197,7 @@ where
                     &soft_confirmation_info,
                     last_l1_hash_of_evm,
                     bridge_init_param.as_slice(),
+                    coinbase_depth,
                 );
                 let system_signer = evm
                     .account_info(
@@ -447,6 +449,7 @@ where
 
         let evm_txs = self.get_best_transactions()?;
 
+        let coinbase_depth = short_header_proof.verify().unwrap().coinbase_txid_merkle_proof_height.into();
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
         // which do not have enough balance to pay for the L1 fee.
@@ -458,6 +461,7 @@ where
                 da_block.header().clone(),
                 soft_confirmation_info.clone(),
                 l2_block_mode,
+                coinbase_depth,
             )
             .await?;
 

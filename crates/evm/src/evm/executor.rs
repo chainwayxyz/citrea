@@ -174,7 +174,7 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
         .try_into()
         .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
 
-    if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+    if function_selector == BitcoinLightClientContract::setBlockInfo_1Call::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36]
             .try_into()
             .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
@@ -221,7 +221,9 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
             }
         }
     }
-
+    else if function_selector == BitcoinLightClientContract::setBlockInfo_0Call::SELECTOR {
+        return Err(SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2);
+    }
     Ok(())
 }
 

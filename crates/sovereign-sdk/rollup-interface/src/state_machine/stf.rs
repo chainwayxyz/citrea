@@ -164,6 +164,8 @@ pub enum SoftConfirmationModuleCallError {
     EvmSystemTransactionPlacedAfterUserTx,
     /// System tx failed to parse
     EvmSystemTxParseError,
+    // System tx is deprecated after fork2
+    EvmSystemTxNotAllowedAfterFork2,
 }
 
 #[derive(Debug, PartialEq)]
