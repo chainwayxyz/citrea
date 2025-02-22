@@ -8,6 +8,7 @@ use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
+use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::default_signature::{
     DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
@@ -638,6 +639,17 @@ where
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
+        let all = SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .unwrap()
+            .take_queried_hashes(0..=0);
+
+        let last_on_contract = if let Some(hash) = all.last() {
+            hash
+        } else {
+            // make call to evm module
+        };
+
         ApplySequencerCommitmentsOutput {
             final_state_root: current_state_root,
             state_diff,
@@ -645,6 +657,7 @@ where
             last_l2_height: last_commitment_end_height.unwrap(),
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
             sequencer_commitment_merkle_roots,
+            last_l1_hash_on_bitcoin_light_client_contract: last_on_contract,
         }
     }
 }

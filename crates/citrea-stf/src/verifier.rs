@@ -87,7 +87,8 @@ where
             l1_hashes_added_to_light_client_contract: SHORT_HEADER_PROOF_PROVIDER
                 .get()
                 .unwrap()
-                .take_queried_hashes(0..=0), // range does not matter for zk implementation
+                .take_queried_hashes(0..=0),
+            last_l1_hash_on_bitcoin_light_client_contract: todo!(), // range does not matter for zk implementation
         }
     }
 }

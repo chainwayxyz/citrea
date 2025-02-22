@@ -45,6 +45,8 @@ pub struct ApplySequencerCommitmentsOutput {
     pub final_soft_confirmation_hash: [u8; 32],
     /// Sequencer commitment hashes
     pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
+    /// Hisghest hash on the EVM Bitcoin Light Client contract
+    pub last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 }
 
 /// A diff of the state, represented as a list of key-value pairs.

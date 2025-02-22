@@ -3306,6 +3306,7 @@ dependencies = [
  "jmt",
  "rs_merkle",
  "serde",
+ "short-header-proof-provider",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
