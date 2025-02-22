@@ -4,7 +4,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{native_debug, native_error, Context, DaSpec, WorkingSet};
 use sov_rollup_interface::stf::{
-    SoftConfirmationError, SoftConfirmationHookError, StateTransitionError, StateTransitionFunction,
+    SoftConfirmationError, SoftConfirmationHookError, StateTransitionError,
 };
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -53,7 +53,7 @@ where
     pub fn apply_sov_txs_inner(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
+        txs: &[Transaction],
         sc_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
         for tx in txs {

@@ -3,6 +3,7 @@
 use alloc::collections::BTreeMap;
 use core::mem;
 
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
@@ -13,7 +14,7 @@ use crate::storage::{
     CacheKey, CacheValue, EncodeKeyLike, NativeStorage, StateCodec, StateValueCodec, Storage,
     StorageKey, StorageProof, StorageValue,
 };
-use crate::{ValueExists, Version, Witness};
+use crate::{ValueExists, Version};
 
 /// A storage reader and writer
 pub trait StateReaderAndWriter {

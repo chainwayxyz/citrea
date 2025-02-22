@@ -1,8 +1,9 @@
 use jmt::KeyHash;
 use sov_modules_core::{
-    OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof, StorageValue, Witness,
+    OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof, StorageValue,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use crate::DefaultHasher;
@@ -42,14 +43,8 @@ impl Storage for ZkStorage {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
             let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_hint();
-            match read_value {
-                Some(val) => proof.verify_existence(
-                    jmt::RootHash(prev_state_root),
-                    key_hash,
-                    val.value.as_ref(),
-                )?,
-                None => proof.verify_nonexistence(jmt::RootHash(prev_state_root), key_hash)?,
-            }
+            let value = read_value.as_ref().map(|val| val.value.as_ref());
+            proof.verify(jmt::RootHash(prev_state_root), key_hash, value)?;
         }
 
         let mut diff = vec![];
