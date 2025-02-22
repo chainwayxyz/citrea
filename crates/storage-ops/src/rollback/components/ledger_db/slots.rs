@@ -27,6 +27,10 @@ pub(crate) fn rollback_slots(
             break;
         }
 
+        // TODO: Figure out a way to set it to an actual
+        // commitment range L2 end.
+        // `CommitmentsByNumber` table is only populated by
+        // the batch prover.
         ledger_db.put::<LastSequencerCommitmentSent>(
             &(),
             &SoftConfirmationNumber(slot_range.0 .0 - 1),
