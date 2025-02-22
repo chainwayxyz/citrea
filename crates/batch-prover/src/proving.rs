@@ -427,17 +427,20 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
+    // If executed with Fork2 elf, should use cache
+    let should_use_cache = fork_from_block_number(
+        committed_l2_blocks
+            .back()
+            .expect("must have at least one commitment")
+            .last()
+            .expect("must have at least one l2 block")
+            .l2_height(),
+    )
+    .spec_id
+        >= SpecId::Fork2;
+
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
-        // If executed with Fork2 elf, should use cache
-        let should_use_cache = fork_from_block_number(
-            l2_blocks_in_commitment
-                .last()
-                .expect("must have at least one")
-                .l2_height(),
-        )
-        .spec_id
-            >= SpecId::Fork2;
 
         SHORT_HEADER_PROOF_PROVIDER
             .get()
