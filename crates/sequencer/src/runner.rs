@@ -35,7 +35,7 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     EncodeCall, L2Block, PrivateKey, SlotData, Spec, SpecId, StateDiff, StateValueAccessor,
     UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
@@ -53,8 +53,8 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
+use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, instrument, trace, warn};
-use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment::CommitmentService;
@@ -235,12 +235,6 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let blob = self.make_blob(
-                    raw_message.clone(),
-                    &mut working_set_to_discard,
-                    soft_confirmation_info.current_spec(),
-                )?;
-
                 let signed_tx = self.sign_tx(
                     raw_message,
                     &mut working_set_to_discard,
@@ -248,13 +242,11 @@ where
                 )?;
 
                 let txs = vec![signed_tx];
-                let blobs = vec![blob];
 
                 let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
                 if let Err(e) = self.stf.apply_soft_confirmation_txs(
                     &soft_confirmation_info,
-                    &blobs,
                     &txs,
                     &mut working_set,
                 ) {
@@ -301,12 +293,6 @@ where
                             citrea_evm::Evm<DefaultContext>,
                         >>::encode_call(call_txs);
 
-                        let blob = self.make_blob(
-                            raw_message.clone(),
-                            &mut working_set_to_discard,
-                            soft_confirmation_info.current_spec(),
-                        )?;
-
                         let signed_tx = self.sign_tx(
                             raw_message,
                             &mut working_set_to_discard,
@@ -314,13 +300,11 @@ where
                         )?;
 
                         let txs = vec![signed_tx];
-                        let blobs = vec![blob];
 
                         let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
                         if let Err(e) = self.stf.apply_soft_confirmation_txs(
                             &soft_confirmation_info,
-                            &blobs,
                             &txs,
                             &mut working_set,
                         ) {
@@ -509,17 +493,13 @@ where
             let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
-            let signed_blob = self.make_blob(
-                raw_message.clone(),
-                &mut working_set,
-                soft_confirmation_info.current_spec(),
-            )?;
+
             let signed_tx = self.sign_tx(
                 raw_message,
                 &mut working_set,
                 soft_confirmation_info.current_spec(),
             )?;
-            blobs.push(signed_blob);
+            blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
         }
 
@@ -538,7 +518,7 @@ where
         }
 
         self.stf
-            .apply_soft_confirmation_txs(&soft_confirmation_info, &blobs, &txs, &mut working_set)
+            .apply_soft_confirmation_txs(&soft_confirmation_info, &txs, &mut working_set)
             .expect("dry_run_transactions should have already checked this");
 
         self.stf
@@ -576,7 +556,6 @@ where
         let l2_block = L2Block::new(
             signed_header,
             txs.into(),
-            blobs.into(),
             deposit_data,
             da_block.header().height(),
             da_block.header().hash().into(),
@@ -606,8 +585,8 @@ where
 
         let soft_confirmation_hash = l2_block.hash();
 
-        let blobs = Some(l2_block.blobs.to_vec());
-        self.ledger_db.commit_l2_block(l2_block, tx_hashes, blobs)?;
+        self.ledger_db
+            .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
 
         // connect L1 and L2 height
         self.ledger_db.extend_l2_range_of_l1_slot(
@@ -846,41 +825,6 @@ where
         Ok(best_txs_with_base_fee)
     }
 
-    /// Signs batch of messages with sovereign priv key turns them into a sov blob
-    /// Returns a single sovereign transaction made up of multiple ethereum transactions
-    fn make_blob(
-        &mut self,
-        raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
-        spec_id: SpecId,
-    ) -> anyhow::Result<Vec<u8>> {
-        // if a batch failed need to refetch nonce
-        // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce(working_set, spec_id)?;
-        // TODO: figure out what to do with sov-tx fields
-        // chain id gas tip and gas limit
-
-        if spec_id >= SpecId::Kumquat {
-            let transaction: Transaction = Transaction::new_signed_tx(
-                &self.sov_tx_signer_priv_key,
-                raw_message,
-                0,
-                nonce,
-                spec_id,
-            );
-            borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
-        } else {
-            let transaction: PreFork2Transaction<DefaultContext> =
-                PreFork2Transaction::<DefaultContext>::new_signed_tx(
-                    &self.sov_tx_signer_priv_key,
-                    raw_message,
-                    0,
-                    nonce,
-                );
-            borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
-        }
-    }
-
     fn sign_tx(
         &mut self,
         raw_message: Vec<u8>,
@@ -898,7 +842,7 @@ where
             raw_message,
             0,
             nonce,
-            spec_id,
+            spec_id >= SpecId::Fork2,
         );
         Ok(tx)
     }
@@ -1165,9 +1109,9 @@ where
             >,
         >>::encode_call(rule_enforcer_call_tx);
 
-        let signed_blob = self.make_blob(raw_message.clone(), working_set, current_spec)?;
-
         let signed_tx = self.sign_tx(raw_message, working_set, current_spec)?;
+        let signed_blob = signed_tx.to_blob()?;
+
         Ok((signed_blob, signed_tx))
     }
 }

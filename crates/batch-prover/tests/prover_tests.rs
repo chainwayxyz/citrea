@@ -339,9 +339,7 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
     }
 }
 
-fn make_transition_data(
-    header_hash: MockHash,
-) -> BatchProofCircuitInput<'static, Vec<u8>, MockDaSpec, ()> {
+fn make_transition_data(header_hash: MockHash) -> BatchProofCircuitInput<'static, MockDaSpec, ()> {
     BatchProofCircuitInput {
         initial_state_root: [0; 32],
         inclusion_proof: [0; 32],
@@ -386,7 +384,7 @@ async fn spawn_prove(
 }
 
 fn extract_output_header(proof: &Vec<u8>) -> MockBlockHeader {
-    MockZkvm::extract_output::<BatchProofCircuitInput<'static, Vec<u8>, MockDaSpec, ()>>(proof)
+    MockZkvm::extract_output::<BatchProofCircuitInput<'static, MockDaSpec, ()>>(proof)
         .unwrap()
         .da_block_header_of_commitments
 }

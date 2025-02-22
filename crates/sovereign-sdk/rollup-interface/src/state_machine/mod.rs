@@ -3,6 +3,7 @@
 pub mod da;
 pub mod soft_confirmation;
 pub mod stf;
+pub mod witness;
 pub mod zk;
 
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};

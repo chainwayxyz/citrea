@@ -8,7 +8,7 @@ use digest::Digest;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
 
-use crate::common::{PublicKey, Signature, Witness};
+use crate::common::{PublicKey, Signature};
 use crate::storage::Storage;
 use crate::Address;
 
@@ -87,9 +87,6 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
     type Signature: Signature<PublicKey = Self::PublicKey>
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>;
-
-    /// A structure containing the non-deterministic inputs from the prover to the zk-circuit
-    type Witness: Witness;
 }
 
 /// A context contains information which is passed to modules during

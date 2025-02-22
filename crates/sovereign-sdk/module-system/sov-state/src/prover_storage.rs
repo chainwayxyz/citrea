@@ -8,14 +8,15 @@ use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use sov_modules_core::{
     CacheKey, NativeStorage, OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof,
-    StorageValue, Witness,
+    StorageValue,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_schema_db::SchemaBatch;
 
 use crate::config::Config;
-use crate::{DefaultHasher, DefaultWitness};
+use crate::DefaultHasher;
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
@@ -89,17 +90,16 @@ pub struct ProverStateUpdate {
 }
 
 impl Storage for ProverStorage {
-    type Witness = DefaultWitness;
     type RuntimeConfig = Config;
     type StateUpdate = ProverStateUpdate;
 
-    fn get(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
+    fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         let val = self.read_value(key);
         witness.add_hint(&val);
         val
     }
 
-    fn get_offchain(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue> {
+    fn get_offchain(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         let val = self
             .native_db
             .get_value_option(key.as_ref(), self.version())
@@ -120,7 +120,7 @@ impl Storage for ProverStorage {
     fn compute_state_update(
         &self,
         state_log: &ReadWriteLog,
-        witness: &mut Self::Witness,
+        witness: &mut Witness,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);

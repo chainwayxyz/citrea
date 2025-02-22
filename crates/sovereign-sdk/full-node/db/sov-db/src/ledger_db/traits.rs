@@ -3,8 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use borsh::BorshSerialize;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::stf::StateDiff;
@@ -171,12 +169,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
 /// Prover ledger operations
 pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Get the witness by L2 height
-    fn get_l2_witness<Witness: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> Result<Option<(Witness, Witness)>>;
-
     /// Stores proof related data on disk, accessible via l1 slot height
     /// Inserts proofs of state transitions of multiple ranges of sequencer commitments found in an l1 block
     fn insert_batch_proof_data_by_l1_height(
@@ -189,14 +181,6 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Gets proofs by L1 height
     fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
-
-    /// Set the witness by L2 height
-    fn set_l2_witness<Witness: Serialize>(
-        &self,
-        l2_height: u64,
-        state_witness: &Witness,
-        offchain_witness: &Witness,
-    ) -> Result<()>;
 
     /// Save a specific L2 range state diff
     fn set_l2_state_diff(
