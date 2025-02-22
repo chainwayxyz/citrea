@@ -1,3 +1,5 @@
+use alloy_primitives::{keccak256, U256};
+use alloy_sol_types::SolCall;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
@@ -12,10 +14,12 @@ use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
+use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
+use crate::system_contracts::BitcoinLightClientContract;
 use crate::{EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
-    evm: revm::Evm<'a, EXT, DB>,
+    pub(crate) evm: revm::Evm<'a, EXT, DB>,
 }
 
 impl<'a, EXT, DB> CitreaEvm<'a, EXT, DB>
@@ -81,6 +85,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
+    l2_height: u64,
 ) -> Result<Vec<ExecutionResult>, SoftConfirmationModuleCallError> {
     if txs.is_empty() {
         return Ok(vec![]);
@@ -94,6 +99,11 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     let mut evm = CitreaEvm::new(db, citrea_spec, block_env, config_env, ext);
 
     let mut tx_results = Vec::with_capacity(txs.len());
+
+    // Set to true as soon as a user tx is found
+    // If a sys tx is encountered after a user tx it is an error
+    let mut should_be_end_of_sys_txs = false;
+
     for (_i, tx) in txs.iter().enumerate() {
         #[cfg(feature = "native")]
         let _span =
@@ -101,25 +111,19 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 .entered();
 
         if tx.signer() == SYSTEM_SIGNER {
-            let shp_provider = SHORT_HEADER_PROOF_PROVIDER
-                .get()
-                .expect("Short header proof provider not set");
-            // TODO: Check if this is the set_block_info tx, if so:
-            // TODO: Get this and other params from input
-            let _input = tx.input();
-            let l1_hash = [0u8; 32];
-            match shp_provider.get_and_verify_short_header_proof_by_l1_hash(l1_hash) {
-                Ok(true) => {}
-                Ok(false) => {
-                    // Failed to verify shp
-                    return Err(SoftConfirmationModuleCallError::ShortHeaderProofVerificationError);
-                }
-                Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
-                    return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
-                }
+            if citrea_spec < CitreaSpecId::Fork2 {
+                native_error!("System transaction found in user txs");
+                return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
             }
-            native_error!("System transaction found in user txs");
-            return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
+
+            if should_be_end_of_sys_txs {
+                native_error!("System transaction found after user txs");
+                return Err(SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
+            }
+
+            post_fork2_system_tx_verifier(evm.evm.db_mut(), tx, l2_height)?;
+        } else {
+            should_be_end_of_sys_txs = true;
         }
 
         // if tx is eip4844 error out
@@ -159,6 +163,66 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     }
 
     Ok(tx_results)
+}
+
+fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
+    db: &mut EvmDb<C>,
+    tx: &TransactionSignedEcRecovered,
+    l2_height: u64,
+) -> Result<(), SoftConfirmationModuleCallError> {
+    let function_selector: [u8; 4] = tx.input()[0..4]
+        .try_into()
+        .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+
+    if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+        let l1_block_hash: [u8; 32] = tx.input()[4..36]
+            .try_into()
+            .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+        let shp_provider = SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .expect("Short header proof provider not set");
+        let txs_commitment: [u8; 32] = tx.input()[36..68]
+            .try_into()
+            .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+
+        let last_l1_height = db
+            .storage(BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256::ZERO)
+            .unwrap();
+
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&(last_l1_height - U256::from(1)).to_be_bytes::<32>());
+        // counter intuitively the contract stores next block height (expected on setBlockInfo)x
+        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+
+        let prev_hash = db
+            .storage(
+                BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                keccak256(bytes).into(),
+            )
+            .unwrap();
+
+        // counter intuitively the contract stores next block height (expected on setBlockInfo)
+        let next_l1_height: u64 = last_l1_height.to::<u64>();
+
+        match shp_provider.get_and_verify_short_header_proof_by_l1_hash(
+            l1_block_hash,
+            prev_hash.to_be_bytes(),
+            next_l1_height,
+            txs_commitment,
+            l2_height,
+        ) {
+            Ok(true) => return Ok(()),
+            Ok(false) => {
+                // Failed to verify shp
+                return Err(SoftConfirmationModuleCallError::ShortHeaderProofVerificationError);
+            }
+            Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
+                return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn execute_system_txs<C: sov_modules_api::Context, EXT: CitreaExternalExt>(

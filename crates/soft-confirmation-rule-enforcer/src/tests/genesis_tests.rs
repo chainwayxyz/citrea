@@ -12,7 +12,7 @@ use crate::{SoftConfirmationRuleEnforcer, SoftConfirmationRuleEnforcerConfig};
 type C = DefaultContext;
 
 lazy_static! {
-    pub(crate) static ref TEST_CONFIG: SoftConfirmationRuleEnforcerConfig<C> =
+    pub(crate) static ref TEST_CONFIG: SoftConfirmationRuleEnforcerConfig =
         SoftConfirmationRuleEnforcerConfig {
             max_l2_blocks_per_l1: 10,
             authority: <DefaultContext as Spec>::Address::from_str(
@@ -47,7 +47,7 @@ fn genesis_data() {
 }
 
 pub(crate) fn get_soft_confirmation_rule_enforcer<Da: DaSpec>(
-    config: &SoftConfirmationRuleEnforcerConfig<C>,
+    config: &SoftConfirmationRuleEnforcerConfig,
 ) -> (
     SoftConfirmationRuleEnforcer<C, Da>,
     WorkingSet<ProverStorage>,

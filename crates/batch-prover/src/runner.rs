@@ -20,7 +20,7 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::transaction::PreFork2Transaction;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{DaSpec, L2Block, SlotData, SpecId};
 use sov_modules_core::storage::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -29,7 +29,6 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
@@ -38,18 +37,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use crate::metrics::BATCH_PROVER_METRICS;
-
-pub(crate) type StfTransaction<Da> = <StfBlueprint<
-    DefaultContext,
-    Da,
-    CitreaRuntime<DefaultContext, Da>,
-> as StateTransitionFunction<Da>>::Transaction;
-
-pub(crate) type StfWitness<Da> = <StfBlueprint<
-    DefaultContext,
-    Da,
-    CitreaRuntime<DefaultContext, Da>,
-> as StateTransitionFunction<Da>>::Witness;
 
 pub struct CitreaBatchProver<Da, DB>
 where
@@ -202,6 +189,7 @@ where
 
         let l2_height = soft_confirmation.l2_height;
 
+        // TODO: this is a problem after sequencer puts set block info system transactions in blocks
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
             soft_confirmation.da_slot_height,
@@ -247,33 +235,10 @@ where
         self.fork_manager.register_block(l2_height)?;
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let mut l2_block: L2Block<StfTransaction<Da::Spec>> = if current_spec >= SpecId::Kumquat {
-            soft_confirmation
-                .clone()
-                .try_into()
-                .context("Failed to parse transactions")?
-        } else {
-            let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
-                .clone()
-                .try_into()
-                .context("Failed to parse transactions")?;
-
-            let (parsed_txs, blobs): (Vec<StfTransaction<Da::Spec>>, Vec<Vec<u8>>) = l2_block
-                .txs
-                .iter()
-                .map(|tx| {
-                    let blob = borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                    let tx: StfTransaction<Da::Spec> = tx.clone().into();
-                    (tx, blob)
-                })
-                .unzip();
-            L2Block::new(
-                l2_block.header,
-                parsed_txs.into(),
-                blobs.into(),
-                l2_block.deposit_data,
-            )
-        };
+        let l2_block: L2Block<Transaction> = soft_confirmation
+            .clone()
+            .try_into()
+            .context("Failed to parse transactions")?;
 
         let sequencer_pub_key = if current_spec >= SpecId::Fork2 {
             self.sequencer_k256_pub_key.as_slice()
@@ -286,10 +251,12 @@ where
             sequencer_pub_key,
             &self.state_root,
             pre_state,
+            None,
+            None,
             Default::default(),
             Default::default(),
             current_l1_block.header(),
-            &mut l2_block,
+            &l2_block,
         )?;
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
@@ -302,13 +269,6 @@ where
         self.ledger_db.set_l2_state_diff(
             SoftConfirmationNumber(l2_height),
             soft_confirmation_result.state_diff,
-        )?;
-
-        // Save witnesses data to ledger db
-        self.ledger_db.set_l2_witness(
-            l2_height,
-            &soft_confirmation_result.witness,
-            &soft_confirmation_result.offchain_witness,
         )?;
 
         self.storage_manager

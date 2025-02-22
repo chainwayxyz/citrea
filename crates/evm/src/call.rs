@@ -163,6 +163,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env,
             &mut citrea_handler_ext,
             cumulative_gas_used,
+            context.slot_height(),
         )?;
 
         // Iterate each evm_txs_recovered and results pair

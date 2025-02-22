@@ -59,6 +59,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(sequener_config),
             None,
+            false,
         )
         .await;
     });
@@ -121,6 +122,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -163,6 +165,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -206,6 +209,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });
@@ -296,7 +300,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
             .expect("Account proof must be valid");
     } else if acc_proof.account_proof[0] == Bytes::from("fork2") {
         dbg!("verify proof acc fork2");
-        let account_key = [b"Evm/i/\x14", account_address.as_slice()].concat();
+        let account_key = [b"Evm/i/", account_address.as_slice()].concat();
         let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
 
         if acc_proof.account_proof.len() == 3 {
@@ -331,14 +335,13 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
             let proved_account = if acc_proof.account_proof[4] == Bytes::from("y") {
                 // Account exists and it's serialized form is:
                 let code_hash_bytes = if acc_proof.code_hash != KECCAK_EMPTY {
-                    // 1 for Some and 32 for length
-                    [&[1, 32], acc_proof.code_hash.0.as_slice()].concat()
+                    // 1 for Some
+                    [&[1], acc_proof.code_hash.0.as_slice()].concat()
                 } else {
                     // 0 for None
                     vec![0]
                 };
                 let bytes = [
-                    &[32], // balance length
                     acc_proof.balance.as_le_slice(),
                     &acc_proof.nonce.to_le_bytes(),
                     &code_hash_bytes,
@@ -402,17 +405,12 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
                 let arr = hasher.finalize();
                 U256::from_le_slice(&arr)
             };
-            let storage_key = [
-                b"Evm/S/".as_slice(),
-                &[32],
-                kaddr.to_be_bytes::<32>().as_slice(),
-            ]
-            .concat();
+            let storage_key = [b"Evm/S/".as_slice(), kaddr.as_le_slice()].concat();
             let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
 
             let proved_value = if storage_proof.proof[2] == Bytes::from("y") {
                 // Storage value exists and it's serialized form is:
-                let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
+                let bytes = storage_proof.value.as_le_bytes().to_vec();
                 Some(bytes)
             } else {
                 // Storage value does not exist
@@ -460,6 +458,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
             rollup_config,
             Some(sequencer_config),
             Some(network),
+            false,
         )
         .await;
     });

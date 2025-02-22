@@ -27,7 +27,6 @@ thiserror = { workspace = true, optional = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", default-features = false }
 
-
 [dev-dependencies]
 proptest = { workspace = true }
 serde_json = { workspace = true }

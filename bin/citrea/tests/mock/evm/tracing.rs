@@ -45,6 +45,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });

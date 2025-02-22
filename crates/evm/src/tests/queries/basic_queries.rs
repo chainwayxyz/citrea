@@ -16,13 +16,13 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_with_caller_contract};
-use crate::tests::utils::get_fork_fn_only_fork2;
+use crate::tests::utils::get_fork_fn_only_kumquat;
 use crate::EstimatedDiffSize;
 
 #[test]
 fn get_block_by_hash_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Kumquat);
 
     let result = evm.get_block_by_hash([5u8; 32].into(), Some(false), &mut working_set);
 
@@ -44,7 +44,7 @@ fn get_block_by_hash_test() {
 #[test]
 fn get_block_by_number_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Kumquat);
 
     let result = evm.get_block_by_number(
         Some(BlockNumberOrTag::Number(1000)),
@@ -70,7 +70,7 @@ fn get_block_by_number_test() {
 #[test]
 fn get_block_receipts_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Kumquat);
 
     let result = evm.get_block_receipts(
         BlockId::Number(BlockNumberOrTag::Number(1000)),
@@ -101,7 +101,7 @@ fn get_block_receipts_test() {
 
 #[test]
 fn get_transaction_by_block_hash_and_index_test() {
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Kumquat);
 
     let result = evm.get_transaction_by_block_hash_and_index(
         [0u8; 32].into(),
@@ -145,7 +145,7 @@ fn get_transaction_by_block_hash_and_index_test() {
 
 #[test]
 fn get_transaction_by_block_number_and_index_test() {
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Kumquat);
 
     let result = evm.get_transaction_by_block_number_and_index(
         BlockNumberOrTag::Number(100),
@@ -195,7 +195,7 @@ fn get_transaction_by_block_number_and_index_test() {
 
 #[test]
 fn get_block_transaction_count_by_hash_test() {
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Kumquat);
 
     let result =
         evm.eth_get_block_transaction_count_by_hash(B256::from([0u8; 32]), &mut working_set);
@@ -237,7 +237,7 @@ fn get_block_transaction_count_by_hash_test() {
 
 #[test]
 fn get_block_transaction_count_by_number_test() {
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Kumquat);
 
     let result = evm
         .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(5), &mut working_set);
@@ -259,7 +259,7 @@ fn get_block_transaction_count_by_number_test() {
 
 #[test]
 fn call_test() {
-    let (evm, mut working_set, _, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm(SovSpecId::Kumquat);
 
     let fail_result = evm.get_call_inner(
         TransactionRequest {
@@ -286,7 +286,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_kumquat(),
     );
 
     assert_eq!(
@@ -330,7 +330,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_kumquat(),
     );
 
     let nonce_too_low_result = evm.get_call_inner(
@@ -358,7 +358,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_kumquat(),
     );
 
     assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
@@ -399,7 +399,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_kumquat(),
         )
         .unwrap();
 
@@ -430,7 +430,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_kumquat(),
         )
         .unwrap();
 
@@ -468,7 +468,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_kumquat(),
         )
         .unwrap();
 

@@ -8,10 +8,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "sync")]
 use serde::Serialize;
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::{SparseMerkleProofSha2, StorageRootHash};
 use sov_rollup_interface::RefCount;
 
-use crate::common::{Prefix, Version, Witness};
+use crate::common::{Prefix, Version};
 
 mod cache;
 mod codec;
@@ -178,9 +179,6 @@ pub struct StorageProof {
 
 /// An interface for storing and retrieving values in the storage.
 pub trait Storage: Clone {
-    /// The witness type for this storage instance.
-    type Witness: Witness + Send + Sync;
-
     /// The runtime config for this storage instance.
     type RuntimeConfig;
 
@@ -188,7 +186,7 @@ pub trait Storage: Clone {
     type StateUpdate;
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get(&self, key: &StorageKey, witness: &mut Self::Witness) -> Option<StorageValue>;
+    fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.
     ///
@@ -202,11 +200,7 @@ pub trait Storage: Clone {
     }
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get_offchain(
-        &self,
-        _key: &StorageKey,
-        _witness: &mut Self::Witness,
-    ) -> Option<StorageValue> {
+    fn get_offchain(&self, _key: &StorageKey, _witness: &mut Witness) -> Option<StorageValue> {
         None
     }
 
@@ -214,8 +208,8 @@ pub trait Storage: Clone {
     #[allow(clippy::type_complexity)]
     fn compute_state_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
-        witness: &mut Self::Witness,
+        state_log: &ReadWriteLog,
+        witness: &mut Witness,
     ) -> Result<
         (
             StateRootTransition,
@@ -229,21 +223,21 @@ pub trait Storage: Clone {
     fn commit(
         &self,
         node_batch: &Self::StateUpdate,
-        accessory_update: &OrderedReadsAndWrites,
-        offchain_update: &OrderedReadsAndWrites,
+        accessory_writes: &OrderedWrites,
+        offchain_log: &ReadWriteLog,
     );
 
     /// A version of [`Storage::validate_and_commit`] that allows for "accessory" non-JMT updates.
     fn validate_and_commit_with_accessory_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
-        witness: &mut Self::Witness,
-        accessory_update: &OrderedReadsAndWrites,
-        offchain_update: &OrderedReadsAndWrites,
+        state_log: &ReadWriteLog,
+        witness: &mut Witness,
+        accessory_writes: &OrderedWrites,
+        offchain_log: &ReadWriteLog,
     ) -> Result<StorageRootHash, anyhow::Error> {
         let (state_root_transition, node_batch, _) =
-            self.compute_state_update(state_accesses, witness)?;
-        self.commit(&node_batch, accessory_update, offchain_update);
+            self.compute_state_update(state_log, witness)?;
+        self.commit(&node_batch, accessory_writes, offchain_log);
 
         Ok(state_root_transition.final_root)
     }
@@ -254,12 +248,12 @@ pub trait Storage: Clone {
     /// `self.compute_state_update & self.commit`
     fn validate_and_commit(
         &self,
-        state_accesses: OrderedReadsAndWrites,
-        witness: &mut Self::Witness,
+        state_log: &ReadWriteLog,
+        witness: &mut Witness,
     ) -> Result<StorageRootHash, anyhow::Error> {
         Self::validate_and_commit_with_accessory_update(
             self,
-            state_accesses,
+            state_log,
             witness,
             &Default::default(),
             &Default::default(),

@@ -269,26 +269,21 @@ where
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
 
         let evm = Evm::<C>::default();
-        let block_number = match block_id {
-            Some(BlockId::Number(block_num)) => block_num,
-            Some(BlockId::Hash(block_hash)) => {
-                let block_number = evm
-                    .get_block_number_by_block_hash(block_hash.block_hash, &mut working_set)
-                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
-                BlockNumberOrTag::Number(block_number)
-            }
-            None => BlockNumberOrTag::Latest,
-        };
 
-        let block_id_internal = evm.block_number_for_id(&block_number, &mut working_set)?;
+        let block_id_internal = evm.block_number_from_state(block_id, &mut working_set)?;
 
         let citrea_spec = fork_from_block_number(block_id_internal).spec_id;
 
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 
-        let version = block_id_internal
-            .checked_add(1) // We need to set block_id to the end
-            .ok_or_else(|| EthApiError::EvmCustom("Block id overflow".into()))?;
+        let version = if block_id == Some(BlockId::Number(BlockNumberOrTag::Pending)) {
+            // if pending it will already be last block + 1
+            block_id_internal
+        } else {
+            block_id_internal
+                .checked_add(1) // We need to set block_id to the end
+                .ok_or_else(|| EthApiError::EvmCustom("Block id overflow".into()))?
+        };
 
         let root_hash = working_set
             .get_root_hash(version)
@@ -352,7 +347,7 @@ where
 
             let index_key = StorageKey::new(
                 evm.account_idxs.prefix(),
-                &account,
+                account,
                 evm.account_idxs.codec().key_codec(),
             );
             let index_proof = working_set.get_with_proof(index_key, version);
@@ -415,7 +410,7 @@ where
             let storage_key = StorageKey::new(
                 db_account.storage.prefix(),
                 key,
-                evm.storage.codec().key_codec(),
+                db_account.storage.codec().key_codec(),
             );
             let value = evm.storage_get(account, key, citrea_spec, working_set);
             let proof = working_set.get_with_proof(storage_key, version);

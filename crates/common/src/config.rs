@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use citrea_primitives::PRE_FORK2_BRIDGE_INITIALIZE_PARAMS;
 use citrea_storage_ops::pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -340,6 +341,8 @@ pub struct SequencerConfig {
     pub da_update_interval_ms: u64,
     /// Block production interval in ms
     pub block_production_interval_ms: u64,
+    /// Bridge system contract initialize function parameters
+    pub bridge_initialize_params: String,
 }
 
 impl Default for SequencerConfig {
@@ -352,6 +355,7 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
         }
     }
@@ -370,6 +374,7 @@ impl FromEnv for SequencerConfig {
             mempool_conf: SequencerMempoolConfig::from_env()?,
             da_update_interval_ms: std::env::var("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: std::env::var("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
+            bridge_initialize_params: std::env::var("BRIDGE_INITIALIZE_PARAMS")?,
         })
     }
 }
@@ -593,6 +598,7 @@ mod tests {
             deposit_mempool_fetch_limit = 10
             da_update_interval_ms = 1000
             block_production_interval_ms = 1000
+            bridge_initialize_params = "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
             [mempool_conf]
             pending_tx_limit = 100000
             pending_tx_size = 200
@@ -624,6 +630,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(config, expected);
     }
@@ -661,6 +668,7 @@ mod tests {
         std::env::set_var("BASE_FEE_TX_LIMIT", "100000");
         std::env::set_var("BASE_FEE_TX_SIZE", "200");
         std::env::set_var("MAX_ACCOUNT_SLOTS", "16");
+        std::env::set_var("BRIDGE_INITIALIZE_PARAMS", "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000");
 
         let sequencer_config = SequencerConfig::from_env().unwrap();
 
@@ -681,6 +689,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
+            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(sequencer_config, expected);
     }

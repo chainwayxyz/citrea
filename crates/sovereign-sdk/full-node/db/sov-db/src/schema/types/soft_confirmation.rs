@@ -55,16 +55,9 @@ where
                 borsh::from_slice::<Tx>(body)
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
-        let blobs = val
-            .txs
-            .into_iter()
-            .map(|tx| tx.body.unwrap())
-            .collect::<Vec<_>>();
 
         let header = L2Header::new(
             val.l2_height,
-            val.da_slot_height,
-            val.da_slot_hash,
             val.da_slot_txs_commitment,
             val.prev_hash,
             val.state_root,
@@ -82,8 +75,9 @@ where
         let res = L2Block::new(
             signed_header,
             parsed_txs.into(),
-            blobs.into(),
             val.deposit_data,
+            val.da_slot_height,
+            val.da_slot_hash,
         );
         Ok(res)
     }

@@ -13,10 +13,16 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 /// A system event is an event that is emitted on special conditions by the EVM.
 /// There events will be transformed into Evm transactions and put in the begining of the block.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
-pub(crate) enum SystemEvent {
+pub enum SystemEvent<'a> {
+    /// Initializes the Bitcoin light client with the given block number.
     BitcoinLightClientInitialize(/*block number*/ u64),
+    /// Sets the block info for the Bitcoin light client.
     BitcoinLightClientSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
-    BridgeInitialize,
+    /// Initializes the bridge contract.
+    BridgeInitialize(
+        /*script prefix, script suffix, deposit amount hex(abi()) */ &'a [u8],
+    ),
+    /// Inserts deposit data to bridge contract.
     BridgeDeposit(Vec<u8>), // version, flag, vin, vout, witness, locktime, intermediate nodes, block height, index
 }
 
@@ -42,9 +48,9 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
-        SystemEvent::BridgeInitialize => TxEip1559 {
+        SystemEvent::BridgeInitialize(params) => TxEip1559 {
             to: TxKind::Call(BridgeWrapper::address()),
-            input: BridgeWrapper::initialize(),
+            input: BridgeWrapper::initialize(params),
             nonce,
             chain_id,
             value: U256::ZERO,
@@ -85,7 +91,8 @@ fn signed_system_transaction(
     TransactionSignedEcRecovered::from_signed_transaction(signed, SYSTEM_SIGNER)
 }
 
-pub(crate) fn create_system_transactions<I: IntoIterator<Item = SystemEvent>>(
+/// Creates a list of system transactions from a list of system events.
+pub fn create_system_transactions<'a, I: IntoIterator<Item = SystemEvent<'a>>>(
     events: I,
     mut nonce: u64,
     chain_id: u64,

@@ -3,8 +3,10 @@ use core::result::Result;
 use borsh::BorshDeserialize;
 use hex::FromHex;
 use serde::{Deserialize, Deserializer};
-use sov_modules_api::default_signature::K256PublicKey;
-use sov_modules_api::{PublicKey, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet};
+use sov_modules_api::default_signature::{DefaultPublicKey, K256PublicKey};
+use sov_modules_api::{
+    Address, PublicKey, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet,
+};
 
 use crate::{Account, Accounts};
 
@@ -38,7 +40,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
             if self
                 .accounts_pre_fork2
                 .get(
-                    &C::PublicKey::try_from_slice(pub_key).expect("Should be a valid pub key"),
+                    &DefaultPublicKey::try_from_slice(pub_key).expect("Should be a valid pub key"),
                     working_set,
                 )
                 .is_some()
@@ -57,8 +59,8 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         pub_key: &[u8],
         working_set: &mut WorkingSet<C::Storage>,
         spec_id: SpecId,
-    ) -> Result<Account<C>, SoftConfirmationHookError> {
-        let default_address = if spec_id >= SpecId::Fork2 {
+    ) -> Result<Account, SoftConfirmationHookError> {
+        let default_address: Address = if spec_id >= SpecId::Fork2 {
             let pub_key: K256PublicKey = K256PublicKey::try_from_slice(pub_key)
                 // TODO: Update error handling
                 .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
@@ -73,7 +75,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         self.exit_if_address_exists(&default_address, working_set, spec_id)?;
 
         let new_account = Account {
-            addr: default_address.clone(),
+            addr: default_address,
             nonce: 0,
         };
 
@@ -84,7 +86,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
                 .set(&default_address, &pub_key.to_vec(), working_set);
         } else {
             let pub_key =
-                C::PublicKey::try_from_slice(pub_key).expect("Should be valid public key");
+                DefaultPublicKey::try_from_slice(pub_key).expect("Should be valid public key");
             self.accounts_pre_fork2
                 .set(&pub_key, &new_account, working_set);
 
@@ -97,7 +99,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
 
     fn exit_if_address_exists(
         &self,
-        address: &C::Address,
+        address: &Address,
         working_set: &mut WorkingSet<C::Storage>,
         spec_id: SpecId,
     ) -> Result<(), SoftConfirmationHookError> {

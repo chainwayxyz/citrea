@@ -1,6 +1,7 @@
 use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use citrea_primitives::PRE_FORK2_BRIDGE_INITIALIZE_PARAMS;
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
@@ -79,34 +80,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             working_set,
         );
 
-        // populate system events
         let mut system_events = vec![];
-        if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
-            if last_l1_hash != soft_confirmation_info.da_slot_hash {
-                // That's a new L1 block
-                system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
-                    soft_confirmation_info.da_slot_hash,
-                    soft_confirmation_info.da_slot_txs_commitment,
-                ));
-            }
-        } else {
-            // That's the first L2 block in the first seen L1 block.
-            system_events.push(SystemEvent::BitcoinLightClientInitialize(
-                soft_confirmation_info.da_slot_height,
-            ));
-            system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
-                soft_confirmation_info.da_slot_hash,
-                soft_confirmation_info.da_slot_txs_commitment,
-            ));
-            system_events.push(SystemEvent::BridgeInitialize);
+        // populate system events if active citrea spec is below fork2
+        if current_spec < CitreaSpecId::Fork2 {
+            system_events = populate_system_events(
+                soft_confirmation_info,
+                self.last_l1_hash.get(working_set),
+                PRE_FORK2_BRIDGE_INITIALIZE_PARAMS,
+            )
         }
-
-        soft_confirmation_info
-            .deposit_data
-            .iter()
-            .for_each(|params| {
-                system_events.push(SystemEvent::BridgeDeposit(params.clone()));
-            });
 
         let cfg = self
             .cfg
@@ -142,6 +124,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // they don't use the wrong value
         self.block_env = new_pending_env.clone();
 
+        // No need to check for fork, as the system events are only populated if the active citrea spec is below Fork2
         if !system_events.is_empty() {
             self.execute_system_events(
                 system_events,
@@ -396,4 +379,40 @@ impl<C: sov_modules_api::Context> Evm<C> {
             self.pending_head.delete(accessory_working_set);
         }
     }
+}
+
+/// Populates system events based on the current soft confirmation info.
+pub fn populate_system_events<'a>(
+    soft_confirmation_info: &HookSoftConfirmationInfo,
+    last_l1_hash_of_evm: Option<B256>,
+    bridge_initialize_params: &'a [u8],
+) -> Vec<SystemEvent<'a>> {
+    let mut system_events = vec![];
+    if let Some(last_l1_hash) = last_l1_hash_of_evm {
+        if last_l1_hash != soft_confirmation_info.da_slot_hash {
+            // That's a new L1 block
+            system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
+                soft_confirmation_info.da_slot_hash,
+                soft_confirmation_info.da_slot_txs_commitment,
+            ));
+        }
+    } else {
+        // That's the first L2 block in the first seen L1 block.
+        system_events.push(SystemEvent::BitcoinLightClientInitialize(
+            soft_confirmation_info.da_slot_height,
+        ));
+        system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
+            soft_confirmation_info.da_slot_hash,
+            soft_confirmation_info.da_slot_txs_commitment,
+        ));
+        system_events.push(SystemEvent::BridgeInitialize(bridge_initialize_params));
+    }
+
+    soft_confirmation_info
+        .deposit_data
+        .iter()
+        .for_each(|params| {
+            system_events.push(SystemEvent::BridgeDeposit(params.clone()));
+        });
+    system_events
 }

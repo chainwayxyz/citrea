@@ -1,8 +1,9 @@
-use borsh::BorshDeserialize;
+use std::io::Read;
+
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 use sov_modules_core::PrivateKey;
-use sov_modules_core::{Context, Signature};
-use sov_rollup_interface::spec::SpecId;
+use sov_modules_core::Signature;
 use sov_rollup_interface::stf::TransactionDigest;
 
 #[cfg(feature = "native")]
@@ -13,11 +14,16 @@ use crate::default_signature::{DefaultPublicKey, DefaultSignature, K256PublicKey
 
 const EXTEND_MESSAGE_LEN: usize = 2 * core::mem::size_of::<u64>();
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum TxVersion {
+    V1 = 0,
+    V2 = 1,
+}
+
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
-#[derive(
-    Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize,
-)]
-pub struct Transaction {
+#[derive(Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize)]
+pub struct TransactionV2 {
     signature: Vec<u8>,
     pub_key: Vec<u8>,
     runtime_msg: Vec<u8>,
@@ -26,126 +32,195 @@ pub struct Transaction {
 }
 
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
-#[derive(
-    Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize,
-)]
-pub struct PreFork2Transaction<C: Context> {
-    signature: C::Signature,
-    pub_key: C::PublicKey,
+#[derive(Debug, PartialEq, Eq, Clone, borsh::BorshSerialize)]
+pub struct TransactionV1 {
+    signature: DefaultSignature,
+    #[borsh(skip)]
+    serialized_signature: Vec<u8>,
+    pub_key: DefaultPublicKey,
+    #[borsh(skip)]
+    serialized_pub_key: Vec<u8>,
     runtime_msg: Vec<u8>,
     chain_id: u64,
     nonce: u64,
 }
 
-#[cfg(feature = "native")]
-impl<C: Context> PreFork2Transaction<C> {
-    pub fn new_signed_tx(priv_key: &[u8], mut message: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
-        // Since we own the message already, try to add the serialized nonce in-place.
-        // This lets us avoid a copy if the message vec has at least 8 bytes of extra capacity.
-        let len = message.len();
+impl BorshDeserialize for TransactionV1 {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let signature = DefaultSignature::deserialize_reader(reader)?;
+        let pub_key = DefaultPublicKey::deserialize_reader(reader)?;
+        let runtime_msg = Vec::<u8>::deserialize_reader(reader)?;
+        let chain_id = u64::deserialize_reader(reader)?;
+        let nonce = u64::deserialize_reader(reader)?;
 
-        // resizes once to avoid potential multiple realloc
-        message.resize(len + EXTEND_MESSAGE_LEN, 0);
-
-        message[len..len + 8].copy_from_slice(&chain_id.to_le_bytes());
-        message[len + 8..len + 16].copy_from_slice(&nonce.to_le_bytes());
-
-        // For other forks we should be using the ed25519 signatures
-        let priv_key = C::PrivateKey::try_from(priv_key).unwrap();
-        let pub_key = priv_key.pub_key();
-        let signature = priv_key.sign(&message);
-
-        // Don't forget to truncate the message back to its original length!
-        message.truncate(len);
-
-        Self {
+        Ok(Self {
+            serialized_signature: borsh::to_vec(&signature)?,
             signature,
-            runtime_msg: message,
+            serialized_pub_key: borsh::to_vec(&pub_key)?,
             pub_key,
+            runtime_msg,
             chain_id,
             nonce,
+        })
+    }
+}
+
+/// The versioned transaction type
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Transaction {
+    /// Pre Fork 2 version using ed25519 signatures
+    V1(Box<TransactionV1>),
+    /// Fork 2 version using k256 signatures
+    V2(TransactionV2),
+}
+
+const V2_MAGIC_NUMBER: [u8; 4] = [0x54, 0x78, 0x56, 0x32]; // "TxV2"
+
+impl BorshSerialize for Transaction {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        match self {
+            Transaction::V2(tx) => {
+                BorshSerialize::serialize(&V2_MAGIC_NUMBER, writer)?;
+                BorshSerialize::serialize(tx, writer)
+            }
+            Transaction::V1(tx) => BorshSerialize::serialize(tx, writer),
         }
     }
 }
 
-impl<C: Context> From<PreFork2Transaction<C>> for Transaction {
-    fn from(value: PreFork2Transaction<C>) -> Self {
-        let signature = borsh::to_vec(&value.signature).unwrap();
-        let pub_key = borsh::to_vec(&value.pub_key).unwrap();
-        Self {
-            signature,
-            pub_key,
-            runtime_msg: value.runtime_msg,
-            chain_id: value.chain_id,
-            nonce: value.nonce,
-        }
-    }
-}
+impl BorshDeserialize for Transaction {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut peek_buf = [0u8; 4];
 
-impl<C: Context> From<Transaction> for PreFork2Transaction<C> {
-    fn from(value: Transaction) -> Self {
-        let signature = C::Signature::try_from_slice(&value.signature).unwrap();
-        let pub_key = C::PublicKey::try_from(value.pub_key.as_slice()).unwrap();
-        Self {
-            signature,
-            pub_key,
-            runtime_msg: value.runtime_msg,
-            chain_id: value.chain_id,
-            nonce: value.nonce,
+        match reader.read(&mut peek_buf) {
+            Ok(4) if peek_buf == V2_MAGIC_NUMBER => {
+                TransactionV2::deserialize_reader(reader).map(Transaction::V2)
+            }
+            Ok(n) => {
+                let peek_cursor = std::io::Cursor::new(&peek_buf[..n]);
+                let mut chained_reader = peek_cursor.chain(reader);
+                TransactionV1::deserialize_reader(&mut chained_reader)
+                    .map(|tx| Transaction::V1(Box::new(tx)))
+            }
+            Err(e) => Err(e),
         }
     }
 }
 
 impl Transaction {
+    pub fn version(&self) -> TxVersion {
+        match self {
+            Self::V2 { .. } => TxVersion::V2,
+            Self::V1 { .. } => TxVersion::V1,
+        }
+    }
+
     pub fn signature(&self) -> &[u8] {
-        &self.signature
+        match self {
+            Self::V1(tx) => tx.serialized_signature.as_slice(),
+            Self::V2(tx) => tx.signature.as_slice(),
+        }
     }
 
     pub fn pub_key(&self) -> &[u8] {
-        &self.pub_key
+        match self {
+            Self::V1(tx) => tx.serialized_pub_key.as_slice(),
+            Self::V2(tx) => tx.pub_key.as_slice(),
+        }
     }
 
     pub fn runtime_msg(&self) -> &[u8] {
-        &self.runtime_msg
-    }
-
-    pub const fn nonce(&self) -> u64 {
-        self.nonce
-    }
-
-    pub const fn chain_id(&self) -> u64 {
-        self.chain_id
-    }
-
-    /// Check whether the transaction has been signed correctly.
-    pub fn verify(&self, spec_id: SpecId) -> anyhow::Result<()> {
-        if spec_id >= SpecId::Fork2 {
-            // If we are at fork2 we should be using k256 signatures to verify sov txs
-            let signature = K256Signature::try_from_slice(&self.signature)?;
-            let pub_key = K256PublicKey::try_from(self.pub_key.as_slice())?;
-            let mut serialized_tx =
-                Vec::with_capacity(self.runtime_msg().len() + EXTEND_MESSAGE_LEN);
-
-            serialized_tx.extend_from_slice(self.runtime_msg());
-            serialized_tx.extend_from_slice(&self.chain_id().to_le_bytes());
-            serialized_tx.extend_from_slice(&self.nonce().to_le_bytes());
-
-            signature.verify(&pub_key, &serialized_tx)?;
-        } else {
-            // For other forks we should be using the ed25519 signatures
-            let signature = DefaultSignature::try_from_slice(&self.signature)?;
-            let pub_key = DefaultPublicKey::try_from(self.pub_key.as_slice())?;
-
-            let mut serialized_tx =
-                Vec::with_capacity(self.runtime_msg().len() + EXTEND_MESSAGE_LEN);
-
-            serialized_tx.extend_from_slice(self.runtime_msg());
-            serialized_tx.extend_from_slice(&self.chain_id().to_le_bytes());
-            serialized_tx.extend_from_slice(&self.nonce().to_le_bytes());
-
-            signature.verify(&pub_key, &serialized_tx)?;
+        match self {
+            Self::V2(tx) => &tx.runtime_msg,
+            Self::V1(tx) => &tx.runtime_msg,
         }
+    }
 
+    pub fn nonce(&self) -> u64 {
+        match self {
+            Self::V2(tx) => tx.nonce,
+            Self::V1(tx) => tx.nonce,
+        }
+    }
+
+    pub fn chain_id(&self) -> u64 {
+        match self {
+            Self::V2(tx) => tx.chain_id,
+            Self::V1(tx) => tx.chain_id,
+        }
+    }
+
+    pub fn to_blob(&self) -> Result<Vec<u8>, borsh::io::Error> {
+        borsh::to_vec(self)
+    }
+
+    #[cfg(feature = "native")]
+    pub fn new_signed_tx(
+        priv_key: &[u8],
+        runtime_msg: Vec<u8>,
+        chain_id: u64,
+        nonce: u64,
+        fork2: bool,
+    ) -> Self {
+        let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
+        message.extend_from_slice(&runtime_msg);
+        message.extend_from_slice(&chain_id.to_le_bytes());
+        message.extend_from_slice(&nonce.to_le_bytes());
+
+        if fork2 {
+            let priv_key = K256PrivateKey::try_from(priv_key).unwrap();
+            let pub_key = priv_key.pub_key();
+            let signature = priv_key.sign(&message);
+
+            Self::V2(TransactionV2 {
+                signature: borsh::to_vec(&signature).unwrap(),
+                pub_key: borsh::to_vec(&pub_key).unwrap(),
+                runtime_msg,
+                chain_id,
+                nonce,
+            })
+        } else {
+            let priv_key = DefaultPrivateKey::try_from(priv_key).unwrap();
+            let pub_key = priv_key.pub_key();
+            let signature = priv_key.sign(&message);
+
+            Self::V1(Box::new(TransactionV1 {
+                serialized_signature: borsh::to_vec(&signature).unwrap(),
+                signature,
+                serialized_pub_key: borsh::to_vec(&pub_key).unwrap(),
+                pub_key,
+                runtime_msg,
+                chain_id,
+                nonce,
+            }))
+        }
+    }
+
+    pub fn verify(&self) -> anyhow::Result<()> {
+        match self {
+            Self::V1(tx) => {
+                let mut serialized_tx =
+                    Vec::with_capacity(tx.runtime_msg.len() + EXTEND_MESSAGE_LEN);
+
+                serialized_tx.extend_from_slice(&tx.runtime_msg);
+                serialized_tx.extend_from_slice(&tx.chain_id.to_le_bytes());
+                serialized_tx.extend_from_slice(&tx.nonce.to_le_bytes());
+
+                tx.signature.verify(&tx.pub_key, &serialized_tx)?;
+            }
+            Self::V2(tx) => {
+                let signature = K256Signature::try_from_slice(&tx.signature)?;
+                let pub_key = K256PublicKey::try_from(tx.pub_key.as_slice())?;
+                let mut serialized_tx =
+                    Vec::with_capacity(tx.runtime_msg.len() + EXTEND_MESSAGE_LEN);
+
+                serialized_tx.extend_from_slice(&tx.runtime_msg);
+                serialized_tx.extend_from_slice(&tx.chain_id.to_le_bytes());
+                serialized_tx.extend_from_slice(&tx.nonce.to_le_bytes());
+
+                signature.verify(&pub_key, &serialized_tx)?;
+            }
+        }
         Ok(())
     }
 }
@@ -157,61 +232,5 @@ impl TransactionDigest for Transaction {
         hasher.update(self.chain_id().to_be_bytes());
         hasher.update(self.nonce().to_be_bytes());
         hasher.finalize()
-    }
-}
-
-#[cfg(feature = "native")]
-impl Transaction {
-    /// New signed transaction.
-    pub fn new_signed_tx(
-        priv_key: &[u8],
-        mut message: Vec<u8>,
-        chain_id: u64,
-        nonce: u64,
-        spec_id: SpecId,
-    ) -> Self {
-        // Since we own the message already, try to add the serialized nonce in-place.
-        // This lets us avoid a copy if the message vec has at least 8 bytes of extra capacity.
-        let len = message.len();
-
-        // resizes once to avoid potential multiple realloc
-        message.resize(len + EXTEND_MESSAGE_LEN, 0);
-
-        message[len..len + 8].copy_from_slice(&chain_id.to_le_bytes());
-        message[len + 8..len + 16].copy_from_slice(&nonce.to_le_bytes());
-
-        if spec_id >= SpecId::Fork2 {
-            // If we are at fork2 we should be using k256 signatures to sign sov txs
-            let priv_key = K256PrivateKey::try_from(priv_key).unwrap();
-            let pub_key = priv_key.pub_key();
-            let signature = priv_key.sign(&message);
-
-            // Don't forget to truncate the message back to its original length!
-            message.truncate(len);
-
-            Self {
-                signature: borsh::to_vec(&signature).unwrap(),
-                runtime_msg: message,
-                pub_key: borsh::to_vec(&pub_key).unwrap(),
-                chain_id,
-                nonce,
-            }
-        } else {
-            // For other forks we should be using the ed25519 signatures
-            let priv_key = DefaultPrivateKey::try_from(priv_key).unwrap();
-            let pub_key = priv_key.pub_key();
-            let signature = priv_key.sign(&message);
-
-            // Don't forget to truncate the message back to its original length!
-            message.truncate(len);
-
-            Self {
-                signature: borsh::to_vec(&signature).unwrap(),
-                runtime_msg: message,
-                pub_key: borsh::to_vec(&pub_key).unwrap(),
-                chain_id,
-                nonce,
-            }
-        }
     }
 }

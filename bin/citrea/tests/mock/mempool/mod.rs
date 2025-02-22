@@ -39,6 +39,7 @@ async fn initialize_test(
             rollup_config,
             Some(sequencer_config),
             None,
+            false,
         )
         .await;
     });

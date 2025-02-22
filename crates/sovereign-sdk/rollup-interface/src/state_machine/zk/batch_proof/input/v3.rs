@@ -1,10 +1,10 @@
 use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 
 use crate::da::{DaSpec, SequencerCommitment};
 use crate::soft_confirmation::L2Block;
+use crate::witness::Witness;
 use crate::zk::StorageRootHash;
 
 type InputV3Part2<'txs, Tx, Witness> = VecDeque<Vec<(u64, L2Block<'txs, Tx>, Witness, Witness)>>;
@@ -13,11 +13,11 @@ type InputV3Part2<'txs, Tx, Witness> = VecDeque<Vec<(u64, L2Block<'txs, Tx>, Wit
 /// Second part of the Fork2 elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
-pub struct BatchProofCircuitInputV3Part2<'txs, Witness, Tx: Clone + BorshSerialize>(
+pub struct BatchProofCircuitInputV3Part2<'txs, Tx: Clone + BorshSerialize>(
     pub InputV3Part2<'txs, Tx, Witness>,
 );
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 /// First part of the Kumquat elf input
@@ -33,5 +33,7 @@ pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// TODO: this is going to be replaced with erce's pr most probably
     pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
     /// Short header proofs for verifying system transactions
-    pub short_header_proofs: VecDeque<([u8; 32], Vec<u8>)>,
+    pub short_header_proofs: VecDeque<Vec<u8>>,
+    /// L2 heights in which the guest should prune the log caches to avoid OOM.
+    pub cache_prune_l2_heights: Vec<u64>,
 }

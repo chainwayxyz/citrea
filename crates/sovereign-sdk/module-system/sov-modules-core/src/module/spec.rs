@@ -8,8 +8,9 @@ use digest::Digest;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
 
-use crate::common::{PublicKey, Signature, Witness};
+use crate::common::{PublicKey, Signature};
 use crate::storage::Storage;
+use crate::Address;
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
 /// `Spec` is almost always implemented on a Context object; since all Modules are generic
@@ -86,9 +87,6 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
     type Signature: Signature<PublicKey = Self::PublicKey>
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>;
-
-    /// A structure containing the non-deterministic inputs from the prover to the zk-circuit
-    type Witness: Witness;
 }
 
 /// A context contains information which is passed to modules during
@@ -100,14 +98,13 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
 /// can easily update their cryptography to conform to the needs of different zk-proof systems.
 pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     /// Sender of the transaction.
-    fn sender(&self) -> &Self::Address;
+    fn sender(&self) -> &Address;
 
     /// Constructor for the Context.
-    fn new(sender: Self::Address, height: u64, active_spec: SpecId, l1_fee_rate: u128) -> Self;
+    fn new(sender: Address, height: u64, active_spec: SpecId, l1_fee_rate: u128) -> Self;
 
-    /// Returns the height of the current slot as reported by the kernel. This value is
-    /// non-decreasing and is guaranteed to be less than or equal to the actual "objective" height of the rollup.
-    /// Kernels should ensure that the reported height never falls too far behind the actual height.
+    /// Returns the L2 height
+    /// TODO: rename to `l2_height`
     fn slot_height(&self) -> u64;
 
     /// The current active spec

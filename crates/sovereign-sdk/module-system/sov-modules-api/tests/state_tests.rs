@@ -1,7 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::*;
+use sov_modules_core::StateValueCodec;
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::{ArrayWitness, DefaultWitness, Prefix, ProverStorage, Storage, ZkStorage};
+use sov_state::codec::BorshCodec;
+use sov_state::{Prefix, ProverStorage, Storage, Witness, ZkStorage};
 
 enum Operation {
     Merge,
@@ -13,9 +15,9 @@ impl Operation {
         match self {
             Operation::Merge => working_set.checkpoint(),
             Operation::Finalize => {
-                let (cache_log, mut witness) = working_set.checkpoint().freeze();
+                let (state_log, mut witness) = working_set.checkpoint().freeze();
 
-                db.validate_and_commit(cache_log, &mut witness)
+                db.validate_and_commit(&state_log, &mut witness)
                     .expect("JMT update is valid");
 
                 StateCheckpoint::new(db)
@@ -165,32 +167,32 @@ fn test_witness_round_trip() {
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let witness: ArrayWitness = {
+    let witness: Witness = {
         let storage = new_orphan_storage(tempdir.path()).unwrap();
         // let storage = ProverStorage::<DefaultWitness, DefaultHasher>::with_path(path).unwrap();
         let mut working_set = WorkingSet::new(storage.clone());
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, mut witness) = working_set.checkpoint().freeze();
+        let (state_log, mut witness) = working_set.checkpoint().freeze();
 
         let _ = storage
-            .validate_and_commit(cache_log, &mut witness)
+            .validate_and_commit(&state_log, &mut witness)
             .expect("Native jmt validation should succeed");
         witness
     };
 
     {
-        let storage = ZkStorage::<DefaultWitness>::new();
+        let storage = ZkStorage::new();
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, mut witness) = working_set.checkpoint().freeze();
+        let (state_log, mut witness) = working_set.checkpoint().freeze();
 
         let _ = storage
-            .validate_and_commit(cache_log, &mut witness)
+            .validate_and_commit(&state_log, &mut witness)
             .expect("ZK validation should succeed");
     };
 }
@@ -198,7 +200,10 @@ fn test_witness_round_trip() {
 fn create_state_vec<T: BorshDeserialize + BorshSerialize>(
     values: Vec<T>,
     working_set: &mut WorkingSet<ProverStorage>,
-) -> StateVec<T> {
+) -> StateVec<T, BorshCodec>
+where
+    BorshCodec: StateValueCodec<T>,
+{
     let state_vec = StateVec::new(Prefix::new(vec![0]));
     state_vec.set_all(values, working_set);
     state_vec

@@ -1,21 +1,27 @@
 use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmation;
+use crate::witness::PreFork2Witness;
 use crate::zk::StorageRootHash;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 /// Second part of the Kumquat elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
-pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone + BorshSerialize>(
-    pub VecDeque<Vec<(SignedSoftConfirmation<'txs, Tx>, Witness, Witness)>>,
+pub struct BatchProofCircuitInputV2Part2<'txs, Tx: Clone + BorshSerialize>(
+    pub  VecDeque<
+        Vec<(
+            SignedSoftConfirmation<'txs, Tx>,
+            PreFork2Witness,
+            PreFork2Witness,
+        )>,
+    >,
 );
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 /// First part of the Kumquat elf input

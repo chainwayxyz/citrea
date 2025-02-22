@@ -12,6 +12,7 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
+alloy-primitives = { workspace = true, default-features = false }
 alloy-rlp = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc", "bytes"] }

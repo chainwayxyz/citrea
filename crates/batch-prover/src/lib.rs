@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
-use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
@@ -12,8 +11,6 @@ use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
 pub use proving::GroupCommitments;
 pub use runner::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
@@ -33,7 +30,7 @@ pub mod rpc;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub async fn build_services<Da, DB, Vm, Witness>(
+pub async fn build_services<Da, DB, Vm>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
     init_params: InitParams,
@@ -55,14 +52,13 @@ pub async fn build_services<Da, DB, Vm, Witness>(
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
     CitreaBatchProver<Da, DB>,
-    L1BlockHandler<Vm, Da, DB, Witness>,
+    L1BlockHandler<Vm, Da, DB>,
     RpcModule<()>,
 )>
 where
     Da: DaService<Error = anyhow::Error>,
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
-    Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
 
@@ -70,8 +66,10 @@ where
         da_service.clone(),
         prover_service.clone(),
         ledger_db.clone(),
+        storage_manager.clone(),
         public_keys.sequencer_da_pub_key.clone(),
         public_keys.sequencer_public_key.clone(),
+        public_keys.sequencer_k256_public_key.clone(),
         l1_block_cache,
         code_commitments.clone(),
         elfs.clone(),
@@ -85,7 +83,7 @@ where
         public_keys.clone(),
         da_service.clone(),
         ledger_db.clone(),
-        storage_manager,
+        storage_manager.clone(),
         fork_manager,
         soft_confirmation_tx,
         backup_manager.clone(),
@@ -93,14 +91,13 @@ where
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
 
-    // We do not need to pass the new sequencer public key here, as it is a constant in circuits
     let l1_block_handler = L1BlockHandler::new(
         prover_config,
         prover_service,
         ledger_db,
+        storage_manager,
         da_service,
-        public_keys.sequencer_public_key,
-        public_keys.sequencer_da_pub_key,
+        public_keys,
         code_commitments,
         elfs,
         skip_submission_until_l1,

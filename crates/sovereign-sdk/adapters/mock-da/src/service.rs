@@ -546,9 +546,14 @@ impl DaService for MockDaService {
     }
 
     fn block_to_short_header_proof(
-        _block: Self::FilteredBlock,
+        block: Self::FilteredBlock,
     ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
-        MockShortHeaderProof {}
+        MockShortHeaderProof {
+            header_hash: block.header.hash.0,
+            prev_header_hash: block.header.prev_hash.0,
+            txs_commitment: block.header.txs_commitment.0,
+            height: block.header.height,
+        }
     }
 }
 

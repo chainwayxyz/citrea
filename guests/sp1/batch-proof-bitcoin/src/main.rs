@@ -7,7 +7,7 @@ use citrea_primitives::forks::{DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, TESTN
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_sp1::guest::SP1Guest;
 use citrea_stf::runtime::Runtime;
-use citrea_stf::StfVerifier;
+
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::DaVerifier;
@@ -88,13 +88,14 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StfVerifier<_, ZkDefaultContext, Runtime<_, _>> = StfVerifier::new(
-        stf,
-        BitcoinVerifier::new(RollupParams {
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-        }),
-    );
+    let mut stf_verifier: StateTransitionVerifier<_, ZkDefaultContext, Runtime<_, _>> =
+        StateTransitionVerifier::new(
+            stf,
+            BitcoinVerifier::new(RollupParams {
+                to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+            }),
+        );
 
     let out = stf_verifier
         .run_sequencer_commitments_in_da_slot(

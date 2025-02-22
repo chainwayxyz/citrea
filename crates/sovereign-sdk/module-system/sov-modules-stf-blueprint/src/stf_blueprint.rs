@@ -1,11 +1,10 @@
 use std::marker::PhantomData;
 
-use borsh::BorshDeserialize;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
-use sov_modules_api::{native_debug, native_error, Context, DaSpec, SpecId, WorkingSet};
+use sov_modules_api::transaction::Transaction;
+use sov_modules_api::{native_debug, native_error, Context, DaSpec, WorkingSet};
 use sov_rollup_interface::stf::{
-    SoftConfirmationError, SoftConfirmationHookError, StateTransitionError, StateTransitionFunction,
+    SoftConfirmationError, SoftConfirmationHookError, StateTransitionError,
 };
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -54,28 +53,12 @@ where
     pub fn apply_sov_txs_inner(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        blobs: &[Vec<u8>],
-        txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
+        txs: &[Transaction],
         sc_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        if soft_confirmation_info.current_spec >= SpecId::Kumquat {
-            for tx in txs {
-                self.apply_sov_tx_inner(soft_confirmation_info, tx, sc_workspace)?;
-            }
-        } else {
-            for raw_tx in blobs {
-                // Stateless verification of transaction, such as signature check
-                let mut reader = std::io::Cursor::new(raw_tx);
-                let tx =
-                    PreFork2Transaction::<C>::deserialize_reader(&mut reader).map_err(|_| {
-                        StateTransitionError::SoftConfirmationError(
-                            SoftConfirmationError::NonSerializableSovTx,
-                        )
-                    })?;
-
-                self.apply_sov_tx_inner(soft_confirmation_info, &tx.into(), sc_workspace)?;
-            }
-        };
+        for tx in txs {
+            self.apply_sov_tx_inner(soft_confirmation_info, tx, sc_workspace)?;
+        }
 
         Ok(())
     }
@@ -88,7 +71,7 @@ where
     ) -> Result<(), StateTransitionError> {
         let current_spec = soft_confirmation_info.current_spec();
 
-        tx.verify(current_spec).map_err(|_| {
+        tx.verify().map_err(|_| {
             StateTransitionError::SoftConfirmationError(
                 SoftConfirmationError::InvalidSovTxSignature,
             )

@@ -15,7 +15,7 @@ use crate::call::CallMessage;
 use crate::smart_contracts::LogsContract;
 use crate::tests::queries::init_evm;
 use crate::tests::utils::{
-    create_contract_message, get_evm, get_evm_config, publish_event_message,
+    create_contract_message, get_evm, get_evm_config, get_evm_pre_fork2, publish_event_message,
 };
 use crate::{Filter, FilterBlockOption, FilterSet};
 
@@ -23,7 +23,7 @@ type C = DefaultContext;
 
 #[test]
 fn logs_for_filter_test() {
-    let (evm, mut working_set, _, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm(SpecId::Kumquat);
 
     let result = evm.eth_get_logs(
         Filter {
@@ -68,7 +68,7 @@ fn log_filter_test_at_block_hash() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
 
     let l1_fee_rate = 1;
     let l2_height = 2;
@@ -79,7 +79,7 @@ fn log_filter_test_at_block_hash() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -89,7 +89,7 @@ fn log_filter_test_at_block_hash() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
 
         // deploy logs contract
         // call the contract function
@@ -280,7 +280,7 @@ fn log_filter_test_with_range() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 2;
@@ -291,7 +291,7 @@ fn log_filter_test_with_range() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -301,7 +301,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -353,7 +353,7 @@ fn log_filter_test_with_range() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [99u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -363,7 +363,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
         // call the contract function
         evm.call(
             CallMessage {

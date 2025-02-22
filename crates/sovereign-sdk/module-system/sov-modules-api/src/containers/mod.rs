@@ -68,9 +68,9 @@ mod test {
                 let mut working_set = WorkingSet::new(prover_storage.clone());
 
                 working_set.set(&test.key, test.value.clone());
-                let (cache, mut witness) = working_set.checkpoint().freeze();
+                let (state_log, mut witness) = working_set.checkpoint().freeze();
                 prover_storage
-                    .validate_and_commit(cache, &mut witness)
+                    .validate_and_commit(&state_log, &mut witness)
                     .expect("storage is valid");
                 assert_eq!(
                     test.value,
@@ -114,9 +114,9 @@ mod test {
             assert!(prover_storage.is_empty());
             let mut storage = WorkingSet::new(prover_storage.clone());
             storage.set(&key, value.clone());
-            let (cache, mut witness) = storage.checkpoint().freeze();
+            let (state_log, mut witness) = storage.checkpoint().freeze();
             prover_storage
-                .validate_and_commit(cache, &mut witness)
+                .validate_and_commit(&state_log, &mut witness)
                 .expect("storage is valid");
             storage_manager.finalize_storage(prover_storage);
         }

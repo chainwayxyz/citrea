@@ -310,8 +310,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         let balance = self
             .account_info(&address, citrea_spec, working_set)
-            .map(|info| info.balance)
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .balance;
 
         Ok(balance)
     }
@@ -1600,7 +1600,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Return block number using the state
-    pub(crate) fn block_number_from_state(
+    pub fn block_number_from_state(
         &self,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,

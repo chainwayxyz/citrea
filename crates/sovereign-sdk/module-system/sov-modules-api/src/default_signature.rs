@@ -7,7 +7,8 @@ use ed25519_dalek::{
     Signature as DalekSignature, SigningKey, VerifyingKey as DalekPublicKey, KEYPAIR_LENGTH,
     PUBLIC_KEY_LENGTH,
 };
-use sov_modules_core::{SigVerificationError, Signature};
+use sov_modules_core::{SigVerificationError, Signature, StateKeyCodec, StateValueCodec};
+use sov_state::codec::BorshCodec;
 
 #[cfg(feature = "native")]
 pub mod k256_private_key {
@@ -330,6 +331,28 @@ impl BorshDeserialize for DefaultPublicKey {
 impl BorshSerialize for DefaultPublicKey {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(self.pub_key.as_bytes())
+    }
+}
+
+impl StateKeyCodec<DefaultPublicKey> for BorshCodec {
+    fn encode_key(&self, value: &DefaultPublicKey) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
+    }
+}
+
+impl StateValueCodec<DefaultPublicKey> for BorshCodec {
+    type Error = std::io::Error;
+
+    fn encode_value(&self, value: &DefaultPublicKey) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
+    }
+
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<DefaultPublicKey, Self::Error> {
+        borsh::from_slice(bytes)
     }
 }
 
