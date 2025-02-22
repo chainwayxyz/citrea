@@ -68,10 +68,10 @@ impl BorshDeserialize for TransactionV1 {
 /// The versioned transaction type
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Transaction {
-    /// Fork 2 version using k256 signatures
-    V2(TransactionV2),
     /// Pre Fork 2 version using ed25519 signatures
     V1(Box<TransactionV1>),
+    /// Fork 2 version using k256 signatures
+    V2(TransactionV2),
 }
 
 const V2_MAGIC_NUMBER: [u8; 4] = [0x54, 0x78, 0x56, 0x32]; // "TxV2"
