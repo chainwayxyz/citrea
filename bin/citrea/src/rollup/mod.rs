@@ -30,7 +30,6 @@ use sov_modules_stf_blueprint::{
 };
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;

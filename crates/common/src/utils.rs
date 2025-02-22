@@ -2,18 +2,18 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use borsh::BorshSerialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::SoftConfirmationNumber;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, Spec};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{StateDiff, TransactionDigest};
+use sov_rollup_interface::stf::StateDiff;
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map: HashMap<Arc<[u8]>, Option<Arc<[u8]>>> = HashMap::from_iter(old_diff);
@@ -84,10 +84,7 @@ pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64
     head_l2_height >= l2_height
 }
 
-pub fn compute_tx_hashes<C: Context, Tx: TransactionDigest + Clone + BorshSerialize>(
-    txs: &[Tx],
-    current_spec: SpecId,
-) -> Vec<[u8; 32]> {
+pub fn compute_tx_hashes<C: Context>(txs: &[Transaction], current_spec: SpecId) -> Vec<[u8; 32]> {
     if current_spec >= SpecId::Kumquat {
         txs.iter()
             .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())

@@ -9,7 +9,7 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
 #[cfg(feature = "native")]
 use sov_state::ProverStorage;
-use sov_state::{ArrayWitness, DefaultWitness, ZkStorage};
+use sov_state::ZkStorage;
 
 #[cfg(feature = "native")]
 use crate::default_signature::private_key::DefaultPrivateKey;
@@ -33,7 +33,6 @@ impl Spec for DefaultContext {
     type PublicKey = DefaultPublicKey;
     type Hasher = sha2::Sha256;
     type Signature = DefaultSignature;
-    type Witness = ArrayWitness;
 }
 
 #[cfg(feature = "native")]
@@ -76,13 +75,12 @@ pub struct ZkDefaultContext {
 
 impl Spec for ZkDefaultContext {
     type Address = Address;
-    type Storage = ZkStorage<DefaultWitness>;
+    type Storage = ZkStorage;
     #[cfg(feature = "native")]
     type PrivateKey = DefaultPrivateKey;
     type PublicKey = DefaultPublicKey;
     type Hasher = sha2::Sha256;
     type Signature = DefaultSignature;
-    type Witness = ArrayWitness;
 }
 
 impl Context for ZkDefaultContext {

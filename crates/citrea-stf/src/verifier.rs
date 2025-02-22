@@ -1,28 +1,31 @@
 use short_header_proof_provider::{ZkShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::fork::Fork;
-use sov_modules_api::DaSpec;
-use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
+use sov_modules_api::{Context, DaSpec};
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
+use sov_rollup_interface::stf::ApplySequencerCommitmentsOutput;
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::ZkvmGuest;
 
 /// Verifies a state transition
-pub struct StateTransitionVerifier<ST, Da>
+pub struct StateTransitionVerifier<C, Da, RT>
 where
+    C: Context,
     Da: DaSpec,
-    ST: StateTransitionFunction<Da>,
+    RT: Runtime<C, Da>,
 {
-    app: ST,
+    app: StfBlueprint<C, Da, RT>,
     phantom: std::marker::PhantomData<Da>,
 }
 
-impl<Stf, Da> StateTransitionVerifier<Stf, Da>
+impl<C, Da, RT> StateTransitionVerifier<C, Da, RT>
 where
+    C: Context,
     Da: DaSpec,
-    Stf: StateTransitionFunction<Da>,
+    RT: Runtime<C, Da>,
 {
     /// Create a [`StateTransitionVerifier`]
-    pub fn new(app: Stf) -> Self {
+    pub fn new(app: StfBlueprint<C, Da, RT>) -> Self {
         Self {
             app,
             phantom: Default::default(),
@@ -33,7 +36,7 @@ where
     pub fn run_sequencer_commitments_in_da_slot(
         &mut self,
         guest: &impl ZkvmGuest,
-        pre_state: Stf::PreState,
+        pre_state: C::Storage,
         sequencer_public_key: &[u8],
         sequencer_k256_public_key: &[u8],
         forks: &[Fork],
@@ -81,6 +84,10 @@ where
             state_diff,
             last_l2_height,
             sequencer_commitment_merkle_roots,
+            l1_hashes_added_to_light_client_contract: SHORT_HEADER_PROOF_PROVIDER
+                .get()
+                .unwrap()
+                .take_queried_hashes(0..=0), // range does not matter for zk implementation
         }
     }
 }

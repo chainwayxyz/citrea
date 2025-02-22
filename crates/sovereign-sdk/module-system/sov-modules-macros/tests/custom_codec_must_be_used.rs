@@ -4,7 +4,7 @@ use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, ModuleInfo, Spec, StateValue, WorkingSet};
 use sov_modules_core::{StateCodec, StateKeyCodec, StateValueCodec};
-use sov_state::{DefaultHasher, DefaultWitness, ZkStorage};
+use sov_state::ZkStorage;
 
 #[derive(ModuleInfo)]
 struct TestModule<C>
@@ -57,7 +57,7 @@ impl<V> StateValueCodec<V> for CustomCodec {
 }
 
 fn main() {
-    let storage: ZkStorage<DefaultWitness> = ZkStorage::new();
+    let storage: ZkStorage = ZkStorage::new();
     let module: TestModule<ZkDefaultContext> = TestModule::default();
 
     catch_unwind(|| {

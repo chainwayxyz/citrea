@@ -14,21 +14,20 @@ use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_state::ArrayWitness;
+use sov_state::Witness;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
@@ -39,7 +38,7 @@ const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
 
 type CommitmentStateTransitionData<'txs, Da> = (
     VecDeque<Vec<u8>>,
-    VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
+    VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<L2Block<'txs, Transaction>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
@@ -72,7 +71,7 @@ pub(crate) async fn data_to_prove<'txs, Da, DB>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<'txs, ArrayWitness, Da::Spec, Transaction>>,
+        Vec<BatchProofCircuitInput<'txs, Da::Spec, Transaction>>,
     ),
     L1ProcessingError,
 >
@@ -243,7 +242,7 @@ pub(crate) async fn prove_l1<Da, Vm, DB>(
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block: &Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<'_, ArrayWitness, Da::Spec, Transaction>>,
+    inputs: Vec<BatchProofCircuitInput<'_, Da::Spec, Transaction>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -367,35 +366,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
 
-            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-            let l2_block: L2Block<Transaction> = if spec_id >= SpecId::Kumquat {
-                soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?
-            } else {
-                let l2_block: L2Block<PreFork2Transaction<DefaultContext>> = soft_confirmation
-                    .try_into()
-                    .context("Failed to parse transactions")?;
-
-                let (parsed_txs, blobs): (Vec<Transaction>, Vec<Vec<u8>>) = l2_block
-                    .txs
-                    .iter()
-                    .map(|tx| {
-                        let blob =
-                            borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                        let tx = tx.clone().into();
-                        (tx, blob)
-                    })
-                    .unzip();
-                L2Block::new(
-                    l2_block.header,
-                    parsed_txs.into(),
-                    blobs.into(),
-                    l2_block.deposit_data,
-                    l2_block.da_slot_height,
-                    l2_block.da_slot_hash,
-                )
-            };
+            let l2_block: L2Block<Transaction> = soft_confirmation
+                .try_into()
+                .context("Failed to parse transactions")?;
 
             l2_blocks.push(l2_block);
         }
@@ -435,7 +408,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> anyhow::Result<(
-    VecDeque<Vec<(ArrayWitness, ArrayWitness)>>,
+    VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<u8>>,
 )> {
@@ -454,17 +427,20 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
+    // If executed with Fork2 elf, should use cache
+    let should_use_cache = fork_from_block_number(
+        committed_l2_blocks
+            .back()
+            .expect("must have at least one commitment")
+            .last()
+            .expect("must have at least one l2 block")
+            .l2_height(),
+    )
+    .spec_id
+        >= SpecId::Fork2;
+
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
-        // If executed with Fork2 elf, should use cache
-        let should_use_cache = fork_from_block_number(
-            l2_blocks_in_commitment
-                .last()
-                .expect("must have at least one")
-                .l2_height(),
-        )
-        .spec_id
-            >= SpecId::Fork2;
 
         SHORT_HEADER_PROOF_PROVIDER
             .get()
@@ -566,7 +542,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 /// TODO: This check needs a rewrite for sure.
 /// We could check on the sequencer commitments range only and not generate inputs
 pub(crate) fn state_transition_already_proven<Da: DaService>(
-    input: &BatchProofCircuitInput<ArrayWitness, Da::Spec, Transaction>,
+    input: &BatchProofCircuitInput<Da::Spec, Transaction>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool {
     for proof in proofs {

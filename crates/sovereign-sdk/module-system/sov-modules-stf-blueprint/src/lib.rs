@@ -3,7 +3,6 @@
 
 use std::collections::VecDeque;
 
-use borsh::BorshSerialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
@@ -17,7 +16,7 @@ use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     native_debug, BasicAddress, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     UnsignedSoftConfirmation, WorkingSet,
@@ -30,11 +29,11 @@ use sov_rollup_interface::soft_confirmation::{
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
-    StateTransitionError, StateTransitionFunction, TransactionDigest,
+    StateTransitionError,
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
-use sov_state::{ReadWriteLog, Storage};
+use sov_state::{ReadWriteLog, Storage, Witness};
 
 mod stf_blueprint;
 
@@ -158,27 +157,22 @@ where
     pub fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        blobs: &[Vec<u8>],
-        txs: &[<Self as StateTransitionFunction<Da>>::Transaction],
+        txs: &[Transaction],
         batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        self.apply_sov_txs_inner(soft_confirmation_info, blobs, txs, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
     }
 
     /// Verify l2_block hash and signature
     pub fn verify_soft_confirmation(
         &self,
         current_spec: SpecId,
-        l2_block: &L2Block<<Self as StateTransitionFunction<Da>>::Transaction>,
+        l2_block: &L2Block<Transaction>,
         sequencer_public_key: &[u8],
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        verify_tx_merkle_root::<C, <Self as StateTransitionFunction<Da>>::Transaction>(
-            current_spec,
-            l2_block,
-        )
-        .map_err(|_| {
+        verify_tx_merkle_root::<C>(current_spec, l2_block).map_err(|_| {
             StateTransitionError::SoftConfirmationError(SoftConfirmationError::InvalidTxMerkleRoot)
         })?;
 
@@ -249,12 +243,8 @@ where
         &self,
         _current_spec: SpecId,
         working_set: WorkingSet<C::Storage>,
-        pre_state: <Self as StateTransitionFunction<Da>>::PreState,
-    ) -> SoftConfirmationResult<
-        C::Storage,
-        <C::Storage as Storage>::Witness,
-        <Self as StateTransitionFunction<Da>>::StateLog,
-    > {
+        pre_state: C::Storage,
+    ) -> SoftConfirmationResult<C::Storage, Witness, ReadWriteLog> {
         let (
             state_root_transition,
             state_log,
@@ -309,26 +299,18 @@ where
     }
 }
 
-impl<C, RT, Da> StateTransitionFunction<Da> for StfBlueprint<C, Da, RT>
+impl<C, RT, Da> StfBlueprint<C, Da, RT>
 where
     C: Context,
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
-    type Transaction = Transaction;
-
-    type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
-    type PreState = C::Storage;
-    type ChangeSet = C::Storage;
-    type StateLog = ReadWriteLog;
-
-    type Witness = <C::Storage as Storage>::Witness;
-
-    fn init_chain(
+    /// Initialize chain from genesis config
+    pub fn init_chain(
         &self,
-        pre_state: Self::PreState,
-        params: Self::GenesisParams,
-    ) -> (StorageRootHash, Self::ChangeSet) {
+        pre_state: C::Storage,
+        params: GenesisParams<<RT as Genesis>::Config>,
+    ) -> (StorageRootHash, C::Storage) {
         let mut working_set = WorkingSet::new(pre_state.clone());
 
         self.runtime.genesis(&params.runtime, &mut working_set);
@@ -355,24 +337,24 @@ where
         (genesis_hash, pre_state)
     }
 
-    fn apply_soft_confirmation(
+    /// Apply soft confirmation
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_soft_confirmation(
         &mut self,
         current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &StorageRootHash,
-        pre_state: Self::PreState,
-        cumulative_state_log: Option<Self::StateLog>,
-        cumulative_offchain_log: Option<Self::StateLog>,
-        state_witness: Self::Witness,
-        offchain_witness: Self::Witness,
+        pre_state: C::Storage,
+        cumulative_state_log: Option<ReadWriteLog>,
+        cumulative_offchain_log: Option<ReadWriteLog>,
+        state_witness: Witness,
+        offchain_witness: Witness,
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
-        l2_block: &L2Block<Self::Transaction>,
-    ) -> Result<
-        SoftConfirmationResult<Self::ChangeSet, Self::Witness, Self::StateLog>,
-        StateTransitionError,
-    > {
+        l2_block: &L2Block<Transaction>,
+    ) -> Result<SoftConfirmationResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError>
+    {
         let soft_confirmation_info =
             HookSoftConfirmationInfo::new(l2_block, *pre_state_root, current_spec);
 
@@ -399,12 +381,7 @@ where
             &soft_confirmation_info,
         )?;
 
-        self.apply_soft_confirmation_txs(
-            &soft_confirmation_info,
-            &l2_block.blobs,
-            &l2_block.txs,
-            &mut working_set,
-        )?;
+        self.apply_soft_confirmation_txs(&soft_confirmation_info, &l2_block.txs, &mut working_set)?;
 
         self.end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
 
@@ -419,13 +396,15 @@ where
         Ok(res)
     }
 
-    fn apply_soft_confirmations_from_sequencer_commitments(
+    /// Apply soft confirmation from sequencer commitments
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_soft_confirmations_from_sequencer_commitments(
         &mut self,
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
         sequencer_k256_public_key: &[u8],
         initial_state_root: &StorageRootHash,
-        pre_state: Self::PreState,
+        pre_state: C::Storage,
         sequencer_commitments: Vec<SequencerCommitment>,
         slot_headers: VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         cache_prune_l2_heights: &[u64],
@@ -482,40 +461,8 @@ where
                     .register_block(soft_confirmation_l2_height)
                     .unwrap();
 
-                let spec_id = fork_manager.active_fork().spec_id;
-                let (l2_block, state_witness, offchain_witness) = if spec_id >= SpecId::Kumquat {
-                    guest.read_from_host::<(
-                        L2Block<Self::Transaction>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
-                    )>()
-                } else {
-                    let (l2_block, state_witness, offchain_witness) = guest.read_from_host::<(
-                        L2Block<PreFork2Transaction<C>>,
-                        <C::Storage as Storage>::Witness,
-                        <C::Storage as Storage>::Witness,
-                    )>();
-                    let (parsed_txs, blobs): (Vec<Self::Transaction>, Vec<Vec<u8>>) = l2_block
-                        .txs
-                        .iter()
-                        .map(|tx| {
-                            let blob =
-                                borsh::to_vec(tx).expect("Failed to serialize Prefork2Transaction");
-                            let tx: Self::Transaction = tx.clone().into();
-                            (tx, blob)
-                        })
-                        .unzip();
-
-                    let sc = L2Block::new(
-                        l2_block.header,
-                        parsed_txs.into(),
-                        blobs.into(),
-                        l2_block.deposit_data,
-                        l2_block.da_slot_height,
-                        l2_block.da_slot_hash,
-                    );
-                    (sc, state_witness, offchain_witness)
-                };
+                let (l2_block, state_witness, offchain_witness) =
+                    guest.read_from_host::<(L2Block<Transaction>, Witness, Witness)>();
 
                 assert_eq!(
                     l2_block.l2_height(),
@@ -708,9 +655,9 @@ fn verify_genesis_signature(
     Ok(())
 }
 
-fn verify_tx_merkle_root<C: Context + Spec, Tx: Clone + BorshSerialize + TransactionDigest>(
+fn verify_tx_merkle_root<C: Context + Spec>(
     current_spec: SpecId,
-    l2_block: &L2Block<'_, Tx>,
+    l2_block: &L2Block<'_, Transaction>,
 ) -> Result<(), StateTransitionError> {
     let tx_hashes: Vec<[u8; 32]> = if current_spec >= SpecId::Kumquat {
         l2_block
