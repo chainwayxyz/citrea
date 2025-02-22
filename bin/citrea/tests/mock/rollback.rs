@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
-use citrea_common::SequencerConfig;
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::rollback::Rollback;
@@ -13,7 +13,9 @@ use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_db::schema::tables::{FULL_NODE_LEDGER_TABLES, SEQUENCER_LEDGER_TABLES};
+use sov_db::schema::tables::{
+    BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, SEQUENCER_LEDGER_TABLES,
+};
 use sov_db::state_db::StateDB;
 use sov_mock_da::{MockAddress, MockDaService};
 
@@ -326,6 +328,160 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     assert_dbs(full_node_test_client, addr).await;
 
     full_node_task_manager.abort().await;
+
+    Ok(())
+}
+
+/// Trigger rollback DB data.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
+    citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "batch-prover"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let batch_prover_db_dir = storage_dir.path().join("batch-prover").to_path_buf();
+
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
+
+    // start rollup on da block 3
+    for _ in 0..3 {
+        da_service.publish_test_block().await.unwrap();
+    }
+    wait_for_l1_block(&da_service, 3, None).await;
+
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: 10,
+        ..Default::default()
+    };
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+
+    let sequencer_config1 = sequencer_config.clone();
+    let seq_task_manager = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config1),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let (batch_prover_port_tx, batch_prover_port_rx) = tokio::sync::oneshot::channel();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &batch_prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
+    let batch_prover_task_manager = start_rollup(
+        batch_prover_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
+
+    let batch_prover_port = batch_prover_port_rx.await.unwrap();
+    let batch_prover_test_client = init_test_rollup(batch_prover_port).await;
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
+
+    fill_blocks(&seq_test_client, &da_service, &addr).await;
+
+    wait_for_l2_block(&batch_prover_test_client, 50, None).await;
+
+    seq_task_manager.abort().await;
+    batch_prover_task_manager.abort().await;
+
+    let new_batch_prover_db_dir = storage_dir.path().join("batch-prover2").to_path_buf();
+    copy_db_dir_recursive(&batch_prover_db_dir, &new_batch_prover_db_dir).unwrap();
+
+    let batch_prover_tables = BATCH_PROVER_LEDGER_TABLES
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<_>>();
+    let rocksdb_config = RocksdbConfig::new(
+        &new_batch_prover_db_dir,
+        None,
+        Some(batch_prover_tables.to_vec()),
+    );
+    let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
+    let native_db = Arc::new(NativeDB::setup_schema_db(&rocksdb_config)?);
+    let state_db = Arc::new(StateDB::setup_schema_db(&rocksdb_config)?);
+    let rollback = Rollback::new(ledger_db.inner(), state_db.clone(), native_db.clone());
+
+    // rollback 10 L2 blocks
+    let rollback_to_l2 = 40;
+    // We have 13 L1 blocks by now and we want to rollback
+    // the last 2.
+    let rollback_to_l1 = 11;
+    rollback
+        .execute(
+            StorageNodeType::BatchProver,
+            50,
+            rollback_to_l2,
+            rollback_to_l1,
+        )
+        .await
+        .unwrap();
+
+    drop(rollback);
+    drop(state_db);
+    drop(native_db);
+    drop(ledger_db);
+
+    let (batch_prover_port_tx, batch_prover_port_rx) = tokio::sync::oneshot::channel();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &new_batch_prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
+
+    let batch_prover_task_manager = start_rollup(
+        batch_prover_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
+    let batch_prover_port = batch_prover_port_rx.await.unwrap();
+    let batch_prover_test_client = make_test_client(batch_prover_port).await.unwrap();
+
+    assert_dbs(batch_prover_test_client, addr).await;
+
+    batch_prover_task_manager.abort().await;
 
     Ok(())
 }
