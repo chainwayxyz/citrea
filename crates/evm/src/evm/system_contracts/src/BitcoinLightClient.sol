@@ -21,7 +21,9 @@ contract BitcoinLightClient is IBitcoinLightClient {
     mapping(uint256 => bytes32) public blockHashes;
     mapping(bytes32 => bytes32) public witnessRoots;
     mapping(bytes32 => uint256) public coinbaseDepths;
-    
+
+    // Kept for backwards compatibility
+    event BlockInfoAddedOld(uint256 blockNumber, bytes32 blockHash, bytes32 merkleRoot);
     event BlockInfoAdded(uint256 blockNumber, bytes32 blockHash, bytes32 merkleRoot, uint256 coinbaseDepth);
 
     modifier onlySystem() {
@@ -34,6 +36,21 @@ contract BitcoinLightClient is IBitcoinLightClient {
     function initializeBlockNumber(uint256 _blockNumber) external onlySystem {
         require(blockNumber == 0, "Already initialized");
         blockNumber = _blockNumber;
+    }
+
+    /// @notice Kept for backwards compatibility
+    /// @notice Sets the block hash and witness root for a given block
+    /// @notice Can only be called after the initial block number is set
+    /// @dev Block number is incremented by the contract as no block info should be overwritten or skipped
+    /// @param _blockHash Hash of the current L1 block
+    /// @param _witnessRoot Witness root of the current L1 block, must be in little endian 
+    function setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot) external onlySystem {
+        uint256 _blockNumber = blockNumber;
+        require(_blockNumber != 0, "Not initialized");
+        blockHashes[_blockNumber] = _blockHash;
+        blockNumber = _blockNumber + 1;
+        witnessRoots[_blockHash] = _witnessRoot;
+        emit BlockInfoAddedOld(_blockNumber, _blockHash, _witnessRoot);
     }
 
     /// @notice Sets the block hash and witness root for a given block
