@@ -2,10 +2,12 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use alloy_primitives::{keccak256, U256};
 use anyhow::{anyhow, Context};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, get_da_block_at_height};
 use citrea_common::utils::{check_l2_block_exists, filter_out_proven_commitments};
+use citrea_evm::{Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS};
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
@@ -16,6 +18,7 @@ use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutpu
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
+use sov_modules_core::{StateCodec, StateValueCodec, Storage, StorageKey, ValueExists};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
@@ -27,6 +30,7 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_state::codec::BorshCodec;
 use sov_state::Witness;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -427,17 +431,14 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
+    let last_l2_height = committed_l2_blocks
+        .back()
+        .expect("must have at least one commitment")
+        .last()
+        .expect("must have at least one l2 block")
+        .l2_height();
     // If executed with Fork2 elf, should use cache
-    let should_use_cache = fork_from_block_number(
-        committed_l2_blocks
-            .back()
-            .expect("must have at least one commitment")
-            .last()
-            .expect("must have at least one l2 block")
-            .l2_height(),
-    )
-    .spec_id
-        >= SpecId::Fork2;
+    let post_fork2 = fork_from_block_number(last_l2_height).spec_id >= SpecId::Fork2;
 
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
@@ -486,7 +487,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
 
-            if should_use_cache {
+            if post_fork2 {
                 let mut state_log = soft_confirmation_result.state_log;
                 let mut offchain_log = soft_confirmation_result.offchain_log;
 
@@ -530,6 +531,74 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         }
 
         state_transition_witnesses.push_back(witnesses);
+    }
+
+    // if post fork2 we always need to read the last L1 hash on Bitcoin Light Client contract
+    if post_fork2 {
+        let evm = Evm::<DefaultContext>::default();
+        let prefix = evm.storage.prefix();
+
+        // key for light client contract next l1 height
+        let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+        );
+
+        let key = StorageKey::new(prefix, &inner_evm_key, &BorshCodec);
+        let cumulative_state_log = cumulative_state_log.unwrap();
+        if matches!(
+            cumulative_state_log.get_value(&key.clone().into_cache_key()),
+            ValueExists::No
+        ) {
+            // we need to provide proof
+
+            let prover_storage = storage_manager.create_storage_for_l2_height(last_l2_height + 1);
+
+            let next_l1_height = prover_storage
+                .get_and_prove(
+                    &key,
+                    &mut state_transition_witnesses
+                        .back_mut()
+                        .expect("Should exist")
+                        .last_mut()
+                        .expect("Should exist")
+                        .0,
+                    [0u8; 32],
+                )
+                .expect("should exist");
+
+            let b = BorshCodec {};
+            let next_l1_height: U256 = b.value_codec().decode_value_unwrap(next_l1_height.value());
+
+            let mut bytes = [0u8; 64];
+            bytes[0..32].copy_from_slice(&(next_l1_height - U256::from(1)).to_be_bytes::<32>());
+            // counter intuitively the contract stores next block height (expected on setBlockInfo)x
+            bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+
+            let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+                &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                &keccak256(bytes).into(),
+            );
+
+            let key = StorageKey::new(prefix, &inner_evm_key, &BorshCodec);
+
+            if matches!(
+                cumulative_state_log.get_value(&key.clone().into_cache_key()),
+                ValueExists::No
+            ) {
+                // we need to provide proof
+                let _ = prover_storage.get_and_prove(
+                    &key,
+                    &mut state_transition_witnesses
+                        .back_mut()
+                        .expect("Should exist")
+                        .last_mut()
+                        .expect("Should exist")
+                        .0,
+                    [0u8; 32],
+                );
+            }
+        }
     }
 
     Ok((

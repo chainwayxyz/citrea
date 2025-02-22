@@ -611,9 +611,9 @@ where
             .take_queried_hashes(0..=0);
 
         let last_on_contract = if let Some(hash) = all.last() {
-            hash
+            *hash
         } else {
-            // make call to evm module
+            [0; 32]
         };
 
         ApplySequencerCommitmentsOutput {

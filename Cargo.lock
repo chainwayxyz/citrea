@@ -1849,6 +1849,7 @@ dependencies = [
  "backoff",
  "borsh",
  "citrea-common",
+ "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
  "faster-hex",

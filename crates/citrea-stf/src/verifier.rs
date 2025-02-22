@@ -61,6 +61,7 @@ where
             last_l2_height,
             final_soft_confirmation_hash,
             sequencer_commitment_merkle_roots,
+            last_l1_hash_on_bitcoin_light_client_contract,
         } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
@@ -84,11 +85,7 @@ where
             state_diff,
             last_l2_height,
             sequencer_commitment_merkle_roots,
-            l1_hashes_added_to_light_client_contract: SHORT_HEADER_PROOF_PROVIDER
-                .get()
-                .unwrap()
-                .take_queried_hashes(0..=0),
-            last_l1_hash_on_bitcoin_light_client_contract: todo!(), // range does not matter for zk implementation
+            last_l1_hash_on_bitcoin_light_client_contract,
         }
     }
 }
