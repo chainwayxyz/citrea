@@ -24,7 +24,7 @@ pub(crate) fn rollback_soft_confirmations(
 
         let soft_confirmation_number = record.key;
 
-        if soft_confirmation_number < SoftConfirmationNumber(down_to_block) {
+        if soft_confirmation_number <= SoftConfirmationNumber(down_to_block) {
             break;
         }
 

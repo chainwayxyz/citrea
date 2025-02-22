@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use jmt::storage::Node;
 use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey};
-use sov_schema_db::SchemaBatch;
+use sov_schema_db::{ScanDirection, SchemaBatch};
 use tracing::{error, info};
 
 /// Rollback state DB
@@ -12,7 +12,7 @@ pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, down_to_block:
     let target_version = down_to_block + 1;
 
     let mut indices = state_db
-        .iter::<JmtNodes>()
+        .iter_with_direction::<JmtNodes>(Default::default(), ScanDirection::Backward)
         .expect("Tried to rollback state DB but could not obtain an iterator");
 
     indices.seek_to_last();
@@ -29,7 +29,7 @@ pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, down_to_block:
         let node = index.value;
 
         // Exit loop if we go down below the target block
-        if node_key.version() < target_version {
+        if node_key.version() <= target_version {
             break;
         }
 

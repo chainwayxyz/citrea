@@ -19,7 +19,7 @@ use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, NodeMode,
 };
-use crate::common::TEST_DATA_GENESIS_PATH;
+use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 use crate::mock::evm::init_test_rollup;
 
 /// Trigger rollback native DB data.
@@ -39,7 +39,10 @@ async fn test_rollback() -> Result<(), anyhow::Error> {
     }
     wait_for_l1_block(&da_service, 3, None).await;
 
-    let sequencer_config = SequencerConfig::default();
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: 10,
+        ..Default::default()
+    };
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
     let rollup_config = create_default_rollup_config(
         true,
@@ -106,8 +109,18 @@ async fn test_rollback() -> Result<(), anyhow::Error> {
     let state_db = Arc::new(StateDB::setup_schema_db(&rocksdb_config)?);
     let rollback = Rollback::new(ledger_db.inner(), state_db.clone(), native_db.clone());
 
+    // rollback 10 L2 blocks
+    let rollback_to_l2 = 40;
+    // We have 13 L1 blocks by now and we want to rollback
+    // the last 2.
+    let rollback_to_l1 = 11;
     rollback
-        .execute(StorageNodeType::Sequencer, 50, 10)
+        .execute(
+            StorageNodeType::Sequencer,
+            50,
+            rollback_to_l2,
+            rollback_to_l1,
+        )
         .await
         .unwrap();
 
@@ -137,7 +150,7 @@ async fn test_rollback() -> Result<(), anyhow::Error> {
         .await;
     });
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = init_test_rollup(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await.unwrap();
 
     wait_for_l2_block(&seq_test_client, 40, None).await;
 

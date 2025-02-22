@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use sov_db::schema::tables::ModuleAccessoryState;
+use sov_schema_db::ScanDirection;
 use tracing::{debug, error};
 
 /// Rollback native DB
@@ -9,7 +10,9 @@ pub(crate) fn rollback_native_db(native_db: Arc<sov_schema_db::DB>, down_to_bloc
 
     let target_version = down_to_block + 1;
 
-    let Ok(mut iter) = native_db.iter::<ModuleAccessoryState>() else {
+    let Ok(mut iter) = native_db
+        .iter_with_direction::<ModuleAccessoryState>(Default::default(), ScanDirection::Backward)
+    else {
         return;
     };
 
