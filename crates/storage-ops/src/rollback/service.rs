@@ -8,11 +8,11 @@ use crate::pruning::types::StorageNodeType;
 
 pub struct RollbackService {
     rollback: Rollback,
-    receiver: Receiver<(u64, u64)>,
+    receiver: Receiver<(u64, u64, u64)>,
 }
 
 impl RollbackService {
-    pub fn new(rollback: Rollback, receiver: Receiver<(u64, u64)>) -> Self {
+    pub fn new(rollback: Rollback, receiver: Receiver<(u64, u64, u64)>) -> Self {
         Self { rollback, receiver }
     }
 
@@ -24,9 +24,9 @@ impl RollbackService {
                 _ = cancellation_token.cancelled() => {
                     return;
                 },
-                Some((current_l2_height, num_blocks)) = self.receiver.recv() => {
-                    info!("Received signal to rollback {num_blocks} blocks");
-                    if let Err(e) = self.rollback.execute(node_type, current_l2_height, num_blocks).await {
+                Some((current_l2_height, target_l2, target_l1)) = self.receiver.recv() => {
+                    info!("Received signal to rollback to L2 {target_l2}, L1 {target_l1}");
+                    if let Err(e) = self.rollback.execute(node_type, current_l2_height, target_l2, target_l1).await {
                         panic!("Could not rollback blocks: {:?}", e);
                     }
                 }

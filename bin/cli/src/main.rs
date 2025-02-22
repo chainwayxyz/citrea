@@ -56,9 +56,12 @@ enum Commands {
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,
-        /// The number of blocks to rollback
+        /// The target L2 block number to rollback to (non-inclusive)
         #[arg(long)]
-        blocks: u64,
+        l2_target: u64,
+        /// The target L1 block number to rollback to (non-inclusive)
+        #[arg(long)]
+        l1_target: u64,
     },
     /// Backup DBs
     Backup {
@@ -93,9 +96,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Rollback {
             node_type,
             db_path,
-            blocks,
+            l2_target,
+            l1_target,
         } => {
-            commands::rollback(node_type, db_path.clone(), blocks).await?;
+            commands::rollback(node_type, db_path.clone(), l2_target, l1_target).await?;
         }
         Commands::Backup {
             db_path,

@@ -14,12 +14,14 @@ use crate::commands::cfs_from_node_type;
 pub(crate) async fn rollback(
     node_type: StorageNodeTypeArg,
     db_path: PathBuf,
-    num_blocks: u64,
+    l2_target: u64,
+    l1_target: u64,
 ) -> anyhow::Result<()> {
     info!(
-        "Rolling back DB at {} {} down",
+        "Rolling back DB at {} down to L2 {}, L1 {}",
         db_path.display(),
-        num_blocks
+        l2_target,
+        l1_target,
     );
 
     let column_families = cfs_from_node_type(node_type);
@@ -35,7 +37,12 @@ pub(crate) async fn rollback(
 
     let rollback = Rollback::new(ledger_db.inner(), Arc::new(state_db), Arc::new(native_db));
     rollback
-        .execute(node_type.into(), soft_confirmation_number, num_blocks)
+        .execute(
+            node_type.into(),
+            soft_confirmation_number,
+            l2_target,
+            l1_target,
+        )
         .await?;
 
     Ok(())
