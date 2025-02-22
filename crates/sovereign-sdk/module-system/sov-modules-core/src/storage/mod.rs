@@ -188,6 +188,15 @@ pub trait Storage: Clone {
     /// Returns the value corresponding to the key or None if key is absent.
     fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue>;
 
+    /// Returns the value corresponding to the key or None if key is absent,
+    /// proves the key existence in doing so.
+    fn get_and_prove(
+        &self,
+        key: &StorageKey,
+        witness: &mut Witness,
+        state_root: StorageRootHash,
+    ) -> Option<StorageValue>;
+
     /// Returns the value corresponding to the key or None if key is absent.
     ///
     /// # About accessory state

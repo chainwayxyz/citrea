@@ -27,6 +27,27 @@ impl Storage for ZkStorage {
         witness.get_hint()
     }
 
+    fn get_and_prove(
+        &self,
+        key: &StorageKey,
+        witness: &mut Witness,
+        state_root: StorageRootHash,
+    ) -> Option<StorageValue> {
+        let val: Option<StorageValue> = witness.get_hint();
+        let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_hint();
+
+        let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
+        proof
+            .verify(
+                jmt::RootHash(state_root),
+                key_hash,
+                val.as_ref().map(|val| val.value()),
+            )
+            .expect("JMT proof verification failed");
+
+        val
+    }
+
     fn get_offchain(&self, _key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         witness.get_hint()
     }

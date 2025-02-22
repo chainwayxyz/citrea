@@ -99,6 +99,24 @@ impl Storage for ProverStorage {
         val
     }
 
+    fn get_and_prove(
+        &self,
+        key: &StorageKey,
+        witness: &mut Witness,
+        _state_root: StorageRootHash,
+    ) -> Option<StorageValue> {
+        let merkle = JellyfishMerkleTree::<StateDB, DefaultHasher>::new(&self.db);
+        let (val, proof) = merkle
+            .get_with_proof(KeyHash::with::<DefaultHasher>(key.as_ref()), self.version())
+            .unwrap();
+        let val = val.map(Into::into);
+
+        witness.add_hint(&val);
+        witness.add_hint(&proof);
+
+        val
+    }
+
     fn get_offchain(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         let val = self
             .native_db
