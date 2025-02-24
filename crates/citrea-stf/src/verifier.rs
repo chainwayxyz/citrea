@@ -95,7 +95,7 @@ where
             get_last_l1_hash_on_contract(
                 cumulative_state_log,
                 pre_state,
-                &mut data.last_hash_witness,
+                &mut data.last_l1_hash_witness,
                 final_state_root,
             )
         };
@@ -122,7 +122,7 @@ where
 pub fn get_last_l1_hash_on_contract(
     state_log: ReadWriteLog,
     storage: impl Storage,
-    last_hash_witness: &mut Witness,
+    last_l1_hash_witness: &mut Witness,
     final_state_root: StorageRootHash,
 ) -> [u8; 32] {
     let prefix = {
@@ -147,7 +147,7 @@ pub fn get_last_l1_hash_on_contract(
                 .value,
         ),
         ValueExists::No => {
-            match storage.get_and_prove(&key, last_hash_witness, final_state_root) {
+            match storage.get_and_prove(&key, last_l1_hash_witness, final_state_root) {
                 Some(value) => borsh_deserialize_value(value.into_cache_value().value),
                 None => {
                     // If this is the first proof in Fork2 and we haven't changed the height yet
@@ -165,7 +165,7 @@ pub fn get_last_l1_hash_on_contract(
 
                     bcs_deserialize_value(
                         storage
-                            .get_and_prove(&pre_fork2_key, last_hash_witness, final_state_root)
+                            .get_and_prove(&pre_fork2_key, last_l1_hash_witness, final_state_root)
                             .expect("Should exist")
                             .into_cache_value()
                             .value,
@@ -198,7 +198,7 @@ pub fn get_last_l1_hash_on_contract(
             borsh_deserialize_value(value.expect("L1 hash can't be None in cache").value)
         }
         ValueExists::No => {
-            match storage.get_and_prove(&key, last_hash_witness, final_state_root) {
+            match storage.get_and_prove(&key, last_l1_hash_witness, final_state_root) {
                 Some(value) => borsh_deserialize_value(value.into_cache_value().value),
                 None => {
                     // If this is the first proof in Fork2 and we haven't changed the height yet
@@ -216,7 +216,7 @@ pub fn get_last_l1_hash_on_contract(
 
                     bcs_deserialize_value(
                         storage
-                            .get_and_prove(&pre_fork2_key, last_hash_witness, final_state_root)
+                            .get_and_prove(&pre_fork2_key, last_l1_hash_witness, final_state_root)
                             .expect("Should exist")
                             .into_cache_value()
                             .value,

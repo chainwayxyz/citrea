@@ -144,7 +144,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Get the storage key for the given account and key for pre fork2
     pub fn get_storage_key_pre_fork2(account: &Address, key: &U256) -> StorageKey {
-        let prefix = DbAccount::create_storage_prefix(&account);
+        let prefix = DbAccount::create_storage_prefix(account);
 
         StorageKey::new(&prefix, key, &BcsCodec {})
     }

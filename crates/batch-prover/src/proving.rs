@@ -162,7 +162,7 @@ where
             cache_prune_l2_heights,
             l2_blocks,
             da_block_headers_of_l2_blocks,
-            last_hash_witness,
+            last_l1_hash_witness,
         ) = get_batch_proof_circuit_input_from_commitments(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
@@ -229,7 +229,7 @@ where
             sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
                 .to_vec(),
             cache_prune_l2_heights,
-            last_hash_witness,
+            last_l1_hash_witness,
         };
 
         batch_proof_circuit_inputs.push(input);
@@ -385,7 +385,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         state_transition_witnesses,
         cache_prune_l2_heights,
         short_header_proofs,
-        last_hash_witness,
+        last_l1_hash_witness,
     ) = generate_cumulative_witness(
         &committed_l2_blocks,
         ledger_db,
@@ -403,7 +403,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         cache_prune_l2_heights,
         committed_l2_blocks,
         da_block_headers_of_l2_blocks,
-        last_hash_witness,
+        last_l1_hash_witness,
     ))
 }
 
@@ -538,7 +538,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         state_transition_witnesses.push_back(witnesses);
     }
 
-    let mut last_hash_witness = Witness::default();
+    let mut last_l1_hash_witness = Witness::default();
     // if post fork2 we always need to read the last L1 hash on Bitcoin Light Client contract
     // if the provider have some hashes, circuit will use that.
     if post_fork2 && short_header_proofs.is_empty() {
@@ -550,7 +550,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         let _ = citrea_stf::verifier::get_last_l1_hash_on_contract(
             cumulative_state_log,
             prover_storage,
-            &mut last_hash_witness,
+            &mut last_l1_hash_witness,
             [0u8; 32], // final state root is only needed for JMT proof verification
         );
     }
@@ -559,7 +559,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         state_transition_witnesses,
         cache_prune_l2_heights,
         short_header_proofs,
-        last_hash_witness,
+        last_l1_hash_witness,
     ))
 }
 

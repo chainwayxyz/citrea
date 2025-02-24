@@ -37,5 +37,5 @@ pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// L2 heights in which the guest should prune the log caches to avoid OOM.
     pub cache_prune_l2_heights: Vec<u64>,
     /// The witness needed to access the last L1 hash on the bitcoin light client contract
-    pub last_hash_witness: Witness,
+    pub last_l1_hash_witness: Witness,
 }

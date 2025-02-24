@@ -366,7 +366,7 @@ fn make_transition_data(header_hash: MockHash) -> BatchProofCircuitInput<'static
         final_state_root: [0; 32],
         sequencer_commitments: vec![],
         cache_prune_l2_heights: vec![],
-        last_hash_witness: Witness::default(),
+        last_l1_hash_witness: Witness::default(),
     }
 }
 

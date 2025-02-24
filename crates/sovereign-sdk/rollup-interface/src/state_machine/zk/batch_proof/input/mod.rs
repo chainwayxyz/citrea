@@ -63,7 +63,7 @@ pub struct BatchProofCircuitInput<'txs, Da: DaSpec, Tx: Clone + BorshSerialize> 
     /// Only applies to V3
     pub cache_prune_l2_heights: Vec<u64>,
     /// Witness needed to get the last Bitcoin hash on Bitcoin Light Client contract
-    pub last_hash_witness: Witness,
+    pub last_l1_hash_witness: Witness,
 }
 
 impl<'txs, Da, Tx> BatchProofCircuitInput<'txs, Da, Tx>
@@ -160,7 +160,7 @@ where
                 da_block_headers_of_soft_confirmations: self.da_block_headers_of_l2_blocks,
                 sequencer_commitments: self.sequencer_commitments,
                 cache_prune_l2_heights: self.cache_prune_l2_heights,
-                last_hash_witness: self.last_hash_witness,
+                last_l1_hash_witness: self.last_l1_hash_witness,
             },
             BatchProofCircuitInputV3Part2(x),
         )
