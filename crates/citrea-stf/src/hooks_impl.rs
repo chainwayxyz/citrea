@@ -66,9 +66,6 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for CitreaRuntime<C,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
-        self.soft_confirmation_rule_enforcer
-            .begin_soft_confirmation_hook(soft_confirmation_info, working_set)?;
-
         self.evm
             .begin_soft_confirmation_hook(soft_confirmation_info, working_set);
 
@@ -81,6 +78,8 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for CitreaRuntime<C,
         soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
+        self.soft_confirmation_rule_enforcer
+            .end_soft_confirmation_hook(&soft_confirmation_info, working_set)?;
         self.evm
             .end_soft_confirmation_hook(&soft_confirmation_info, working_set);
         Ok(())

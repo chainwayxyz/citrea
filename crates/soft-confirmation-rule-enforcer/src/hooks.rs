@@ -72,13 +72,15 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         Ok(())
     }
 
-    /// Logic executed at the beginning of the soft confirmation.
-    /// Checks two rules: block count rule and fee rate rule.
+    /// Block count  and timestamp check Logic executed at the end of the soft confirmation.
+    /// This is put in the end because if the block count exceeds the max L2 blocks per L1,
+    /// and since the rule is checked before set block info is applied by the sequencer,
+    /// the sequencer halts and never produces any more blocks.
     #[cfg_attr(
         feature = "native",
         instrument(level = "trace", skip(self, working_set), err, ret)
     )]
-    pub fn begin_soft_confirmation_hook(
+    pub fn end_soft_confirmation_hook(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C::Storage>,

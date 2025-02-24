@@ -175,6 +175,10 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
         .try_into()
         .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
 
+    // Early return if this is the first block because sequencer will not have any L1 block hash in system contract before setblock info call
+    if l2_height == 1 {
+        return Ok(());
+    }
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36]
             .try_into()
