@@ -106,7 +106,6 @@ where
                 initial_state_root: self.initial_state_root,
                 final_state_root: self.final_state_root,
                 prev_soft_confirmation_hash: self.prev_soft_confirmation_hash,
-                da_data: self.da_data,
                 da_block_header_of_commitments: self.da_block_header_of_commitments,
                 inclusion_proof: self.inclusion_proof,
                 completeness_proof: self.completeness_proof,
