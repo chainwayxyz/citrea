@@ -115,7 +115,7 @@ where
                 }
                 ValueExists::No => {
                     let next_l1_height = pre_state
-                        .get_and_prove(&key, &mut data.last_hash_witness, [0u8; 32])
+                        .get_and_prove(&key, &mut data.last_hash_witness, final_state_root)
                         .expect("should exist");
 
                     next_l1_height.into_cache_value().value
@@ -145,7 +145,7 @@ where
                 ValueExists::Yes(value) => value.expect("L1 hash can't be None in cache").value,
                 ValueExists::No => {
                     pre_state
-                        .get_and_prove(&key, &mut data.last_hash_witness, [0u8; 32])
+                        .get_and_prove(&key, &mut data.last_hash_witness, final_state_root)
                         .expect("L1 hash can't be None in storage")
                         .into_cache_value()
                         .value

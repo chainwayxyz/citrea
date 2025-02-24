@@ -545,7 +545,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let mut last_hash_witness = Witness::default();
     // if post fork2 we always need to read the last L1 hash on Bitcoin Light Client contract
     // if the provider have some hashes, circuit will use that.
-    if post_fork2 && !short_header_proofs.is_empty() {
+    if post_fork2 && short_header_proofs.is_empty() {
         let cumulative_state_log = cumulative_state_log.unwrap();
         let prover_storage = storage_manager.create_storage_for_l2_height(last_l2_height + 1);
 

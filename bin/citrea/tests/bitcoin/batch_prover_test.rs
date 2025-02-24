@@ -884,7 +884,25 @@ impl TestCase for L1HashOutputTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        let zkp = batch_prover
+        let zkp_prev = batch_prover
+            .client
+            .http_client()
+            .get_batch_proofs_by_slot_height(U64::from(finalized_height - 1))
+            .await?
+            .expect("Should exist");
+
+        assert_eq!(zkp_prev.len(), 1);
+
+        let prev_l1_hash = zkp_prev[0]
+            .proof_output
+            .last_l1_hash_on_bitcoin_light_client_contract
+            .clone()
+            .expect("Should exist")
+            .0;
+
+        assert_ne!(prev_l1_hash, l1_hash);
+
+        let zkp_last = batch_prover
             .client
             .http_client()
             .get_batch_proofs_by_slot_height(U64::from(finalized_height))
@@ -893,14 +911,14 @@ impl TestCase for L1HashOutputTest {
 
         assert_eq!(zkp.len(), 1);
 
-        let new_zkp_l1_hash = zkp[0]
+        let new_l1_hash = zkp_last[0]
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
             .clone()
             .expect("Should exist")
             .0;
 
-        assert_eq!(l1_hash, new_zkp_l1_hash);
+        assert_eq!(new_l1_hash, prev_l1_hash);
 
         Ok(())
     }
