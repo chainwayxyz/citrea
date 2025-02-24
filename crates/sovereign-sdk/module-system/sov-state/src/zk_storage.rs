@@ -1,7 +1,5 @@
 use jmt::KeyHash;
-use sov_modules_core::{
-    OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof, StorageValue,
-};
+use sov_modules_core::{OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageValue};
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
@@ -112,21 +110,6 @@ impl Storage for ZkStorage {
         _accessory_writes: &OrderedWrites,
         _offchain_log: &ReadWriteLog,
     ) {
-    }
-
-    fn open_proof(
-        state_root: StorageRootHash,
-        state_proof: StorageProof,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
-        let StorageProof { key, value, proof } = state_proof;
-        let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
-
-        proof.verify(
-            jmt::RootHash(state_root),
-            key_hash,
-            value.as_ref().map(|v| v.value()),
-        )?;
-        Ok((key, value))
     }
 
     fn is_empty(&self) -> bool {

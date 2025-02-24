@@ -269,13 +269,6 @@ pub trait Storage: Clone {
         )
     }
 
-    /// Opens a storage access proof and validates it against a state root.
-    /// It returns a result with the opened leaf (key, value) pair in case of success.
-    fn open_proof(
-        state_root: StorageRootHash,
-        proof: StorageProof,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error>;
-
     /// Indicates if storage is empty or not.
     /// Useful during initialization.
     fn is_empty(&self) -> bool;
