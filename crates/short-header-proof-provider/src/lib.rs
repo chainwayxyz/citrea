@@ -30,7 +30,7 @@ pub trait ShortHeaderProofProvider: Send + Sync {
         l2_height: u64, // needed on the native implementation to track queries to the provider
     ) -> Result<bool, ShortHeaderProofProviderError>;
 
-    /// Clears quried short header proofs
+    /// Clears queried short header proofs
     fn clear_queried_hashes(&self);
 
     /// Takes the queried short header proofs

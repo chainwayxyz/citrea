@@ -11,7 +11,7 @@ use sov_rollup_interface::da::VerifableShortHeaderProof;
 use super::{ShortHeaderProofProvider, ShortHeaderProofProviderError};
 
 pub struct NativeShortHeaderProofProviderService<Da: DaSpec> {
-    pub quried_and_verified_hashes: Arc<Mutex<HashMap<u64, [u8; 32]>>>,
+    pub queried_and_verified_hashes: Arc<Mutex<HashMap<u64, [u8; 32]>>>,
     pub ledger_db: LedgerDB,
     pub _phantom: PhantomData<Da>,
 }
@@ -20,7 +20,7 @@ impl<Da: DaSpec> NativeShortHeaderProofProviderService<Da> {
     pub fn new(ledger_db: LedgerDB) -> Self {
         Self {
             ledger_db,
-            quried_and_verified_hashes: Arc::new(Mutex::new(HashMap::new())),
+            queried_and_verified_hashes: Arc::new(Mutex::new(HashMap::new())),
             _phantom: PhantomData,
         }
     }
@@ -56,9 +56,9 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                     && l1_height == l1_update_info.block_height;
 
                 if return_cond {
-                    self.quried_and_verified_hashes
+                    self.queried_and_verified_hashes
                         .lock()
-                        .expect("Should lock quried and verified hashes")
+                        .expect("Should lock queried and verified hashes")
                         .insert(l2_height, block_hash);
                 }
 
@@ -70,14 +70,14 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
     }
 
     fn clear_queried_hashes(&self) {
-        self.quried_and_verified_hashes.lock().unwrap().clear();
+        self.queried_and_verified_hashes.lock().unwrap().clear();
     }
 
     fn take_queried_hashes(&self, l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]> {
-        let quried_and_verified_hashes = self.quried_and_verified_hashes.lock().unwrap();
+        let queried_and_verified_hashes = self.queried_and_verified_hashes.lock().unwrap();
         let mut hashes = Vec::new();
         for l2_height in l2_range {
-            if let Some(hash) = quried_and_verified_hashes.get(&l2_height) {
+            if let Some(hash) = queried_and_verified_hashes.get(&l2_height) {
                 hashes.push(*hash);
             }
         }
