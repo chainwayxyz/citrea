@@ -35,6 +35,10 @@ pub trait ShortHeaderProofProvider: Send + Sync {
 
     /// Takes the queried short header proofs
     fn take_queried_hashes(&self, l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]>;
+
+    /// Takes the last queried header hash
+    /// Consequent calls will return None
+    fn take_last_queried_hash(&self) -> Option<[u8; 32]>;
 }
 
 pub static SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvider>> =

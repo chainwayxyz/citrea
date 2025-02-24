@@ -83,13 +83,13 @@ where
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");
 
-        let all = SHORT_HEADER_PROOF_PROVIDER
+        let last_queried_hash = SHORT_HEADER_PROOF_PROVIDER
             .get()
             .unwrap()
-            .take_queried_hashes(0..=0);
+            .take_last_queried_hash();
 
-        let last_l1_hash = if !all.is_empty() {
-            *all.last().unwrap()
+        let last_l1_hash = if let Some(hash) = last_queried_hash {
+            hash
         } else {
             get_last_l1_hash_on_contract(
                 cumulative_state_log,

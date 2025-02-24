@@ -45,20 +45,24 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                 .expect("Should deserialize short header proof");
 
             if let Ok(l1_update_info) = shp.verify() {
-                self.quried_and_verified_hashes
-                    .lock()
-                    .expect("Should lock quried and verified hashes")
-                    .insert(l2_height, block_hash);
-
                 // the contract will return 0000...00 if we are pushing the first L1 block
                 // hence we accept given prev_hash
                 let prev_hash_cond = prev_block_hash == [0; 32]
                     || prev_block_hash == l1_update_info.prev_header_hash;
 
-                return Ok(txs_commitment == l1_update_info.tx_commitment
+                let return_cond = txs_commitment == l1_update_info.tx_commitment
                     && block_hash == l1_update_info.header_hash
                     && prev_hash_cond
-                    && l1_height == l1_update_info.block_height);
+                    && l1_height == l1_update_info.block_height;
+
+                if return_cond {
+                    self.quried_and_verified_hashes
+                        .lock()
+                        .expect("Should lock quried and verified hashes")
+                        .insert(l2_height, block_hash);
+                }
+
+                return Ok(return_cond);
             }
             return Ok(false);
         }
@@ -78,5 +82,11 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
             }
         }
         hashes
+    }
+
+    fn take_last_queried_hash(&self) -> Option<[u8; 32]> {
+        unimplemented!(
+            "take_last_queried_hash is not implemented for NativeShortHeaderProofProviderService"
+        );
     }
 }
