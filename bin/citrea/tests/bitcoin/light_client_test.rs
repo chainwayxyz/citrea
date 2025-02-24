@@ -1363,7 +1363,7 @@ fn create_serialized_fake_receipt_batch_proof(
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
         sequencer_commitment_merkle_roots: vec![],
-        l1_hashes_added_to_light_client_contract: vec![],
+        last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
     };
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 
