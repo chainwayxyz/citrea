@@ -611,8 +611,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
-                        248465296, 3556276186
+                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
+                        1091683606, 3699805120
                     ]
                     .into()
                 },
@@ -672,8 +672,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
-                        248465296, 3556276186
+                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
+                        1091683606, 3699805120
                     ]
                     .into()
                 },
@@ -706,8 +706,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
-                        248465296, 3556276186
+                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
+                        1091683606, 3699805120
                     ]
                     .into()
                 },
@@ -752,8 +752,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        2404201023, 1946196330, 3482951800, 4144215782, 3393405637, 2574851036,
-                        248465296, 3556276186
+                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
+                        1091683606, 3699805120
                     ]
                     .into()
                 },
