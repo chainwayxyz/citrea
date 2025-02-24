@@ -213,7 +213,7 @@ async fn assert_dbs(test_client: Box<TestClient>, addr: Address, at_block: u64, 
 /// Trigger rollback DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -240,7 +240,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
     copy_db_dir_recursive(&sequencer_db_dir, &new_sequencer_db_dir).unwrap();
 
     let (ledger_db, native_db, state_db) =
-        instantiate_dbs(&sequencer_db_dir, SEQUENCER_LEDGER_TABLES).unwrap();
+        instantiate_dbs(&new_sequencer_db_dir, SEQUENCER_LEDGER_TABLES).unwrap();
     let rollback = Rollback::new(ledger_db.inner(), state_db.clone(), native_db.clone());
 
     // rollback 10 L2 blocks
