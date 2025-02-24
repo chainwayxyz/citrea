@@ -126,7 +126,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             prevrandao: Some(
                 soft_confirmation_info
                     .da_slot_hash()
-                    .unwrap_or(Default::default())
+                    .unwrap_or_default()
                     .into(),
             ),
             basefee: U256::from(basefee),

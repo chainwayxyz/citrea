@@ -1,7 +1,4 @@
-use alloy_primitives::{keccak256, U256};
-use citrea_evm::{
-    get_last_l1_height_and_hash_in_light_client, Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-};
+use citrea_evm::{get_last_l1_height_and_hash_in_light_client, Evm};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{
     Context, DaSpec, SoftConfirmationHookError, SpecId, StateValueAccessor, WorkingSet,
