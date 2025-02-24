@@ -188,6 +188,15 @@ pub trait Storage: Clone {
     /// Returns the value corresponding to the key or None if key is absent.
     fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue>;
 
+    /// Returns the value corresponding to the key or None if key is absent,
+    /// proves the key existence in doing so.
+    fn get_and_prove(
+        &self,
+        key: &StorageKey,
+        witness: &mut Witness,
+        state_root: StorageRootHash,
+    ) -> Option<StorageValue>;
+
     /// Returns the value corresponding to the key or None if key is absent.
     ///
     /// # About accessory state
@@ -259,13 +268,6 @@ pub trait Storage: Clone {
             &Default::default(),
         )
     }
-
-    /// Opens a storage access proof and validates it against a state root.
-    /// It returns a result with the opened leaf (key, value) pair in case of success.
-    fn open_proof(
-        state_root: StorageRootHash,
-        proof: StorageProof,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error>;
 
     /// Indicates if storage is empty or not.
     /// Useful during initialization.

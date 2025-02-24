@@ -5,6 +5,8 @@ use sha2::Digest;
 #[cfg(feature = "native")]
 use sov_modules_api::StateVecAccessor;
 use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, StateValueAccessor, WorkingSet};
+use sov_state::codec::BcsCodec;
+use sov_state::storage::StorageKey;
 
 use crate::{AccountInfo, DbAccount, Evm};
 
@@ -138,6 +140,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         hasher.update(key.as_le_slice());
         let arr = hasher.finalize();
         U256::from_le_slice(&arr)
+    }
+
+    /// Get the storage key for the given account and key for pre fork2
+    pub fn get_storage_key_pre_fork2(account: &Address, key: &U256) -> StorageKey {
+        let prefix = DbAccount::create_storage_prefix(account);
+
+        StorageKey::new(&prefix, key, &BcsCodec {})
     }
 
     /// Get storage value < Fork2

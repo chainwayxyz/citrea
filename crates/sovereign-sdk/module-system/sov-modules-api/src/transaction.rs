@@ -4,7 +4,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 use sov_modules_core::PrivateKey;
 use sov_modules_core::Signature;
-use sov_rollup_interface::stf::TransactionDigest;
 
 #[cfg(feature = "native")]
 use crate::default_signature::k256_private_key::K256PrivateKey;
@@ -223,10 +222,8 @@ impl Transaction {
         }
         Ok(())
     }
-}
 
-impl TransactionDigest for Transaction {
-    fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
+    pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
         let mut hasher = D::new();
         hasher.update(self.runtime_msg());
         hasher.update(self.chain_id().to_be_bytes());
