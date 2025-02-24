@@ -213,7 +213,7 @@ async fn assert_dbs(test_client: Box<TestClient>, addr: Address, at_block: u64, 
 /// Trigger rollback DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -276,7 +276,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
 /// Trigger rollback DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -346,7 +346,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
 /// Trigger rollback DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node", "batch-prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
