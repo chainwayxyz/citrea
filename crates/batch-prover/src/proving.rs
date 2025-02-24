@@ -547,7 +547,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
         // we don't care about the return here
         // we only care about the last hash witness getting filled (or not)
-        let _ = citrea_stf::verifier::get_last_l1_hash_on_contract(
+        let _ = citrea_stf::verifier::get_last_l1_hash_on_contract::<DefaultContext>(
             cumulative_state_log,
             prover_storage,
             &mut last_l1_hash_witness,

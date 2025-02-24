@@ -92,7 +92,7 @@ where
         let last_l1_hash = if let Some(hash) = last_queried_hash {
             hash
         } else {
-            get_last_l1_hash_on_contract(
+            get_last_l1_hash_on_contract::<ZkDefaultContext>(
                 cumulative_state_log,
                 pre_state,
                 &mut data.last_l1_hash_witness,
@@ -119,22 +119,20 @@ where
 ///
 /// On the native side, the witness is filled with a JMT update proof and the value.
 /// On the zk side, the JMT update proof and value is popped and verified.
-pub fn get_last_l1_hash_on_contract(
+pub fn get_last_l1_hash_on_contract<C: Context>(
     state_log: ReadWriteLog,
     storage: impl Storage,
     last_l1_hash_witness: &mut Witness,
     final_state_root: StorageRootHash,
 ) -> [u8; 32] {
     let prefix = {
-        let temp_evm = Evm::<ZkDefaultContext>::default();
+        let temp_evm = Evm::<C>::default();
         temp_evm.storage.prefix().clone()
     };
 
     // key for light client contract next l1 height
-    let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
-        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-        &U256::ZERO,
-    );
+    let inner_evm_key =
+        Evm::<C>::get_storage_address(&BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, &U256::ZERO);
 
     let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
 
@@ -158,7 +156,7 @@ pub fn get_last_l1_hash_on_contract(
                     // it would be written also be written to the cache with fork2 keys.
                     // And we wouldn't be here.
 
-                    let pre_fork2_key = Evm::<ZkDefaultContext>::get_storage_key_pre_fork2(
+                    let pre_fork2_key = Evm::<C>::get_storage_key_pre_fork2(
                         &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
                         &U256::ZERO,
                     );
@@ -183,10 +181,8 @@ pub fn get_last_l1_hash_on_contract(
 
     let evm_storage_slot = keccak256(bytes).into();
 
-    let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
-        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-        &evm_storage_slot,
-    );
+    let inner_evm_key =
+        Evm::<C>::get_storage_address(&BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, &evm_storage_slot);
 
     let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
 
@@ -209,7 +205,7 @@ pub fn get_last_l1_hash_on_contract(
                     // it would be written also be written to the cache with fork2 keys.
                     // And we wouldn't be here.
 
-                    let pre_fork2_key = Evm::<ZkDefaultContext>::get_storage_key_pre_fork2(
+                    let pre_fork2_key = Evm::<C>::get_storage_key_pre_fork2(
                         &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
                         &evm_storage_slot,
                     );
