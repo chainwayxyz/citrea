@@ -35,6 +35,11 @@ impl<S: NodeStore> MMRNative<S> {
         Ok(())
     }
 
+    pub fn contains(&mut self, wtxid: Wtxid) -> Result<bool> {
+        self.find_chunk_index_with_wtxid(wtxid)
+            .map(|idx| idx.is_some())
+    }
+
     fn recalculate_peaks(&mut self) -> Result<()> {
         let mut size = self.store.get_tree_size();
         let mut level = 0;
