@@ -35,7 +35,6 @@ mod sequencer_behaviour;
 mod sequencer_replacement;
 mod soft_confirmation_rule_enforcer;
 mod soft_confirmation_status;
-mod syncing;
 mod system_transactions;
 
 struct TestConfig {
