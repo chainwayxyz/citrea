@@ -6,9 +6,10 @@ use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlueprint};
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
-use sov_rollup_interface::zk::ZkvmGuest;
+use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::codec::BorshCodec;
 use sov_state::storage::{StateCodec, StateValueCodec, Storage, StorageKey, ValueExists};
+use sov_state::{ReadWriteLog, Witness};
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<C, Da, RT>
@@ -90,71 +91,12 @@ where
         let last_l1_hash = if !all.is_empty() {
             *all.last().unwrap()
         } else {
-            let cumulative_state_log = cumulative_state_log.unwrap();
-            let prefix = {
-                let temp_evm = Evm::<ZkDefaultContext>::default();
-                temp_evm.storage.prefix().clone()
-            };
-
-            // key for light client contract next l1 height
-            let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
-                &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                &U256::ZERO,
-            );
-
-            let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-
-            // first we try to get next L1 height from cache, if it does not exist in cache
-            // we need to provide proof with respect to the latest root
-            let next_l1_height = match cumulative_state_log.get_value(&key.clone().into_cache_key())
-            {
-                ValueExists::Yes(cache_value) => {
-                    cache_value
-                        .expect("Next L1 height can't be None in cache")
-                        .value
-                }
-                ValueExists::No => {
-                    let next_l1_height = pre_state
-                        .get_and_prove(&key, &mut data.last_hash_witness, final_state_root)
-                        .expect("should exist");
-
-                    next_l1_height.into_cache_value().value
-                }
-            };
-
-            let b = BorshCodec {};
-            let next_l1_height: U256 = b.value_codec().decode_value_unwrap(&next_l1_height);
-
-            // we calculate the corresponding EVM storage slot the last L1 height's hash lives
-            let mut bytes = [0u8; 64];
-            bytes[0..32].copy_from_slice(&(next_l1_height - U256::from(1)).to_be_bytes::<32>());
-            // counter intuitively the contract stores next block height (expected on setBlockInfo)x
-            bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
-
-            let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
-                &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                &keccak256(bytes).into(),
-            );
-
-            let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-
-            // we look for the value inside cache
-            // if in cache we don't need to do anything
-            // if not in cache we need to provide proof with respect to the latest root
-            let last_l1_hash = match cumulative_state_log.get_value(&key.clone().into_cache_key()) {
-                ValueExists::Yes(value) => value.expect("L1 hash can't be None in cache").value,
-                ValueExists::No => {
-                    pre_state
-                        .get_and_prove(&key, &mut data.last_hash_witness, final_state_root)
-                        .expect("L1 hash can't be None in storage")
-                        .into_cache_value()
-                        .value
-                }
-            };
-
-            let last_l1_hash: U256 = b.value_codec().decode_value_unwrap(&last_l1_hash);
-
-            last_l1_hash.to_be_bytes()
+            get_last_l1_hash_on_contract(
+                cumulative_state_log,
+                pre_state,
+                &mut data.last_hash_witness,
+                final_state_root,
+            )
         };
 
         BatchProofCircuitOutputV3 {
@@ -167,4 +109,82 @@ where
             last_l1_hash_on_bitcoin_light_client_contract: last_l1_hash,
         }
     }
+}
+
+/// Given storage cache a storage and witness
+/// returns the last L1 hash on the Bitcoin Light Client contract
+/// by first checking the cache for each of the values to be read
+/// and then querying the storage if the value is not in cache
+///
+/// On the native side, the witness is filled with a JMT update proof and the value.
+/// On the zk side, the JMT update proof and value is popped and verified.
+pub fn get_last_l1_hash_on_contract(
+    state_log: ReadWriteLog,
+    storage: impl Storage,
+    mut last_hash_witness: &mut Witness,
+    final_state_root: StorageRootHash,
+) -> [u8; 32] {
+    let prefix = {
+        let temp_evm = Evm::<ZkDefaultContext>::default();
+        temp_evm.storage.prefix().clone()
+    };
+
+    // key for light client contract next l1 height
+    let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
+        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+        &U256::ZERO,
+    );
+
+    let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+
+    // first we try to get next L1 height from cache, if it does not exist in cache
+    // we need to provide proof with respect to the latest root
+    let next_l1_height = match state_log.get_value(&key.clone().into_cache_key()) {
+        ValueExists::Yes(cache_value) => {
+            cache_value
+                .expect("Next L1 height can't be None in cache")
+                .value
+        }
+        ValueExists::No => {
+            let next_l1_height = storage
+                .get_and_prove(&key, &mut last_hash_witness, final_state_root)
+                .expect("should exist");
+
+            next_l1_height.into_cache_value().value
+        }
+    };
+
+    let b = BorshCodec {};
+    let next_l1_height: U256 = b.value_codec().decode_value_unwrap(&next_l1_height);
+
+    // we calculate the corresponding EVM storage slot the last L1 height's hash lives
+    let mut bytes = [0u8; 64];
+    bytes[0..32].copy_from_slice(&(next_l1_height - U256::from(1)).to_be_bytes::<32>());
+    // counter intuitively the contract stores next block height (expected on setBlockInfo)x
+    bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+
+    let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
+        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+        &keccak256(bytes).into(),
+    );
+
+    let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+
+    // we look for the value inside cache
+    // if in cache we don't need to do anything
+    // if not in cache we need to provide proof with respect to the latest root
+    let last_l1_hash = match state_log.get_value(&key.clone().into_cache_key()) {
+        ValueExists::Yes(value) => value.expect("L1 hash can't be None in cache").value,
+        ValueExists::No => {
+            storage
+                .get_and_prove(&key, &mut last_hash_witness, final_state_root)
+                .expect("L1 hash can't be None in storage")
+                .into_cache_value()
+                .value
+        }
+    };
+
+    let last_l1_hash: U256 = b.value_codec().decode_value_unwrap(&last_l1_hash);
+
+    last_l1_hash.to_be_bytes()
 }

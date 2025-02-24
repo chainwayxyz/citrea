@@ -99,7 +99,7 @@ pub struct ApplySequencerCommitmentsOutput {
     /// Sequencer commitment hashes
     pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
     /// Cumulative state log
-    pub cumulative_state_log: Option<ReadWriteLog>,
+    pub cumulative_state_log: ReadWriteLog,
 }
 
 impl<C, RT, Da> StfBlueprint<C, Da, RT>
@@ -599,7 +599,7 @@ where
             last_l2_height: last_commitment_end_height.unwrap(),
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
             sequencer_commitment_merkle_roots,
-            cumulative_state_log,
+            cumulative_state_log: cumulative_state_log.unwrap(),
         }
     }
 }
