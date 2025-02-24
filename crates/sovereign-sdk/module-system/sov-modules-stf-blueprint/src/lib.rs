@@ -29,8 +29,7 @@ use sov_rollup_interface::soft_confirmation::{
 };
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
-    StateTransitionError,
+    SoftConfirmationError, SoftConfirmationResult, StateTransitionError,
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
@@ -81,38 +80,26 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     ) -> Result<Self::GenesisConfig, anyhow::Error>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-/// Represents the different outcomes that can occur for a sequencer after batch processing.
-pub enum SequencerOutcome<A: BasicAddress> {
-    /// Sequencer receives reward amount in defined token and can withdraw its deposit
-    Rewarded(u64),
-    /// Sequencer loses its deposit and receives no reward
-    Slashed {
-        /// Reason why sequencer was slashed.
-        reason: SlashingReason,
-        #[serde(bound(deserialize = ""))]
-        /// Sequencer address on DA.
-        sequencer_da_address: A,
-    },
-    /// Batch was ignored, sequencer deposit left untouched.
-    Ignored,
-}
-
 /// Genesis parameters for a blueprint
 pub struct GenesisParams<RT> {
     /// The runtime genesis parameters
     pub runtime: RT,
 }
 
-/// Reason why sequencer was slashed.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum SlashingReason {
-    /// This status indicates problem with batch deserialization.
-    InvalidBatchEncoding,
-    /// Stateless verification failed, for example deserialized transactions have invalid signatures.
-    StatelessVerificationFailed,
-    /// This status indicates problem with transaction deserialization.
-    InvalidTransactionEncoding,
+/// The output of the function that applies sequencer commitments to the state in the verifier
+pub struct ApplySequencerCommitmentsOutput {
+    /// Final state root after all sequencer commitments were applied
+    pub final_state_root: StorageRootHash,
+    /// State diff generated after applying
+    pub state_diff: CumulativeStateDiff,
+    /// Last processed L2 block height
+    pub last_l2_height: u64,
+    /// Last soft confirmation hash
+    pub final_soft_confirmation_hash: [u8; 32],
+    /// Sequencer commitment hashes
+    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
+    /// Cumulative state log
+    pub cumulative_state_log: Option<ReadWriteLog>,
 }
 
 impl<C, RT, Da> StfBlueprint<C, Da, RT>
@@ -410,7 +397,6 @@ where
         slot_headers: VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         cache_prune_l2_heights: &[u64],
         forks: &[Fork],
-        last_hash_witness: Witness,
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
 
@@ -606,17 +592,6 @@ where
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
-        let all = SHORT_HEADER_PROOF_PROVIDER
-            .get()
-            .unwrap()
-            .take_queried_hashes(0..=0);
-
-        let last_on_contract = if let Some(hash) = all.last() {
-            *hash
-        } else {
-            [0; 32]
-        };
-
         ApplySequencerCommitmentsOutput {
             final_state_root: current_state_root,
             state_diff,
@@ -624,7 +599,7 @@ where
             last_l2_height: last_commitment_end_height.unwrap(),
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
             sequencer_commitment_merkle_roots,
-            last_l1_hash_on_bitcoin_light_client_contract: last_on_contract,
+            cumulative_state_log,
         }
     }
 }
