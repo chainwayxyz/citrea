@@ -118,7 +118,8 @@ impl DbAccount {
         }
     }
 
-    fn create_storage_prefix(address: &Address) -> Prefix {
+    /// Create a storage prefix
+    pub(crate) fn create_storage_prefix(address: &Address) -> Prefix {
         let mut prefix = [0u8; 26];
         prefix[0..6].copy_from_slice(&DBACCOUNT_STORAGE_PREFIX);
         prefix[6..].copy_from_slice(address.as_raw_slice());

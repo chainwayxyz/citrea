@@ -7,8 +7,9 @@ use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlu
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
-use sov_state::codec::BorshCodec;
-use sov_state::storage::{StateCodec, StateValueCodec, Storage, StorageKey, ValueExists};
+use sov_rollup_interface::RefCount;
+use sov_state::codec::{BcsCodec, BorshCodec};
+use sov_state::storage::{StateValueCodec, Storage, StorageKey, ValueExists};
 use sov_state::{ReadWriteLog, Witness};
 
 /// Verifies a state transition
@@ -139,23 +140,40 @@ pub fn get_last_l1_hash_on_contract(
 
     // first we try to get next L1 height from cache, if it does not exist in cache
     // we need to provide proof with respect to the latest root
-    let next_l1_height = match state_log.get_value(&key.clone().into_cache_key()) {
-        ValueExists::Yes(cache_value) => {
+    let next_l1_height: U256 = match state_log.get_value(&key.clone().into_cache_key()) {
+        ValueExists::Yes(cache_value) => borsh_deserialize_value(
             cache_value
                 .expect("Next L1 height can't be None in cache")
-                .value
-        }
+                .value,
+        ),
         ValueExists::No => {
-            let next_l1_height = storage
-                .get_and_prove(&key, last_hash_witness, final_state_root)
-                .expect("should exist");
+            match storage.get_and_prove(&key, last_hash_witness, final_state_root) {
+                Some(value) => borsh_deserialize_value(value.into_cache_value().value),
+                None => {
+                    // If this is the first proof in Fork2 and we haven't changed the height yet
+                    // we must get from pre fork2 storage.
+                    //
+                    // We don't even check storage cache with pre fork2 keys here because
+                    // if pre fork2 storage is read in Fork2,
+                    // it would be written also be written to the cache with fork2 keys.
+                    // And we wouldn't be here.
 
-            next_l1_height.into_cache_value().value
+                    let pre_fork2_key = Evm::<ZkDefaultContext>::get_storage_key_pre_fork2(
+                        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                        &U256::ZERO,
+                    );
+
+                    bcs_deserialize_value(
+                        storage
+                            .get_and_prove(&pre_fork2_key, last_hash_witness, final_state_root)
+                            .expect("Should exist")
+                            .into_cache_value()
+                            .value,
+                    )
+                }
+            }
         }
     };
-
-    let b = BorshCodec {};
-    let next_l1_height: U256 = b.value_codec().decode_value_unwrap(&next_l1_height);
 
     // we calculate the corresponding EVM storage slot the last L1 height's hash lives
     let mut bytes = [0u8; 64];
@@ -163,9 +181,11 @@ pub fn get_last_l1_hash_on_contract(
     // counter intuitively the contract stores next block height (expected on setBlockInfo)x
     bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
 
+    let evm_storage_slot = keccak256(bytes).into();
+
     let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
         &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-        &keccak256(bytes).into(),
+        &evm_storage_slot,
     );
 
     let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
@@ -173,18 +193,52 @@ pub fn get_last_l1_hash_on_contract(
     // we look for the value inside cache
     // if in cache we don't need to do anything
     // if not in cache we need to provide proof with respect to the latest root
-    let last_l1_hash = match state_log.get_value(&key.clone().into_cache_key()) {
-        ValueExists::Yes(value) => value.expect("L1 hash can't be None in cache").value,
+    let last_l1_hash: U256 = match state_log.get_value(&key.clone().into_cache_key()) {
+        ValueExists::Yes(value) => {
+            borsh_deserialize_value(value.expect("L1 hash can't be None in cache").value)
+        }
         ValueExists::No => {
-            storage
-                .get_and_prove(&key, last_hash_witness, final_state_root)
-                .expect("L1 hash can't be None in storage")
-                .into_cache_value()
-                .value
+            match storage.get_and_prove(&key, last_hash_witness, final_state_root) {
+                Some(value) => borsh_deserialize_value(value.into_cache_value().value),
+                None => {
+                    // If this is the first proof in Fork2 and we haven't changed the height yet
+                    // we must get from pre fork2 storage.
+                    //
+                    // We don't even check storage cache with pre fork2 keys here because
+                    // if pre fork2 storage is read in Fork2,
+                    // it would be written also be written to the cache with fork2 keys.
+                    // And we wouldn't be here.
+
+                    let pre_fork2_key = Evm::<ZkDefaultContext>::get_storage_key_pre_fork2(
+                        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                        &evm_storage_slot,
+                    );
+
+                    bcs_deserialize_value(
+                        storage
+                            .get_and_prove(&pre_fork2_key, last_hash_witness, final_state_root)
+                            .expect("Should exist")
+                            .into_cache_value()
+                            .value,
+                    )
+                }
+            }
         }
     };
 
-    let last_l1_hash: U256 = b.value_codec().decode_value_unwrap(&last_l1_hash);
-
     last_l1_hash.to_be_bytes()
+}
+
+fn borsh_deserialize_value<T>(bytes: RefCount<[u8]>) -> T
+where
+    BorshCodec: StateValueCodec<T>,
+{
+    (BorshCodec {}).decode_value_unwrap(&bytes)
+}
+
+fn bcs_deserialize_value<T>(bytes: RefCount<[u8]>) -> T
+where
+    BcsCodec: StateValueCodec<T>,
+{
+    (BcsCodec {}).decode_value_unwrap(&bytes)
 }
