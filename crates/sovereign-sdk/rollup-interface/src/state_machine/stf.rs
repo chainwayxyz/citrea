@@ -5,7 +5,6 @@
 //! main event loop of the rollup.
 
 use super::zk::StorageRootHash;
-use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::RefCount;
 
 /// The configuration of a full node of the rollup which creates zk proofs.

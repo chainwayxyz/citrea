@@ -121,7 +121,7 @@ where
 pub fn get_last_l1_hash_on_contract(
     state_log: ReadWriteLog,
     storage: impl Storage,
-    mut last_hash_witness: &mut Witness,
+    last_hash_witness: &mut Witness,
     final_state_root: StorageRootHash,
 ) -> [u8; 32] {
     let prefix = {
@@ -147,7 +147,7 @@ pub fn get_last_l1_hash_on_contract(
         }
         ValueExists::No => {
             let next_l1_height = storage
-                .get_and_prove(&key, &mut last_hash_witness, final_state_root)
+                .get_and_prove(&key, last_hash_witness, final_state_root)
                 .expect("should exist");
 
             next_l1_height.into_cache_value().value
@@ -177,7 +177,7 @@ pub fn get_last_l1_hash_on_contract(
         ValueExists::Yes(value) => value.expect("L1 hash can't be None in cache").value,
         ValueExists::No => {
             storage
-                .get_and_prove(&key, &mut last_hash_witness, final_state_root)
+                .get_and_prove(&key, last_hash_witness, final_state_root)
                 .expect("L1 hash can't be None in storage")
                 .into_cache_value()
                 .value

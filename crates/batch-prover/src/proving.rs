@@ -2,12 +2,10 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use alloy_primitives::{keccak256, U256};
 use anyhow::{anyhow, Context};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, get_da_block_at_height};
 use citrea_common::utils::{check_l2_block_exists, filter_out_proven_commitments};
-use citrea_evm::{Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS};
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
@@ -18,7 +16,6 @@ use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutpu
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
-use sov_modules_core::{StateCodec, StateValueCodec, Storage, StorageKey, ValueExists};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
@@ -30,7 +27,6 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_state::codec::BorshCodec;
 use sov_state::Witness;
 use tokio::sync::Mutex;
 use tracing::{debug, info};

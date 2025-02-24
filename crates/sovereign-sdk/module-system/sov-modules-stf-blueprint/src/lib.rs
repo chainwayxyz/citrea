@@ -7,7 +7,6 @@ use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::default_signature::{
     DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
@@ -19,7 +18,7 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    native_debug, BasicAddress, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
+    native_debug, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::SequencerCommitment;
