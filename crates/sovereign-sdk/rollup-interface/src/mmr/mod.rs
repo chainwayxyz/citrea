@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 mod guest;
-#[cfg(any(feature = "native", feature = "testing"))]
+#[cfg(any(test, feature = "native", feature = "testing"))]
 mod native;
-#[cfg(any(feature = "native", feature = "testing"))]
+#[cfg(any(test, feature = "native", feature = "testing"))]
 mod test_utils;
 #[cfg(test)]
 mod tests;

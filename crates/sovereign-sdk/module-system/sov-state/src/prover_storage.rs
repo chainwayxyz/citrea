@@ -99,6 +99,24 @@ impl Storage for ProverStorage {
         val
     }
 
+    fn get_and_prove(
+        &self,
+        key: &StorageKey,
+        witness: &mut Witness,
+        _state_root: StorageRootHash,
+    ) -> Option<StorageValue> {
+        let merkle = JellyfishMerkleTree::<StateDB, DefaultHasher>::new(&self.db);
+        let (val, proof) = merkle
+            .get_with_proof(KeyHash::with::<DefaultHasher>(key.as_ref()), self.version())
+            .unwrap();
+        let val = val.map(Into::into);
+
+        witness.add_hint(&val);
+        witness.add_hint(&proof);
+
+        val
+    }
+
     fn get_offchain(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         let val = self
             .native_db
@@ -253,21 +271,6 @@ impl Storage for ProverStorage {
             .expect("db set stale nodes must succeed");
 
         self.version.fetch_add(1, Ordering::SeqCst);
-    }
-
-    fn open_proof(
-        state_root: StorageRootHash,
-        state_proof: StorageProof,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
-        let StorageProof { key, value, proof } = state_proof;
-        let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
-
-        proof.verify(
-            jmt::RootHash(state_root),
-            key_hash,
-            value.as_ref().map(|v| v.value()),
-        )?;
-        Ok((key, value))
     }
 
     // Based on assumption `validate_and_commit` increments version.

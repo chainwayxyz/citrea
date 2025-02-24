@@ -11,7 +11,7 @@ use super::ShortHeaderProofProvider;
 use crate::ShortHeaderProofProviderError;
 
 pub struct ZkShortHeaderProofProviderService<Da: DaSpec> {
-    queried_and_verified_hashes: RefCell<Vec<[u8; 32]>>,
+    last_queried_and_verified_hash: RefCell<Option<[u8; 32]>>,
     short_header_proofs: RefCell<VecDeque<Vec<u8>>>,
     phantom: PhantomData<Da>,
 }
@@ -20,7 +20,7 @@ impl<Da: DaSpec> ZkShortHeaderProofProviderService<Da> {
     pub fn new(short_header_proofs: VecDeque<Vec<u8>>) -> Self {
         Self {
             short_header_proofs: RefCell::new(short_header_proofs),
-            queried_and_verified_hashes: RefCell::new(Vec::new()),
+            last_queried_and_verified_hash: RefCell::new(None),
             phantom: PhantomData,
         }
     }
@@ -54,32 +54,35 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             .expect("Should deserialize short header proof");
 
         if let Ok(l1_update_info) = shp.verify() {
-            self.queried_and_verified_hashes
-                .borrow_mut()
-                .push(block_hash);
-
             let prev_hash_cond = if prev_block_hash == [0; 32] {
                 true
             } else {
                 prev_block_hash == l1_update_info.prev_header_hash
             };
 
-            return Ok(txs_commitment == l1_update_info.tx_commitment
+            let return_cond = txs_commitment == l1_update_info.tx_commitment
                 && block_hash == l1_update_info.header_hash
                 && prev_hash_cond
-                && l1_height == l1_update_info.block_height);
+                && l1_height == l1_update_info.block_height;
+
+            if return_cond {
+                *self.last_queried_and_verified_hash.borrow_mut() = Some(block_hash);
+            }
+
+            return Ok(return_cond);
         }
         Ok(false)
     }
 
     fn clear_queried_hashes(&self) {
-        self.queried_and_verified_hashes.borrow_mut().clear();
+        unimplemented!("clear_queried_hashes is not implemented for zk provider");
     }
 
     fn take_queried_hashes(&self, _l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]> {
-        self.queried_and_verified_hashes
-            .borrow_mut()
-            .drain(..)
-            .collect()
+        unimplemented!("take_queried_hashes is not implemented for zk provider");
+    }
+
+    fn take_last_queried_hash(&self) -> Option<[u8; 32]> {
+        self.last_queried_and_verified_hash.borrow_mut().take()
     }
 }
