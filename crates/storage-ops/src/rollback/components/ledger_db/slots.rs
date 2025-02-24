@@ -21,20 +21,24 @@ pub(crate) fn rollback_slots(
         };
 
         let slot_height = record.key;
-        let slot_range = record.value;
 
         if slot_height <= SlotNumber(target_l1) {
             break;
         }
 
-        // TODO: Figure out a way to set it to an actual
-        // commitment range L2 end.
-        // `CommitmentsByNumber` table is only populated by
-        // the batch prover.
-        ledger_db.put::<LastSequencerCommitmentSent>(
-            &(),
-            &SoftConfirmationNumber(slot_range.0 .0 - 1),
-        )?;
+        if matches!(node_type, StorageNodeType::Sequencer)
+            || matches!(node_type, StorageNodeType::FullNode)
+        {
+            let slot_range = record.value;
+            // TODO: Figure out a way to set it to an actual
+            // commitment range L2 end.
+            // `CommitmentsByNumber` table is only populated by
+            // the batch prover.
+            ledger_db.put::<LastSequencerCommitmentSent>(
+                &(),
+                &SoftConfirmationNumber(slot_range.0 .0 - 1),
+            )?;
+        }
 
         delete_slots_by_number(node_type, ledger_db, slot_height)?;
 
