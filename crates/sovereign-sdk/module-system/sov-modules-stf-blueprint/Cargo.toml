@@ -29,7 +29,6 @@ sov-state = { path = "../sov-state" }
 
 # Citrea deps
 citrea-primitives = { path = "../../../../crates/primitives" }
-short-header-proof-provider = { path = "../../../short-header-proof-provider" }
 
 [features]
 default = []
