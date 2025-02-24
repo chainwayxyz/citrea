@@ -11,7 +11,7 @@ use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3
 use sov_rollup_interface::zk::Proof;
 
 /// The on-disk format for a state transition.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
+#[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub enum StoredBatchProofOutput {
     /// V1 batch proof output wrapper
     V1(BatchProofCircuitOutputV1),
@@ -22,7 +22,7 @@ pub enum StoredBatchProofOutput {
 }
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub struct StoredBatchProof {
     /// Tx id
     pub l1_tx_id: [u8; 32],
@@ -61,7 +61,7 @@ impl From<BatchProofCircuitOutputV3> for StoredBatchProofOutput {
 }
 
 /// The on-disk format for a proof verified by full node. Stores proof data and state transition
-#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub struct StoredVerifiedProof {
     /// Verified Proof
     pub proof: Proof,

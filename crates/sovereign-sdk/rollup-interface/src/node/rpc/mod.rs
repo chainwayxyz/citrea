@@ -261,7 +261,7 @@ pub struct LightClientProofResponse {
 }
 
 /// The rpc response of proof by l1 slot height
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofResponse {
     /// l1 tx id of
@@ -275,7 +275,7 @@ pub struct BatchProofResponse {
 }
 
 /// The rpc response of proof by l1 slot height
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VerifiedBatchProofResponse {
     /// Proof
@@ -286,7 +286,7 @@ pub struct VerifiedBatchProofResponse {
 }
 
 /// The rpc response of the last verified proof
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LastVerifiedBatchProofResponse {
     /// Proof data
@@ -303,7 +303,7 @@ pub type ProofRpcResponse = Vec<u8>;
 pub struct SerializableHash(#[serde(with = "utils::rpc_hex")] pub [u8; 32]);
 
 /// The state transition response of ledger proof data rpc
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup before the transition
