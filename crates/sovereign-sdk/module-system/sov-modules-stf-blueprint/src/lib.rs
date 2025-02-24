@@ -410,6 +410,7 @@ where
         slot_headers: VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         cache_prune_l2_heights: &[u64],
         forks: &[Fork],
+        last_hash_witness: Witness,
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
 

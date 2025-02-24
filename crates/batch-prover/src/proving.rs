@@ -46,6 +46,7 @@ type CommitmentStateTransitionData<'txs, Da> = (
     Vec<u64>,
     VecDeque<Vec<L2Block<'txs, Transaction>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
+    Witness,
 );
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -165,6 +166,7 @@ where
             cache_prune_l2_heights,
             l2_blocks,
             da_block_headers_of_l2_blocks,
+            last_hash_witness,
         ) = get_batch_proof_circuit_input_from_commitments(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
@@ -231,6 +233,7 @@ where
             sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
                 .to_vec(),
             cache_prune_l2_heights,
+            last_hash_witness,
         };
 
         batch_proof_circuit_inputs.push(input);
@@ -382,17 +385,21 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     }
 
     // Replay transactions in the commitment blocks and collect cumulative witnesses
-    let (state_transition_witnesses, cache_prune_l2_heights, short_header_proofs) =
-        generate_cumulative_witness(
-            &committed_l2_blocks,
-            ledger_db,
-            da_service,
-            l1_block_cache.clone(),
-            storage_manager,
-            sequencer_k256_pub_key,
-            sequencer_pub_key,
-        )
-        .await?;
+    let (
+        state_transition_witnesses,
+        cache_prune_l2_heights,
+        short_header_proofs,
+        last_hash_witness,
+    ) = generate_cumulative_witness(
+        &committed_l2_blocks,
+        ledger_db,
+        da_service,
+        l1_block_cache.clone(),
+        storage_manager,
+        sequencer_k256_pub_key,
+        sequencer_pub_key,
+    )
+    .await?;
 
     Ok((
         short_header_proofs,
@@ -400,6 +407,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         cache_prune_l2_heights,
         committed_l2_blocks,
         da_block_headers_of_l2_blocks,
+        last_hash_witness,
     ))
 }
 
@@ -415,6 +423,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<u8>>,
+    Witness, // last hash witness
 )> {
     let mut short_header_proofs: VecDeque<Vec<u8>> = VecDeque::new();
 
@@ -533,10 +542,17 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         state_transition_witnesses.push_back(witnesses);
     }
 
+    let mut last_hash_witness = Witness::default();
     // if post fork2 we always need to read the last L1 hash on Bitcoin Light Client contract
-    if post_fork2 {
-        let evm = Evm::<DefaultContext>::default();
-        let prefix = evm.storage.prefix();
+    // if the provider have some hashes, circuit will use that.
+    if post_fork2 && !short_header_proofs.is_empty() {
+        let cumulative_state_log = cumulative_state_log.unwrap();
+        let prover_storage = storage_manager.create_storage_for_l2_height(last_l2_height + 1);
+
+        let prefix = {
+            let temp_evm = Evm::<DefaultContext>::default();
+            temp_evm.storage.prefix().clone()
+        };
 
         // key for light client contract next l1 height
         let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
@@ -544,67 +560,58 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             &U256::ZERO,
         );
 
-        let key = StorageKey::new(prefix, &inner_evm_key, &BorshCodec);
-        let cumulative_state_log = cumulative_state_log.unwrap();
-        if matches!(
-            cumulative_state_log.get_value(&key.clone().into_cache_key()),
-            ValueExists::No
-        ) {
-            // we need to provide proof
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
 
-            let prover_storage = storage_manager.create_storage_for_l2_height(last_l2_height + 1);
+        // first we try to get next L1 height from cache, if it does not exist in cache
+        // we need to provide proof with respect to the latest root
+        let next_l1_height = match cumulative_state_log.get_value(&key.clone().into_cache_key()) {
+            ValueExists::Yes(cache_value) => cache_value
+                .expect("Next L1 height can't be None in cache")
+                .value
+                .clone(),
+            ValueExists::No => {
+                let next_l1_height = prover_storage
+                    .get_and_prove(&key, &mut last_hash_witness, [0u8; 32])
+                    .expect("should exist");
 
-            let next_l1_height = prover_storage
-                .get_and_prove(
-                    &key,
-                    &mut state_transition_witnesses
-                        .back_mut()
-                        .expect("Should exist")
-                        .last_mut()
-                        .expect("Should exist")
-                        .0,
-                    [0u8; 32],
-                )
-                .expect("should exist");
-
-            let b = BorshCodec {};
-            let next_l1_height: U256 = b.value_codec().decode_value_unwrap(next_l1_height.value());
-
-            let mut bytes = [0u8; 64];
-            bytes[0..32].copy_from_slice(&(next_l1_height - U256::from(1)).to_be_bytes::<32>());
-            // counter intuitively the contract stores next block height (expected on setBlockInfo)x
-            bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
-
-            let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
-                &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                &keccak256(bytes).into(),
-            );
-
-            let key = StorageKey::new(prefix, &inner_evm_key, &BorshCodec);
-
-            if matches!(
-                cumulative_state_log.get_value(&key.clone().into_cache_key()),
-                ValueExists::No
-            ) {
-                // we need to provide proof
-                let _ = prover_storage.get_and_prove(
-                    &key,
-                    &mut state_transition_witnesses
-                        .back_mut()
-                        .expect("Should exist")
-                        .last_mut()
-                        .expect("Should exist")
-                        .0,
-                    [0u8; 32],
-                );
+                next_l1_height.into_cache_value().value
             }
-        }
+        };
+
+        let b = BorshCodec {};
+        let next_l1_height: U256 = b.value_codec().decode_value_unwrap(&next_l1_height);
+
+        // we calculate the corresponding EVM storage slot the last L1 height's hash lives
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&(next_l1_height - U256::from(1)).to_be_bytes::<32>());
+        // counter intuitively the contract stores next block height (expected on setBlockInfo)x
+        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+
+        let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &keccak256(bytes).into(),
+        );
+
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+
+        // we look for the value inside cache
+        // if in cache we don't need to do anything
+        // if not in cache we need to provide proof with respect to the latest root
+        match cumulative_state_log.get_value(&key.clone().into_cache_key()) {
+            ValueExists::Yes(_) => {}
+            ValueExists::No => {
+                prover_storage
+                    .get_and_prove(&key, &mut last_hash_witness, [0u8; 32])
+                    .expect("should exist");
+            }
+        };
     }
 
     Ok((
         state_transition_witnesses,
         cache_prune_l2_heights,
         short_header_proofs,
+        last_hash_witness,
     ))
 }
 

@@ -74,6 +74,7 @@ where
                 data.da_block_headers_of_soft_confirmations,
                 &data.cache_prune_l2_heights,
                 forks,
+                data.last_hash_witness,
             );
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");
