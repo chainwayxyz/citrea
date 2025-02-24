@@ -1,5 +1,11 @@
+use alloy_primitives::{keccak256, U256};
+use citrea_evm::{
+    get_last_l1_height_and_hash_in_light_client, Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::{Context, DaSpec, SoftConfirmationHookError, StateValueAccessor, WorkingSet};
+use sov_modules_api::{
+    Context, DaSpec, SoftConfirmationHookError, SpecId, StateValueAccessor, WorkingSet,
+};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -18,8 +24,21 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         max_l2_blocks_per_l1: u32,
         last_da_root_hash: &mut [u8; 32],
         counter: &mut u32,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
-        let da_root_hash = soft_confirmation_info.da_slot_hash();
+        let evm = Evm::<C>::default();
+        let da_root_hash = if soft_confirmation_info.current_spec() < SpecId::Fork2 {
+            soft_confirmation_info.da_slot_hash().unwrap()
+        } else {
+            get_last_l1_height_and_hash_in_light_client(
+                &evm,
+                soft_confirmation_info.current_spec(),
+                working_set,
+            )
+            .1
+            .unwrap()
+            .to_be_bytes::<32>()
+        };
 
         if da_root_hash == *last_da_root_hash {
             *counter += 1;
@@ -82,6 +101,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
             max_l2_blocks_per_l1,
             &mut last_da_root_hash,
             &mut counter,
+            working_set,
         )?;
 
         self.apply_timestamp_rule(soft_confirmation_info, &mut last_timestamp)?;

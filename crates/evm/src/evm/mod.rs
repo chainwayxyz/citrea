@@ -19,6 +19,8 @@ pub(crate) mod primitive_types;
 pub mod system_contracts;
 /// System events used for creating system transactions
 pub mod system_events;
+/// Get the last l1 block hash set in bitcoin light client contract
+pub use executor::get_last_l1_height_and_hash_in_light_client;
 
 #[cfg(feature = "native")]
 pub(crate) mod call;

@@ -3112,7 +3112,9 @@ dependencies = [
 name = "soft-confirmation-rule-enforcer"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "borsh",
+ "citrea-evm",
  "serde",
  "sov-modules-api",
  "sov-rollup-interface",
