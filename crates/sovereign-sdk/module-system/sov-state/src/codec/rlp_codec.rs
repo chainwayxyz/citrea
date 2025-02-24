@@ -25,7 +25,7 @@ where
     type Error = Error;
 
     fn encode_value(&self, value: &V) -> Vec<u8> {
-        let mut buf = vec![];
+        let mut buf = Vec::with_capacity(600);
         value.encode(&mut buf);
         buf
     }
