@@ -6,7 +6,7 @@ use crate::spec::SpecId;
 use crate::zk::StorageRootHash;
 
 /// Because we removed validity condition from everywhere we need to keep it for compatibility
-#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct OldChainValidityCondition {
     /// Prev hash
     pub prev_hash: [u8; 32],
@@ -15,7 +15,7 @@ pub struct OldChainValidityCondition {
 }
 
 /// The pre fork 1 batch proof circuit output
-#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct BatchProofCircuitOutputV1 {
     /// The state of the rollup before the transition
     pub initial_state_root: StorageRootHash,

@@ -790,6 +790,13 @@ impl TestCase for L1HashOutputTest {
         }
     }
 
+    /// The test consists of two parts.
+    /// Part 1 we make lots of DA blocks so the Bitcoin Light Client Contract gets updated many times
+    /// in a single proof.
+    /// Then we assert that the proof output has the latest L1 hash.
+    ///
+    /// Then we don't make any new DA blocks, make a single proof and assert that we still have
+    /// the same L1 hash outputted.
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -829,20 +836,89 @@ impl TestCase for L1HashOutputTest {
 
         assert_eq!(zkp.len(), 1);
 
-        let l1_hashes: Vec<[u8; 32]> = zkp[0]
+        let l1_hash = zkp[0]
             .proof_output
-            .l1_hashes_added_to_light_client_contract
-            .iter()
-            .map(|h| h.0)
-            .collect();
+            .last_l1_hash_on_bitcoin_light_client_contract
+            .clone()
+            .expect("Should exist")
+            .0;
 
-        assert_eq!(l1_hashes.len(), 101);
+        let hash_from_rpc = sequencer.da.get_block_hash(start_l1_height + 100).await?;
 
-        for (height, hash) in (start_l1_height..=start_l1_height + 100).zip(l1_hashes) {
-            let hash_from_rpc = sequencer.da.get_block_hash(height).await?;
+        assert_eq!(hash_from_rpc.as_raw_hash().to_byte_array(), l1_hash);
 
-            assert_eq!(hash_from_rpc.as_raw_hash().to_byte_array(), hash);
+        // part 2
+        for _ in 0..110 {
+            sequencer.client.send_publish_batch_request().await?;
         }
+
+        da.wait_mempool_len(6, None).await?;
+
+        for _ in 0..51 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(8, None).await?;
+
+        let temp_addr = da
+            .get_new_address(None, None)
+            .await?
+            .assume_checked()
+            .to_string();
+
+        let txs = da.get_raw_mempool().await?;
+
+        let commitments_with_l1_update = txs[0..4].iter().map(|txid| txid.to_string()).collect();
+
+        da.generate_block(temp_addr, commitments_with_l1_update)
+            .await?;
+
+        // now the other commitment with no L1 update
+        da.generate(FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+
+        let zkp_prev = batch_prover
+            .client
+            .http_client()
+            .get_batch_proofs_by_slot_height(U64::from(finalized_height - 1))
+            .await?
+            .expect("Should exist");
+
+        assert_eq!(zkp_prev.len(), 1);
+
+        let prev_l1_hash = zkp_prev[0]
+            .proof_output
+            .last_l1_hash_on_bitcoin_light_client_contract
+            .clone()
+            .expect("Should exist")
+            .0;
+
+        assert_ne!(prev_l1_hash, l1_hash);
+
+        let zkp_last = batch_prover
+            .client
+            .http_client()
+            .get_batch_proofs_by_slot_height(U64::from(finalized_height))
+            .await?
+            .expect("Should exist");
+
+        assert_eq!(zkp.len(), 1);
+
+        let new_l1_hash = zkp_last[0]
+            .proof_output
+            .last_l1_hash_on_bitcoin_light_client_contract
+            .clone()
+            .expect("Should exist")
+            .0;
+
+        assert_eq!(new_l1_hash, prev_l1_hash);
 
         Ok(())
     }
