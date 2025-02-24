@@ -494,6 +494,7 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
+            println!("signing tx in produce l2 block got evm tx");
             let signed_tx = self.sign_tx(
                 raw_message,
                 &mut working_set,
@@ -515,6 +516,7 @@ where
                 blobs.push(signed_blob);
                 txs.push(signed_tx);
             }
+            println!("updating seq auth");
         }
 
         self.stf
@@ -1109,6 +1111,7 @@ where
             >,
         >>::encode_call(rule_enforcer_call_tx);
 
+        println!("singing tx and blob in update seq auth");
         let signed_tx = self.sign_tx(raw_message, working_set, current_spec)?;
         let signed_blob = signed_tx.to_blob()?;
 

@@ -54,6 +54,8 @@ impl<C: Context> TxHooks for Accounts<C> {
     ) -> Result<AccountsTxHook, SoftConfirmationHookError> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set, spec_id)?;
         let tx_nonce = tx.nonce();
+        println!("sender : {:?}", sender);
+        println!("tx.nonce() : {:?}", tx.nonce());
 
         if sender.nonce != tx_nonce {
             return Err(SoftConfirmationHookError::SovTxBadNonce);
