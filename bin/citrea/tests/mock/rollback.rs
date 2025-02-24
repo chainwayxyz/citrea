@@ -37,7 +37,7 @@ fn instantiate_dbs(
     tables: &[&str],
 ) -> anyhow::Result<(LedgerDB, Arc<sov_schema_db::DB>, Arc<sov_schema_db::DB>)> {
     let tables = tables.iter().map(|x| x.to_string()).collect::<Vec<_>>();
-    let rocksdb_config = RocksdbConfig::new(&db_path, None, Some(tables.to_vec()));
+    let rocksdb_config = RocksdbConfig::new(db_path, None, Some(tables.to_vec()));
     let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
     let native_db = Arc::new(NativeDB::setup_schema_db(&rocksdb_config)?);
     let state_db = Arc::new(StateDB::setup_schema_db(&rocksdb_config)?);
@@ -57,8 +57,8 @@ async fn start_sequencer(
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
     let rollup_config = create_default_rollup_config(
         true,
-        &sequencer_db_dir,
-        &da_db_dir,
+        sequencer_db_dir,
+        da_db_dir,
         NodeMode::SequencerNode,
         None,
     );
@@ -95,8 +95,8 @@ async fn start_full_node(
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
     let rollup_config = create_default_rollup_config(
         true,
-        &full_node_db_dir,
-        &da_db_dir,
+        full_node_db_dir,
+        da_db_dir,
         NodeMode::FullNode(seq_port),
         None,
     );
@@ -130,8 +130,8 @@ async fn start_batch_prover(
     let (batch_prover_port_tx, batch_prover_port_rx) = tokio::sync::oneshot::channel();
     let rollup_config = create_default_rollup_config(
         true,
-        &batch_prover_db_dir,
-        &da_db_dir,
+        batch_prover_db_dir,
+        da_db_dir,
         NodeMode::Prover(seq_port),
         None,
     );
