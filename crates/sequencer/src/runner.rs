@@ -158,6 +158,7 @@ where
         prestate: ProverStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         soft_confirmation_info: HookSoftConfirmationInfo,
+        deposit_data: &[Vec<u8>],
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         let start = Instant::now();
@@ -201,7 +202,7 @@ where
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
                 let system_events = populate_system_events(
-                    &soft_confirmation_info.deposit_data(),
+                    deposit_data,
                     da_block_header.hash().into(),
                     da_block_header.txs_commitment().into(),
                     da_block_header.height(),
@@ -343,8 +344,7 @@ where
                                                                                         working_set_to_discard = working_set.revert().to_revertable();
                                                                                         continue;
                                                                                     },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx if soft_confirmation_info.current_spec() < SpecId::Fork2 => panic!("tried to execute system transaction"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx  => unreachable!(),
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
                                                                                         l1_fee_failed_txs.push(*evm_tx.hash());
                                                                                         invalid_senders.insert(evm_tx.transaction_id.sender);
@@ -454,7 +454,6 @@ where
             HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
                 l2_height,
                 pre_state_root: self.state_root,
-                deposit_data: deposit_data.clone(),
                 current_spec: active_fork_spec,
                 pub_key: pub_key.clone(),
                 l1_fee_rate,
@@ -480,6 +479,7 @@ where
                 prestate.clone(),
                 da_block.header().clone(),
                 soft_confirmation_info.clone(),
+                &deposit_data,
                 l2_block_mode,
             )
             .await?;

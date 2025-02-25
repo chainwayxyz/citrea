@@ -99,8 +99,6 @@ pub struct HookSoftConfirmationInfoV2 {
     pub current_spec: SpecId,
     /// Public key of the sequencer
     pub pub_key: Vec<u8>,
-    /// Deposit data from the L1 chain
-    pub deposit_data: Vec<Vec<u8>>,
     /// L1 fee rate
     pub l1_fee_rate: u128,
     /// Timestamp
@@ -157,7 +155,7 @@ impl HookSoftConfirmationInfo {
     pub fn deposit_data(&self) -> Vec<Vec<u8>> {
         match self {
             HookSoftConfirmationInfo::V1(info) => info.deposit_data.clone(),
-            HookSoftConfirmationInfo::V2(info) => info.deposit_data.clone(),
+            HookSoftConfirmationInfo::V2(_) => panic!("V2 does not have deposit data"),
         }
     }
 
@@ -225,7 +223,6 @@ impl HookSoftConfirmationInfo {
                 pre_state_root,
                 current_spec,
                 pub_key: l2_block.sequencer_pub_key().to_vec(),
-                deposit_data: l2_block.deposit_data().to_vec(),
                 l1_fee_rate: l2_block.l1_fee_rate(),
                 timestamp: l2_block.timestamp(),
             });
