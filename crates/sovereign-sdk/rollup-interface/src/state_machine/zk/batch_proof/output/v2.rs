@@ -12,7 +12,7 @@ use crate::zk::StorageRootHash;
 /// Some fields (prev_soft_confirmation_hash, final_soft_confirmation_hash and last_l2_height)
 /// Will be 0 for pre fork 1 proofs because this is a new output format and those fields
 /// did not exist pre fork 1
-#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct BatchProofCircuitOutputV2 {
     /// The state of the rollup before the transition
     pub initial_state_root: StorageRootHash,

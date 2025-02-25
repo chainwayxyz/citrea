@@ -1,4 +1,6 @@
 use super::*;
+use crate::mmr::native::MMRNative;
+use crate::mmr::test_utils::InMemoryStore;
 
 #[test]
 fn test_mmr_native() {

@@ -5,7 +5,6 @@
 //! main event loop of the rollup.
 
 use super::zk::StorageRootHash;
-use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::RefCount;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
@@ -31,20 +30,6 @@ mod sealed {
     impl Sealed for ProverConfig {}
     impl Sealed for ZkConfig {}
     impl Sealed for StandardConfig {}
-}
-
-/// The output of the function that applies sequencer commitments to the state in the verifier
-pub struct ApplySequencerCommitmentsOutput {
-    /// Final state root after all sequencer commitments were applied
-    pub final_state_root: StorageRootHash,
-    /// State diff generated after applying
-    pub state_diff: CumulativeStateDiff,
-    /// Last processed L2 block height
-    pub last_l2_height: u64,
-    /// Last soft confirmation hash
-    pub final_soft_confirmation_hash: [u8; 32],
-    /// Sequencer commitment hashes
-    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
 }
 
 /// A diff of the state, represented as a list of key-value pairs.

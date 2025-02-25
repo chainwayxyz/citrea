@@ -5,8 +5,6 @@
 
 //! A type-safe interface over [`DB`](crate::DB) column families.
 
-use std::fmt::Debug;
-
 use crate::CodecError;
 
 /// Crate users are expected to know [column
@@ -16,7 +14,7 @@ pub type ColumnFamilyName = &'static str;
 
 /// A [`Schema`] is a type-safe interface over a specific column family in a
 /// [`DB`](crate::DB). It always a key type ([`KeyCodec`]) and a value type ([`ValueCodec`]).
-pub trait Schema: Debug + Send + Sync + 'static + Sized {
+pub trait Schema: Sized {
     /// The column family name associated with this struct.
     /// Note: all schemas within the same SchemaDB must have distinct column family names.
     const COLUMN_FAMILY_NAME: ColumnFamilyName;
@@ -86,19 +84,19 @@ pub trait KeyCodec<S: Schema>: KeyEncoder<S> + KeyDecoder<S> {}
 impl<T, S: Schema> KeyCodec<S> for T where T: KeyEncoder<S> + KeyDecoder<S> {}
 
 /// Implementors of this trait can be used to encode keys in the given [`Schema`].
-pub trait KeyEncoder<S: Schema>: Sized + PartialEq + Debug {
+pub trait KeyEncoder<S: Schema> {
     /// Converts `self` to bytes to be stored in RocksDB.
     fn encode_key(&self) -> Result<Vec<u8>>;
 }
 
 /// Implementors of this trait can be used to decode keys in the given [`Schema`].
-pub trait KeyDecoder<S: Schema>: Sized + PartialEq + Debug {
+pub trait KeyDecoder<S: Schema>: Sized {
     /// Converts bytes fetched from RocksDB to `Self`.
     fn decode_key(data: &[u8]) -> Result<Self>;
 }
 
 /// This trait defines a type that can serve as a [`Schema::Value`].
-pub trait ValueCodec<S: Schema>: Sized + PartialEq + Debug {
+pub trait ValueCodec<S: Schema>: Sized {
     /// Converts `self` to bytes to be stored in DB.
     fn encode_value(&self) -> Result<Vec<u8>>;
     /// Converts bytes fetched from DB to `Self`.

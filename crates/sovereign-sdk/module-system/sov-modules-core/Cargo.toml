@@ -24,6 +24,7 @@ schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true, optional = true }
+tinyvec = { workspace = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", default-features = false }
 
@@ -57,5 +58,5 @@ std = [
     "thiserror",
 ]
 serde = []
-sync = ["borsh/rc", "serde/rc"]
+sync = ["borsh/rc", "serde/rc", "tinyvec/serde"]
 mocks = []

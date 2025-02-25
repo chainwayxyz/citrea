@@ -117,7 +117,7 @@ mod test {
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
         let mut working_set = WorkingSet::new(storage);
 
-        let prefix = Prefix::new("test".as_bytes().to_vec());
+        let prefix = Prefix::from_slice(b"test");
         let state_vec = AccessoryStateVec::<u32>::new(prefix);
         state_vec.run_tests(&mut working_set.accessory_state())
     }

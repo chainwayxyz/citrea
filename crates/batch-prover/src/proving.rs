@@ -42,6 +42,7 @@ type CommitmentStateTransitionData<'txs, Da> = (
     Vec<u64>,
     VecDeque<Vec<L2Block<'txs, Transaction>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
+    Witness,
 );
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -161,6 +162,7 @@ where
             cache_prune_l2_heights,
             l2_blocks,
             da_block_headers_of_l2_blocks,
+            last_l1_hash_witness,
         ) = get_batch_proof_circuit_input_from_commitments(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
@@ -227,6 +229,7 @@ where
             sequencer_commitments: sequencer_commitments[sequencer_commitments_range.clone()]
                 .to_vec(),
             cache_prune_l2_heights,
+            last_l1_hash_witness,
         };
 
         batch_proof_circuit_inputs.push(input);
@@ -378,17 +381,21 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     }
 
     // Replay transactions in the commitment blocks and collect cumulative witnesses
-    let (state_transition_witnesses, cache_prune_l2_heights, short_header_proofs) =
-        generate_cumulative_witness(
-            &committed_l2_blocks,
-            ledger_db,
-            da_service,
-            l1_block_cache.clone(),
-            storage_manager,
-            sequencer_k256_pub_key,
-            sequencer_pub_key,
-        )
-        .await?;
+    let (
+        state_transition_witnesses,
+        cache_prune_l2_heights,
+        short_header_proofs,
+        last_l1_hash_witness,
+    ) = generate_cumulative_witness(
+        &committed_l2_blocks,
+        ledger_db,
+        da_service,
+        l1_block_cache.clone(),
+        storage_manager,
+        sequencer_k256_pub_key,
+        sequencer_pub_key,
+    )
+    .await?;
 
     Ok((
         short_header_proofs,
@@ -396,6 +403,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         cache_prune_l2_heights,
         committed_l2_blocks,
         da_block_headers_of_l2_blocks,
+        last_l1_hash_witness,
     ))
 }
 
@@ -411,6 +419,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<u8>>,
+    Witness, // last hash witness
 )> {
     let mut short_header_proofs: VecDeque<Vec<u8>> = VecDeque::new();
 
@@ -427,17 +436,14 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
 
+    let last_l2_height = committed_l2_blocks
+        .back()
+        .expect("must have at least one commitment")
+        .last()
+        .expect("must have at least one l2 block")
+        .l2_height();
     // If executed with Fork2 elf, should use cache
-    let should_use_cache = fork_from_block_number(
-        committed_l2_blocks
-            .back()
-            .expect("must have at least one commitment")
-            .last()
-            .expect("must have at least one l2 block")
-            .l2_height(),
-    )
-    .spec_id
-        >= SpecId::Fork2;
+    let post_fork2 = fork_from_block_number(last_l2_height).spec_id >= SpecId::Fork2;
 
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
@@ -486,7 +492,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
             init_state_root = soft_confirmation_result.state_root_transition.final_root;
 
-            if should_use_cache {
+            if post_fork2 {
                 let mut state_log = soft_confirmation_result.state_log;
                 let mut offchain_log = soft_confirmation_result.offchain_log;
 
@@ -532,10 +538,28 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
         state_transition_witnesses.push_back(witnesses);
     }
 
+    let mut last_l1_hash_witness = Witness::default();
+    // if post fork2 we always need to read the last L1 hash on Bitcoin Light Client contract
+    // if the provider have some hashes, circuit will use that.
+    if post_fork2 && short_header_proofs.is_empty() {
+        let cumulative_state_log = cumulative_state_log.unwrap();
+        let prover_storage = storage_manager.create_storage_for_l2_height(last_l2_height + 1);
+
+        // we don't care about the return here
+        // we only care about the last hash witness getting filled (or not)
+        let _ = citrea_stf::verifier::get_last_l1_hash_on_contract::<DefaultContext>(
+            cumulative_state_log,
+            prover_storage,
+            &mut last_l1_hash_witness,
+            [0u8; 32], // final state root is only needed for JMT proof verification
+        );
+    }
+
     Ok((
         state_transition_witnesses,
         cache_prune_l2_heights,
         short_header_proofs,
+        last_l1_hash_witness,
     ))
 }
 

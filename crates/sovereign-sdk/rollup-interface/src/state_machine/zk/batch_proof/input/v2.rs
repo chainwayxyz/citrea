@@ -32,8 +32,6 @@ pub struct BatchProofCircuitInputV2Part1<Da: DaSpec> {
     pub final_state_root: StorageRootHash,
     /// The hash before the state transition
     pub prev_soft_confirmation_hash: [u8; 32],
-    /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
-    pub da_data: Vec<Da::BlobTransaction>,
     /// DA block header that the sequencer commitments were found in.
     pub da_block_header_of_commitments: Da::BlockHeader,
     /// The inclusion proof for all DA data.
