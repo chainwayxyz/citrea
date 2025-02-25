@@ -530,7 +530,7 @@ where
                 .finalize_soft_confirmation(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
-        let tx_hashes = compute_tx_hashes::<DefaultContext, _>(&txs, active_fork_spec);
+        let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, active_fork_spec);
         let tx_merkle_root = compute_tx_merkle_root(&tx_hashes)?;
 
         // create the soft confirmation header

@@ -274,7 +274,7 @@ where
         self.storage_manager
             .finalize_storage(soft_confirmation_result.change_set);
 
-        let tx_hashes = compute_tx_hashes::<DefaultContext, _>(&l2_block.txs, current_spec);
+        let tx_hashes = compute_tx_hashes::<DefaultContext>(&l2_block.txs, current_spec);
 
         self.ledger_db
             .commit_l2_block(l2_block, tx_hashes, tx_bodies)?;

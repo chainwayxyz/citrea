@@ -13,6 +13,7 @@ use sov_rollup_interface::zk::{SparseMerkleProofSha2, StorageRootHash};
 use sov_rollup_interface::RefCount;
 
 use crate::common::{Prefix, Version};
+use crate::SmallData;
 
 mod cache;
 mod codec;
@@ -25,38 +26,34 @@ pub use scratchpad::*;
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(
-    feature = "sync",
-    derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
-)]
+#[cfg_attr(feature = "sync", derive(Serialize, serde::Deserialize))]
 pub struct StorageKey {
-    key: RefCount<[u8]>,
+    key: SmallData,
 }
 
-impl From<CacheKey> for StorageKey {
-    fn from(cache_key: CacheKey) -> Self {
-        Self { key: cache_key.key }
+#[cfg(feature = "sync")]
+impl BorshSerialize for StorageKey {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        BorshSerialize::serialize(self.key.as_slice(), writer)
+    }
+}
+
+#[cfg(feature = "sync")]
+impl BorshDeserialize for StorageKey {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let buf: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
+        let mut data = SmallData::default();
+        data.extend_from_slice(&buf);
+        Ok(Self { key: data })
     }
 }
 
 impl StorageKey {
-    /// Returns a new [`RefCount`] reference to the bytes of this key.
-    pub fn key(&self) -> RefCount<[u8]> {
-        self.key.clone()
-    }
-
-    /// Converts this key into a [`CacheKey`] via cloning.
-    pub fn to_cache_key(&self) -> CacheKey {
-        CacheKey {
-            key: self.key.clone(),
-        }
-    }
-
     /// Converts this key into a [`CacheKey`] via cloning.
     pub fn to_cache_key_version(&self, version: Option<u64>) -> CacheKey {
         match version {
             None => CacheKey {
-                key: self.key.clone(),
+                key: RefCount::from(self.key.as_slice()),
             },
             Some(v) => {
                 let mut bytes = v.to_be_bytes().to_vec();
@@ -66,11 +63,6 @@ impl StorageKey {
                 }
             }
         }
-    }
-
-    /// Converts this key into a [`CacheKey`].
-    pub fn into_cache_key(self) -> CacheKey {
-        CacheKey { key: self.key }
     }
 }
 
@@ -82,7 +74,7 @@ impl AsRef<[u8]> for StorageKey {
 
 impl fmt::Display for StorageKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:x?}", hex::encode(self.key().as_ref()))
+        write!(f, "{:x?}", hex::encode(self.key.as_ref()))
     }
 }
 
@@ -93,21 +85,15 @@ impl StorageKey {
         KC: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        let encoded_key = codec.encode_key_like(key);
+        let full_key = prefix.extended(&codec.encode_key_like(key));
 
-        let mut full_key = Vec::<u8>::with_capacity(prefix.len() + encoded_key.len());
-        full_key.extend(prefix.as_vec());
-        full_key.extend(&encoded_key);
-
-        Self {
-            key: RefCount::from(full_key),
-        }
+        Self { key: full_key.data }
     }
 
     /// Creates a new [`StorageKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            key: RefCount::from(prefix.to_vec()),
+            key: prefix.data.clone(),
         }
     }
 }
@@ -188,6 +174,15 @@ pub trait Storage: Clone {
     /// Returns the value corresponding to the key or None if key is absent.
     fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue>;
 
+    /// Returns the value corresponding to the key or None if key is absent,
+    /// proves the key existence in doing so.
+    fn get_and_prove(
+        &self,
+        key: &StorageKey,
+        witness: &mut Witness,
+        state_root: StorageRootHash,
+    ) -> Option<StorageValue>;
+
     /// Returns the value corresponding to the key or None if key is absent.
     ///
     /// # About accessory state
@@ -260,13 +255,6 @@ pub trait Storage: Clone {
         )
     }
 
-    /// Opens a storage access proof and validates it against a state root.
-    /// It returns a result with the opened leaf (key, value) pair in case of success.
-    fn open_proof(
-        state_root: StorageRootHash,
-        proof: StorageProof,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error>;
-
     /// Indicates if storage is empty or not.
     /// Useful during initialization.
     fn is_empty(&self) -> bool;
@@ -285,9 +273,9 @@ pub trait Storage: Clone {
 /// Used only in tests.
 impl From<&str> for StorageKey {
     fn from(key: &str) -> Self {
-        Self {
-            key: RefCount::from(key.as_bytes()),
-        }
+        let mut data = SmallData::default();
+        data.extend_from_slice(key.as_bytes());
+        Self { key: data }
     }
 }
 

@@ -8,8 +8,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum StateMapError {
     /// Value not found.
-    #[error("Value not found for prefix: {0} and: storage key {1}")]
-    MissingValue(Prefix, StorageKey),
+    #[error("Value not found for storage key {0}")]
+    MissingValue(StorageKey),
 }
 
 /// Allows a type to access a map from keys to values in state.
@@ -116,10 +116,11 @@ where
         Q: ?Sized,
     {
         self.get(key, working_set).ok_or_else(|| {
-            StateMapError::MissingValue(
-                self.prefix().clone(),
-                StorageKey::new(self.prefix(), key, self.codec().key_codec()),
-            )
+            StateMapError::MissingValue(StorageKey::new(
+                self.prefix(),
+                key,
+                self.codec().key_codec(),
+            ))
         })
     }
 
@@ -147,10 +148,11 @@ where
         Q: ?Sized,
     {
         self.remove(key, working_set).ok_or_else(|| {
-            StateMapError::MissingValue(
-                self.prefix().clone(),
-                StorageKey::new(self.prefix(), key, self.codec().key_codec()),
-            )
+            StateMapError::MissingValue(StorageKey::new(
+                self.prefix(),
+                key,
+                self.codec().key_codec(),
+            ))
         })
     }
 

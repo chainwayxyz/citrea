@@ -10,6 +10,7 @@ use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_state::Witness;
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -365,6 +366,7 @@ fn make_transition_data(header_hash: MockHash) -> BatchProofCircuitInput<'static
         final_state_root: [0; 32],
         sequencer_commitments: vec![],
         cache_prune_l2_heights: vec![],
+        last_l1_hash_witness: Witness::default(),
     }
 }
 

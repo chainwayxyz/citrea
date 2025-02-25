@@ -3,7 +3,6 @@
 
 use std::collections::VecDeque;
 
-use borsh::BorshSerialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
@@ -19,7 +18,7 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    native_debug, BasicAddress, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
+    native_debug, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::SequencerCommitment;
@@ -29,8 +28,7 @@ use sov_rollup_interface::soft_confirmation::{
 };
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
-    StateTransitionError, TransactionDigest,
+    SoftConfirmationError, SoftConfirmationResult, StateTransitionError,
 };
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
@@ -81,38 +79,26 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     ) -> Result<Self::GenesisConfig, anyhow::Error>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-/// Represents the different outcomes that can occur for a sequencer after batch processing.
-pub enum SequencerOutcome<A: BasicAddress> {
-    /// Sequencer receives reward amount in defined token and can withdraw its deposit
-    Rewarded(u64),
-    /// Sequencer loses its deposit and receives no reward
-    Slashed {
-        /// Reason why sequencer was slashed.
-        reason: SlashingReason,
-        #[serde(bound(deserialize = ""))]
-        /// Sequencer address on DA.
-        sequencer_da_address: A,
-    },
-    /// Batch was ignored, sequencer deposit left untouched.
-    Ignored,
-}
-
 /// Genesis parameters for a blueprint
 pub struct GenesisParams<RT> {
     /// The runtime genesis parameters
     pub runtime: RT,
 }
 
-/// Reason why sequencer was slashed.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum SlashingReason {
-    /// This status indicates problem with batch deserialization.
-    InvalidBatchEncoding,
-    /// Stateless verification failed, for example deserialized transactions have invalid signatures.
-    StatelessVerificationFailed,
-    /// This status indicates problem with transaction deserialization.
-    InvalidTransactionEncoding,
+/// The output of the function that applies sequencer commitments to the state in the verifier
+pub struct ApplySequencerCommitmentsOutput {
+    /// Final state root after all sequencer commitments were applied
+    pub final_state_root: StorageRootHash,
+    /// State diff generated after applying
+    pub state_diff: CumulativeStateDiff,
+    /// Last processed L2 block height
+    pub last_l2_height: u64,
+    /// Last soft confirmation hash
+    pub final_soft_confirmation_hash: [u8; 32],
+    /// Sequencer commitment hashes
+    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
+    /// Cumulative state log
+    pub cumulative_state_log: ReadWriteLog,
 }
 
 impl<C, RT, Da> StfBlueprint<C, Da, RT>
@@ -173,7 +159,7 @@ where
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        verify_tx_merkle_root::<C, Transaction>(current_spec, l2_block).map_err(|_| {
+        verify_tx_merkle_root::<C>(current_spec, l2_block).map_err(|_| {
             StateTransitionError::SoftConfirmationError(SoftConfirmationError::InvalidTxMerkleRoot)
         })?;
 
@@ -612,6 +598,7 @@ where
             last_l2_height: last_commitment_end_height.unwrap(),
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
             sequencer_commitment_merkle_roots,
+            cumulative_state_log: cumulative_state_log.unwrap(),
         }
     }
 }
@@ -656,9 +643,9 @@ fn verify_genesis_signature(
     Ok(())
 }
 
-fn verify_tx_merkle_root<C: Context + Spec, Tx: Clone + BorshSerialize + TransactionDigest>(
+fn verify_tx_merkle_root<C: Context + Spec>(
     current_spec: SpecId,
-    l2_block: &L2Block<'_, Tx>,
+    l2_block: &L2Block<'_, Transaction>,
 ) -> Result<(), StateTransitionError> {
     let tx_hashes: Vec<[u8; 32]> = if current_spec >= SpecId::Kumquat {
         l2_block

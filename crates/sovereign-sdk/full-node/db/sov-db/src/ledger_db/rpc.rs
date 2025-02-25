@@ -199,10 +199,13 @@ impl LedgerRpcProvider for LedgerDB {
         let mut iter = self.db.iter::<VerifiedBatchProofsBySlotNumber>()?;
         iter.seek_to_last();
         match iter.next() {
-            Some(Ok(item)) => Ok(Some(LastVerifiedBatchProofResponse {
-                proof: item.value[0].clone().into(),
-                l1_height: U64::from(item.key.0),
-            })),
+            Some(Ok(mut item)) => {
+                let firsh_proof = item.value.swap_remove(0);
+                Ok(Some(LastVerifiedBatchProofResponse {
+                    proof: firsh_proof.into(),
+                    l1_height: U64::from(item.key.0),
+                }))
+            }
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }

@@ -194,7 +194,7 @@ where
         self.storage_manager
             .finalize_storage(soft_confirmation_result.change_set);
 
-        let tx_hashes = compute_tx_hashes::<DefaultContext, _>(&l2_block.txs, current_spec);
+        let tx_hashes = compute_tx_hashes::<DefaultContext>(&l2_block.txs, current_spec);
         let tx_bodies = if self.include_tx_body {
             tx_bodies
         } else {

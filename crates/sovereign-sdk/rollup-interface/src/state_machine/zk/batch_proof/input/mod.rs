@@ -62,6 +62,8 @@ pub struct BatchProofCircuitInput<'txs, Da: DaSpec, Tx: Clone + BorshSerialize> 
     /// L2 heights in which the guest should prune the log caches to avoid OOM.
     /// Only applies to V3
     pub cache_prune_l2_heights: Vec<u64>,
+    /// Witness needed to get the last Bitcoin hash on Bitcoin Light Client contract
+    pub last_l1_hash_witness: Witness,
 }
 
 impl<'txs, Da, Tx> BatchProofCircuitInput<'txs, Da, Tx>
@@ -106,7 +108,6 @@ where
                 initial_state_root: self.initial_state_root,
                 final_state_root: self.final_state_root,
                 prev_soft_confirmation_hash: self.prev_soft_confirmation_hash,
-                da_data: self.da_data,
                 da_block_header_of_commitments: self.da_block_header_of_commitments,
                 inclusion_proof: self.inclusion_proof,
                 completeness_proof: self.completeness_proof,
@@ -158,6 +159,7 @@ where
                 da_block_headers_of_soft_confirmations: self.da_block_headers_of_l2_blocks,
                 sequencer_commitments: self.sequencer_commitments,
                 cache_prune_l2_heights: self.cache_prune_l2_heights,
+                last_l1_hash_witness: self.last_l1_hash_witness,
             },
             BatchProofCircuitInputV3Part2(x),
         )
