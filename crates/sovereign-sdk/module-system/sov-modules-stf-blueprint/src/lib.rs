@@ -18,14 +18,11 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    native_debug, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
-    UnsignedSoftConfirmation, WorkingSet,
+    native_debug, Context, DaSpec, DispatchCall, Genesis, Signature, Spec, WorkingSet,
 };
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::soft_confirmation::{
-    L2Block, SignedL2Header, UnsignedSoftConfirmationV1,
-};
+use sov_rollup_interface::soft_confirmation::{L2Block, SignedL2Header};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationResult, StateTransitionError,
@@ -156,6 +153,8 @@ where
         current_spec: SpecId,
         l2_block: &L2Block<Transaction>,
         sequencer_public_key: &[u8],
+        da_slot_height: u64,
+        da_slot_hash: [u8; 32],
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
@@ -165,15 +164,23 @@ where
 
         match current_spec {
             SpecId::Genesis => {
-                // PreFork2Transaction
-                let unsigned = UnsignedSoftConfirmationV1::from(l2_block);
-                let raw = borsh::to_vec(&unsigned).map_err(|_| {
-                    StateTransitionError::SoftConfirmationError(
-                        SoftConfirmationError::NonSerializableSovTx,
-                    )
-                })?;
+                let blobs = l2_block.compute_blobs();
 
-                let expected_hash: [u8; 32] = <C as Spec>::Hasher::digest(&raw).into();
+                let Ok((expected_hash, raw)) = l2_header
+                    .inner
+                    .hash_v1::<<C as Spec>::Hasher>(
+                        da_slot_height,
+                        da_slot_hash,
+                        blobs,
+                        l2_block.deposit_data().to_owned(),
+                    )
+                    .map(|(hash, raw)| (Into::<[u8; 32]>::into(hash), raw))
+                else {
+                    return Err(StateTransitionError::SoftConfirmationError(
+                        SoftConfirmationError::InvalidDaHash,
+                    ));
+                };
+
                 if l2_block.hash() != expected_hash {
                     return Err(StateTransitionError::SoftConfirmationError(
                         SoftConfirmationError::InvalidSoftConfirmationHash,
@@ -183,9 +190,16 @@ where
                 verify_genesis_signature(&raw, &l2_header.signature, sequencer_public_key)
             }
             SpecId::Kumquat => {
-                let unsigned = UnsignedSoftConfirmation::from(l2_block);
-                let expected_hash =
-                    Into::<[u8; 32]>::into(unsigned.compute_digest::<<C as Spec>::Hasher>());
+                let blobs = l2_block.compute_blobs();
+                let expected_hash: [u8; 32] = l2_header
+                    .inner
+                    .hash_v2::<<C as Spec>::Hasher>(
+                        da_slot_height,
+                        da_slot_hash,
+                        blobs,
+                        l2_block.deposit_data().to_owned(),
+                    )
+                    .into();
 
                 if l2_block.hash() != expected_hash {
                     return Err(StateTransitionError::SoftConfirmationError(
@@ -359,7 +373,13 @@ where
 
         native_debug!("Applying soft confirmation in STF Blueprint");
 
-        self.verify_soft_confirmation(current_spec, l2_block, sequencer_public_key)?;
+        self.verify_soft_confirmation(
+            current_spec,
+            l2_block,
+            sequencer_public_key,
+            slot_header.height(),
+            slot_header.hash().into(),
+        )?;
 
         self.begin_soft_confirmation(
             sequencer_public_key,

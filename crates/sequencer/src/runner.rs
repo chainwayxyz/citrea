@@ -38,7 +38,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     EncodeCall, L2Block, PrivateKey, SlotData, Spec, SpecId, StateDiff, StateValueAccessor,
-    UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
+    WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -548,7 +548,6 @@ where
             active_fork_spec,
             header,
             &blobs,
-            &txs,
             deposit_data.clone(),
             da_block.header().height(),
             da_block.header().hash().into(),
@@ -848,12 +847,11 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn sign_soft_confirmation<'txs>(
+    fn sign_soft_confirmation(
         &mut self,
         active_spec: SpecId,
         header: L2Header,
-        blobs: &'txs [Vec<u8>],
-        txs: &'txs [Transaction],
+        blobs: &[Vec<u8>],
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
@@ -869,7 +867,6 @@ where
             SpecId::Kumquat => self.sign_soft_confirmation_batch_v2(
                 header,
                 blobs,
-                txs,
                 deposit_data,
                 da_slot_height,
                 da_slot_hash,
@@ -894,27 +891,22 @@ where
     }
 
     /// Signs necessary info and returns a BlockTemplate
-    fn sign_soft_confirmation_batch_v2<'txs>(
+    fn sign_soft_confirmation_batch_v2(
         &mut self,
         header: L2Header,
-        blobs: &'txs [Vec<u8>],
-        txs: &'txs [Transaction],
+        blobs: &[Vec<u8>],
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
-        let soft_confirmation = &UnsignedSoftConfirmation::new(
-            &header,
-            blobs.to_vec(),
-            txs,
-            deposit_data,
-            da_slot_height,
-            da_slot_hash,
-        );
-
-        let digest =
-            soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-        let hash = Into::<[u8; 32]>::into(digest);
+        let hash: [u8; 32] = header
+            .hash_v2::<<DefaultContext as sov_modules_api::Spec>::Hasher>(
+                da_slot_height,
+                da_slot_hash,
+                blobs.to_owned(),
+                deposit_data,
+            )
+            .into();
 
         let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
 
@@ -937,17 +929,14 @@ where
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
-        use digest::Digest;
-
-        let soft_confirmation = &UnsignedSoftConfirmationV1::new(
-            &header,
-            blobs.to_vec(),
-            deposit_data,
-            da_slot_height,
-            da_slot_hash,
-        );
-        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
-        let hash = <DefaultContext as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
+        let (hash, raw) = header
+            .hash_v1::<<DefaultContext as sov_modules_api::Spec>::Hasher>(
+                da_slot_height,
+                da_slot_hash,
+                blobs.to_owned(),
+                deposit_data,
+            )
+            .map(|(hash, raw)| (Into::<[u8; 32]>::into(hash), raw))?;
 
         let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
         let signature = priv_key.sign(&raw);
