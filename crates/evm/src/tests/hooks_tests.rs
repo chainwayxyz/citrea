@@ -382,7 +382,6 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         .unwrap();
     let root = binding.header.header().state_root.0;
 
-    let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -391,7 +390,6 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         pre_state_root: root,
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -431,7 +429,6 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             pre_state_root: random_32_bytes,
             current_spec: SpecId::Fork2,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
         });
@@ -452,7 +449,6 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         pre_state_root: random_32_bytes,
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });

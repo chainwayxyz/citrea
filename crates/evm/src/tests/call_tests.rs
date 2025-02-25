@@ -715,7 +715,6 @@ fn self_destruct_test() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -812,7 +811,6 @@ fn test_block_hash_in_evm() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -846,7 +844,6 @@ fn test_block_hash_in_evm() {
             pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Fork2,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
         });
@@ -963,7 +960,6 @@ fn test_block_gas_limit() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -1025,7 +1021,6 @@ fn test_block_gas_limit() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -1763,7 +1758,6 @@ fn test_l1_fee_compression_discount() {
         pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Fork2, // Compression discount is enabled
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -1851,7 +1845,6 @@ fn test_call_with_block_overrides() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -1885,7 +1878,6 @@ fn test_call_with_block_overrides() {
             pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Fork2,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
         });
@@ -1976,7 +1968,6 @@ fn test_blob_tx() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2, // wont be Kumquat at height 2 currently but we can trick the spec id
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });

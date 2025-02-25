@@ -752,7 +752,6 @@ fn test_p256_verify() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -1050,7 +1049,6 @@ fn test_kumquat_to_fork2_account_migration() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });

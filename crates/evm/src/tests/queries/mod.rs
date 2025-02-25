@@ -82,7 +82,6 @@ fn init_evm(
             pre_state_root: [10u8; 32],
             current_spec: spec_id,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 24,
         })
@@ -136,7 +135,6 @@ fn init_evm(
             pre_state_root: [10u8; 32],
             current_spec: spec_id,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 24,
         })
@@ -190,7 +188,6 @@ fn init_evm(
             pre_state_root: [100u8; 32],
             current_spec: spec_id,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 24,
         })
@@ -283,7 +280,6 @@ pub fn init_evm_single_block(
             pre_state_root: [0u8; 32],
             current_spec: spec_id,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
         })

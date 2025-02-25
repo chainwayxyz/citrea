@@ -882,7 +882,6 @@ fn test_queries_with_forks() {
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate: 0,
         timestamp: 0,
     });

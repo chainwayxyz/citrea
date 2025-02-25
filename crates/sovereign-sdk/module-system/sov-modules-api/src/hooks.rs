@@ -196,9 +196,8 @@ impl HookSoftConfirmationInfo {
 
     // TODO: Used only for testing so maybe feature gate it
     pub fn set_da_slot_hash(&mut self, da_slot_hash: [u8; 32]) {
-        match self {
-            HookSoftConfirmationInfo::V1(info) => info.da_slot_hash = da_slot_hash,
-            _ => {}
+        if let HookSoftConfirmationInfo::V1(info) = self {
+            info.da_slot_hash = da_slot_hash
         }
     }
 

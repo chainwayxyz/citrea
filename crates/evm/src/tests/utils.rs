@@ -79,7 +79,6 @@ pub(crate) fn get_evm_with_spec(
             pre_state_root: root,
             current_spec: spec_id,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate: 0,
             timestamp: 0,
         })

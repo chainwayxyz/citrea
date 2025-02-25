@@ -418,7 +418,6 @@ fn test_log_limits() {
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -516,7 +515,6 @@ fn test_log_limits() {
             pre_state_root: [99u8; 32],
             current_spec: SpecId::Fork2,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
         });

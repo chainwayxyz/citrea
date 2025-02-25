@@ -136,7 +136,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
                 .as_slice()
         );
 
-        // TODO: Fix this
+        // TODO: https://github.com/chainwayxyz/citrea/issues/1977
         // // check block response as well
         // let block = full_node_test_client
         //     .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number((i - 3) * 5 + 1)))

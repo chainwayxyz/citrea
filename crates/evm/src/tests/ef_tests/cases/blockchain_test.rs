@@ -72,7 +72,6 @@ impl BlockchainTestCase {
                 pre_state_root: *root,
                 current_spec,
                 pub_key: vec![],
-                deposit_data: vec![],
                 l1_fee_rate,
                 timestamp: 0,
             })

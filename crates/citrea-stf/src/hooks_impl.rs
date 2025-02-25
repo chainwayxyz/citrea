@@ -68,7 +68,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for CitreaRuntime<C,
     ) -> Result<(), SoftConfirmationHookError> {
         if soft_confirmation_info.current_spec() < SpecId::Fork2 {
             self.soft_confirmation_rule_enforcer
-                .begin_soft_confirmation_hook(&soft_confirmation_info, working_set)?;
+                .begin_soft_confirmation_hook(soft_confirmation_info, working_set)?;
         }
         self.evm
             .begin_soft_confirmation_hook(soft_confirmation_info, working_set);

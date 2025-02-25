@@ -84,7 +84,6 @@ fn test_state_change() {
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate: 1,
         timestamp: 0,
     });
