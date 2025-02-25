@@ -194,14 +194,14 @@ impl HookSoftConfirmationInfo {
         }
     }
 
-    // TODO: Used only for testing so maybe feature gate it
+    #[cfg(feature = "testing")]
     pub fn set_da_slot_hash(&mut self, da_slot_hash: [u8; 32]) {
         if let HookSoftConfirmationInfo::V1(info) = self {
             info.da_slot_hash = da_slot_hash
         }
     }
 
-    // TODO: Used only for testing so maybe feature gate it
+    #[cfg(feature = "testing")]
     pub fn set_time_stamp(&mut self, timestamp: u64) {
         match self {
             HookSoftConfirmationInfo::V1(info) => info.timestamp = timestamp,
