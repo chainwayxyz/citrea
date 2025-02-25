@@ -215,7 +215,7 @@ where
             }
             let mut all_txs = vec![];
 
-            let nonce = self.get_nonce(
+            let mut nonce = self.get_nonce(
                 &mut working_set_to_discard,
                 soft_confirmation_info.current_spec(),
             )?;
@@ -240,9 +240,9 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                // No need to increment nonce after this because sys txs will be in the same sov tx with evm txs
                 let signed_tx =
                     self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
+                nonce += 1;
 
                 let txs = vec![signed_tx];
 
@@ -301,6 +301,7 @@ where
                             soft_confirmation_info.current_spec(),
                             nonce,
                         )?;
+                        nonce += 1;
 
                         let txs = vec![signed_tx];
 
@@ -490,6 +491,8 @@ where
         let mut blobs = vec![];
         let mut txs = vec![];
 
+        // if a batch failed need to refetch nonce
+        // so sticking to fetching from state makes sense
         let mut nonce = self.get_nonce(&mut working_set, soft_confirmation_info.current_spec())?;
 
         let evm_txs_count = txs_to_run.len();
@@ -837,9 +840,6 @@ where
         spec_id: SpecId,
         nonce: u64,
     ) -> anyhow::Result<Transaction> {
-        // if a batch failed need to refetch nonce
-        // so sticking to fetching from state makes sense
-
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
