@@ -421,8 +421,6 @@ pub fn populate_system_events<'a>(
             ));
         }
     } else {
-        #[cfg(feature = "native")]
-        tracing::error!("current da height is: {}", current_da_height);
         // That's the first L2 block in the first seen L1 block.
         system_events.push(SystemEvent::BitcoinLightClientInitialize(current_da_height));
         system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
