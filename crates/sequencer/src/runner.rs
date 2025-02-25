@@ -312,6 +312,8 @@ where
                             &txs,
                             &mut working_set,
                         ) {
+                            // Decrement nonce if the transaction failed
+                            nonce -= 1;
                             match e {
                                         // Since this is the sequencer, it should never get a soft confirmation error or a hook error
                                         sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
