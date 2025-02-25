@@ -23,10 +23,10 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         counter: &mut u32,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
-        let evm = Evm::<C>::default();
         let da_root_hash = if soft_confirmation_info.current_spec() < SpecId::Fork2 {
             soft_confirmation_info.da_slot_hash().unwrap()
         } else {
+            let evm = Evm::<C>::default();
             get_last_l1_height_and_hash_in_light_client(
                 &evm,
                 soft_confirmation_info.current_spec(),
