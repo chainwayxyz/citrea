@@ -22,7 +22,7 @@ pub(crate) fn rollback_slots(
 
         let slot_height = record.key;
 
-        if slot_height <= SlotNumber(target_l1) {
+        if slot_height < SlotNumber(target_l1) {
             break;
         }
 
