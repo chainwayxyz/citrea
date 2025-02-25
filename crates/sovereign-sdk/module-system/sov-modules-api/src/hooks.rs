@@ -195,6 +195,22 @@ impl HookSoftConfirmationInfo {
             HookSoftConfirmationInfo::V2(_) => None,
         }
     }
+
+    // TODO: Used only for testing so maybe feature gate it
+    pub fn set_da_slot_hash(&mut self, da_slot_hash: [u8; 32]) {
+        match self {
+            HookSoftConfirmationInfo::V1(info) => info.da_slot_hash = da_slot_hash,
+            _ => {}
+        }
+    }
+
+    // TODO: Used only for testing so maybe feature gate it
+    pub fn set_time_stamp(&mut self, timestamp: u64) {
+        match self {
+            HookSoftConfirmationInfo::V1(info) => info.timestamp = timestamp,
+            HookSoftConfirmationInfo::V2(info) => info.timestamp = timestamp,
+        }
+    }
 }
 
 impl HookSoftConfirmationInfo {
