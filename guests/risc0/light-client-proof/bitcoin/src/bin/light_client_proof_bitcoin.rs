@@ -88,7 +88,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
                     (
                         100,
                         decode_to_u32_array(
-                            "c8c204ecbc23bdf4794a8e9065c8cbd96f282acb97f6924116c51141c08b86dc",
+                            "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
                         ),
                     ),
                     (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
