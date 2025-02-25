@@ -54,6 +54,52 @@ impl L2Header {
         hasher.update(self.timestamp.to_be_bytes());
         hasher.finalize()
     }
+
+    /// Hash L2Block in a Genesis compatible way
+    pub fn hash_v1<D: Digest>(
+        &self,
+        da_slot_height: u64,
+        da_slot_hash: [u8; 32],
+        blobs: Vec<Vec<u8>>,
+        deposit_data: Vec<Vec<u8>>,
+    ) -> borsh::io::Result<(Output<D>, Vec<u8>)> {
+        let mut vec = Vec::new();
+
+        BorshSerialize::serialize(&self.l2_height, &mut vec)?;
+        BorshSerialize::serialize(&da_slot_height, &mut vec)?;
+        BorshSerialize::serialize(&da_slot_hash, &mut vec)?;
+        BorshSerialize::serialize(&self.da_slot_txs_commitment, &mut vec)?;
+        BorshSerialize::serialize(&blobs, &mut vec)?;
+        BorshSerialize::serialize(&deposit_data.to_vec(), &mut vec)?;
+        BorshSerialize::serialize(&self.l1_fee_rate, &mut vec)?;
+        BorshSerialize::serialize(&self.timestamp, &mut vec)?;
+
+        Ok((D::digest(vec.as_slice()), vec))
+    }
+
+    /// Hash L2Block in a Kumquat compatible way
+    pub fn hash_v2<D: Digest>(
+        &self,
+        da_slot_height: u64,
+        da_slot_hash: [u8; 32],
+        blobs: Vec<Vec<u8>>,
+        deposit_data: Vec<Vec<u8>>,
+    ) -> Output<D> {
+        let mut hasher = D::new();
+        hasher.update(self.l2_height.to_be_bytes());
+        hasher.update(da_slot_height.to_be_bytes());
+        hasher.update(da_slot_hash);
+        hasher.update(self.da_slot_txs_commitment);
+        for tx in blobs {
+            hasher.update(tx);
+        }
+        for deposit in deposit_data {
+            hasher.update(deposit);
+        }
+        hasher.update(self.l1_fee_rate.to_be_bytes());
+        hasher.update(self.timestamp.to_be_bytes());
+        hasher.finalize()
+    }
 }
 
 /// Signed L2 header
@@ -190,280 +236,43 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
 
     /// Borsh serialize all txs as blobs
     /// Required for backward compatiblity
-    fn compute_blobs(&self) -> Vec<Vec<u8>> {
+    pub fn compute_blobs(&self) -> Vec<Vec<u8>> {
         self.txs
             .iter()
             .map(|tx| borsh::to_vec(tx).unwrap())
             .collect()
     }
-}
 
-/// Contains raw transactions and information about the soft confirmation block
-#[derive(Debug, PartialEq, BorshSerialize, Clone)]
-pub struct UnsignedSoftConfirmation<'txs, Tx> {
-    l2_height: u64,
-    da_slot_height: u64,
-    da_slot_hash: [u8; 32],
-    da_slot_txs_commitment: [u8; 32],
-    blobs: Vec<Vec<u8>>,
-    txs: &'txs [Tx],
-    deposit_data: Vec<Vec<u8>>,
-    l1_fee_rate: u128,
-    timestamp: u64,
-}
-
-impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
-    /// Create UnsignedSoftConfirmation from header and required for backwards compatibility fields
-    pub fn new(
-        header: &L2Header,
-        blobs: Vec<Vec<u8>>,
-        txs: &'txs [Tx],
-        deposit_data: Vec<Vec<u8>>,
-        da_slot_height: u64,
-        da_slot_hash: [u8; 32],
-    ) -> Self {
-        UnsignedSoftConfirmation {
-            l2_height: header.l2_height,
-            da_slot_height,
-            da_slot_hash,
-            da_slot_txs_commitment: header.da_slot_txs_commitment,
-            blobs,
-            txs,
-            deposit_data,
-            l1_fee_rate: header.l1_fee_rate,
-            timestamp: header.timestamp,
-        }
+    /// Serialized L2Block in a Genesis compatible way
+    pub fn serialize_v1<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        BorshSerialize::serialize(&self.l2_height(), writer)?;
+        BorshSerialize::serialize(&self.hash(), writer)?;
+        BorshSerialize::serialize(&self.prev_hash(), writer)?;
+        BorshSerialize::serialize(&self.da_slot_height(), writer)?;
+        BorshSerialize::serialize(&self.da_slot_hash(), writer)?;
+        BorshSerialize::serialize(&self.da_slot_txs_commitment(), writer)?;
+        BorshSerialize::serialize(&self.l1_fee_rate(), writer)?;
+        BorshSerialize::serialize(&self.compute_blobs(), writer)?;
+        BorshSerialize::serialize(&self.signature().to_vec(), writer)?;
+        BorshSerialize::serialize(&self.deposit_data().to_vec(), writer)?;
+        BorshSerialize::serialize(&self.pub_key().to_vec(), writer)?;
+        BorshSerialize::serialize(&self.timestamp(), writer)
     }
 
-    /// Compute digest for the whole UnsignedSoftConfirmation struct
-    pub fn compute_digest<D: Digest>(&self) -> Output<D> {
-        let mut hasher = D::new();
-        hasher.update(self.l2_height.to_be_bytes());
-        hasher.update(self.da_slot_height.to_be_bytes());
-        hasher.update(self.da_slot_hash);
-        hasher.update(self.da_slot_txs_commitment);
-        for tx in &self.blobs {
-            hasher.update(tx);
-        }
-        for deposit in &self.deposit_data {
-            hasher.update(deposit);
-        }
-        hasher.update(self.l1_fee_rate.to_be_bytes());
-        hasher.update(self.timestamp.to_be_bytes());
-        hasher.finalize()
-    }
-}
-
-/// Old version of UnsignedSoftConfirmation
-/// Used for backwards compatibility
-/// Always use ```UnsignedSoftConfirmation``` instead
-#[derive(BorshSerialize)]
-pub struct UnsignedSoftConfirmationV1 {
-    l2_height: u64,
-    da_slot_height: u64,
-    da_slot_hash: [u8; 32],
-    da_slot_txs_commitment: [u8; 32],
-    blobs: Vec<Vec<u8>>,
-    deposit_data: Vec<Vec<u8>>,
-    l1_fee_rate: u128,
-    timestamp: u64,
-}
-
-impl<'txs, Tx: Clone + BorshSerialize> From<&'txs L2Block<'_, Tx>>
-    for UnsignedSoftConfirmation<'txs, Tx>
-{
-    fn from(block: &'txs L2Block<'_, Tx>) -> Self {
-        let header = &block.header.inner;
-        Self {
-            l2_height: header.l2_height,
-            da_slot_height: block.da_slot_height(),
-            da_slot_hash: block.da_slot_hash(),
-            da_slot_txs_commitment: header.da_slot_txs_commitment,
-            blobs: block.compute_blobs(),
-            txs: &block.txs,
-            deposit_data: block.deposit_data.clone(),
-            l1_fee_rate: header.l1_fee_rate,
-            timestamp: header.timestamp,
-        }
-    }
-}
-
-impl<'txs, Tx: Clone + BorshSerialize> From<&'txs L2Block<'_, Tx>> for UnsignedSoftConfirmationV1 {
-    fn from(block: &'txs L2Block<'_, Tx>) -> Self {
-        let header = &block.header.inner;
-        Self {
-            l2_height: header.l2_height,
-            da_slot_height: block.da_slot_height(),
-            da_slot_hash: block.da_slot_hash(),
-            da_slot_txs_commitment: header.da_slot_txs_commitment,
-            blobs: block.compute_blobs(),
-            deposit_data: block.deposit_data.clone(),
-            l1_fee_rate: header.l1_fee_rate,
-            timestamp: header.timestamp,
-        }
-    }
-}
-
-impl UnsignedSoftConfirmationV1 {
-    /// Create UnsignedSoftConfirmation from header and required for backwards compatibility fields
-    pub fn new(
-        header: &L2Header,
-        blobs: Vec<Vec<u8>>,
-        deposit_data: Vec<Vec<u8>>,
-        da_slot_height: u64,
-        da_slot_hash: [u8; 32],
-    ) -> Self {
-        UnsignedSoftConfirmationV1 {
-            l2_height: header.l2_height,
-            da_slot_height,
-            da_slot_hash,
-            da_slot_txs_commitment: header.da_slot_txs_commitment,
-            blobs,
-            deposit_data,
-            l1_fee_rate: header.l1_fee_rate,
-            timestamp: header.timestamp,
-        }
-    }
-
-    /// Pre fork1 version of compute_digest
-    // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
-    //   when removing this fn
-    // FIXME: ^
-    pub fn hash<D: Digest>(&self) -> Output<D> {
-        let raw = borsh::to_vec(&self).unwrap();
-        D::digest(raw.as_slice())
-    }
-}
-
-/// Signed version of the `UnsignedSoftConfirmation`
-/// Contains the signature and public key of the sequencer
-#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct SignedSoftConfirmation<'txs, Tx: Clone + BorshSerialize> {
-    l2_height: u64,
-    hash: [u8; 32],
-    prev_hash: [u8; 32],
-    da_slot_height: u64,
-    da_slot_hash: [u8; 32],
-    da_slot_txs_commitment: [u8; 32],
-    l1_fee_rate: u128,
-    blobs: Cow<'txs, [Vec<u8>]>,
-    txs: Cow<'txs, [Tx]>,
-    signature: Vec<u8>,
-    deposit_data: Vec<Vec<u8>>,
-    pub_key: Vec<u8>,
-    timestamp: u64,
-}
-
-impl<'txs, Tx: Clone + BorshSerialize> SignedSoftConfirmation<'txs, Tx> {
-    /// Creates a signed soft confirmation batch
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        l2_height: u64,
-        hash: [u8; 32],
-        prev_hash: [u8; 32],
-        da_slot_height: u64,
-        da_slot_hash: [u8; 32],
-        da_slot_txs_commitment: [u8; 32],
-        l1_fee_rate: u128,
-        blobs: Cow<'txs, [Vec<u8>]>,
-        txs: Cow<'txs, [Tx]>,
-        deposit_data: Vec<Vec<u8>>,
-        signature: Vec<u8>,
-        pub_key: Vec<u8>,
-        timestamp: u64,
-    ) -> Self {
-        Self {
-            l2_height,
-            hash,
-            prev_hash,
-            da_slot_height,
-            da_slot_hash,
-            da_slot_txs_commitment,
-            l1_fee_rate,
-            blobs,
-            txs,
-            deposit_data,
-            signature,
-            pub_key,
-            timestamp,
-        }
-    }
-}
-
-/// Signed version of the `UnsignedSoftConfirmation` used in Genesis
-/// Contains the signature and public key of the sequencer
-#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct SignedSoftConfirmationV1 {
-    l2_height: u64,
-    hash: [u8; 32],
-    prev_hash: [u8; 32],
-    da_slot_height: u64,
-    da_slot_hash: [u8; 32],
-    da_slot_txs_commitment: [u8; 32],
-    l1_fee_rate: u128,
-    txs: Vec<Vec<u8>>,
-    signature: Vec<u8>,
-    deposit_data: Vec<Vec<u8>>,
-    pub_key: Vec<u8>,
-    timestamp: u64,
-}
-
-impl<'txs, Tx: Clone + BorshSerialize> From<SignedSoftConfirmation<'txs, Tx>>
-    for SignedSoftConfirmationV1
-{
-    fn from(input: SignedSoftConfirmation<'txs, Tx>) -> Self {
-        SignedSoftConfirmationV1 {
-            l2_height: input.l2_height,
-            hash: input.hash,
-            prev_hash: input.prev_hash,
-            da_slot_height: input.da_slot_height,
-            da_slot_hash: input.da_slot_hash,
-            da_slot_txs_commitment: input.da_slot_txs_commitment,
-            l1_fee_rate: input.l1_fee_rate,
-            txs: input.blobs.into_owned(),
-            signature: input.signature,
-            deposit_data: input.deposit_data,
-            pub_key: input.pub_key,
-            timestamp: input.timestamp,
-        }
-    }
-}
-
-impl<'txs, Tx: Clone + BorshSerialize> From<L2Block<'_, Tx>> for SignedSoftConfirmation<'txs, Tx> {
-    fn from(input: L2Block<'_, Tx>) -> Self {
-        SignedSoftConfirmation {
-            l2_height: input.l2_height(),
-            hash: input.hash(),
-            prev_hash: input.prev_hash(),
-            da_slot_height: input.da_slot_height(),
-            da_slot_hash: input.da_slot_hash(),
-            da_slot_txs_commitment: input.da_slot_txs_commitment(),
-            l1_fee_rate: input.l1_fee_rate(),
-            blobs: Cow::Owned(input.compute_blobs()),
-            txs: Cow::Owned(input.txs.to_vec()),
-            signature: input.signature().to_vec(),
-            deposit_data: input.deposit_data().to_vec(),
-            pub_key: input.pub_key().to_vec(),
-            timestamp: input.timestamp(),
-        }
-    }
-}
-
-impl<Tx: Clone + BorshSerialize> From<L2Block<'_, Tx>> for SignedSoftConfirmationV1 {
-    fn from(input: L2Block<'_, Tx>) -> Self {
-        SignedSoftConfirmationV1 {
-            l2_height: input.l2_height(),
-            hash: input.hash(),
-            prev_hash: input.prev_hash(),
-            da_slot_height: input.da_slot_height(),
-            da_slot_hash: input.da_slot_hash(),
-            da_slot_txs_commitment: input.da_slot_txs_commitment(),
-            l1_fee_rate: input.l1_fee_rate(),
-            txs: input.compute_blobs(),
-            signature: input.signature().to_vec(),
-            deposit_data: input.deposit_data().to_vec(),
-            pub_key: input.pub_key().to_vec(),
-            timestamp: input.timestamp(),
-        }
+    /// Serialized L2Block in a Kumquat compatible way
+    pub fn serialize_v2<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        BorshSerialize::serialize(&self.l2_height(), writer)?;
+        BorshSerialize::serialize(&self.hash(), writer)?;
+        BorshSerialize::serialize(&self.prev_hash(), writer)?;
+        BorshSerialize::serialize(&self.da_slot_height(), writer)?;
+        BorshSerialize::serialize(&self.da_slot_hash(), writer)?;
+        BorshSerialize::serialize(&self.da_slot_txs_commitment(), writer)?;
+        BorshSerialize::serialize(&self.l1_fee_rate(), writer)?;
+        BorshSerialize::serialize(&self.compute_blobs(), writer)?;
+        BorshSerialize::serialize(&self.txs, writer)?;
+        BorshSerialize::serialize(&self.signature().to_vec(), writer)?;
+        BorshSerialize::serialize(&self.deposit_data().to_vec(), writer)?;
+        BorshSerialize::serialize(&self.pub_key().to_vec(), writer)?;
+        BorshSerialize::serialize(&self.timestamp(), writer)
     }
 }
