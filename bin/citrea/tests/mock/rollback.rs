@@ -52,6 +52,7 @@ async fn start_sequencer(
 ) -> (TaskManager<()>, Box<TestClient>, SocketAddr) {
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: 10,
+        test_mode: true,
         ..Default::default()
     };
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -63,14 +64,13 @@ async fn start_sequencer(
         None,
     );
 
-    let sequencer_config1 = sequencer_config.clone();
     let seq_task_manager = start_rollup(
         seq_port_tx,
         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
         None,
         None,
         rollup_config,
-        Some(sequencer_config1),
+        Some(sequencer_config),
         None,
         false,
     )
@@ -171,12 +171,9 @@ async fn fill_blocks(test_client: &TestClient, da_service: &MockDaService, addr:
 
         test_client.spam_publish_batch_request().await.unwrap();
 
-        if i % 5 == 0 {
+        if i % 10 == 0 {
             wait_for_l2_block(test_client, i, None).await;
-
-            da_service.publish_test_block().await.unwrap();
-
-            wait_for_l1_block(da_service, 3 + (i / 5), None).await;
+            wait_for_l1_block(da_service, 3 + (i / 10), None).await;
         }
     }
 }
@@ -233,6 +230,17 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
     fill_blocks(&seq_test_client, &da_service, &addr).await;
+
+    wait_for_l2_block(&seq_test_client, 50, None).await;
+
+    let get_balance_result = seq_test_client
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
+        .await;
+    assert!(get_balance_result.is_ok());
+    assert_eq!(
+        get_balance_result.unwrap(),
+        U256::from(50000000000000000000u128)
+    );
 
     seq_task_manager.abort().await;
 
@@ -301,7 +309,26 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
 
     fill_blocks(&seq_test_client, &da_service, &addr).await;
 
+    wait_for_l2_block(&seq_test_client, 50, None).await;
     wait_for_l2_block(&full_node_test_client, 50, None).await;
+
+    let get_balance_result = seq_test_client
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
+        .await;
+    assert!(get_balance_result.is_ok());
+    assert_eq!(
+        get_balance_result.unwrap(),
+        U256::from(50000000000000000000u128)
+    );
+
+    let get_balance_result = full_node_test_client
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
+        .await;
+    assert!(get_balance_result.is_ok());
+    assert_eq!(
+        get_balance_result.unwrap(),
+        U256::from(50000000000000000000u128)
+    );
 
     seq_task_manager.abort().await;
     full_node_task_manager.abort().await;
@@ -377,6 +404,15 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
 
     wait_for_l2_block(&full_node_test_client, 50, None).await;
     wait_for_l2_block(&batch_prover_test_client, 50, None).await;
+
+    let get_balance_result = seq_test_client
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
+        .await;
+    assert!(get_balance_result.is_ok());
+    assert_eq!(
+        get_balance_result.unwrap(),
+        U256::from(50000000000000000000u128)
+    );
 
     let get_balance_result = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
