@@ -179,7 +179,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) {
         // TODO: https://github.com/chainwayxyz/citrea/issues/1977
         let l1_hash = soft_confirmation_info.da_slot_hash().unwrap_or_default();
-        println!("evm end_soft_confirmation_hook: l1_hash: {:?}", l1_hash);
 
         let current_spec = soft_confirmation_info.current_spec();
 
