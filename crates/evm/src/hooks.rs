@@ -122,7 +122,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             number: U256::from(parent_block_number + 1),
             coinbase: cfg.coinbase,
             timestamp: U256::from(soft_confirmation_info.timestamp()),
-            // TODO: What happens to this?
+            // TODO: https://github.com/chainwayxyz/citrea/issues/1978
             prevrandao: Some(
                 soft_confirmation_info
                     .da_slot_hash()
@@ -177,7 +177,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C::Storage>,
     ) {
-        // TODO: EvmBlock V2?
+        // TODO: https://github.com/chainwayxyz/citrea/issues/1977
         let l1_hash = soft_confirmation_info.da_slot_hash().unwrap_or_default();
         println!("evm end_soft_confirmation_hook: l1_hash: {:?}", l1_hash);
 
