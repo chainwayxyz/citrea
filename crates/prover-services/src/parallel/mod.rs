@@ -67,6 +67,8 @@ where
             }
         };
 
+        // TODO: check if this is going to be a problem when we want to do remote
+        // proving with higher limit than the cpu number
         let thread_pool = rayon::ThreadPoolBuilder::new()
             .num_threads(thread_pool_size)
             .build()
