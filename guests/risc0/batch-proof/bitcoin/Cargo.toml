@@ -22,7 +22,7 @@ sov-rollup-interface = { path = "../../../../crates/sovereign-sdk/rollup-interfa
 sov-state = { path = "../../../../crates/sovereign-sdk/module-system/sov-state" }
 
 [features]
-testing = ["citrea-primitives/testing"]
+testing = ["citrea-primitives/testing", "risc0-zkvm-platform/sys-getenv"]
 
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }

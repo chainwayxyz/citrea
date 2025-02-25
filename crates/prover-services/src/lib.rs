@@ -41,7 +41,4 @@ pub struct ProofData {
 
     /// The ELF binary to be used
     pub elf: Elf,
-
-    /// Flag to indicate whether the elf is for post genesis fork of batch proof
-    pub is_post_genesis_batch: bool,
 }
