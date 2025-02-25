@@ -68,7 +68,9 @@ impl<'txs, Da: DaSpec, Tx: BorshSerialize + Clone> BorshSerialize
         BorshSerialize::serialize(&self.preproven_commitments, writer)?;
 
         // Serialize L2Blocks into v1 format
+        BorshSerialize::serialize(&(self.soft_confirmations.len() as u32), writer)?;
         for soft_conf in &self.soft_confirmations {
+            BorshSerialize::serialize(&(soft_conf.len() as u32), writer)?;
             for conf in soft_conf {
                 conf.serialize_v1(writer)?;
             }

@@ -16,9 +16,13 @@ pub struct BatchProofCircuitInputV2Part2<'txs, Tx: Clone + BorshSerialize>(
 
 impl<'txs, Tx: Clone + BorshSerialize> BorshSerialize for BatchProofCircuitInputV2Part2<'txs, Tx> {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        BorshSerialize::serialize(&(self.0.len() as u32), writer)?;
         for blocks in &self.0 {
-            for (block, _, _) in blocks {
-                block.serialize_v2(writer)?
+            BorshSerialize::serialize(&(blocks.len() as u32), writer)?;
+            for (block, w1, w2) in blocks {
+                block.serialize_v2(writer)?;
+                w1.serialize(writer)?;
+                w2.serialize(writer)?;
             }
         }
         Ok(())
