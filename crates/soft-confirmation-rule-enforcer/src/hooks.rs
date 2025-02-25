@@ -73,14 +73,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     }
 
     /// Block count  and timestamp check Logic executed at the end of the soft confirmation.
-    /// This is put in the end because if the block count exceeds the max L2 blocks per L1,
-    /// and since the rule is checked before set block info is applied by the sequencer,
-    /// the sequencer halts and never produces any more blocks.
-    #[cfg_attr(
-        feature = "native",
-        instrument(level = "trace", skip(self, working_set), err, ret)
-    )]
-    pub fn end_soft_confirmation_hook(
+    pub fn hook_handler(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C::Storage>,
@@ -116,5 +109,34 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         );
 
         Ok(())
+    }
+
+    /// Works for pre fork2 blocks
+    #[cfg_attr(
+        feature = "native",
+        instrument(level = "trace", skip(self, working_set), err, ret)
+    )]
+    pub fn begin_soft_confirmation_hook(
+        &self,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<(), SoftConfirmationHookError> {
+        self.hook_handler(soft_confirmation_info, working_set)
+    }
+
+    /// This is put in the end because if the block count exceeds the max L2 blocks per L1,
+    /// and since the rule is checked before set block info is applied by the sequencer,
+    /// the sequencer halts and never produces any more blocks.
+    /// Works for post fork2 blocks
+    #[cfg_attr(
+        feature = "native",
+        instrument(level = "trace", skip(self, working_set), err, ret)
+    )]
+    pub fn end_soft_confirmation_hook(
+        &self,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<(), SoftConfirmationHookError> {
+        self.hook_handler(soft_confirmation_info, working_set)
     }
 }
