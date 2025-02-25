@@ -23,34 +23,17 @@ pub(crate) fn rollback_ledger_db(
         target_l2, target_l1
     );
 
-    match node_type {
-        StorageNodeType::Sequencer => {
-            log_result_or_error!(
-                "soft_confirmations",
-                rollback_soft_confirmations(node_type, &ledger_db, target_l2)
-            );
-            log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1));
-        }
-        StorageNodeType::FullNode => {
-            log_result_or_error!(
-                "soft_confirmations",
-                rollback_soft_confirmations(node_type, &ledger_db, target_l2)
-            );
-            log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1));
-        }
-        StorageNodeType::BatchProver => {
-            log_result_or_error!(
-                "soft_confirmations",
-                rollback_soft_confirmations(node_type, &ledger_db, target_l2)
-            );
-            log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1));
-        }
-        StorageNodeType::LightClient => {
-            log_result_or_error!(
-                "soft_confirmations",
-                rollback_soft_confirmations(node_type, &ledger_db, target_l2)
-            );
-            log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1));
-        }
-    }
+    log_result_or_error!(
+        "soft_confirmations",
+        rollback_soft_confirmations(node_type, &ledger_db, target_l2)
+    );
+    log_result_or_error!(
+        "slots",
+        rollback_slots(
+            node_type,
+            &ledger_db,
+            target_l1,
+            last_sequencer_commitment_l2_height,
+        )
+    );
 }
