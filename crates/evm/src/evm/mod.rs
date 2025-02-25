@@ -118,7 +118,8 @@ impl DbAccount {
         }
     }
 
-    fn create_storage_prefix(address: &Address) -> Prefix {
+    /// Create a storage prefix
+    pub(crate) fn create_storage_prefix(address: &Address) -> Prefix {
         let mut prefix = Prefix::from_slice(&DBACCOUNT_STORAGE_PREFIX);
         prefix.extend_from_slice(address.as_raw_slice());
         prefix

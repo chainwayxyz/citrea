@@ -6,6 +6,7 @@ mod genesis;
 mod hooks;
 mod provider_functions;
 
+pub use alloy_primitives::{keccak256, U256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
@@ -38,7 +39,7 @@ mod tests;
 use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
-use revm::primitives::{BlockEnv, SpecId as EvmSpecId, U256};
+use revm::primitives::{BlockEnv, SpecId as EvmSpecId};
 use sov_modules_api::{
     ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };

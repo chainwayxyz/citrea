@@ -25,7 +25,7 @@ sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/s
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sov-state = { path = "../sovereign-sdk/module-system/sov-state", optional = true }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-evm = { path = "../evm" }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
@@ -39,7 +39,6 @@ native = [
   "sov-rollup-interface/native",
   "sov-modules-stf-blueprint/native",
   "soft-confirmation-rule-enforcer/native",
-  "sov-state",
   "citrea-evm/native",
   "dep:jsonrpsee",
   "dep:tracing",
