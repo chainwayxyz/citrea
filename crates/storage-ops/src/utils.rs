@@ -1,7 +1,8 @@
 use sov_db::schema::tables::{
     CommitmentsByNumber, L2RangeByL1Height, L2Witness, LightClientProofBySlotNumber,
-    ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs, SlotByHash, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
+    ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs, ShortHeaderProofBySlotHash,
+    SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
+    VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::{DbHash, SlotNumber, SoftConfirmationNumber};
 use sov_schema_db::{ScanDirection, DB};
@@ -39,6 +40,9 @@ pub(crate) fn delete_slots_by_number(
     ledger_db.delete::<L2RangeByL1Height>(&slot_number)?;
     ledger_db.delete::<CommitmentsByNumber>(&slot_number)?;
 
+    if !matches!(node_type, StorageNodeType::LightClient) {
+        delete_short_header_proofs(ledger_db, slot_number)?;
+    }
     if !matches!(node_type, StorageNodeType::Sequencer) {
         delete_slot_by_hash(ledger_db, slot_number)?;
     }
@@ -54,6 +58,26 @@ pub(crate) fn delete_slots_by_number(
 
     if matches!(node_type, StorageNodeType::LightClient) {
         ledger_db.delete::<LightClientProofBySlotNumber>(&slot_number)?;
+    }
+
+    Ok(())
+}
+
+fn delete_short_header_proofs(ledger_db: &DB, slot_number: SlotNumber) -> anyhow::Result<()> {
+    let mut slots =
+        ledger_db.iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Backward)?;
+    slots.seek_to_last();
+
+    for record in slots {
+        let Ok(record) = record else {
+            continue;
+        };
+
+        // TODO for pruning this should be less than
+        if record.value > slot_number {
+            println!("Deleting slot short proof: {:?}", record.key);
+            ledger_db.delete::<ShortHeaderProofBySlotHash>(&record.key)?;
+        }
     }
 
     Ok(())
