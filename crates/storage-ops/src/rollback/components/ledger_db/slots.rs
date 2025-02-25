@@ -9,6 +9,7 @@ pub(crate) fn rollback_slots(
     node_type: StorageNodeType,
     ledger_db: &DB,
     target_l1: u64,
+    last_sequencer_commitment_l2_height: u64,
 ) -> anyhow::Result<u64> {
     let mut slots_to_l2_range = ledger_db
         .iter_with_direction::<L2RangeByL1Height>(Default::default(), ScanDirection::Backward)?;
@@ -30,13 +31,9 @@ pub(crate) fn rollback_slots(
             || matches!(node_type, StorageNodeType::FullNode)
         {
             let slot_range = record.value;
-            // TODO: Figure out a way to set it to an actual
-            // commitment range L2 end.
-            // `CommitmentsByNumber` table is only populated by
-            // the batch prover.
             ledger_db.put::<LastSequencerCommitmentSent>(
                 &(),
-                &SoftConfirmationNumber(slot_range.0 .0 - 1),
+                &SoftConfirmationNumber(last_sequencer_commitment_l2_height),
             )?;
         }
 

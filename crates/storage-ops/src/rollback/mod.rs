@@ -32,13 +32,14 @@ impl Rollback {
         }
     }
 
-    /// Rollback the provided number of blocks
+    /// Rollback the provided L2/L1 block combination.
     pub async fn execute(
         &self,
         node_type: StorageNodeType,
         _current_l2_height: u64,
         l2_target: u64,
         l1_target: u64,
+        last_sequencer_commitment_l2_height: u64,
     ) -> anyhow::Result<()> {
         info!("Rolling back until L2 {}, L1 {}", l2_target, l1_target);
 
@@ -47,7 +48,13 @@ impl Rollback {
         let state_db = self.state_db.clone();
 
         let ledger_rollback_handle = tokio::task::spawn_blocking(move || {
-            rollback_ledger_db(node_type, ledger_db, l2_target, l1_target)
+            rollback_ledger_db(
+                node_type,
+                ledger_db,
+                l2_target,
+                l1_target,
+                last_sequencer_commitment_l2_height,
+            )
         });
 
         let state_db_rollback_handle =

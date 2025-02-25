@@ -16,6 +16,7 @@ pub(crate) fn rollback_ledger_db(
     ledger_db: Arc<sov_schema_db::DB>,
     target_l2: u64,
     target_l1: u64,
+    last_sequencer_commitment_l2_height: u64,
 ) {
     debug!(
         "Rolling back Ledger, down to L2 block {}, L1 block {}",
