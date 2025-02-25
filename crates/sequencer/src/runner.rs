@@ -215,6 +215,11 @@ where
             }
             let mut all_txs = vec![];
 
+            let nonce = self.get_nonce(
+                &mut working_set_to_discard,
+                soft_confirmation_info.current_spec(),
+            )?;
+
             // Initially process system txs if any
             // No need to check spec as they are only populated after fork2
             for sys_tx in system_transactions {
@@ -235,11 +240,9 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx = self.sign_tx(
-                    raw_message,
-                    &mut working_set_to_discard,
-                    soft_confirmation_info.current_spec(),
-                )?;
+                // No need to increment nonce after this because sys txs will be in the same sov tx with evm txs
+                let signed_tx =
+                    self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
 
                 let txs = vec![signed_tx];
 
@@ -295,8 +298,8 @@ where
 
                         let signed_tx = self.sign_tx(
                             raw_message,
-                            &mut working_set_to_discard,
                             soft_confirmation_info.current_spec(),
+                            nonce,
                         )?;
 
                         let txs = vec![signed_tx];
@@ -487,6 +490,8 @@ where
         let mut blobs = vec![];
         let mut txs = vec![];
 
+        let mut nonce = self.get_nonce(&mut working_set, soft_confirmation_info.current_spec())?;
+
         let evm_txs_count = txs_to_run.len();
         if evm_txs_count > 0 {
             let call_txs = CallMessage { txs: txs_to_run };
@@ -495,11 +500,11 @@ where
             >>::encode_call(call_txs);
 
             println!("signing tx in produce l2 block got evm tx");
-            let signed_tx = self.sign_tx(
-                raw_message,
-                &mut working_set,
-                soft_confirmation_info.current_spec(),
-            )?;
+            let signed_tx =
+                self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
+            // Increment nonce after sov tx for other possible sov txs
+            nonce += 1;
+
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
         }
@@ -512,7 +517,7 @@ where
             if next_fork.spec_id == SpecId::Fork2
                 && soft_confirmation_info.l2_height + 1 == next_fork.activation_height
             {
-                let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                let (signed_blob, signed_tx) = self.update_sequencer_authority( soft_confirmation_info.current_spec(), nonce).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
                 blobs.push(signed_blob);
                 txs.push(signed_tx);
             }
@@ -830,12 +835,12 @@ where
     fn sign_tx(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         spec_id: SpecId,
+        nonce: u64,
     ) -> anyhow::Result<Transaction> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce(working_set, spec_id)?;
+
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
@@ -1093,8 +1098,8 @@ where
 
     fn update_sequencer_authority(
         &mut self,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         current_spec: SpecId,
+        nonce: u64,
     ) -> anyhow::Result<(Vec<u8>, Transaction)> {
         let k256_priv_key =
             K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
@@ -1112,7 +1117,7 @@ where
         >>::encode_call(rule_enforcer_call_tx);
 
         println!("singing tx and blob in update seq auth");
-        let signed_tx = self.sign_tx(raw_message, working_set, current_spec)?;
+        let signed_tx = self.sign_tx(raw_message, current_spec, nonce)?;
         let signed_blob = signed_tx.to_blob()?;
 
         Ok((signed_blob, signed_tx))

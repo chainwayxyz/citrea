@@ -168,21 +168,21 @@ impl TestCase for SyncStatusTest {
             LayerStatus::Syncing(syncing) => {
                 assert!(
                     syncing.synced_block_number.to::<u64>() > 0
-                        && syncing.synced_block_number.to::<u64>() < 20
+                        && syncing.synced_block_number.to::<u64>() < 165
                 );
-                assert_eq!(syncing.head_block_number.to::<u64>(), 20);
+                assert_eq!(syncing.head_block_number.to::<u64>(), 165);
             }
             _ => panic!("Expected syncing status"),
         }
 
         // Wait for L1 sync to complete
-        full_node.wait_for_l1_height(20, None).await?;
+        full_node.wait_for_l1_height(165, None).await?;
 
         // Check L1 sync status after fully synced
         let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
         match l1_status {
             LayerStatus::Synced(synced_up_to) => {
-                assert_eq!(synced_up_to.to::<u64>(), 20);
+                assert_eq!(synced_up_to.to::<u64>(), 165);
             }
             _ => panic!("Expected synced status"),
         }
