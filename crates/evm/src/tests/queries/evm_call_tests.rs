@@ -9,7 +9,7 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{HookSoftConfirmationInfo, HookSoftConfirmationInfoV2};
 use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
 
@@ -79,18 +79,14 @@ fn test_state_change() {
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate: 1,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let call_result = evm.get_call_inner(

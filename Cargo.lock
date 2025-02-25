@@ -7850,6 +7850,7 @@ version = "0.6.0"
 dependencies = [
  "borsh",
  "chrono",
+ "citrea-evm",
  "jsonrpsee",
  "lazy_static",
  "serde",

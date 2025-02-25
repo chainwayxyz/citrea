@@ -1,5 +1,6 @@
 use alloy_primitives::{keccak256, U256};
 use alloy_sol_types::SolCall;
+use citrea_primitives::forks::fork_from_block_number;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
@@ -7,7 +8,7 @@ use revm::primitives::{
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use short_header_proof_provider::{ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::{
-    native_error, native_trace, SoftConfirmationModuleCallError, SpecId as CitreaSpecId,
+    native_error, native_trace, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };
 #[cfg(feature = "native")]
 use tracing::trace_span;
@@ -16,7 +17,7 @@ use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
 use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use crate::system_contracts::BitcoinLightClientContract;
-use crate::{EvmDb, SYSTEM_SIGNER};
+use crate::{Evm, EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
     pub(crate) evm: revm::Evm<'a, EXT, DB>,
@@ -174,6 +175,10 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
         .try_into()
         .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
 
+    // Early return if this is the first block because sequencer will not have any L1 block hash in system contract before setblock info call
+    if l2_height == 1 {
+        return Ok(());
+    }
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36]
             .try_into()
@@ -185,28 +190,17 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
             .try_into()
             .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
 
-        let last_l1_height = db
-            .storage(BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256::ZERO)
-            .unwrap();
+        let citrea_spec = fork_from_block_number(l2_height).spec_id;
 
-        let mut bytes = [0u8; 64];
-        bytes[0..32].copy_from_slice(&(last_l1_height - U256::from(1)).to_be_bytes::<32>());
-        // counter intuitively the contract stores next block height (expected on setBlockInfo)x
-        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
-
-        let prev_hash = db
-            .storage(
-                BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                keccak256(bytes).into(),
-            )
-            .unwrap();
+        let (last_l1_height, prev_hash) =
+            get_last_l1_height_and_hash_in_light_client::<C>(db.evm, citrea_spec, db.working_set);
 
         // counter intuitively the contract stores next block height (expected on setBlockInfo)
         let next_l1_height: u64 = last_l1_height.to::<u64>();
 
         match shp_provider.get_and_verify_short_header_proof_by_l1_hash(
             l1_block_hash,
-            prev_hash.to_be_bytes(),
+            prev_hash.unwrap().to_be_bytes(),
             next_l1_height,
             txs_commitment,
             l2_height,
@@ -242,4 +236,34 @@ pub(crate) fn execute_system_txs<C: sov_modules_api::Context, EXT: CitreaExterna
                 .expect("System transactions must never fail")
         })
         .collect()
+}
+
+/// Returns the last set l1 block hash in bitcoin light client contract
+pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
+    evm: &Evm<C>,
+    spec_id: CitreaSpecId,
+    working_set: &mut WorkingSet<C::Storage>,
+) -> (U256, Option<U256>) {
+    let last_l1_height_in_contract = evm
+        .storage_get(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+            spec_id,
+            working_set,
+        )
+        .unwrap_or(U256::ZERO);
+    let mut bytes = [0u8; 64];
+    bytes[0..32].copy_from_slice(
+        &(last_l1_height_in_contract.saturating_sub(U256::from(1u64))).to_be_bytes::<32>(),
+    );
+    // counter intuitively the contract stores next block height (expected on setBlockInfo)
+    bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+    let last_l1_hash = evm.storage_get(
+        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+        &keccak256(bytes).into(),
+        spec_id,
+        working_set,
+    );
+
+    (last_l1_height_in_contract, last_l1_hash)
 }

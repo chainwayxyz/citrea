@@ -119,18 +119,24 @@ where
             ));
         };
 
-        // then verify da hashes match
-        if soft_confirmation_info.da_slot_hash() != slot_header.hash().into() {
-            return Err(StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::InvalidDaHash,
-            ));
+        if soft_confirmation_info.current_spec() < SpecId::Fork2 {
+            // then verify da hashes match
+            if soft_confirmation_info.da_slot_hash().unwrap() != slot_header.hash().into() {
+                return Err(StateTransitionError::SoftConfirmationError(
+                    SoftConfirmationError::InvalidDaHash,
+                ));
+            }
         }
 
-        // then verify da transactions commitment match
-        if soft_confirmation_info.da_slot_txs_commitment() != slot_header.txs_commitment().into() {
-            return Err(StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::InvalidDaTxsCommitment,
-            ));
+        if soft_confirmation_info.current_spec() < SpecId::Fork2 {
+            // then verify da transactions commitment match
+            if soft_confirmation_info.da_slot_txs_commitment().unwrap()
+                != slot_header.txs_commitment().into()
+            {
+                return Err(StateTransitionError::SoftConfirmationError(
+                    SoftConfirmationError::InvalidDaTxsCommitment,
+                ));
+            }
         }
 
         self.begin_soft_confirmation_inner(working_set, soft_confirmation_info)

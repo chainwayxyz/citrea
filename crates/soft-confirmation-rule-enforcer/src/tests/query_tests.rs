@@ -11,10 +11,10 @@ fn block_count_rule_is_enforced() {
 
     let mut soft_confirmation_info = sc_info_helper();
 
-    // call begin_slot_hook a couple times for da hash 0
+    // call end_soft_confirmation_hook a couple times for da hash 0
     for _ in 0..3 {
         soft_confirmation_rule_enforcer
-            .begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set)
+            .end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set)
             .unwrap();
     }
     // the block count for da hash 0 should be 3
@@ -24,14 +24,14 @@ fn block_count_rule_is_enforced() {
             .get(&mut working_set)
             .unwrap()
             .counter,
-        3
+        3 // the counter is 2 and not 3 because the block count rule will be ignored for the first soft confirmation
     );
 
-    soft_confirmation_info.da_slot_hash = [2; 32];
+    soft_confirmation_info.set_da_slot_hash([2; 32]);
 
     // call with a different da hash
     soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set)
+        .end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set)
         .unwrap();
 
     // the block count for da hash 1 should be 1
@@ -59,10 +59,10 @@ fn get_last_timestamp_must_be_correct() {
 
     let timestamp = chrono::Local::now().timestamp() as u64;
     let mut soft_confirmation_info = sc_info_helper();
-    soft_confirmation_info.timestamp = timestamp;
+    soft_confirmation_info.set_time_stamp(timestamp);
 
     soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set)
+        .end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set)
         .unwrap();
 
     assert_ne!(

@@ -7,7 +7,9 @@ use reth_primitives::{
     KECCAK_EMPTY,
 };
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{
+    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
+};
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
@@ -28,7 +30,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
     let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
@@ -39,7 +41,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 54,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     let pending_block = evm.block_env;
     assert_eq!(
@@ -68,7 +70,7 @@ fn end_soft_confirmation_hook_sets_head() {
     let l1_fee_rate = 0;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
@@ -79,7 +81,7 @@ fn end_soft_confirmation_hook_sets_head() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 54,
-    };
+    });
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
@@ -143,7 +145,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let l1_fee_rate = 0;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: DA_ROOT_HASH.0,
         da_slot_height: 1,
@@ -154,7 +156,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let tx1 = create_pending_transaction(1, 0);
@@ -266,7 +268,7 @@ fn finalize_hook_creates_final_block() {
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
@@ -277,7 +279,7 @@ fn finalize_hook_creates_final_block() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 54,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     evm.pending_transactions
@@ -295,7 +297,7 @@ fn finalize_hook_creates_final_block() {
     l2_height += 1;
 
     evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
+        &HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
             l2_height,
             da_slot_hash: DA_ROOT_HASH.0,
             da_slot_height: 1,
@@ -306,7 +308,7 @@ fn finalize_hook_creates_final_block() {
             deposit_data: vec![],
             l1_fee_rate,
             timestamp: 54,
-        },
+        }),
         &mut working_set,
     );
 
@@ -380,22 +382,17 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         .unwrap();
     let root = binding.header.header().state_root.0;
 
-    let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
         l2_height,
-        da_slot_hash: DA_ROOT_HASH.0,
-        da_slot_height: 1,
-        da_slot_txs_commitment: txs_commitment.into(),
         pre_state_root: root,
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     // on block 2, only block 0 and 1 exists
@@ -427,18 +424,14 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     // finalize blocks 2-257 with random state root hashes
     for _ in 2..257 {
         let l1_fee_rate = 0;
-        let soft_confirmation_info = HookSoftConfirmationInfo {
+        let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
             l2_height,
-            da_slot_hash: DA_ROOT_HASH.0,
-            da_slot_height: 1,
-            da_slot_txs_commitment: random_32_bytes,
             pre_state_root: random_32_bytes,
             current_spec: SpecId::Fork2,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
-        };
+        });
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
@@ -451,18 +444,14 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
 
     // start environment for block 258
     let l1_fee_rate = 0;
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
         l2_height,
-        da_slot_hash: DA_ROOT_HASH.0,
-        da_slot_height: 1,
-        da_slot_txs_commitment: random_32_bytes,
         pre_state_root: random_32_bytes,
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     // only the last 256 blocks should exist on block 258
