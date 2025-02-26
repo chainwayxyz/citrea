@@ -25,15 +25,12 @@ pub(crate) fn rollback_ledger_db(
 
     log_result_or_error!(
         "soft_confirmations",
-        rollback_soft_confirmations(node_type, &ledger_db, target_l2)
-    );
-    log_result_or_error!(
-        "slots",
-        rollback_slots(
+        rollback_soft_confirmations(
             node_type,
             &ledger_db,
-            target_l1,
+            target_l2,
             last_sequencer_commitment_l2_height,
         )
     );
+    log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1,));
 }

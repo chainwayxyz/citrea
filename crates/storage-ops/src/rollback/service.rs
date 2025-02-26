@@ -6,13 +6,20 @@ use tracing::info;
 use super::Rollback;
 use crate::pruning::types::StorageNodeType;
 
+pub struct RollbackSignal {
+    current_l2_height: u64,
+    target_l2: u64,
+    target_l1: u64,
+    last_commitment_l2_height: u64,
+}
+
 pub struct RollbackService {
     rollback: Rollback,
-    receiver: Receiver<(u64, u64, u64)>,
+    receiver: Receiver<RollbackSignal>,
 }
 
 impl RollbackService {
-    pub fn new(rollback: Rollback, receiver: Receiver<(u64, u64, u64)>) -> Self {
+    pub fn new(rollback: Rollback, receiver: Receiver<RollbackSignal>) -> Self {
         Self { rollback, receiver }
     }
 
@@ -24,9 +31,9 @@ impl RollbackService {
                 _ = cancellation_token.cancelled() => {
                     return;
                 },
-                Some((current_l2_height, target_l2, target_l1)) = self.receiver.recv() => {
-                    info!("Received signal to rollback to L2 {target_l2}, L1 {target_l1}");
-                    if let Err(e) = self.rollback.execute(node_type, current_l2_height, target_l2, target_l1).await {
+                Some(signal) = self.receiver.recv() => {
+                    info!("Received signal to rollback to L2 {}, L1 {}", signal.target_l2, signal.target_l1);
+                    if let Err(e) = self.rollback.execute(node_type, signal.current_l2_height, signal.target_l2, signal.target_l1, signal.last_commitment_l2_height).await {
                         panic!("Could not rollback blocks: {:?}", e);
                     }
                 }

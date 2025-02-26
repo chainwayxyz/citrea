@@ -1,4 +1,4 @@
-use sov_db::schema::tables::SoftConfirmationByNumber;
+use sov_db::schema::tables::{LastSequencerCommitmentSent, SoftConfirmationByNumber};
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_schema_db::{ScanDirection, DB};
 
@@ -8,7 +8,8 @@ use crate::utils::delete_soft_confirmations_by_number;
 pub(crate) fn rollback_soft_confirmations(
     node_type: StorageNodeType,
     ledger_db: &DB,
-    down_to_block: u64,
+    target_l2: u64,
+    last_sequencer_commitment_l2_height: u64,
 ) -> anyhow::Result<u64> {
     let mut soft_confirmations = ledger_db.iter_with_direction::<SoftConfirmationByNumber>(
         Default::default(),
@@ -24,8 +25,17 @@ pub(crate) fn rollback_soft_confirmations(
 
         let soft_confirmation_number = record.key;
 
-        if soft_confirmation_number <= SoftConfirmationNumber(down_to_block) {
+        if soft_confirmation_number <= SoftConfirmationNumber(target_l2) {
             break;
+        }
+
+        if matches!(node_type, StorageNodeType::Sequencer)
+            || matches!(node_type, StorageNodeType::FullNode)
+        {
+            ledger_db.put::<LastSequencerCommitmentSent>(
+                &(),
+                &SoftConfirmationNumber(last_sequencer_commitment_l2_height),
+            )?;
         }
 
         delete_soft_confirmations_by_number(

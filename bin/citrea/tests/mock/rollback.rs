@@ -166,8 +166,9 @@ async fn rollback_node(
     tables: &[&str],
     old_path: &Path,
     new_path: &Path,
-    rollback_to_l2: u64,
-    rollback_to_l1: u64,
+    rollback_l2_height: u64,
+    rollback_l1_height: u64,
+    commitment_l2_height: u64,
 ) -> anyhow::Result<()> {
     copy_db_dir_recursive(&old_path, &new_path).unwrap();
 
@@ -175,7 +176,13 @@ async fn rollback_node(
     let rollback = Rollback::new(ledger_db.inner(), state_db.clone(), native_db.clone());
 
     rollback
-        .execute(node_type, 50, rollback_to_l2, rollback_to_l1)
+        .execute(
+            node_type,
+            50,
+            rollback_l2_height,
+            rollback_l1_height,
+            commitment_l2_height,
+        )
         .await
         .unwrap();
 
