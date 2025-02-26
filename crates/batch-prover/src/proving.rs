@@ -252,8 +252,9 @@ where
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
 {
+    let l1_height = l1_block.header().height();
     let submitted_proofs = ledger
-        .get_proofs_by_l1_height(l1_block.header().height())?
+        .get_proofs_by_l1_height(l1_height)?
         .unwrap_or_default();
 
     let mut proof_rxs = Vec::with_capacity(inputs.len());
@@ -298,26 +299,28 @@ where
         proof_rxs.push(rx);
     }
 
-    // Wait for all proofs to be completed
-    let proofs = futures::future::try_join_all(proof_rxs)
+    save_commitments(ledger.clone(), &sequencer_commitments, l1_height);
+
+    tokio::spawn(async move {
+        // Wait for all proofs to be completed
+        let proofs = futures::future::try_join_all(proof_rxs)
+            .await
+            .expect("Proving channel should never be closed");
+
+        let txs_and_proofs = prover_service
+            .submit_proofs(proofs)
+            .await
+            .expect("Failed to submit proofs");
+
+        extract_and_store_proof::<DB, Da, Vm>(
+            ledger,
+            txs_and_proofs,
+            code_commitments_by_spec,
+            l1_height,
+        )
         .await
-        .expect("Proving channel should never be closed");
-
-    let txs_and_proofs = prover_service.submit_proofs(proofs).await?;
-
-    extract_and_store_proof::<DB, Da, Vm>(
-        ledger.clone(),
-        txs_and_proofs,
-        code_commitments_by_spec.clone(),
-        l1_block.header().height(),
-    )
-    .await?;
-
-    save_commitments(
-        ledger.clone(),
-        &sequencer_commitments,
-        l1_block.header().height(),
-    );
+        .expect("Extract and store proof should not fail");
+    });
 
     Ok(())
 }
