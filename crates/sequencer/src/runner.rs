@@ -527,7 +527,6 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            println!("signing tx in produce l2 block got evm tx");
             let signed_tx =
                 self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
             // Increment nonce after sov tx for other possible sov txs
@@ -549,7 +548,6 @@ where
                 blobs.push(signed_blob);
                 txs.push(signed_tx);
             }
-            println!("updating seq auth");
         }
 
         self.stf
@@ -1130,7 +1128,6 @@ where
             >,
         >>::encode_call(rule_enforcer_call_tx);
 
-        println!("singing tx and blob in update seq auth");
         let signed_tx = self.sign_tx(raw_message, current_spec, nonce)?;
         let signed_blob = signed_tx.to_blob()?;
 
