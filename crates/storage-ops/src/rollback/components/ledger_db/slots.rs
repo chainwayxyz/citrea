@@ -1,5 +1,5 @@
-use sov_db::schema::tables::{L2RangeByL1Height, LastSequencerCommitmentSent};
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::tables::L2RangeByL1Height;
+use sov_db::schema::types::SlotNumber;
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::pruning::types::StorageNodeType;
@@ -9,7 +9,6 @@ pub(crate) fn rollback_slots(
     node_type: StorageNodeType,
     ledger_db: &DB,
     target_l1: u64,
-    last_sequencer_commitment_l2_height: u64,
 ) -> anyhow::Result<u64> {
     let mut slots_to_l2_range = ledger_db
         .iter_with_direction::<L2RangeByL1Height>(Default::default(), ScanDirection::Backward)?;
@@ -23,18 +22,8 @@ pub(crate) fn rollback_slots(
 
         let slot_height = record.key;
 
-        if slot_height < SlotNumber(target_l1) {
+        if slot_height <= SlotNumber(target_l1) {
             break;
-        }
-
-        if matches!(node_type, StorageNodeType::Sequencer)
-            || matches!(node_type, StorageNodeType::FullNode)
-        {
-            let slot_range = record.value;
-            ledger_db.put::<LastSequencerCommitmentSent>(
-                &(),
-                &SoftConfirmationNumber(last_sequencer_commitment_l2_height),
-            )?;
         }
 
         delete_slots_by_number(node_type, ledger_db, slot_height)?;
