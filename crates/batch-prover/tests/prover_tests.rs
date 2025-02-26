@@ -31,7 +31,6 @@ async fn test_successful_prover_execution() {
             input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
 
@@ -72,7 +71,6 @@ async fn test_parallel_proofs_equal_to_limit() {
             input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 2nd proof
@@ -82,7 +80,6 @@ async fn test_parallel_proofs_equal_to_limit() {
             input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
 
@@ -128,7 +125,6 @@ async fn test_parallel_proofs_higher_than_limit() {
             input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 2nd proof
@@ -138,7 +134,6 @@ async fn test_parallel_proofs_higher_than_limit() {
             input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 3rd proof
@@ -148,7 +143,6 @@ async fn test_parallel_proofs_higher_than_limit() {
             input: borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 4th proof
@@ -158,7 +152,6 @@ async fn test_parallel_proofs_higher_than_limit() {
             input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 5th proof
@@ -168,7 +161,6 @@ async fn test_parallel_proofs_higher_than_limit() {
             input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
 
@@ -236,7 +228,6 @@ async fn test_multiple_parallel_proof_run() {
             input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 2nd proof
@@ -246,7 +237,6 @@ async fn test_multiple_parallel_proof_run() {
             input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
 
@@ -272,7 +262,6 @@ async fn test_multiple_parallel_proof_run() {
             input: borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 2nd proof
@@ -282,7 +271,6 @@ async fn test_multiple_parallel_proof_run() {
             input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
     // 3rd proof
@@ -292,7 +280,6 @@ async fn test_multiple_parallel_proof_run() {
             input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
             assumptions: vec![],
             elf: vec![],
-            is_post_genesis_batch: false,
         })
         .await;
 

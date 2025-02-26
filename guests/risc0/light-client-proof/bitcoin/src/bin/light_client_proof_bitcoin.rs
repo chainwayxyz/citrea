@@ -57,7 +57,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
             (
                 5546000,
                 decode_to_u32_array(
-                    "14d26c6b8cd8553c5613b359c8b313a08a2a17b0174a3471d32fd7c1323e6279",
+                    "670b7ef87e7fab2ff2d46f38f71be524d42cc0c62da41884d3d41928b8c967d1",
                 ),
             ),
         ],
@@ -71,7 +71,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
             (
                 1921835,
                 decode_to_u32_array(
-                    "a6a660040f9161ddac7c4a401b8aa0a01c09802fd099aa6c143bf8c18c69a55f",
+                    "0ef8aaa707662dc591558890d6e98fe25070392b342f447532cc4325547ad1a8",
                 ),
             ),
         ],
@@ -88,7 +88,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
                     (
                         100,
                         decode_to_u32_array(
-                            "c8c204ecbc23bdf4794a8e9065c8cbd96f282acb97f6924116c51141c08b86dc",
+                            "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
                         ),
                     ),
                     (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),

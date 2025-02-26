@@ -195,7 +195,6 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         &mut self,
         _elf: Vec<u8>,
         _with_proof: bool,
-        _: bool,
     ) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
         let (tx, rx) = mpsc::channel();
 

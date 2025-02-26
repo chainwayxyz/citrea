@@ -40,12 +40,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// This runs the guest binary compiled for the zkVM target, optionally
     /// creating a SNARK of correct execution. Running the true guest binary comes
     /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
-    fn run(
-        &mut self,
-        elf: Vec<u8>,
-        with_proof: bool,
-        is_post_genesis_batch: bool,
-    ) -> Result<Proof, anyhow::Error>;
+    fn run(&mut self, elf: Vec<u8>, with_proof: bool) -> Result<Proof, anyhow::Error>;
 
     /// Extracts public input and receipt from the proof.
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error>;

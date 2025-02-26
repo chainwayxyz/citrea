@@ -288,7 +288,6 @@ where
                     input,
                     assumptions: vec![],
                     elf,
-                    is_post_genesis_batch: current_spec > SpecId::Genesis,
                 })
                 .await;
         }
