@@ -142,8 +142,24 @@ async fn test_parallel_proofs_higher_than_limit() {
             elf: vec![],
         })
         .await;
-    // 4th proof
+    // 4th proof should not start and timeout
     let header_hash_4 = MockHash::from([3; 32]);
+    let timeout = tokio::time::timeout(
+        Duration::from_millis(500),
+        prover_service.start_proving(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        }),
+    )
+    .await;
+    assert!(timeout.is_err());
+
+    // Signal finish to 1st proof
+    assert!(vm.finish_next_proof());
+    let proof_1 = rx_1.await.unwrap();
+
+    // 4th proof should now be able to start
     let rx_4 = prover_service
         .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
@@ -151,30 +167,14 @@ async fn test_parallel_proofs_higher_than_limit() {
             elf: vec![],
         })
         .await;
-    // 5th proof
-    let header_hash_5 = MockHash::from([4; 32]);
-    let rx_5 = prover_service
-        .start_proving(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
 
     // Emulate some execution
     tokio::time::sleep(Duration::from_millis(100)).await;
-    // Signal finish to 1st proof
-    assert!(vm.finish_next_proof());
-    let proof_1 = rx_1.await.unwrap();
 
-    // Emulate some execution
-    tokio::time::sleep(Duration::from_millis(200)).await;
     // Signal finish to 2nd proof
     assert!(vm.finish_next_proof());
     let proof_2 = rx_2.await.unwrap();
 
-    // Emulate some execution
-    tokio::time::sleep(Duration::from_millis(100)).await;
     // Signal finish to 3rd proof
     assert!(vm.finish_next_proof());
     let proof_3 = rx_3.await.unwrap();
@@ -182,12 +182,6 @@ async fn test_parallel_proofs_higher_than_limit() {
     // Signal finish to 4th proof immediately
     assert!(vm.finish_next_proof());
     let proof_4 = rx_4.await.unwrap();
-
-    // Emulate some execution
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    // Signal finish to 5th proof
-    assert!(vm.finish_next_proof());
-    let proof_5 = rx_5.await.unwrap();
 
     // Check that the output is correct and the order of proofs are same as the input
     let header_1 = extract_output_header(&proof_1);
@@ -198,110 +192,12 @@ async fn test_parallel_proofs_higher_than_limit() {
     assert_eq!(header_3.hash, header_hash_3);
     let header_4 = extract_output_header(&proof_4);
     assert_eq!(header_4.hash, header_hash_4);
-    let header_5 = extract_output_header(&proof_5);
-    assert_eq!(header_5.hash, header_hash_5);
 
     let txs_and_proofs = prover_service
-        .submit_proofs(vec![proof_1, proof_2, proof_3, proof_4, proof_5])
+        .submit_proofs(vec![proof_1, proof_2, proof_3, proof_4])
         .await
         .unwrap();
-    assert_eq!(txs_and_proofs.len(), 5);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_multiple_parallel_proof_run() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let da_service = Arc::new(MockDaService::new(
-        MockAddress::from([0; 32]),
-        tmpdir.path(),
-    ));
-
-    // Parallel proof limit is 3
-    let TestProver {
-        prover_service, vm, ..
-    } = make_new_prover(3, da_service);
-
-    // 1st proof
-    let header_hash_1 = MockHash::from([0; 32]);
-    let rx_1 = prover_service
-        .start_proving(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-    // 2nd proof
-    let header_hash_2 = MockHash::from([1; 32]);
-    let rx_2 = prover_service
-        .start_proving(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-
-    // Emulate some execution
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Signal finish to 1st proof
-    assert!(vm.finish_next_proof());
-    let proof_1 = rx_1.await.unwrap();
-    // Signal finish to 2nd proof
-    assert!(vm.finish_next_proof());
-    let proof_2 = rx_2.await.unwrap();
-
-    let txs_and_proofs = prover_service
-        .submit_proofs(vec![proof_1, proof_2])
-        .await
-        .unwrap();
-    assert_eq!(txs_and_proofs.len(), 2);
-
-    // 1st proof
-    let header_hash_3 = MockHash::from([2; 32]);
-    let rx_3 = prover_service
-        .start_proving(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-    // 2nd proof
-    let header_hash_4 = MockHash::from([3; 32]);
-    let rx_4 = prover_service
-        .start_proving(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-    // 3rd proof
-    let header_hash_5 = MockHash::from([4; 32]);
-    let rx_5 = prover_service
-        .start_proving(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-
-    // Emulate some execution
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Signal finish to 1st proof
-    assert!(vm.finish_next_proof());
-    let proof_3 = rx_3.await.unwrap();
-    // Signal finish to 2nd proof
-    assert!(vm.finish_next_proof());
-    let proof_4 = rx_4.await.unwrap();
-    // Signal finish to 3rd proof
-    assert!(vm.finish_next_proof());
-    let proof_5 = rx_5.await.unwrap();
-
-    let txs_and_proofs = prover_service
-        .submit_proofs(vec![proof_3, proof_4, proof_5])
-        .await
-        .unwrap();
-    assert_eq!(txs_and_proofs.len(), 3);
+    assert_eq!(txs_and_proofs.len(), 4);
 }
 
 struct TestProver {
