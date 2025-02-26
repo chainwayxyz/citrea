@@ -27,7 +27,7 @@ use sov_mock_da::{MockAddress, MockDaService};
 use crate::common::client::TestClient;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, NodeMode,
+    wait_for_l2_block, wait_for_proof, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 use crate::mock::evm::init_test_rollup;
@@ -194,7 +194,12 @@ async fn rollback_node(
     Ok(())
 }
 
-async fn fill_blocks(test_client: &TestClient, da_service: &MockDaService, addr: &Address) {
+async fn fill_blocks(
+    test_client: &TestClient,
+    da_service: &MockDaService,
+    addr: &Address,
+    fullnode_test_client: Option<&TestClient>,
+) {
     for i in 1..=50 {
         // send one ether to some address
         let _ = test_client
@@ -207,6 +212,9 @@ async fn fill_blocks(test_client: &TestClient, da_service: &MockDaService, addr:
         if i % 10 == 0 {
             wait_for_l2_block(test_client, i, None).await;
             wait_for_l1_block(da_service, 3 + (i / 10), None).await;
+            if let Some(fullnode_test_client) = fullnode_test_client {
+                wait_for_proof(fullnode_test_client, 3 + ((i / 10) * 2), None).await;
+            }
         }
     }
 }
@@ -248,7 +256,7 @@ async fn assert_dbs(test_client: &TestClient, addr: Address, at_block: u64, bala
 /// Trigger rollback DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -267,7 +275,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
-    fill_blocks(&seq_test_client, &da_service, &addr).await;
+    fill_blocks(&seq_test_client, &da_service, &addr, None).await;
 
     wait_for_l2_block(&seq_test_client, 50, None).await;
 
@@ -282,37 +290,28 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
 
     seq_task_manager.abort().await;
 
-    let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
-    copy_db_dir_recursive(&sequencer_db_dir, &new_sequencer_db_dir).unwrap();
-
-    let (ledger_db, native_db, state_db) =
-        instantiate_dbs(&new_sequencer_db_dir, SEQUENCER_LEDGER_TABLES).unwrap();
-    let rollback = Rollback::new(ledger_db.inner(), state_db.clone(), native_db.clone());
-
     // rollback 10 L2 blocks
-    let rollback_to_l2 = 40;
+    let rollback_l2_height = 30;
     // We have 8 L1 blocks by now and we want to rollback
     // the last one.
-    let rollback_to_l1 = 7;
-    rollback
-        .execute(
-            StorageNodeType::Sequencer,
-            50,
-            rollback_to_l2,
-            rollback_to_l1,
-        )
-        .await
-        .unwrap();
-
-    drop(rollback);
-    drop(state_db);
-    drop(native_db);
-    drop(ledger_db);
+    let rollback_l1_height = 6;
+    let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
+    rollback_node(
+        StorageNodeType::Sequencer,
+        SEQUENCER_LEDGER_TABLES,
+        &sequencer_db_dir,
+        &new_sequencer_db_dir,
+        rollback_l2_height,
+        rollback_l1_height,
+        rollback_l2_height,
+    )
+    .await
+    .unwrap();
 
     let (seq_task_manager, seq_test_client, _) =
         start_sequencer(&new_sequencer_db_dir, &da_db_dir, true).await;
 
-    assert_dbs(&seq_test_client, addr, 40, 40000000000000000000).await;
+    assert_dbs(&seq_test_client, addr, 30, 30000000000000000000).await;
 
     seq_task_manager.abort().await;
 
@@ -337,6 +336,9 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     }
     wait_for_l1_block(&da_service, 3, None).await;
 
+    //------------------
+    // Start nodes
+    //------------------
     let (seq_task_manager, seq_test_client, seq_port) =
         start_sequencer(&sequencer_db_dir, &da_db_dir, false).await;
 
@@ -345,11 +347,17 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
-    fill_blocks(&seq_test_client, &da_service, &addr).await;
+    //------------------
+    // Fill blocks
+    //------------------
+    fill_blocks(&seq_test_client, &da_service, &addr, None).await;
 
     wait_for_l2_block(&seq_test_client, 50, None).await;
     wait_for_l2_block(&full_node_test_client, 50, None).await;
 
+    //------------------
+    // Assert data
+    //------------------
     let get_balance_result = seq_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
         .await;
@@ -371,11 +379,14 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     seq_task_manager.abort().await;
     full_node_task_manager.abort().await;
 
+    //------------------
+    // Rollback
+    //------------------
     // rollback 10 L2 blocks
-    let rollback_to_l2 = 40;
+    let rollback_l2_height = 30;
     // We have 8 L1 blocks by now and we want to rollback
     // the last one.
-    let rollback_to_l1 = 7;
+    let rollback_l1_height = 6;
 
     let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
     rollback_node(
@@ -383,24 +394,32 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
         SEQUENCER_LEDGER_TABLES,
         &sequencer_db_dir,
         &new_sequencer_db_dir,
-        rollback_to_l2,
-        rollback_to_l1,
+        rollback_l2_height,
+        rollback_l1_height,
+        rollback_l2_height,
     )
     .await
     .unwrap();
 
+    //------------------
+    // Assert state after rollback
+    //------------------
     let new_full_node_db_dir = storage_dir.path().join("full-node2").to_path_buf();
     rollback_node(
         StorageNodeType::FullNode,
         FULL_NODE_LEDGER_TABLES,
         &full_node_db_dir,
         &new_full_node_db_dir,
-        rollback_to_l2,
-        rollback_to_l1,
+        rollback_l2_height,
+        rollback_l1_height,
+        rollback_l2_height,
     )
     .await
     .unwrap();
 
+    //------------------
+    // Make sure nodes are able to sync after rollback
+    //------------------
     let new_sequencer_db_dir = storage_dir.path().join("sequencer3").to_path_buf();
     copy_db_dir_recursive(
         &storage_dir.path().join("sequencer2"),
@@ -419,13 +438,13 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     let (full_node_task_manager, full_node_test_client) =
         start_full_node(&new_full_node_db_dir, &da_db_dir, seq_port, true).await;
 
-    assert_dbs(&full_node_test_client, addr, 40, 40000000000000000000).await;
+    assert_dbs(&full_node_test_client, addr, 30, 30000000000000000000).await;
 
     for _ in 0..10 {
         seq_test_client.spam_publish_batch_request().await.unwrap();
     }
-    wait_for_l2_block(&seq_test_client, 50, None).await;
-    wait_for_l2_block(&full_node_test_client, 50, None).await;
+    wait_for_l2_block(&seq_test_client, 40, None).await;
+    wait_for_l2_block(&full_node_test_client, 40, None).await;
 
     seq_task_manager.abort().await;
     full_node_task_manager.abort().await;
@@ -452,6 +471,9 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     }
     wait_for_l1_block(&da_service, 3, None).await;
 
+    //------------------
+    // Start nodes
+    //------------------
     let (seq_task_manager, seq_test_client, seq_port) =
         start_sequencer(&sequencer_db_dir, &da_db_dir, false).await;
 
@@ -463,11 +485,20 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
-    fill_blocks(&seq_test_client, &da_service, &addr).await;
+    fill_blocks(
+        &seq_test_client,
+        &da_service,
+        &addr,
+        Some(&full_node_test_client),
+    )
+    .await;
 
     wait_for_l2_block(&full_node_test_client, 50, None).await;
     wait_for_l2_block(&batch_prover_test_client, 50, None).await;
 
+    //------------------
+    // Assert sequencer state
+    //------------------
     let get_balance_result = seq_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
         .await;
@@ -499,6 +530,9 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     full_node_task_manager.abort().await;
     batch_prover_task_manager.abort().await;
 
+    //------------------
+    // Assert fullnode state
+    //------------------
     let new_full_node_db_dir = storage_dir.path().join("full-node2").to_path_buf();
     copy_db_dir_recursive(&full_node_db_dir, &new_full_node_db_dir).unwrap();
 
@@ -519,10 +553,9 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         .is_some());
 
     // rollback 10 L2 blocks
-    let rollback_to_l2 = 40;
-    // We have 8 L1 blocks by now and we want to rollback
-    // the last one.
-    let rollback_to_l1 = 7;
+    let rollback_l2_height = 30;
+    // We have 9 L1 blocks by now and we want to rollback.
+    let rollback_l1_height = 9;
 
     let new_full_node_db_dir = storage_dir.path().join("full-node3").to_path_buf();
     copy_db_dir_recursive(
@@ -537,14 +570,18 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     )
     .unwrap();
 
+    //------------------
+    // Rollback nodes
+    //------------------
     let new_sequencer_db_dir = storage_dir.path().join("sequencer3").to_path_buf();
     rollback_node(
         StorageNodeType::Sequencer,
         SEQUENCER_LEDGER_TABLES,
         &sequencer_db_dir,
         &new_sequencer_db_dir,
-        rollback_to_l2,
-        rollback_to_l1,
+        rollback_l2_height,
+        rollback_l1_height,
+        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -554,8 +591,9 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         FULL_NODE_LEDGER_TABLES,
         &full_node_db_dir,
         &new_full_node_db_dir,
-        rollback_to_l2,
-        rollback_to_l1,
+        rollback_l2_height,
+        rollback_l1_height,
+        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -565,51 +603,72 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         BATCH_PROVER_LEDGER_TABLES,
         &batch_prover_db_dir,
         &new_batch_prover_db_dir,
-        rollback_to_l2,
-        rollback_to_l1,
+        rollback_l2_height,
+        rollback_l1_height,
+        rollback_l2_height,
     )
     .await
     .unwrap();
 
+    //------------------
+    // Assert state after re-sync
+    //------------------
     let new_sequencer_db_dir = storage_dir.path().join("sequencer4").to_path_buf();
     copy_db_dir_recursive(
         &storage_dir.path().join("sequencer3"),
         &new_sequencer_db_dir,
     )
     .unwrap();
-    let (seq_task_manager, seq_test_client, seq_port) =
-        start_sequencer(&new_sequencer_db_dir, &da_db_dir, true).await;
-
     let new_full_node_db_dir = storage_dir.path().join("full-node4").to_path_buf();
     copy_db_dir_recursive(
         &storage_dir.path().join("full-node3"),
         &new_full_node_db_dir,
     )
     .unwrap();
-    let (full_node_task_manager, full_node_test_client) =
-        start_full_node(&new_full_node_db_dir, &da_db_dir, seq_port, true).await;
-
     let new_batch_prover_db_dir = storage_dir.path().join("batch-prover4").to_path_buf();
     copy_db_dir_recursive(
         &storage_dir.path().join("batch-prover3"),
         &new_batch_prover_db_dir,
     )
     .unwrap();
-    let (batch_prover_task_manager, batch_prover_test_client) =
-        start_batch_prover(&new_batch_prover_db_dir, &da_db_dir, seq_port, true).await;
 
-    assert_dbs(&batch_prover_test_client, addr, 40, 40000000000000000000).await;
+    // At block 11, verified proof in full node should have been pruned.
+    let (fn_ledger_db, _, _) =
+        instantiate_dbs(&new_full_node_db_dir, FULL_NODE_LEDGER_TABLES).unwrap();
+    let fn_ledger_db = fn_ledger_db.inner();
+    assert!(fn_ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(9))
+        .unwrap()
+        .is_some());
+    assert!(fn_ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(11))
+        .unwrap()
+        .is_none());
 
-    for _ in 0..10 {
-        seq_test_client.spam_publish_batch_request().await.unwrap();
-    }
-    wait_for_l2_block(&seq_test_client, 50, None).await;
-    wait_for_l2_block(&full_node_test_client, 50, None).await;
-    wait_for_l2_block(&batch_prover_test_client, 50, None).await;
+    // At block 11, verified proof in prover should have been pruned.
+    let (bp_ledger_db, _, _) =
+        instantiate_dbs(&new_batch_prover_db_dir, BATCH_PROVER_LEDGER_TABLES).unwrap();
+    let bp_ledger_db = bp_ledger_db.inner();
+    assert!(bp_ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(8))
+        .unwrap()
+        .is_some());
+    assert!(bp_ledger_db
+        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .unwrap()
+        .is_none());
 
-    seq_task_manager.abort().await;
-    full_node_task_manager.abort().await;
-    batch_prover_task_manager.abort().await;
+    //------------------
+    // Start nodes and make sure they are able to sync
+    //------------------
+    let new_sequencer_db_dir = storage_dir.path().join("sequencer5").to_path_buf();
+    copy_db_dir_recursive(
+        &storage_dir.path().join("sequencer4"),
+        &new_sequencer_db_dir,
+    )
+    .unwrap();
+    let (seq_task_manager, seq_test_client, seq_port) =
+        start_sequencer(&new_sequencer_db_dir, &da_db_dir, true).await;
 
     let new_full_node_db_dir = storage_dir.path().join("full-node5").to_path_buf();
     copy_db_dir_recursive(
@@ -617,38 +676,30 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         &new_full_node_db_dir,
     )
     .unwrap();
+    let (full_node_task_manager, full_node_test_client) =
+        start_full_node(&new_full_node_db_dir, &da_db_dir, seq_port, true).await;
+
     let new_batch_prover_db_dir = storage_dir.path().join("batch-prover5").to_path_buf();
     copy_db_dir_recursive(
         &storage_dir.path().join("batch-prover4"),
         &new_batch_prover_db_dir,
     )
     .unwrap();
+    let (batch_prover_task_manager, batch_prover_test_client) =
+        start_batch_prover(&new_batch_prover_db_dir, &da_db_dir, seq_port, true).await;
 
-    // At block 22, verified proof in full node should have been pruned.
-    let (fn_ledger_db, _, _) =
-        instantiate_dbs(&new_full_node_db_dir, FULL_NODE_LEDGER_TABLES).unwrap();
-    let fn_ledger_db = fn_ledger_db.inner();
-    assert!(fn_ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(7))
-        .unwrap()
-        .is_some());
-    assert!(fn_ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(9))
-        .unwrap()
-        .is_none());
+    assert_dbs(&batch_prover_test_client, addr, 30, 30000000000000000000).await;
 
-    // At block 22, verified proof in full node should have been pruned.
-    let (bp_ledger_db, _, _) =
-        instantiate_dbs(&new_batch_prover_db_dir, BATCH_PROVER_LEDGER_TABLES).unwrap();
-    let bp_ledger_db = bp_ledger_db.inner();
-    assert!(bp_ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(7))
-        .unwrap()
-        .is_some());
-    assert!(bp_ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(9))
-        .unwrap()
-        .is_none());
+    for _ in 0..10 {
+        seq_test_client.spam_publish_batch_request().await.unwrap();
+    }
+    wait_for_l2_block(&seq_test_client, 40, None).await;
+    wait_for_l2_block(&full_node_test_client, 40, None).await;
+    wait_for_l2_block(&batch_prover_test_client, 40, None).await;
+
+    seq_task_manager.abort().await;
+    full_node_task_manager.abort().await;
+    batch_prover_task_manager.abort().await;
 
     Ok(())
 }
