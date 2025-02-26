@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::panic::AssertUnwindSafe;
+use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -208,6 +208,10 @@ async fn assert_dbs(test_client: &TestClient, addr: Address, at_block: u64, bala
     // Check soft confirmations have been rolled back in Ledger DB
     wait_for_l2_block(&test_client, at_block, None).await;
 
+    // Suppress output of panics
+    let prev_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+
     // Check state DB is rolled back.
     let get_balance_result = test_client
         .eth_get_balance(
@@ -226,6 +230,7 @@ async fn assert_dbs(test_client: &TestClient, addr: Address, at_block: u64, bala
     .catch_unwind()
     .await;
     assert!(check_block_by_number_result.is_err());
+    panic::set_hook(prev_hook);
 
     // Should NOT panic as the data we're requesting here is correct
     test_client
