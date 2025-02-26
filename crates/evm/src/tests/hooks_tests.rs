@@ -370,6 +370,9 @@ fn finalize_hook_creates_final_block() {
 }
 
 #[test]
+// this test is run with kumquat spec
+// because pre fork2 we were deleting block hashes and
+// we'd still like to test that
 fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
 
@@ -390,7 +393,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
         pre_state_root: root,
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -433,7 +436,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             da_slot_height: 1,
             da_slot_txs_commitment: random_32_bytes,
             pre_state_root: random_32_bytes,
-            current_spec: SpecId::Fork2,
+            current_spec: SpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -457,7 +460,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_height: 1,
         da_slot_txs_commitment: random_32_bytes,
         pre_state_root: random_32_bytes,
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
