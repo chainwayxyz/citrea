@@ -256,47 +256,50 @@ where
         .get_proofs_by_l1_height(l1_block.header().height())?
         .unwrap_or_default();
 
-    let mut rxs = vec![];
+    let mut proof_rxs = Vec::with_capacity(inputs.len());
+    let inputs_to_prove = inputs
+        .into_iter()
+        .filter(|input| !state_transition_already_proven::<Da>(input, &submitted_proofs));
+
     // Add each non-proven proof's data to ProverService
-    for input in inputs {
-        if !state_transition_already_proven::<Da>(&input, &submitted_proofs) {
-            let range_end = input.sequencer_commitments_range.1;
+    for input in inputs_to_prove {
+        let range_end = input.sequencer_commitments_range.1;
 
-            let last_seq_com = sequencer_commitments
-                .get(range_end as usize)
-                .expect("Commitment does not exist");
-            let last_l2_height = last_seq_com.l2_end_block_number;
-            let current_spec = fork_from_block_number(last_l2_height).spec_id;
+        let last_seq_com = sequencer_commitments
+            .get(range_end as usize)
+            .expect("Commitment does not exist");
+        let last_l2_height = last_seq_com.l2_end_block_number;
+        let current_spec = fork_from_block_number(last_l2_height).spec_id;
 
-            let elf = elfs_by_spec
-                .get(&current_spec)
-                .expect("Every fork should have an elf attached")
-                .clone();
+        let elf = elfs_by_spec
+            .get(&current_spec)
+            .expect("Every fork should have an elf attached")
+            .clone();
 
-            tracing::info!(
-                "Proving state transition with ELF of spec: {:?}",
-                current_spec
-            );
+        tracing::info!(
+            "Proving state transition with ELF of spec: {:?}",
+            current_spec
+        );
 
-            let input = match current_spec {
-                SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
-                SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
-                _ => borsh::to_vec(&input.into_v3_parts())?,
-            };
+        let input = match current_spec {
+            SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
+            SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts())?,
+            _ => borsh::to_vec(&input.into_v3_parts())?,
+        };
 
-            let rx = prover_service
-                .start_proving(ProofData {
-                    input,
-                    assumptions: vec![],
-                    elf,
-                })
-                .await;
-            rxs.push(rx);
-        }
+        let rx = prover_service
+            .start_proving(ProofData {
+                input,
+                assumptions: vec![],
+                elf,
+            })
+            .await;
+
+        proof_rxs.push(rx);
     }
 
     // Wait for all proofs to be completed
-    let proofs = futures::future::try_join_all(rxs)
+    let proofs = futures::future::try_join_all(proof_rxs)
         .await
         .expect("Proving channel should never be closed");
 
