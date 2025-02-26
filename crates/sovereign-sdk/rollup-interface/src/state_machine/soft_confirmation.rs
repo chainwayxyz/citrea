@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 pub struct L2Header {
     l2_height: u64,
-    da_slot_txs_commitment: [u8; 32],
     prev_hash: [u8; 32],
     state_root: [u8; 32],
     l1_fee_rate: u128,
@@ -24,7 +23,6 @@ impl L2Header {
     /// New L2Header
     pub fn new(
         l2_height: u64,
-        da_slot_txs_commitment: [u8; 32],
         prev_hash: [u8; 32],
         state_root: [u8; 32],
         l1_fee_rate: u128,
@@ -33,7 +31,6 @@ impl L2Header {
     ) -> Self {
         Self {
             l2_height,
-            da_slot_txs_commitment,
             prev_hash,
             state_root,
             l1_fee_rate,
@@ -46,7 +43,6 @@ impl L2Header {
     pub fn compute_digest<D: Digest>(&self) -> Output<D> {
         let mut hasher = D::new();
         hasher.update(self.l2_height.to_be_bytes());
-        hasher.update(self.da_slot_txs_commitment);
         hasher.update(self.prev_hash);
         hasher.update(self.state_root);
         hasher.update(self.l1_fee_rate.to_be_bytes());
@@ -60,6 +56,7 @@ impl L2Header {
         &self,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
         blobs: Vec<Vec<u8>>,
         deposit_data: Vec<Vec<u8>>,
     ) -> borsh::io::Result<(Output<D>, Vec<u8>)> {
@@ -68,7 +65,7 @@ impl L2Header {
         BorshSerialize::serialize(&self.l2_height, &mut vec)?;
         BorshSerialize::serialize(&da_slot_height, &mut vec)?;
         BorshSerialize::serialize(&da_slot_hash, &mut vec)?;
-        BorshSerialize::serialize(&self.da_slot_txs_commitment, &mut vec)?;
+        BorshSerialize::serialize(&da_slot_txs_commitment, &mut vec)?;
         BorshSerialize::serialize(&blobs, &mut vec)?;
         BorshSerialize::serialize(&deposit_data.to_vec(), &mut vec)?;
         BorshSerialize::serialize(&self.l1_fee_rate, &mut vec)?;
@@ -82,6 +79,7 @@ impl L2Header {
         &self,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
         blobs: Vec<Vec<u8>>,
         deposit_data: Vec<Vec<u8>>,
     ) -> Output<D> {
@@ -89,7 +87,7 @@ impl L2Header {
         hasher.update(self.l2_height.to_be_bytes());
         hasher.update(da_slot_height.to_be_bytes());
         hasher.update(da_slot_hash);
-        hasher.update(self.da_slot_txs_commitment);
+        hasher.update(da_slot_txs_commitment);
         for tx in blobs {
             hasher.update(tx);
         }
@@ -145,6 +143,9 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     /// L1 hash
     /// TODO remove before mainnet
     pub da_slot_hash: [u8; 32],
+    /// L1 txs commitment
+    /// TODO remove before mainnet
+    pub da_slot_txs_commitment: [u8; 32],
 }
 
 impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
@@ -155,6 +156,7 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> Self {
         Self {
             header,
@@ -162,6 +164,7 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
             deposit_data,
             da_slot_hash,
             da_slot_height,
+            da_slot_txs_commitment,
         }
     }
 
@@ -192,7 +195,7 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
 
     /// DA block transactions commitment
     pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
-        self.header.inner.da_slot_txs_commitment
+        self.da_slot_txs_commitment
     }
 
     /// Public key of signer

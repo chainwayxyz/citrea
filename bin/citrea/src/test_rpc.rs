@@ -111,7 +111,6 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
 
     let header1 = L2Header::new(
         1,
-        [1u8; 32],
         ::sha2::Sha256::digest(b"prev_batch_receipt").into(),
         [1; 32],
         0,
@@ -121,7 +120,6 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
 
     let header2 = L2Header::new(
         2,
-        [3; 32],
         ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
         [1; 32],
         0,
@@ -154,6 +152,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             ],
             0,
             [0u8; 32],
+            [1u8; 32],
         ),
         L2Block::<[u8; 32]>::new(
             signed_header2,
@@ -165,6 +164,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             vec!["c44444".as_bytes().to_vec()],
             1,
             [2u8; 32],
+            [3; 32],
         ),
     ];
 

@@ -161,6 +161,7 @@ where
         sequencer_public_key: &[u8],
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
@@ -177,6 +178,7 @@ where
                     .hash_v1::<<C as Spec>::Hasher>(
                         da_slot_height,
                         da_slot_hash,
+                        da_slot_txs_commitment,
                         blobs,
                         l2_block.deposit_data().to_owned(),
                     )
@@ -202,6 +204,7 @@ where
                     .hash_v2::<<C as Spec>::Hasher>(
                         da_slot_height,
                         da_slot_hash,
+                        da_slot_txs_commitment,
                         blobs,
                         l2_block.deposit_data().to_owned(),
                     )
@@ -385,6 +388,7 @@ where
             sequencer_public_key,
             slot_header.height(),
             slot_header.hash().into(),
+            slot_header.txs_commitment().into(),
         )?;
 
         self.begin_soft_confirmation(
