@@ -32,6 +32,9 @@ async fn test_successful_prover_execution() {
         })
         .await;
 
+    // Emulate some execution
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
 
@@ -76,10 +79,12 @@ async fn test_parallel_proofs_equal_to_limit() {
         })
         .await;
 
+    // Emulate some execution
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
     let proof_1 = rx_1.await.unwrap();
-
     // Signal finish to 2nd proof
     assert!(vm.finish_next_proof());
     let proof_2 = rx_2.await.unwrap();
@@ -156,6 +161,8 @@ async fn test_parallel_proofs_higher_than_limit() {
         })
         .await;
 
+    // Emulate some execution
+    tokio::time::sleep(Duration::from_millis(100)).await;
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
     let proof_1 = rx_1.await.unwrap();
@@ -233,6 +240,9 @@ async fn test_multiple_parallel_proof_run() {
         })
         .await;
 
+    // Emulate some execution
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
     let proof_1 = rx_1.await.unwrap();
@@ -273,6 +283,9 @@ async fn test_multiple_parallel_proof_run() {
             elf: vec![],
         })
         .await;
+
+    // Emulate some execution
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
