@@ -254,8 +254,9 @@ where
 {
     let submitted_proofs = ledger
         .get_proofs_by_l1_height(l1_block.header().height())?
-        .unwrap_or(vec![]);
+        .unwrap_or_default();
 
+    let mut rxs = vec![];
     // Add each non-proven proof's data to ProverService
     for input in inputs {
         if !state_transition_already_proven::<Da>(&input, &submitted_proofs) {
@@ -283,18 +284,21 @@ where
                 _ => borsh::to_vec(&input.into_v3_parts())?,
             };
 
-            prover_service
-                .add_proof_data(ProofData {
+            let rx = prover_service
+                .start_proving(ProofData {
                     input,
                     assumptions: vec![],
                     elf,
                 })
                 .await;
+            rxs.push(rx);
         }
     }
 
-    // Prove all proofs in parallel
-    let proofs = prover_service.prove().await?;
+    // Wait for all proofs to be completed
+    let proofs = futures::future::try_join_all(rxs)
+        .await
+        .expect("Proving channel should never be closed");
 
     let txs_and_proofs = prover_service.submit_proofs(proofs).await?;
 
