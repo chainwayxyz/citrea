@@ -7,9 +7,7 @@ use reth_primitives::{
     KECCAK_EMPTY,
 };
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
-use sov_modules_api::hooks::{
-    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
-};
+use sov_modules_api::hooks::{HookSoftConfirmationInfo, HookSoftConfirmationInfoV1};
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
@@ -385,14 +383,19 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         .unwrap();
     let root = binding.header.header().state_root.0;
 
+    let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
+        da_slot_hash: DA_ROOT_HASH.0,
+        da_slot_height: 1,
+        da_slot_txs_commitment: txs_commitment.into(),
         pre_state_root: root,
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
+        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
@@ -427,11 +430,15 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     // finalize blocks 2-257 with random state root hashes
     for _ in 2..257 {
         let l1_fee_rate = 0;
-        let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+        let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
             l2_height,
+            da_slot_hash: DA_ROOT_HASH.0,
+            da_slot_height: 1,
+            da_slot_txs_commitment: random_32_bytes,
             pre_state_root: random_32_bytes,
             current_spec: SpecId::Kumquat,
             pub_key: vec![],
+            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
         });
@@ -447,11 +454,15 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
 
     // start environment for block 258
     let l1_fee_rate = 0;
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
+        da_slot_hash: DA_ROOT_HASH.0,
+        da_slot_height: 1,
+        da_slot_txs_commitment: random_32_bytes,
         pre_state_root: random_32_bytes,
         current_spec: SpecId::Kumquat,
         pub_key: vec![],
+        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
     });
