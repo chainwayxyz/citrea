@@ -611,8 +611,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
@@ -672,8 +672,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
@@ -706,8 +706,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
@@ -752,8 +752,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
