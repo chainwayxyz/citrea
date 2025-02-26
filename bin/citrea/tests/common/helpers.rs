@@ -504,7 +504,9 @@ pub async fn wait_for_prover_l1_height_proofs(
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover batch proofs at height {}", num);
-        let proofs = prover_client.ledger_get_batch_proofs_by_slot_height(num).await;
+        let proofs = prover_client
+            .ledger_get_batch_proofs_by_slot_height(num)
+            .await;
         if proofs.is_some() {
             break;
         }
