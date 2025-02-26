@@ -569,7 +569,6 @@ where
         // create the soft confirmation header
         let header = L2Header::new(
             l2_height,
-            da_block.header().txs_commitment().into(),
             self.soft_confirmation_hash,
             soft_confirmation_result.state_root_transition.final_root,
             l1_fee_rate,
@@ -584,6 +583,7 @@ where
             deposit_data.clone(),
             da_block.header().height(),
             da_block.header().hash().into(),
+            da_block.header().txs_commitment().into(),
         )?;
         let l2_block = L2Block::new(
             signed_header,
@@ -591,6 +591,7 @@ where
             deposit_data,
             da_block.header().height(),
             da_block.header().hash().into(),
+            da_block.header().txs_commitment().into(),
         );
 
         debug!(
@@ -885,6 +886,7 @@ where
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
         match active_spec {
             SpecId::Genesis => self.sign_soft_confirmation_batch_v1(
@@ -893,6 +895,7 @@ where
                 deposit_data,
                 da_slot_height,
                 da_slot_hash,
+                da_slot_txs_commitment,
             ),
             SpecId::Kumquat => self.sign_soft_confirmation_batch_v2(
                 header,
@@ -900,6 +903,7 @@ where
                 deposit_data,
                 da_slot_height,
                 da_slot_hash,
+                da_slot_txs_commitment,
             ),
             _ => self.sign_soft_confirmation_header(header),
         }
@@ -928,11 +932,13 @@ where
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
         let hash: [u8; 32] = header
             .hash_v2::<<DefaultContext as sov_modules_api::Spec>::Hasher>(
                 da_slot_height,
                 da_slot_hash,
+                da_slot_txs_commitment,
                 blobs.to_owned(),
                 deposit_data,
             )
@@ -958,11 +964,13 @@ where
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
         let (hash, raw) = header
             .hash_v1::<<DefaultContext as sov_modules_api::Spec>::Hasher>(
                 da_slot_height,
                 da_slot_hash,
+                da_slot_txs_commitment,
                 blobs.to_owned(),
                 deposit_data,
             )
