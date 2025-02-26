@@ -170,9 +170,9 @@ async fn rollback_node(
     rollback_l1_height: u64,
     commitment_l2_height: u64,
 ) -> anyhow::Result<()> {
-    copy_db_dir_recursive(&old_path, &new_path).unwrap();
+    copy_db_dir_recursive(old_path, new_path).unwrap();
 
-    let (ledger_db, native_db, state_db) = instantiate_dbs(&new_path, tables).unwrap();
+    let (ledger_db, native_db, state_db) = instantiate_dbs(new_path, tables).unwrap();
     let rollback = Rollback::new(ledger_db.inner(), state_db.clone(), native_db.clone());
 
     rollback
@@ -221,7 +221,7 @@ async fn fill_blocks(
 
 async fn assert_dbs(test_client: &TestClient, addr: Address, at_block: u64, balance: u128) {
     // Check soft confirmations have been rolled back in Ledger DB
-    wait_for_l2_block(&test_client, at_block, None).await;
+    wait_for_l2_block(test_client, at_block, None).await;
 
     // Suppress output of panics
     let prev_hook = panic::take_hook();
