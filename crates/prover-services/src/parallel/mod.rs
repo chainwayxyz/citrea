@@ -123,6 +123,7 @@ where
             vm.add_assumption(assumption);
         }
 
+        let ongoing_proof_count = self.ongoing_proof_count.clone();
         let proof_mode = self.proof_mode;
         let notifier = self.proof_done_notifier.clone();
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
@@ -132,6 +133,8 @@ where
             info!("Starting proving task {}", id);
 
             let proof = make_proof(vm, elf, proof_mode).expect("Proof creation must not fail");
+
+            *ongoing_proof_count.blocking_lock() -= 1;
             tx.send(proof).expect("Proof channel should not close");
 
             info!("Finished proving task {}", id);
