@@ -845,7 +845,7 @@ impl TestCase for L1HashOutputTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
 
-        let zkp = wait_for_proving_finish(&batch_prover, finalized_height, None).await?;
+        let zkp = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
 
         assert_eq!(zkp.len(), 1);
 
@@ -891,7 +891,7 @@ impl TestCase for L1HashOutputTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
 
-        let zkp_prev = wait_for_proving_finish(&batch_prover, finalized_height - 1, None).await?;
+        let zkp_prev = wait_for_proving_finish(batch_prover, finalized_height - 1, None).await?;
 
         assert_eq!(zkp_prev.len(), 1);
 
@@ -904,7 +904,7 @@ impl TestCase for L1HashOutputTest {
 
         assert_ne!(prev_l1_hash, l1_hash);
 
-        let zkp_last = wait_for_proving_finish(&batch_prover, finalized_height, None).await?;
+        let zkp_last = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
 
         assert_eq!(zkp.len(), 1);
 
