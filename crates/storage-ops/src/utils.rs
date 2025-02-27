@@ -40,11 +40,8 @@ pub(crate) fn delete_slots_by_number(
     ledger_db.delete::<L2RangeByL1Height>(&slot_number)?;
     ledger_db.delete::<CommitmentsByNumber>(&slot_number)?;
 
-    if !matches!(node_type, StorageNodeType::LightClient) {
-        delete_short_header_proofs(ledger_db, slot_number)?;
-    }
     if !matches!(node_type, StorageNodeType::Sequencer) {
-        delete_slot_by_hash(ledger_db, slot_number)?;
+        delete_slot_by_hash(node_type, ledger_db, slot_number)?;
     }
 
     if matches!(node_type, StorageNodeType::FullNode) {
@@ -63,7 +60,11 @@ pub(crate) fn delete_slots_by_number(
     Ok(())
 }
 
-fn delete_short_header_proofs(ledger_db: &DB, slot_number: SlotNumber) -> anyhow::Result<()> {
+fn delete_slot_by_hash(
+    node_type: StorageNodeType,
+    ledger_db: &DB,
+    slot_number: SlotNumber,
+) -> anyhow::Result<()> {
     let mut slots =
         ledger_db.iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Backward)?;
     slots.seek_to_last();
@@ -73,28 +74,15 @@ fn delete_short_header_proofs(ledger_db: &DB, slot_number: SlotNumber) -> anyhow
             continue;
         };
 
-        // TODO for pruning this should be less than
-        if record.value > slot_number {
+        if record.value < slot_number {
+            break;
+        }
+
+        if !matches!(node_type, StorageNodeType::LightClient) {
             ledger_db.delete::<ShortHeaderProofBySlotHash>(&record.key)?;
         }
-    }
 
-    Ok(())
-}
-
-fn delete_slot_by_hash(ledger_db: &DB, slot_number: SlotNumber) -> anyhow::Result<()> {
-    let mut slots =
-        ledger_db.iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Forward)?;
-    slots.seek_to_first();
-
-    for record in slots {
-        let Ok(record) = record else {
-            continue;
-        };
-
-        if record.value < slot_number {
-            ledger_db.delete::<SlotByHash>(&record.key)?;
-        }
+        ledger_db.delete::<SlotByHash>(&record.key)?;
     }
 
     Ok(())

@@ -461,7 +461,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     assert_dbs(
         &full_node_test_client,
         addr,
-        rollback_l1_height,
+        Some(rollback_l1_height),
         30,
         30000000000000000000,
     )

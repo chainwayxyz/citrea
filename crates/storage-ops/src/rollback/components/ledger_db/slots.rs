@@ -1,4 +1,4 @@
-use sov_db::schema::tables::L2RangeByL1Height;
+use sov_db::schema::tables::CommitmentsByNumber;
 use sov_db::schema::types::SlotNumber;
 use sov_schema_db::{ScanDirection, DB};
 
@@ -10,12 +10,12 @@ pub(crate) fn rollback_slots(
     ledger_db: &DB,
     target_l1: u64,
 ) -> anyhow::Result<u64> {
-    let mut slots_to_l2_range = ledger_db
-        .iter_with_direction::<L2RangeByL1Height>(Default::default(), ScanDirection::Backward)?;
-    slots_to_l2_range.seek_to_last();
+    let mut commitments_by_number = ledger_db
+        .iter_with_direction::<CommitmentsByNumber>(Default::default(), ScanDirection::Backward)?;
+    commitments_by_number.seek_to_last();
 
     let mut deleted = 0;
-    for record in slots_to_l2_range {
+    for record in commitments_by_number {
         let Ok(record) = record else {
             continue;
         };
