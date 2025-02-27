@@ -29,15 +29,6 @@ pub(crate) fn rollback_soft_confirmations(
             break;
         }
 
-        if matches!(node_type, StorageNodeType::Sequencer)
-            || matches!(node_type, StorageNodeType::FullNode)
-        {
-            ledger_db.put::<LastSequencerCommitmentSent>(
-                &(),
-                &SoftConfirmationNumber(last_sequencer_commitment_l2_height),
-            )?;
-        }
-
         delete_soft_confirmations_by_number(
             node_type,
             ledger_db,
@@ -46,6 +37,15 @@ pub(crate) fn rollback_soft_confirmations(
         )?;
 
         deleted += 1;
+    }
+
+    if matches!(node_type, StorageNodeType::Sequencer)
+        || matches!(node_type, StorageNodeType::FullNode)
+    {
+        ledger_db.put::<LastSequencerCommitmentSent>(
+            &(),
+            &SoftConfirmationNumber(last_sequencer_commitment_l2_height),
+        )?;
     }
 
     Ok(deleted)
