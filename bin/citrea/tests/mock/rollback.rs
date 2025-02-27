@@ -23,6 +23,7 @@ use sov_db::schema::tables::{
 use sov_db::schema::types::SlotNumber;
 use sov_db::state_db::StateDB;
 use sov_mock_da::{MockAddress, MockDaService};
+use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 
 use crate::common::client::TestClient;
 use crate::common::helpers::{
@@ -219,9 +220,15 @@ async fn fill_blocks(
     }
 }
 
-async fn assert_dbs(test_client: &TestClient, addr: Address, at_block: u64, balance: u128) {
+async fn assert_dbs(
+    test_client: &TestClient,
+    addr: Address,
+    check_l1_block: Option<u64>,
+    check_l2_block: u64,
+    balance_at_l2_height: u128,
+) {
     // Check soft confirmations have been rolled back in Ledger DB
-    wait_for_l2_block(test_client, at_block, None).await;
+    wait_for_l2_block(test_client, check_l2_block, None).await;
 
     // Suppress output of panics
     let prev_hook = panic::take_hook();
@@ -231,26 +238,39 @@ async fn assert_dbs(test_client: &TestClient, addr: Address, at_block: u64, bala
     let get_balance_result = test_client
         .eth_get_balance(
             addr,
-            Some(BlockId::Number(BlockNumberOrTag::Number(at_block))),
+            Some(BlockId::Number(BlockNumberOrTag::Number(check_l2_block))),
         )
         .await;
     assert!(get_balance_result.is_ok());
-    assert_eq!(get_balance_result.unwrap(), U256::from(balance));
+    assert_eq!(
+        get_balance_result.unwrap(),
+        U256::from(balance_at_l2_height)
+    );
 
     // Check native DB is rolled back
-    let check_block_by_number_result = AssertUnwindSafe(
-        test_client
-            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number(at_block + 1))),
-    )
-    .catch_unwind()
-    .await;
+    let check_block_by_number_result =
+        AssertUnwindSafe(test_client.eth_get_block_by_number_with_detail(Some(
+            BlockNumberOrTag::Number(check_l2_block + 1),
+        )))
+        .catch_unwind()
+        .await;
     assert!(check_block_by_number_result.is_err());
     panic::set_hook(prev_hook);
 
     // Should NOT panic as the data we're requesting here is correct
     test_client
-        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number(at_block)))
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number(check_l2_block)))
         .await;
+
+    let Some(check_l1_block) = check_l1_block else {
+        return;
+    };
+    let commitments: Vec<SequencerCommitmentResponse> = test_client
+        .ledger_get_sequencer_commitments_on_slot_by_number(check_l1_block)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments.len(), 1);
 }
 
 /// Trigger rollback DB data.
@@ -311,7 +331,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
     let (seq_task_manager, seq_test_client, _) =
         start_sequencer(&new_sequencer_db_dir, &da_db_dir, true).await;
 
-    assert_dbs(&seq_test_client, addr, 30, 30000000000000000000).await;
+    assert_dbs(&seq_test_client, addr, None, 30, 30000000000000000000).await;
 
     seq_task_manager.abort().await;
 
@@ -438,7 +458,14 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     let (full_node_task_manager, full_node_test_client) =
         start_full_node(&new_full_node_db_dir, &da_db_dir, seq_port, true).await;
 
-    assert_dbs(&full_node_test_client, addr, 30, 30000000000000000000).await;
+    assert_dbs(
+        &full_node_test_client,
+        addr,
+        rollback_l1_height,
+        30,
+        30000000000000000000,
+    )
+    .await;
 
     for _ in 0..10 {
         seq_test_client.spam_publish_batch_request().await.unwrap();
@@ -781,7 +808,14 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     let (batch_prover_task_manager, batch_prover_test_client) =
         start_batch_prover(&new_batch_prover_db_dir, &da_db_dir, seq_port, true).await;
 
-    assert_dbs(&batch_prover_test_client, addr, 30, 30000000000000000000).await;
+    assert_dbs(
+        &batch_prover_test_client,
+        addr,
+        None,
+        30,
+        30000000000000000000,
+    )
+    .await;
 
     for _ in 0..10 {
         seq_test_client.spam_publish_batch_request().await.unwrap();
