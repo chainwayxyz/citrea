@@ -5311,7 +5311,6 @@ dependencies = [
  "async-trait",
  "futures",
  "rand",
- "rayon",
  "sov-rollup-interface",
  "tokio",
  "tracing",

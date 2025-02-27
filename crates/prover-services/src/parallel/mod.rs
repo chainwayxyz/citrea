@@ -19,7 +19,6 @@ where
     parallel_proof_limit: usize,
     ongoing_proof_count: Arc<Mutex<usize>>,
     proof_done_notifier: Arc<Notify>,
-    thread_pool: rayon::ThreadPool,
     proof_mode: ProofGenMode,
     da_service: Arc<Da>,
     vm: Vm,
@@ -64,18 +63,10 @@ where
             }
         };
 
-        // TODO: check if this is going to be a problem when we want to do remote
-        // proving with higher limit than the cpu number
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(thread_pool_size)
-            .build()
-            .expect("Thread pool must be built");
-
         Ok(Self {
             parallel_proof_limit: thread_pool_size,
             ongoing_proof_count: Default::default(),
             proof_done_notifier: Default::default(),
-            thread_pool,
             proof_mode,
             da_service,
             vm,
@@ -129,7 +120,7 @@ where
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
 
         let (tx, rx) = oneshot::channel();
-        self.thread_pool.spawn(move || {
+        tokio::task::spawn_blocking(move || {
             info!("Starting proving task {}", id);
 
             let proof = make_proof(vm, elf, proof_mode).expect("Proof creation must not fail");
