@@ -30,6 +30,41 @@ pub struct TransactionV2 {
     nonce: u64,
 }
 
+impl TransactionV2 {
+    #[cfg(feature = "native")]
+    fn new(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
+        let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
+        message.extend_from_slice(&runtime_msg);
+        message.extend_from_slice(&chain_id.to_le_bytes());
+        message.extend_from_slice(&nonce.to_le_bytes());
+
+        let priv_key = K256PrivateKey::try_from(priv_key).unwrap();
+        let pub_key = priv_key.pub_key();
+        let signature = priv_key.sign(&message);
+
+        Self {
+            signature: borsh::to_vec(&signature).unwrap(),
+            pub_key: borsh::to_vec(&pub_key).unwrap(),
+            runtime_msg,
+            chain_id,
+            nonce,
+        }
+    }
+
+    fn verify(&self) -> anyhow::Result<()> {
+        let signature = K256Signature::try_from_slice(&self.signature)?;
+        let pub_key = K256PublicKey::try_from(self.pub_key.as_slice())?;
+        let mut serialized_tx = Vec::with_capacity(self.runtime_msg.len() + EXTEND_MESSAGE_LEN);
+
+        serialized_tx.extend_from_slice(&self.runtime_msg);
+        serialized_tx.extend_from_slice(&self.chain_id.to_le_bytes());
+        serialized_tx.extend_from_slice(&self.nonce.to_le_bytes());
+
+        signature.verify(&pub_key, &serialized_tx)?;
+        Ok(())
+    }
+}
+
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 #[derive(Debug, PartialEq, Eq, Clone, borsh::BorshSerialize)]
 pub struct TransactionV1 {
@@ -42,6 +77,40 @@ pub struct TransactionV1 {
     runtime_msg: Vec<u8>,
     chain_id: u64,
     nonce: u64,
+}
+
+impl TransactionV1 {
+    #[cfg(feature = "native")]
+    fn new(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
+        let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
+        message.extend_from_slice(&runtime_msg);
+        message.extend_from_slice(&chain_id.to_le_bytes());
+        message.extend_from_slice(&nonce.to_le_bytes());
+
+        let priv_key = DefaultPrivateKey::try_from(priv_key).unwrap();
+        let pub_key = priv_key.pub_key();
+        let signature = priv_key.sign(&message);
+
+        Self {
+            serialized_signature: borsh::to_vec(&signature).unwrap(),
+            signature,
+            serialized_pub_key: borsh::to_vec(&pub_key).unwrap(),
+            pub_key,
+            runtime_msg,
+            chain_id,
+            nonce,
+        }
+    }
+    fn verify(&self) -> anyhow::Result<()> {
+        let mut serialized_tx = Vec::with_capacity(self.runtime_msg.len() + EXTEND_MESSAGE_LEN);
+
+        serialized_tx.extend_from_slice(&self.runtime_msg);
+        serialized_tx.extend_from_slice(&self.chain_id.to_le_bytes());
+        serialized_tx.extend_from_slice(&self.nonce.to_le_bytes());
+
+        self.signature.verify(&self.pub_key, &serialized_tx)?;
+        Ok(())
+    }
 }
 
 impl BorshDeserialize for TransactionV1 {
@@ -161,66 +230,23 @@ impl Transaction {
         nonce: u64,
         fork2: bool,
     ) -> Self {
-        let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
-        message.extend_from_slice(&runtime_msg);
-        message.extend_from_slice(&chain_id.to_le_bytes());
-        message.extend_from_slice(&nonce.to_le_bytes());
-
         if fork2 {
-            let priv_key = K256PrivateKey::try_from(priv_key).unwrap();
-            let pub_key = priv_key.pub_key();
-            let signature = priv_key.sign(&message);
-
-            Self::V2(TransactionV2 {
-                signature: borsh::to_vec(&signature).unwrap(),
-                pub_key: borsh::to_vec(&pub_key).unwrap(),
-                runtime_msg,
-                chain_id,
-                nonce,
-            })
+            Self::V2(TransactionV2::new(priv_key, runtime_msg, chain_id, nonce))
         } else {
-            let priv_key = DefaultPrivateKey::try_from(priv_key).unwrap();
-            let pub_key = priv_key.pub_key();
-            let signature = priv_key.sign(&message);
-
-            Self::V1(Box::new(TransactionV1 {
-                serialized_signature: borsh::to_vec(&signature).unwrap(),
-                signature,
-                serialized_pub_key: borsh::to_vec(&pub_key).unwrap(),
-                pub_key,
+            Self::V1(Box::new(TransactionV1::new(
+                priv_key,
                 runtime_msg,
                 chain_id,
                 nonce,
-            }))
+            )))
         }
     }
 
     pub fn verify(&self) -> anyhow::Result<()> {
         match self {
-            Self::V1(tx) => {
-                let mut serialized_tx =
-                    Vec::with_capacity(tx.runtime_msg.len() + EXTEND_MESSAGE_LEN);
-
-                serialized_tx.extend_from_slice(&tx.runtime_msg);
-                serialized_tx.extend_from_slice(&tx.chain_id.to_le_bytes());
-                serialized_tx.extend_from_slice(&tx.nonce.to_le_bytes());
-
-                tx.signature.verify(&tx.pub_key, &serialized_tx)?;
-            }
-            Self::V2(tx) => {
-                let signature = K256Signature::try_from_slice(&tx.signature)?;
-                let pub_key = K256PublicKey::try_from(tx.pub_key.as_slice())?;
-                let mut serialized_tx =
-                    Vec::with_capacity(tx.runtime_msg.len() + EXTEND_MESSAGE_LEN);
-
-                serialized_tx.extend_from_slice(&tx.runtime_msg);
-                serialized_tx.extend_from_slice(&tx.chain_id.to_le_bytes());
-                serialized_tx.extend_from_slice(&tx.nonce.to_le_bytes());
-
-                signature.verify(&pub_key, &serialized_tx)?;
-            }
+            Self::V1(tx) => tx.verify(),
+            Self::V2(tx) => tx.verify(),
         }
-        Ok(())
     }
 
     pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {

@@ -36,7 +36,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
     // call begin_slot_hook 11 times
     for i in 0..11 {
         if soft_confirmation_rule_enforcer
-            .begin_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set)
+            .end_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set)
             .is_err()
         {
             assert_eq!(i, 10);
@@ -54,11 +54,11 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     let mut hook_soft_confirmation_info = sc_info_helper();
 
-    hook_soft_confirmation_info.timestamp = original_timestamp;
+    hook_soft_confirmation_info.set_time_stamp(original_timestamp);
 
     // call first with `original_timestamp`
     let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set);
+        .end_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set);
 
     assert!(res.is_ok());
 
@@ -67,10 +67,10 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     let mut hook_soft_confirmation_info = sc_info_helper();
 
-    hook_soft_confirmation_info.timestamp = original_timestamp - 1000;
+    hook_soft_confirmation_info.set_time_stamp(original_timestamp - 1000);
 
     let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set);
+        .end_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set);
 
     assert!(res.is_err());
 
@@ -83,10 +83,10 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     // should not fail
     let mut hook_soft_confirmation_info = sc_info_helper();
 
-    hook_soft_confirmation_info.timestamp = original_timestamp + 1000;
+    hook_soft_confirmation_info.set_time_stamp(original_timestamp + 1000);
 
     let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set);
+        .end_soft_confirmation_hook(&hook_soft_confirmation_info, &mut working_set);
 
     assert!(res.is_ok());
 }

@@ -495,7 +495,7 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
 }
 
 #[instrument(level = "debug", skip(prover_client))]
-pub async fn wait_for_prover_l1_height(
+pub async fn wait_for_prover_l1_height_proofs(
     prover_client: &TestClient,
     num: u64,
     timeout: Option<Duration>,
@@ -503,15 +503,17 @@ pub async fn wait_for_prover_l1_height(
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
-        debug!("Waiting for prover height {}", num);
-        let latest_block = prover_client.ledger_get_last_scanned_l1_height().await;
-        if latest_block >= num {
+        debug!("Waiting for prover batch proofs at height {}", num);
+        let proofs = prover_client
+            .ledger_get_batch_proofs_by_slot_height(num)
+            .await;
+        if proofs.is_some() {
             break;
         }
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!("Timeout. Latest prover L1 height is {}", latest_block);
+            bail!("Timeout. Failed to get batch proofs on L1 height {}", num);
         }
 
         sleep(Duration::from_secs(1)).await;

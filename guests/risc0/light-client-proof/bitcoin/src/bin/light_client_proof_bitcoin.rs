@@ -21,8 +21,8 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
 const L2_GENESIS_ROOT: [u8; 32] = {
     let hex_root = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "58a10034aa034f1f675312fac7233375337a6b532fc598b560deb428a45f7b01",
-        Network::Devnet => "a0849432201a14882f01eab2b806c465c231d140f9d632a6f7a0df50fd927606",
+        Network::Testnet => "72d15344b072a72f63f18b3a00be3741fb3aada4aa0a5e0f35d760b6abf51749",
+        Network::Devnet => "7bc4a868439b637b57fcc55bf6e119e51996d6a4127a39f1393c8c1e29d37365",
         Network::Nightly | Network::TestNetworkWithForks => match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
             None => "2e5345a517a1fb3326ef8784830772585ab8a2e3fd2e4e2a1b92a01aacb273fb",
@@ -57,7 +57,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
             (
                 5546000,
                 decode_to_u32_array(
-                    "14d26c6b8cd8553c5613b359c8b313a08a2a17b0174a3471d32fd7c1323e6279",
+                    "670b7ef87e7fab2ff2d46f38f71be524d42cc0c62da41884d3d41928b8c967d1",
                 ),
             ),
         ],
@@ -71,7 +71,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
             (
                 1921835,
                 decode_to_u32_array(
-                    "a6a660040f9161ddac7c4a401b8aa0a01c09802fd099aa6c143bf8c18c69a55f",
+                    "0ef8aaa707662dc591558890d6e98fe25070392b342f447532cc4325547ad1a8",
                 ),
             ),
         ],
@@ -88,7 +88,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
                     (
                         100,
                         decode_to_u32_array(
-                            "c8c204ecbc23bdf4794a8e9065c8cbd96f282acb97f6924116c51141c08b86dc",
+                            "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
                         ),
                     ),
                     (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),

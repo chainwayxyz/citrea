@@ -16,7 +16,7 @@ use citrea_e2e::config::{
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::{FullNode, NodeKind};
+use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
@@ -30,7 +30,7 @@ use sov_modules_api::fork::ForkManager;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{PublicKey, Spec, SpecId};
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
-use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
+use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::Network;
 use tokio::time::sleep;
 
@@ -54,6 +54,31 @@ pub async fn wait_for_zkproofs(
             .client
             .http_client()
             .get_verified_batch_proofs_by_slot_height(U64::from(height))
+            .await?
+        {
+            Some(proofs) => return Ok(proofs),
+            None => sleep(Duration::from_millis(500)).await,
+        }
+    }
+}
+
+pub async fn wait_for_proving_finish(
+    batch_prover: &BatchProver,
+    height: u64,
+    timeout: Option<Duration>,
+) -> Result<Vec<BatchProofResponse>> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(240));
+
+    loop {
+        if start.elapsed() >= timeout {
+            bail!("BatchProver failed to get zkproofs within the specified timeout");
+        }
+
+        match batch_prover
+            .client
+            .http_client()
+            .get_batch_proofs_by_slot_height(U64::from(height))
             .await?
         {
             Some(proofs) => return Ok(proofs),
@@ -820,19 +845,7 @@ impl TestCase for L1HashOutputTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
 
-        batch_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await?;
-
-        // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(2, None).await?;
-
-        let zkp = batch_prover
-            .client
-            .http_client()
-            .get_batch_proofs_by_slot_height(U64::from(finalized_height))
-            .await?
-            .expect("Should exist");
+        let zkp = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
 
         assert_eq!(zkp.len(), 1);
 
@@ -878,18 +891,7 @@ impl TestCase for L1HashOutputTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
 
-        batch_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await?;
-
-        da.wait_mempool_len(2, None).await?;
-
-        let zkp_prev = batch_prover
-            .client
-            .http_client()
-            .get_batch_proofs_by_slot_height(U64::from(finalized_height - 1))
-            .await?
-            .expect("Should exist");
+        let zkp_prev = wait_for_proving_finish(batch_prover, finalized_height - 1, None).await?;
 
         assert_eq!(zkp_prev.len(), 1);
 
@@ -902,12 +904,7 @@ impl TestCase for L1HashOutputTest {
 
         assert_ne!(prev_l1_hash, l1_hash);
 
-        let zkp_last = batch_prover
-            .client
-            .http_client()
-            .get_batch_proofs_by_slot_height(U64::from(finalized_height))
-            .await?
-            .expect("Should exist");
+        let zkp_last = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
 
         assert_eq!(zkp.len(), 1);
 

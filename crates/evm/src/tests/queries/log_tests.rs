@@ -6,7 +6,9 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{
+    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
+};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
@@ -73,7 +75,7 @@ fn log_filter_test_at_block_hash() {
     let l1_fee_rate = 1;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
@@ -84,7 +86,7 @@ fn log_filter_test_at_block_hash() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -285,7 +287,7 @@ fn log_filter_test_with_range() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
@@ -296,7 +298,7 @@ fn log_filter_test_with_range() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -347,7 +349,7 @@ fn log_filter_test_with_range() {
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
     assert_eq!(rpc_logs.len(), 8);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
@@ -358,7 +360,7 @@ fn log_filter_test_with_range() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -411,18 +413,14 @@ fn test_log_limits() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -512,18 +510,14 @@ fn test_log_limits() {
     ];
 
     for _ in 1..1001 {
-        let soft_confirmation_info = HookSoftConfirmationInfo {
+        let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
             l2_height,
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32],
             current_spec: SpecId::Fork2,
             pub_key: vec![],
-            deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
-        };
+        });
         // generate 100_000 blocks to test the max block range limit
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);

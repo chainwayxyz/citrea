@@ -7,7 +7,9 @@ use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{BlockNumberOrTag, Log};
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{
+    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
+};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, SoftConfirmationModuleCallError, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
@@ -155,7 +157,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(hash.as_ref(), &[1u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[2u8; 32]);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [2u8; 32],
         da_slot_height: 2,
@@ -166,7 +168,7 @@ fn test_sys_bitcoin_light_client() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 42,
-    };
+    });
 
     // New L1 block №2
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
@@ -305,7 +307,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [5u8; 32],
         da_slot_height: 1,
@@ -316,7 +318,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         deposit_data: vec![],
         l1_fee_rate: 1,
         timestamp: 0,
-    };
+    });
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
@@ -340,7 +342,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut working_set = working_set.checkpoint().to_revertable();
     l2_height += 1;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [10u8; 32],
         da_slot_height: 2,
@@ -351,7 +353,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
@@ -416,7 +418,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     // let's start over
     let mut working_set = working_set.revert().to_revertable();
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [10u8; 32],
         da_slot_height: 2,
@@ -427,7 +429,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
@@ -513,7 +515,7 @@ fn test_bridge() {
     let l1_fee_rate = 1;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_height: 2,
         da_slot_hash: [2u8; 32],
@@ -569,7 +571,7 @@ fn test_bridge() {
         .to_vec()],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
@@ -633,18 +635,14 @@ fn test_upgrade_light_client() {
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
@@ -760,18 +758,14 @@ fn test_change_upgrade_owner() {
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
@@ -799,18 +793,14 @@ fn test_change_upgrade_owner() {
     l2_height += 1;
     let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
         pub_key: vec![],
-        deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     // New owner should be able to upgrade the contract

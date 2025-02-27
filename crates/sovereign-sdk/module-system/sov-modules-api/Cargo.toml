@@ -67,3 +67,4 @@ native = [
 ]
 macros = ["sov-modules-macros"]
 serde = ["sov-modules-core/serde"]
+testing = []

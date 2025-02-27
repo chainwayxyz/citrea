@@ -8,7 +8,9 @@ use std::str::FromStr;
 use alloy_primitives::{address, Address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{
+    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
+};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
@@ -74,18 +76,30 @@ fn init_evm(
             .as_slice(),
     );
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
-        l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32],
-        current_spec: spec_id,
-        pub_key: vec![],
-        deposit_data: vec![],
-        l1_fee_rate,
-        timestamp: 24,
+    let soft_confirmation_info = if spec_id >= SovSpecId::Fork2 {
+        HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+            l2_height,
+            pre_state_root: [10u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            l1_fee_rate,
+            timestamp: 24,
+        })
+    } else {
+        HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+            l2_height,
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 24,
+        })
     };
+
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     {
@@ -115,17 +129,28 @@ fn init_evm(
 
     let mut working_set = WorkingSet::new(prover_storage.clone());
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
-        l2_height,
-        da_slot_hash: [8u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [99u8; 32],
-        current_spec: spec_id,
-        pub_key: vec![],
-        deposit_data: vec![],
-        l1_fee_rate,
-        timestamp: 24,
+    let soft_confirmation_info = if spec_id >= SovSpecId::Fork2 {
+        HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+            l2_height,
+            pre_state_root: [10u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            l1_fee_rate,
+            timestamp: 24,
+        })
+    } else {
+        HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+            l2_height,
+            da_slot_hash: [8u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [99u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 24,
+        })
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
@@ -157,18 +182,30 @@ fn init_evm(
 
     let mut working_set = WorkingSet::new(prover_storage.clone());
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
-        l2_height,
-        da_slot_hash: [10u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [100u8; 32],
-        current_spec: spec_id,
-        pub_key: vec![],
-        deposit_data: vec![],
-        l1_fee_rate,
-        timestamp: 24,
+    let soft_confirmation_info = if spec_id >= SovSpecId::Fork2 {
+        HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+            l2_height,
+            pre_state_root: [100u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            l1_fee_rate,
+            timestamp: 24,
+        })
+    } else {
+        HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+            l2_height,
+            da_slot_hash: [10u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [100u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 24,
+        })
     };
+
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     {
@@ -237,18 +274,30 @@ pub fn init_evm_single_block(
 
     let l1_fee_rate = 1;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
-        l2_height: 1,
-        da_slot_hash: [1u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [0u8; 32],
-        current_spec: spec_id,
-        pub_key: vec![],
-        deposit_data: vec![],
-        l1_fee_rate,
-        timestamp: 0,
+    let soft_confirmation_info = if spec_id >= SovSpecId::Fork2 {
+        HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+            l2_height: 1,
+            pre_state_root: [0u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        })
+    } else {
+        HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+            l2_height: 1,
+            da_slot_hash: [1u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [0u8; 32],
+            current_spec: spec_id,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        })
     };
+
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let simple_payable_contract_tx =
@@ -311,7 +360,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     let l1_fee_rate = 1;
     let mut l2_height = 1;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [1u8; 32],
         da_slot_height: 1,
@@ -322,7 +371,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     {
@@ -351,7 +400,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
 
     let mut working_set = WorkingSet::new(prover_storage.clone());
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height,
         da_slot_hash: [2u8; 32],
         da_slot_height: 1,
@@ -362,7 +411,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         deposit_data: vec![],
         l1_fee_rate,
         timestamp: 0,
-    };
+    });
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     {

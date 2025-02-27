@@ -1999,16 +1999,15 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         latest_block.header.base_fee_per_gas.unwrap_or_default(),
         cfg.base_fee_params,
     ));
+    let citrea_spec_id = fork_fn(block_env.number.saturating_to()).spec_id;
     block_env.blob_excess_gas_and_price =
-        if citrea_spec_id_to_evm_spec_id(fork_fn(block_env.number.saturating_to()).spec_id)
-            >= SpecId::CANCUN
-        {
+        if citrea_spec_id_to_evm_spec_id(citrea_spec_id) >= SpecId::CANCUN {
             Some(BlobExcessGasAndPrice::new(0))
         } else {
             None
         };
 
-    if block_env.number > U256::from(256) {
+    if citrea_spec_id < CitreaSpecId::Fork2 && block_env.number > U256::from(256) {
         evm.latest_block_hashes
             .remove(&(block_env.number - U256::from(257)), working_set);
     }

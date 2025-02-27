@@ -104,7 +104,6 @@ where
 
         let header = L2Header::new(
             val.l2_height,
-            val.da_slot_txs_commitment,
             val.prev_hash,
             val.state_root,
             val.l1_fee_rate,
@@ -124,6 +123,7 @@ where
             val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
             val.da_slot_height,
             val.da_slot_hash,
+            val.da_slot_txs_commitment,
         );
         Ok(res)
     }

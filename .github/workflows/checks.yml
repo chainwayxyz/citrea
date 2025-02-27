@@ -113,7 +113,7 @@ jobs:
 
   check:
     name: check
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-4
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
@@ -192,7 +192,7 @@ jobs:
     needs:
       - docker-setup
       - build-test
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-30
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -252,7 +252,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   uniswap:
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-2
     needs: build-test
     if: github.event.pull_request.draft == false
     steps:
@@ -294,7 +294,7 @@ jobs:
           fi
 
   web3_py:
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-2
     needs: build-test
     if: github.event.pull_request.draft == false
     steps:
@@ -323,7 +323,7 @@ jobs:
           python test.py
 
   ethers_js:
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-2
     needs: build-test
     if: github.event.pull_request.draft == false
     steps:

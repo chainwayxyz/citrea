@@ -118,11 +118,6 @@ impl MockDaService {
         self.sequencer_da_address.clone()
     }
 
-    /// Change number of wait attempts before giving up on waiting for block
-    pub fn set_wait_attempts(&mut self, wait_attempts: usize) {
-        self.wait_attempts = wait_attempts;
-    }
-
     async fn wait_for_height(&self, height: u64) -> anyhow::Result<()> {
         // Waits self.wait_attempts * 10ms to get block at height
         for _ in 0..self.wait_attempts {

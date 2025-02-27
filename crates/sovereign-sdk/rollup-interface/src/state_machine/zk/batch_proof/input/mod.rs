@@ -92,11 +92,7 @@ where
                 .into_iter()
                 .zip(witnesses)
                 .map(|(confirmation, (state_witness, offchain_witness))| {
-                    (
-                        confirmation.into(),
-                        state_witness.into(),
-                        offchain_witness.into(),
-                    )
+                    (confirmation, state_witness.into(), offchain_witness.into())
                 })
                 .collect();
 

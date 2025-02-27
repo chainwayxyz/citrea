@@ -13,8 +13,8 @@ use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::system_events::create_system_transactions;
 use citrea_evm::{
-    populate_system_events, AccountInfo, CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS,
-    SYSTEM_SIGNER,
+    get_last_l1_height_and_hash_in_light_client, populate_system_events, AccountInfo, CallMessage,
+    RlpEvmTransaction, MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
@@ -34,11 +34,13 @@ use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{
+    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
+};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     EncodeCall, L2Block, PrivateKey, SlotData, Spec, SpecId, StateDiff, StateValueAccessor,
-    UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
+    WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -156,6 +158,7 @@ where
         prestate: ProverStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         soft_confirmation_info: HookSoftConfirmationInfo,
+        deposit_data: &[Vec<u8>],
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         let start = Instant::now();
@@ -166,9 +169,6 @@ where
             let mut working_set_to_discard = WorkingSet::new(prestate.clone());
 
             let evm = citrea_evm::Evm::<DefaultContext>::default();
-            // TODO: after L2Block refactor PR, we'll need to use L1 block and
-            // Bitcoin light client contract state for this
-            let mut last_l1_hash_of_evm = evm.last_l1_hash.get(&mut working_set_to_discard);
             if let Err(err) = self.stf.begin_soft_confirmation(
                 pub_key,
                 &mut working_set_to_discard,
@@ -186,21 +186,33 @@ where
             }
 
             let mut system_transactions = vec![];
-            if soft_confirmation_info.current_spec >= SpecId::Fork2 {
-                if soft_confirmation_info.l2_height == 1 {
-                    last_l1_hash_of_evm = None;
+            if soft_confirmation_info.current_spec() >= SpecId::Fork2 {
+                // Read last l1 hash from bitcoin light client contract
+                let mut l1_hash_in_contract = get_last_l1_height_and_hash_in_light_client(
+                    &evm,
+                    soft_confirmation_info.current_spec(),
+                    &mut working_set_to_discard,
+                )
+                .1
+                .map(Into::into);
+
+                if soft_confirmation_info.l2_height() == 1 {
+                    l1_hash_in_contract = None;
                 }
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
                 let system_events = populate_system_events(
-                    &soft_confirmation_info,
-                    last_l1_hash_of_evm,
+                    deposit_data,
+                    da_block_header.hash().into(),
+                    da_block_header.txs_commitment().into(),
+                    da_block_header.height(),
+                    l1_hash_in_contract,
                     bridge_init_param.as_slice(),
                 );
                 let system_signer = evm
                     .account_info(
                         &SYSTEM_SIGNER,
-                        soft_confirmation_info.current_spec,
+                        soft_confirmation_info.current_spec(),
                         &mut working_set_to_discard,
                     )
                     .unwrap_or(AccountInfo {
@@ -214,6 +226,11 @@ where
                     create_system_transactions(system_events, system_signer.nonce, chain_id);
             }
             let mut all_txs = vec![];
+
+            let mut nonce = self.get_nonce(
+                &mut working_set_to_discard,
+                soft_confirmation_info.current_spec(),
+            )?;
 
             // Initially process system txs if any
             // No need to check spec as they are only populated after fork2
@@ -235,11 +252,9 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx = self.sign_tx(
-                    raw_message,
-                    &mut working_set_to_discard,
-                    soft_confirmation_info.current_spec(),
-                )?;
+                let signed_tx =
+                    self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
+                nonce += 1;
 
                 let txs = vec![signed_tx];
 
@@ -295,9 +310,10 @@ where
 
                         let signed_tx = self.sign_tx(
                             raw_message,
-                            &mut working_set_to_discard,
                             soft_confirmation_info.current_spec(),
+                            nonce,
                         )?;
+                        nonce += 1;
 
                         let txs = vec![signed_tx];
 
@@ -308,6 +324,8 @@ where
                             &txs,
                             &mut working_set,
                         ) {
+                            // Decrement nonce if the transaction failed
+                            nonce -= 1;
                             match e {
                                         // Since this is the sequencer, it should never get a soft confirmation error or a hook error
                                         sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
@@ -332,8 +350,7 @@ where
                                                                                         working_set_to_discard = working_set.revert().to_revertable();
                                                                                         continue;
                                                                                     },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx if soft_confirmation_info.current_spec < SpecId::Fork2 => panic!("tried to execute system transaction"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx  => unreachable!(),
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
                                                                                         l1_fee_failed_txs.push(*evm_tx.hash());
                                                                                         invalid_senders.insert(evm_tx.transaction_id.sender);
@@ -426,17 +443,28 @@ where
             )?
         };
 
-        let soft_confirmation_info = HookSoftConfirmationInfo {
-            l2_height,
-            da_slot_height: da_block.header().height(),
-            da_slot_hash: da_block.header().hash().into(),
-            da_slot_txs_commitment: da_block.header().txs_commitment().into(),
-            pre_state_root: self.state_root,
-            deposit_data: deposit_data.clone(),
-            current_spec: active_fork_spec,
-            pub_key: pub_key.clone(),
-            l1_fee_rate,
-            timestamp,
+        let soft_confirmation_info = if active_fork_spec < SpecId::Fork2 {
+            HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+                l2_height,
+                da_slot_height: da_block.header().height(),
+                da_slot_hash: da_block.header().hash().into(),
+                da_slot_txs_commitment: da_block.header().txs_commitment().into(),
+                pre_state_root: self.state_root,
+                deposit_data: deposit_data.clone(),
+                current_spec: active_fork_spec,
+                pub_key: pub_key.clone(),
+                l1_fee_rate,
+                timestamp,
+            })
+        } else {
+            HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+                l2_height,
+                pre_state_root: self.state_root,
+                current_spec: active_fork_spec,
+                pub_key: pub_key.clone(),
+                l1_fee_rate,
+                timestamp,
+            })
         };
 
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
@@ -457,6 +485,7 @@ where
                 prestate.clone(),
                 da_block.header().clone(),
                 soft_confirmation_info.clone(),
+                &deposit_data,
                 l2_block_mode,
             )
             .await?;
@@ -487,6 +516,10 @@ where
         let mut blobs = vec![];
         let mut txs = vec![];
 
+        // if a batch failed need to refetch nonce
+        // so sticking to fetching from state makes sense
+        let mut nonce = self.get_nonce(&mut working_set, soft_confirmation_info.current_spec())?;
+
         let evm_txs_count = txs_to_run.len();
         if evm_txs_count > 0 {
             let call_txs = CallMessage { txs: txs_to_run };
@@ -494,11 +527,11 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(
-                raw_message,
-                &mut working_set,
-                soft_confirmation_info.current_spec(),
-            )?;
+            let signed_tx =
+                self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
+            // Increment nonce after sov tx for other possible sov txs
+            nonce += 1;
+
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
         }
@@ -509,9 +542,9 @@ where
         let next_fork = self.fork_manager.next_fork();
         if let Some(next_fork) = next_fork {
             if next_fork.spec_id == SpecId::Fork2
-                && soft_confirmation_info.l2_height + 1 == next_fork.activation_height
+                && soft_confirmation_info.l2_height() + 1 == next_fork.activation_height
             {
-                let (signed_blob, signed_tx) = self.update_sequencer_authority(&mut working_set, soft_confirmation_info.current_spec()).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
+                let (signed_blob, signed_tx) = self.update_sequencer_authority( soft_confirmation_info.current_spec(), nonce).expect("Should create and sign soft confirmation rule enforcer authority change call messages");
                 blobs.push(signed_blob);
                 txs.push(signed_tx);
             }
@@ -536,7 +569,6 @@ where
         // create the soft confirmation header
         let header = L2Header::new(
             l2_height,
-            da_block.header().txs_commitment().into(),
             self.soft_confirmation_hash,
             soft_confirmation_result.state_root_transition.final_root,
             l1_fee_rate,
@@ -548,10 +580,10 @@ where
             active_fork_spec,
             header,
             &blobs,
-            &txs,
             deposit_data.clone(),
             da_block.header().height(),
             da_block.header().hash().into(),
+            da_block.header().txs_commitment().into(),
         )?;
         let l2_block = L2Block::new(
             signed_header,
@@ -559,6 +591,7 @@ where
             deposit_data,
             da_block.header().height(),
             da_block.header().hash().into(),
+            da_block.header().txs_commitment().into(),
         );
 
         debug!(
@@ -828,12 +861,9 @@ where
     fn sign_tx(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         spec_id: SpecId,
+        nonce: u64,
     ) -> anyhow::Result<Transaction> {
-        // if a batch failed need to refetch nonce
-        // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce(working_set, spec_id)?;
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
@@ -848,15 +878,15 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn sign_soft_confirmation<'txs>(
+    fn sign_soft_confirmation(
         &mut self,
         active_spec: SpecId,
         header: L2Header,
-        blobs: &'txs [Vec<u8>],
-        txs: &'txs [Transaction],
+        blobs: &[Vec<u8>],
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
         match active_spec {
             SpecId::Genesis => self.sign_soft_confirmation_batch_v1(
@@ -865,14 +895,15 @@ where
                 deposit_data,
                 da_slot_height,
                 da_slot_hash,
+                da_slot_txs_commitment,
             ),
             SpecId::Kumquat => self.sign_soft_confirmation_batch_v2(
                 header,
                 blobs,
-                txs,
                 deposit_data,
                 da_slot_height,
                 da_slot_hash,
+                da_slot_txs_commitment,
             ),
             _ => self.sign_soft_confirmation_header(header),
         }
@@ -894,27 +925,24 @@ where
     }
 
     /// Signs necessary info and returns a BlockTemplate
-    fn sign_soft_confirmation_batch_v2<'txs>(
+    fn sign_soft_confirmation_batch_v2(
         &mut self,
         header: L2Header,
-        blobs: &'txs [Vec<u8>],
-        txs: &'txs [Transaction],
+        blobs: &[Vec<u8>],
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
-        let soft_confirmation = &UnsignedSoftConfirmation::new(
-            &header,
-            blobs.to_vec(),
-            txs,
-            deposit_data,
-            da_slot_height,
-            da_slot_hash,
-        );
-
-        let digest =
-            soft_confirmation.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-        let hash = Into::<[u8; 32]>::into(digest);
+        let hash: [u8; 32] = header
+            .hash_v2::<<DefaultContext as sov_modules_api::Spec>::Hasher>(
+                da_slot_height,
+                da_slot_hash,
+                da_slot_txs_commitment,
+                blobs.to_owned(),
+                deposit_data,
+            )
+            .into();
 
         let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
 
@@ -936,18 +964,17 @@ where
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
     ) -> anyhow::Result<SignedL2Header> {
-        use digest::Digest;
-
-        let soft_confirmation = &UnsignedSoftConfirmationV1::new(
-            &header,
-            blobs.to_vec(),
-            deposit_data,
-            da_slot_height,
-            da_slot_hash,
-        );
-        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
-        let hash = <DefaultContext as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
+        let (hash, raw) = header
+            .hash_v1::<<DefaultContext as sov_modules_api::Spec>::Hasher>(
+                da_slot_height,
+                da_slot_hash,
+                da_slot_txs_commitment,
+                blobs.to_owned(),
+                deposit_data,
+            )
+            .map(|(hash, raw)| (Into::<[u8; 32]>::into(hash), raw))?;
 
         let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
         let signature = priv_key.sign(&raw);
@@ -1091,8 +1118,8 @@ where
 
     fn update_sequencer_authority(
         &mut self,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
         current_spec: SpecId,
+        nonce: u64,
     ) -> anyhow::Result<(Vec<u8>, Transaction)> {
         let k256_priv_key =
             K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
@@ -1109,7 +1136,7 @@ where
             >,
         >>::encode_call(rule_enforcer_call_tx);
 
-        let signed_tx = self.sign_tx(raw_message, working_set, current_spec)?;
+        let signed_tx = self.sign_tx(raw_message, current_spec, nonce)?;
         let signed_blob = signed_tx.to_blob()?;
 
         Ok((signed_blob, signed_tx))
