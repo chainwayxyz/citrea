@@ -45,7 +45,7 @@ pub(crate) fn delete_slots_by_number(
     }
 
     if matches!(node_type, StorageNodeType::FullNode) {
-        ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&slot_number)?;
+        delete_verified_proofs_by_slot_number(ledger_db, slot_number)?;
     }
 
     if matches!(node_type, StorageNodeType::BatchProver) {
@@ -83,6 +83,29 @@ fn delete_slot_by_hash(
         }
 
         ledger_db.delete::<SlotByHash>(&record.key)?;
+    }
+
+    Ok(())
+}
+
+fn delete_verified_proofs_by_slot_number(
+    ledger_db: &DB,
+    slot_number: SlotNumber,
+) -> anyhow::Result<()> {
+    let mut verified_proofs_by_number = ledger_db
+        .iter_with_direction::<VerifiedBatchProofsBySlotNumber>(
+            Default::default(),
+            ScanDirection::Backward,
+        )?;
+    verified_proofs_by_number.seek_to_last();
+
+    for record in verified_proofs_by_number {
+        let Ok(record) = record else {
+            continue;
+        };
+        if record.key >= slot_number {
+            ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
+        }
     }
 
     Ok(())
