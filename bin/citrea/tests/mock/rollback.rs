@@ -453,6 +453,99 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
 }
 
 /// Trigger rollback DB data.
+/// This test makes sure that a rollback on fullnode withour rolling back sequencer
+/// enables fullnode to sync from the rollback point up until latest sequencer block.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let full_node_db_dir = storage_dir.path().join("full-node").to_path_buf();
+
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
+
+    // start rollup on da block 3
+    for _ in 0..3 {
+        da_service.publish_test_block().await.unwrap();
+    }
+    wait_for_l1_block(&da_service, 3, None).await;
+
+    //------------------
+    // Start nodes
+    //------------------
+    let (seq_task_manager, seq_test_client, seq_port) =
+        start_sequencer(&sequencer_db_dir, &da_db_dir, false).await;
+
+    let (full_node_task_manager, full_node_test_client) =
+        start_full_node(&full_node_db_dir, &da_db_dir, seq_port, false).await;
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
+
+    //------------------
+    // Fill blocks
+    //------------------
+    fill_blocks(&seq_test_client, &da_service, &addr, None).await;
+
+    wait_for_l2_block(&seq_test_client, 50, None).await;
+    wait_for_l2_block(&full_node_test_client, 50, None).await;
+
+    seq_task_manager.abort().await;
+    full_node_task_manager.abort().await;
+
+    //------------------
+    // Rollback
+    //------------------
+    // rollback 10 L2 blocks
+    let rollback_l2_height = 30;
+    // We have 8 L1 blocks by now and we want to rollback
+    // the last one.
+    let rollback_l1_height = 6;
+
+    let new_full_node_db_dir = storage_dir.path().join("full-node2").to_path_buf();
+    rollback_node(
+        StorageNodeType::FullNode,
+        FULL_NODE_LEDGER_TABLES,
+        &full_node_db_dir,
+        &new_full_node_db_dir,
+        rollback_l2_height,
+        rollback_l1_height,
+        rollback_l2_height,
+    )
+    .await
+    .unwrap();
+
+    //------------------
+    // Make sure nodes are able to sync after rollback
+    //------------------
+    let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
+    copy_db_dir_recursive(&sequencer_db_dir, &new_sequencer_db_dir).unwrap();
+    let (seq_task_manager, seq_test_client, seq_port) =
+        start_sequencer(&new_sequencer_db_dir, &da_db_dir, true).await;
+
+    let new_full_node_db_dir = storage_dir.path().join("full-node3").to_path_buf();
+    copy_db_dir_recursive(
+        &storage_dir.path().join("full-node2"),
+        &new_full_node_db_dir,
+    )
+    .unwrap();
+    let (full_node_task_manager, full_node_test_client) =
+        start_full_node(&new_full_node_db_dir, &da_db_dir, seq_port, true).await;
+
+    for _ in 0..10 {
+        seq_test_client.spam_publish_batch_request().await.unwrap();
+    }
+    wait_for_l2_block(&seq_test_client, 40, None).await;
+    wait_for_l2_block(&full_node_test_client, 40, None).await;
+
+    seq_task_manager.abort().await;
+    full_node_task_manager.abort().await;
+
+    Ok(())
+}
+
+/// Trigger rollback DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);

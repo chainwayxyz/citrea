@@ -75,7 +75,6 @@ fn delete_short_header_proofs(ledger_db: &DB, slot_number: SlotNumber) -> anyhow
 
         // TODO for pruning this should be less than
         if record.value > slot_number {
-            println!("Deleting slot short proof: {:?}", record.key);
             ledger_db.delete::<ShortHeaderProofBySlotHash>(&record.key)?;
         }
     }
