@@ -1,4 +1,4 @@
-use sov_db::schema::tables::CommitmentsByNumber;
+use sov_db::schema::tables::{CommitmentsByNumber, LightClientProofBySlotNumber};
 use sov_db::schema::types::SlotNumber;
 use sov_schema_db::{ScanDirection, DB};
 
@@ -16,6 +16,37 @@ pub(crate) fn rollback_slots(
 
     let mut deleted = 0;
     for record in commitments_by_number {
+        let Ok(record) = record else {
+            continue;
+        };
+
+        let slot_height = record.key;
+
+        if slot_height <= SlotNumber(target_l1) {
+            break;
+        }
+
+        delete_slots_by_number(node_type, ledger_db, slot_height)?;
+
+        deleted += 1;
+    }
+
+    Ok(deleted)
+}
+
+pub(crate) fn rollback_light_client_slots(
+    node_type: StorageNodeType,
+    ledger_db: &DB,
+    target_l1: u64,
+) -> anyhow::Result<u64> {
+    let mut proof_by_slot_number = ledger_db.iter_with_direction::<LightClientProofBySlotNumber>(
+        Default::default(),
+        ScanDirection::Backward,
+    )?;
+    proof_by_slot_number.seek_to_last();
+
+    let mut deleted = 0;
+    for record in proof_by_slot_number {
         let Ok(record) = record else {
             continue;
         };

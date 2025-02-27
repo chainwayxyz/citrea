@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use slots::rollback_slots;
+use slots::{rollback_light_client_slots, rollback_slots};
 use soft_confirmations::rollback_soft_confirmations;
 use tracing::debug;
 
@@ -32,5 +32,15 @@ pub(crate) fn rollback_ledger_db(
             last_sequencer_commitment_l2_height,
         )
     );
-    log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1,));
+    match node_type {
+        StorageNodeType::LightClient => {
+            log_result_or_error!(
+                "slots",
+                rollback_light_client_slots(node_type, &ledger_db, target_l1,)
+            );
+        }
+        _ => {
+            log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1,));
+        }
+    }
 }
