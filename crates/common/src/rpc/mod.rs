@@ -97,7 +97,7 @@ where
         let req_id = req.id();
         let req_method = req.method_name().to_string();
 
-        tracing::trace!(id = ?req_id, method = ?req_method, params = ?req.params().as_str(), "rpc_request");
+        tracing::debug!(id = ?req_id, method = ?req_method, params = ?req.params().as_str(), "rpc_request");
 
         let service = self.0.clone();
         async move {
