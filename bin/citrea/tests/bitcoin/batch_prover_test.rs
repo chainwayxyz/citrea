@@ -486,7 +486,7 @@ impl TestCase for ParallelProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 106,
+            min_soft_confirmations_per_commitment: 100,
             mempool_conf: SequencerMempoolConfig {
                 max_account_slots: 1000,
                 ..Default::default()
@@ -512,8 +512,8 @@ impl TestCase for ParallelProvingTest {
 
         // Invoke 2 sequencer commitments
         for _ in 0..min_soft_confirmations_per_commitment * 2 {
-            // 7 txs in each block
-            for _ in 0..7 {
+            // 6 txs in each block
+            for _ in 0..6 {
                 let _ = seq_test_client
                     .send_eth(Address::random(), None, None, None, 100)
                     .await
@@ -536,8 +536,8 @@ impl TestCase for ParallelProvingTest {
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(1800)))
             .await?;
 
-        // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(2, None).await?;
+        // Wait for batch proof txs to hit mempool
+        da.wait_mempool_len(4, None).await?;
 
         // Write 2 batch proofs to a finalized DA block
         da.generate(FINALITY_DEPTH).await?;
