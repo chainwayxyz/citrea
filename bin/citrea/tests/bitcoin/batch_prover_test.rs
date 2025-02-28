@@ -59,7 +59,7 @@ pub async fn wait_for_zkproofs(
         {
             Some(proofs) => {
                 if proofs.len() >= count {
-                    return Ok(proofs)
+                    return Ok(proofs);
                 }
             }
             None => sleep(Duration::from_millis(500)).await,
@@ -347,10 +347,14 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         // Wait for the full node to see all process verify and store all batch proofs
         full_node.wait_for_l1_height(finalized_height, None).await?;
-        let _proofs =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(600)), 1)
-                .await
-                .unwrap();
+        let _proofs = wait_for_zkproofs(
+            full_node,
+            finalized_height,
+            Some(Duration::from_secs(600)),
+            1,
+        )
+        .await
+        .unwrap();
 
         // TODO: this test will need refactor
         // assert_eq!(
@@ -450,10 +454,14 @@ impl TestCase for LocalProvingTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
-        let proofs =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)), 1)
-                .await
-                .unwrap();
+        let proofs = wait_for_zkproofs(
+            full_node,
+            finalized_height,
+            Some(Duration::from_secs(7200)),
+            1,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(proofs.len(), 1);
 
@@ -559,7 +567,6 @@ impl TestCase for ParallelProvingTest {
     }
 }
 
-#[ignore]
 #[tokio::test]
 async fn parallel_proving_test() -> Result<()> {
     TestCaseRunner::new(ParallelProvingTest)

@@ -138,10 +138,14 @@ impl TestCase for LightClientProvingTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
-        let batch_proof =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)), 1)
-                .await
-                .unwrap();
+        let batch_proof = wait_for_zkproofs(
+            full_node,
+            finalized_height,
+            Some(Duration::from_secs(7200)),
+            1,
+        )
+        .await
+        .unwrap();
 
         let light_client_proof = lcp.unwrap();
         assert_eq!(
