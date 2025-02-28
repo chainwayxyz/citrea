@@ -323,7 +323,7 @@ where
 
             if soft_confirmation_info.current_spec() < SpecId::Fork2 {
                 if let Err(err) = self.stf.begin_soft_confirmation_pre_fork2(
-                    &pub_key,
+                    pub_key,
                     &mut working_set_to_discard,
                     l2_block_mode.da_block().header(),
                     &soft_confirmation_info,
@@ -334,18 +334,16 @@ where
                     );
                     bail!("Failed to apply begin soft confirmation hook: {:?}", err)
                 };
-            } else {
-                if let Err(err) = self.stf.begin_soft_confirmation(
-                    &pub_key,
-                    &mut working_set_to_discard,
-                    &soft_confirmation_info,
-                ) {
-                    warn!(
-                        "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
-                        err
-                    );
-                    bail!("Failed to apply begin soft confirmation hook: {:?}", err)
-                };
+            } else if let Err(err) = self.stf.begin_soft_confirmation(
+                pub_key,
+                &mut working_set_to_discard,
+                &soft_confirmation_info,
+            ) {
+                warn!(
+                    "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                    err
+                );
+                bail!("Failed to apply begin soft confirmation hook: {:?}", err)
             }
 
             let mut system_transactions = vec![];
@@ -503,7 +501,7 @@ where
         if active_fork_spec < SpecId::Fork2 {
             let da_block = l2_block_mode.da_block();
             let da_height = da_block.header().height();
-            let (l2_height, l1_height) = match self
+            let (_l2_height, l1_height) = match self
                 .ledger_db
                 .get_head_soft_confirmation()
                 .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
@@ -617,18 +615,15 @@ where
                 );
                 bail!("Failed to apply begin soft confirmation hook: {:?}", err)
             };
-        } else {
-            if let Err(err) = self.stf.begin_soft_confirmation(
-                &pub_key,
-                &mut working_set,
-                &soft_confirmation_info,
-            ) {
-                warn!(
-                    "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
-                    err
-                );
-                bail!("Failed to apply begin soft confirmation hook: {:?}", err)
-            };
+        } else if let Err(err) =
+            self.stf
+                .begin_soft_confirmation(&pub_key, &mut working_set, &soft_confirmation_info)
+        {
+            warn!(
+                "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                err
+            );
+            bail!("Failed to apply begin soft confirmation hook: {:?}", err)
         }
 
         let mut blobs = vec![];
@@ -1339,7 +1334,7 @@ where
     ) -> Vec<TransactionSignedEcRecovered> {
         // Read last l1 hash from bitcoin light client contract
         let mut l1_hash_in_contract = get_last_l1_height_and_hash_in_light_client(
-            &evm,
+            evm,
             soft_confirmation_info.current_spec(),
             working_set,
         )
@@ -1412,7 +1407,7 @@ where
 
         if let Err(e) =
             self.stf
-                .apply_soft_confirmation_txs(&soft_confirmation_info, &txs, &mut working_set)
+                .apply_soft_confirmation_txs(soft_confirmation_info, &txs, &mut working_set)
         {
             return Err(anyhow!("Failed to apply system transaction: {:?}", e));
         }

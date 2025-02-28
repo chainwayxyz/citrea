@@ -36,8 +36,8 @@ hex = { workspace = true }
 jsonrpsee = { workspace = true }
 metrics = { workspace = true }
 metrics-derive = { workspace = true }
-reth-primitives = { workspace = true }
 once_cell = { workspace = true, default-features = true }
+reth-primitives = { workspace = true }
 rs_merkle = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }

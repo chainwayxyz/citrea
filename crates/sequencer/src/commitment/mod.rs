@@ -291,7 +291,7 @@ where
 
     async fn get_mined_commitments_from(
         &self,
-        da_height: SlotNumber,
+        _da_height: SlotNumber,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let head_da_height = self
             .da_service

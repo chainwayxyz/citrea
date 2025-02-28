@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 
-use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
 use citrea_e2e::config::SequencerConfig;
@@ -8,13 +7,9 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
-use citrea_evm::EvmRpcClient;
-use citrea_primitives::forks::use_network_forks;
-use citrea_sequencer::SequencerRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
-use crate::common::helpers::wait_for_l2_block;
 use crate::common::make_test_client;
 
 struct BasicSequencerTest;
@@ -94,8 +89,6 @@ impl TestCase for SequencerMissedDaBlocksTest {
         ))
         .await?;
 
-        let initial_l1_height = da.get_finalized_height(None).await?;
-
         // Create initial DA blocks
         da.generate(3).await?;
 
@@ -123,13 +116,6 @@ impl TestCase for SequencerMissedDaBlocksTest {
         // starting from l2 #2 all the way up to l2 #12 without no gaps
         // Blocks should have 10 txs which are all set block infos
         for i in 1..=head_soft_confirmation_height {
-            let soft_confirmation = sequencer
-                .client
-                .http_client()
-                .get_soft_confirmation_by_number(U64::from(i))
-                .await?
-                .unwrap();
-
             let block = seq_test_client
                 .eth_get_block_by_number(Some(i.into()))
                 .await;

@@ -9,7 +9,6 @@ use citrea::{
     initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage,
 };
 use citrea_common::backup::BackupManager;
-use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::da_block_handler::StartVariant;

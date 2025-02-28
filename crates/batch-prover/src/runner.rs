@@ -384,9 +384,10 @@ where
         if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
             let l1_block_hash: [u8; 32] = tx.input()[4..36].try_into()?;
             // Check if shp exists for this l1 block hash
-            if let Some(_) = self
+            if self
                 .ledger_db
                 .get_short_header_proof_by_l1_hash(&l1_block_hash)?
+                .is_some()
             {
                 return Ok(());
             }
@@ -394,11 +395,8 @@ where
                 .da_service
                 .get_block_by_hash(l1_block_hash.into())
                 .await?;
-            let short_header_proof = Da::block_to_short_header_proof(da_block);
-            println!(
-                "BATCH PROVER Saving short header proof for l1 block hash: {:?}, proof: {:?}",
-                l1_block_hash, short_header_proof
-            );
+            let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+                Da::block_to_short_header_proof(da_block);
             self.ledger_db
                 .put_short_header_proof_by_l1_hash(
                     &l1_block_hash,

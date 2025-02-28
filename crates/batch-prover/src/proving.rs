@@ -357,20 +357,19 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
             let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
 
             // No need to push l1 data if we are post fork2
-            if spec_id < SpecId::Fork2 {
-                if da_block_headers_to_push.is_empty()
+            if spec_id < SpecId::Fork2
+                && (da_block_headers_to_push.is_empty()
                     || da_block_headers_to_push.last().unwrap().height()
-                        != soft_confirmation.da_slot_height
-                {
-                    let filtered_block = get_da_block_at_height(
-                        da_service,
-                        soft_confirmation.da_slot_height,
-                        l1_block_cache.clone(),
-                    )
-                    .await
-                    .context("Error fetching DA block")?;
-                    da_block_headers_to_push.push(filtered_block.header().clone());
-                }
+                        != soft_confirmation.da_slot_height)
+            {
+                let filtered_block = get_da_block_at_height(
+                    da_service,
+                    soft_confirmation.da_slot_height,
+                    l1_block_cache.clone(),
+                )
+                .await
+                .context("Error fetching DA block")?;
+                da_block_headers_to_push.push(filtered_block.header().clone());
             }
 
             let l2_block: L2Block<Transaction> = soft_confirmation
