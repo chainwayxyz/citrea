@@ -12,8 +12,8 @@ use super::CommitmentInfo;
 
 // Based on the test runs, brotli is able to compress the state diff 58% to 70%,
 // with an average of 66% for both empty and full blocks. This is a super safe
-// estimation of 33% compression.
-const SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE: usize = MAX_TXBODY_SIZE * 3 / 2;
+// estimation of 50% compression.
+const SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE: usize = MAX_TXBODY_SIZE * 2;
 
 pub struct CommitmentController<Db>
 where
