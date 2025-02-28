@@ -14,6 +14,7 @@ use jmt::storage::{NibblePath, Node, NodeKey, StaleNodeIndex};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::mmr::{MMRChunk, MMRNodeHash, Wtxid};
+use sov_rollup_interface::stateful_statediff::StatefulStateDiff;
 use sov_rollup_interface::stf::StateDiff;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
@@ -436,7 +437,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// L2 height to state diff for prover
-    (ProverStateDiffs) SoftConfirmationNumber => StateDiff
+    (ProverStateDiffs) SoftConfirmationNumber => (StateDiff, StatefulStateDiff)
 );
 
 define_table_with_seek_key_codec!(

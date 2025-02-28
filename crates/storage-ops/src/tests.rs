@@ -136,7 +136,7 @@ pub fn test_pruning_ledger_db_soft_confirmations() {
             .put::<L2Witness>(&SoftConfirmationNumber(i), &(vec![5; 32], vec![6; 32]))
             .unwrap();
         ledger_db
-            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &vec![])
+            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &(vec![], Default::default()))
             .unwrap();
 
         da_slot_height += 1;
@@ -262,7 +262,7 @@ pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
             .put::<L2Witness>(&SoftConfirmationNumber(i), &(vec![5; 32], vec![6; 32]))
             .unwrap();
         ledger_db
-            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &vec![])
+            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &(vec![], Default::default()))
             .unwrap();
 
         da_slot_height += 1;

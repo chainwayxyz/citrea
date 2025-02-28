@@ -20,6 +20,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::stateful_statediff::StatefulStateDiff;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
 use tokio::sync::Mutex;
@@ -306,8 +307,10 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
 
     let mut range = 0usize..=0usize;
     let mut cumulative_state_diff = StateDiff::new();
+    let mut cumulative_st_statediff = StatefulStateDiff::default();
     for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
         let mut sequencer_commitment_state_diff = StateDiff::new();
+        let mut sequencer_st_statediff = StatefulStateDiff::default();
         for l2_height in
             sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
         {
@@ -319,14 +322,27 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
                     sequencer_commitment.l2_end_block_number
                 ))?;
             sequencer_commitment_state_diff =
-                merge_state_diffs(sequencer_commitment_state_diff, state_diff);
+                merge_state_diffs(sequencer_commitment_state_diff, state_diff.0);
+            sequencer_st_statediff = sequencer_st_statediff.merge(state_diff.1);
         }
         cumulative_state_diff = merge_state_diffs(
             cumulative_state_diff,
             sequencer_commitment_state_diff.clone(),
         );
+        cumulative_st_statediff = cumulative_st_statediff.merge(sequencer_st_statediff.clone());
 
-        let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
+        let uncompressed_state_diff = borsh::to_vec(&cumulative_state_diff)?;
+        let compressed_state_diff = compress_blob(&uncompressed_state_diff);
+        dbg!(uncompressed_state_diff.len(), compressed_state_diff.len());
+
+        let uncompressed_st_state_diff = borsh::to_vec(&cumulative_st_statediff)?;
+        let hex_state_diff = hex::encode(&uncompressed_st_state_diff);
+        let compressed_st_state_diff = compress_blob(&uncompressed_st_state_diff);
+        dbg!(
+            uncompressed_st_state_diff.len(),
+            compressed_st_state_diff.len(),
+            hex_state_diff
+        );
 
         // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
         let state_diff_threshold_reached = compressed_state_diff.len() > MAX_TXBODY_SIZE;
@@ -344,6 +360,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
             result_range.push(range);
             // Reset the cumulative state diff to be equal to the current commitment state diff
             cumulative_state_diff = sequencer_commitment_state_diff;
+            cumulative_st_statediff = sequencer_st_statediff;
             range = index..=index;
             current_spec = commitment_spec
         } else {

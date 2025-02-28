@@ -19,6 +19,8 @@ mod node;
 /// Specs module
 pub mod spec;
 mod state_machine;
+/// StatefulStateDiff module
+pub mod stateful_statediff;
 
 #[cfg(not(feature = "native"))]
 pub use std::rc::Rc as RefCount;

@@ -48,6 +48,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
+use sov_rollup_interface::stateful_statediff::StatefulStateDiff;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -384,7 +385,7 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
-    ) -> anyhow::Result<(u64, u64, StateDiff)> {
+    ) -> anyhow::Result<(u64, u64, (StateDiff, StatefulStateDiff))> {
         let start = Instant::now();
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -769,7 +770,7 @@ where
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
 
-                            let _ = da_commitment_tx.send((l2_height, state_diff));
+                            let _ = da_commitment_tx.send((l2_height, state_diff.0));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -801,7 +802,7 @@ where
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
 
-                            let _ = da_commitment_tx.send((l2_height, state_diff));
+                            let _ = da_commitment_tx.send((l2_height, state_diff.0));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);

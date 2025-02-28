@@ -24,6 +24,7 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::soft_confirmation::{L2Block, SignedL2Header};
 use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::stateful_statediff::StatefulStateDiff;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationResult, StateTransitionError,
 };
@@ -87,7 +88,7 @@ pub struct ApplySequencerCommitmentsOutput {
     /// Final state root after all sequencer commitments were applied
     pub final_state_root: StorageRootHash,
     /// State diff generated after applying
-    pub state_diff: CumulativeStateDiff,
+    pub state_diff: (CumulativeStateDiff, StatefulStateDiff),
     /// Last processed L2 block height
     pub last_l2_height: u64,
     /// Last soft confirmation hash
@@ -424,6 +425,7 @@ where
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
+        let mut st_statediff = StatefulStateDiff::default();
 
         let sequencer_commitment_merkle_roots = sequencer_commitments
             .iter()
@@ -570,7 +572,8 @@ where
 
                 assert_eq!(current_state_root, result.state_root_transition.init_root);
                 current_state_root = result.state_root_transition.final_root;
-                state_diff.extend(result.state_diff);
+                state_diff.extend(result.state_diff.0);
+                st_statediff = st_statediff.merge(result.state_diff.1);
 
                 l2_height += 1;
 
@@ -619,7 +622,7 @@ where
 
         ApplySequencerCommitmentsOutput {
             final_state_root: current_state_root,
-            state_diff,
+            state_diff: (state_diff, st_statediff),
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),

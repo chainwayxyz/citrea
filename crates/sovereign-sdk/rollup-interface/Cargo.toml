@@ -15,9 +15,10 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
-alloy-primitives = { workspace = true, features = ["serde"], optional = true }
+alloy-primitives = { workspace = true, features = ["serde"] }
 anyhow = { workspace = true, features = ["default"] }
 async-trait = { workspace = true, optional = true }
+bcs = { workspace = true }
 borsh = { workspace = true, features = ["default", "bytes", "rc"] }
 bytes = { workspace = true, default-features = true }
 digest = { workspace = true, features = ["default"] }
@@ -39,7 +40,6 @@ serde_json = { workspace = true }
 [features]
 default = []
 native = [
-  "alloy-primitives",
   "tokio",
   "futures",
   "tracing",

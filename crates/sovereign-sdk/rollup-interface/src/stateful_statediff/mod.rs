@@ -1,5 +1,8 @@
+//! Stateful StateDiff construction and compression
+
 /// Compression primitives
 pub mod compression;
+mod merge;
 
 use std::collections::BTreeMap;
 use std::io::{Error, ErrorKind, Read, Write};
@@ -8,10 +11,11 @@ use alloy_primitives::{Address, B256, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
 use compression::{CodeHashChange, SlotChange};
 use serde::{Deserialize, Serialize};
-use sov_modules_core::{CacheKey, CacheValue};
-use sov_rollup_interface::RefCount;
 
-pub(crate) struct PreState {
+use crate::RefCount;
+
+/// Reflects state before applying changes
+pub struct PreState {
     evm_accounts_prefork2: BTreeMap<Address, Option<DbAccountInfo>>,
     evm_storage_prefork2: BTreeMap<Address, BTreeMap<U256, Option<U256>>>,
     evm_accounts: BTreeMap<u64, Option<DbAccountInfo>>,
@@ -23,7 +27,10 @@ fn borsh_u256_from_slice(v: impl AsRef<[u8]>) -> U256 {
     U256::from_limbs(s)
 }
 
-pub(crate) fn build_pre_state(ordered_reads: &[(CacheKey, Option<CacheValue>)]) -> PreState {
+/// Create a PreState which reflects the state before applying changes
+pub fn build_pre_state(
+    ordered_reads: impl Iterator<Item = (RefCount<[u8]>, Option<RefCount<[u8]>>)>,
+) -> PreState {
     // We need the first values we read. So we traverse from the beginning.
     // We are only interested in keys -> values only when we see them the first time.
     // And we need only Evm accounts and storage, because that's the only
@@ -33,8 +40,8 @@ pub(crate) fn build_pre_state(ordered_reads: &[(CacheKey, Option<CacheValue>)]) 
     let mut evm_accounts = BTreeMap::new();
     let mut evm_storage = BTreeMap::new();
 
-    for (k, v) in ordered_reads {
-        let (key, value) = (k.key.as_ref(), v.as_ref().map(|v| v.value.as_ref()));
+    for (cache_key, cache_value) in ordered_reads {
+        let (key, value) = (cache_key.as_ref(), cache_value.as_ref().map(|v| v.as_ref()));
         match &key[..6] {
             _account_prefork2 @ b"Evm/a/" => {
                 let address: Address = bcs::from_bytes(&key[6..]).unwrap();
@@ -84,7 +91,8 @@ pub(crate) fn build_pre_state(ordered_reads: &[(CacheKey, Option<CacheValue>)]) 
 /// A diff of the state, represented as a list of key-value pairs.
 pub type UnparsedStateDiff = Vec<(RefCount<[u8]>, Option<RefCount<[u8]>>)>;
 
-pub(crate) struct PostState {
+/// Reflects state after applying changes
+pub struct PostState {
     evm_accounts_prefork2: BTreeMap<Address, Option<DbAccountInfo>>,
     evm_storage_prefork2: BTreeMap<Address, BTreeMap<U256, Option<U256>>>,
     evm_accounts: BTreeMap<u64, Option<DbAccountInfo>>,
@@ -95,8 +103,9 @@ pub(crate) struct PostState {
     unparsed: UnparsedStateDiff,
 }
 
-pub(crate) fn build_post_state<'a>(
-    ordered_writes: impl Iterator<Item = (&'a CacheKey, &'a Option<CacheValue>)>,
+/// Create a PostState which reflects the state after applying changes
+pub fn build_post_state(
+    ordered_writes: impl Iterator<Item = (RefCount<[u8]>, Option<RefCount<[u8]>>)>,
 ) -> PostState {
     // We need the last values we write. So we traverse from the end.
     let mut evm_accounts_prefork2: BTreeMap<Address, Option<DbAccountInfo>> = BTreeMap::new();
@@ -109,10 +118,7 @@ pub(crate) fn build_post_state<'a>(
     let mut unparsed = UnparsedStateDiff::new();
 
     for (cache_key, cache_value) in ordered_writes.into_iter() {
-        let (key, value) = (
-            cache_key.key.as_ref(),
-            cache_value.as_ref().map(|v| v.value.as_ref()),
-        );
+        let (key, value) = (cache_key.as_ref(), cache_value.as_ref().map(|v| v.as_ref()));
         match &key[..6] {
             _account_prefork2 @ b"Evm/a/" => {
                 // Only the first key -> value
@@ -194,10 +200,8 @@ pub(crate) fn build_post_state<'a>(
 
                 // let hx_key = alloy_primitives::hex::encode(key);
                 // println!("unknown key: {}", hx_key);
-                let key_bytes = cache_key.key.clone();
-                let value_bytes = cache_value.as_ref().map(|v| v.value.clone());
 
-                unparsed.push((key_bytes, value_bytes));
+                unparsed.push((cache_key, cache_value));
             }
         }
     }
@@ -214,7 +218,7 @@ pub(crate) fn build_post_state<'a>(
 }
 
 /// Reflects account change
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct AccountChange {
     balance: SlotChange,
     nonce: SlotChange,
@@ -222,7 +226,7 @@ pub struct AccountChange {
 }
 
 /// Reflects storage change
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct StorageChange {
     #[borsh(serialize_with = "ser_btree_u256", deserialize_with = "der_btree_u256")]
     storage: BTreeMap<U256, Option<SlotChange>>,
@@ -230,7 +234,7 @@ pub struct StorageChange {
 
 /// Reflects new Evm.latest_block_hashes
 // TODO maybe keep (u64, B256) in StatefulStateDiff but compress on borsh serde?
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct LatestBlockHashes {
     starting_block_number: u64,
     #[borsh(serialize_with = "ser_vec_b256", deserialize_with = "der_vec_b256")]
@@ -238,7 +242,7 @@ pub struct LatestBlockHashes {
 }
 
 /// Reflects all state change
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct StatefulStateDiff {
     // TODO: Remove before mainnet
     #[borsh(
@@ -274,7 +278,15 @@ pub struct StatefulStateDiff {
     pub unparsed: UnparsedStateDiff,
 }
 
-pub(crate) fn compress_state(pre_state: PreState, post_state: PostState) -> StatefulStateDiff {
+impl StatefulStateDiff {
+    /// Merge two state diffs
+    pub fn merge(self, other: Self) -> Self {
+        crate::stateful_statediff::merge::Merge::merge(self, other)
+    }
+}
+
+/// Create a StatefulStateDiff which reflects the state diff after applying changes
+pub fn compress_state(pre_state: PreState, post_state: PostState) -> StatefulStateDiff {
     use compression::{
         compress_one_best_strategy, compress_one_code_hash, compress_two_best_strategy,
         compress_two_code_hash,
@@ -419,7 +431,7 @@ pub(crate) fn compress_state(pre_state: PreState, post_state: PostState) -> Stat
     }
 }
 
-#[derive(Default, Debug, BorshSerialize, BorshDeserialize, Deserialize, Serialize)]
+#[derive(Default, Clone, Debug, BorshSerialize, BorshDeserialize, Deserialize, Serialize)]
 struct DbAccountInfo {
     #[borsh(serialize_with = "ser_u256", deserialize_with = "der_u256")]
     balance: U256,

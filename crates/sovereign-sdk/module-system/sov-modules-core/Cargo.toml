@@ -13,7 +13,9 @@ resolver = "2"
 
 
 [dependencies]
+alloy-primitives = { workspace = true, default-features = false, features = ["serde"] }
 anyhow = { workspace = true }
+bcs = { workspace = true }
 bech32 = { workspace = true }
 borsh = { workspace = true }
 derive_more = { workspace = true, features = ["display", "into"] }

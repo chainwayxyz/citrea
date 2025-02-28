@@ -6,6 +6,7 @@ use rocksdb::WriteBatch;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::soft_confirmation::L2Block;
+use sov_rollup_interface::stateful_statediff::StatefulStateDiff;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -574,7 +575,7 @@ impl BatchProverLedgerOps for LedgerDB {
     fn set_l2_state_diff(
         &self,
         l2_height: SoftConfirmationNumber,
-        state_diff: StateDiff,
+        state_diff: (StateDiff, StatefulStateDiff),
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<ProverStateDiffs>(&l2_height, &state_diff)?;
@@ -587,7 +588,7 @@ impl BatchProverLedgerOps for LedgerDB {
     fn get_l2_state_diff(
         &self,
         l2_height: SoftConfirmationNumber,
-    ) -> anyhow::Result<Option<StateDiff>> {
+    ) -> anyhow::Result<Option<(StateDiff, StatefulStateDiff)>> {
         self.db.get::<ProverStateDiffs>(&l2_height)
     }
 

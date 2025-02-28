@@ -4,6 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use super::CumulativeStateDiff;
+use crate::stateful_statediff::StatefulStateDiff;
 use crate::zk::StorageRootHash;
 
 /// The public output of a SNARK batch proof in Sovereign, this struct makes a claim that
@@ -24,7 +25,7 @@ pub struct BatchProofCircuitOutputV3 {
     /// This will be [0; 32] for pre fork 1 proofs
     pub final_soft_confirmation_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
-    pub state_diff: CumulativeStateDiff,
+    pub state_diff: (CumulativeStateDiff, StatefulStateDiff),
     /// The last processed l2 height in the processed sequencer commitments.
     /// This will be 0 for pre fork 1 proofs
     pub last_l2_height: u64,

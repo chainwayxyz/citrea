@@ -5,6 +5,7 @@
 //! main event loop of the rollup.
 
 use super::zk::StorageRootHash;
+use crate::stateful_statediff::StatefulStateDiff;
 use crate::RefCount;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
@@ -64,7 +65,7 @@ pub struct SoftConfirmationResult<Cs, W, SL> {
     /// Witness after applying the whole block
     pub offchain_witness: W,
     /// State diff after applying the whole block
-    pub state_diff: StateDiff,
+    pub state_diff: (StateDiff, StatefulStateDiff),
 }
 
 #[derive(Debug, PartialEq)]

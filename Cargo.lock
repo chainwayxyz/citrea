@@ -8016,7 +8016,9 @@ dependencies = [
 name = "sov-modules-core"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
+ "bcs",
  "bech32 0.9.1",
  "borsh",
  "derive_more",
@@ -8118,6 +8120,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "async-trait",
+ "bcs",
  "borsh",
  "bytes",
  "digest 0.10.7",

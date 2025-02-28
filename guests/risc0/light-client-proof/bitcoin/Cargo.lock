@@ -2041,7 +2041,9 @@ dependencies = [
 name = "sov-modules-core"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
+ "bcs",
  "bech32 0.9.1",
  "borsh",
  "derive_more",
@@ -2077,7 +2079,9 @@ dependencies = [
 name = "sov-rollup-interface"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
+ "bcs",
  "borsh",
  "bytes",
  "digest",

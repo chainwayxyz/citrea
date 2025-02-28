@@ -124,7 +124,7 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             StoredBatchProofOutput::V3(value) => Self {
                 initial_state_root: value.initial_state_root.to_vec(),
                 final_state_root: value.final_state_root.to_vec(),
-                state_diff: value.state_diff,
+                state_diff: value.state_diff.0,
                 da_slot_hash: None,
                 sequencer_da_public_key: vec![],
                 sequencer_public_key: vec![],

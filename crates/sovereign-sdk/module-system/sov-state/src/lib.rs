@@ -7,9 +7,6 @@ pub mod codec;
 #[cfg(feature = "native")]
 mod prover_storage;
 
-/// Stateful Statediff primitives
-pub mod stateful_statediff;
-
 mod zk_storage;
 
 #[cfg(feature = "native")]

@@ -5,6 +5,7 @@ use anyhow::Result;
 use borsh::BorshSerialize;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::soft_confirmation::L2Block;
+use sov_rollup_interface::stateful_statediff::StatefulStateDiff;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaBatch;
@@ -186,11 +187,14 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn set_l2_state_diff(
         &self,
         l2_height: SoftConfirmationNumber,
-        state_diff: StateDiff,
+        state_diff: (StateDiff, StatefulStateDiff),
     ) -> Result<()>;
 
     /// Returns an L2 state diff
-    fn get_l2_state_diff(&self, l2_height: SoftConfirmationNumber) -> Result<Option<StateDiff>>;
+    fn get_l2_state_diff(
+        &self,
+        l2_height: SoftConfirmationNumber,
+    ) -> Result<Option<(StateDiff, StatefulStateDiff)>>;
 
     /// Clears all pending proving sessions
     fn clear_pending_proving_sessions(&self) -> Result<()>;

@@ -7,6 +7,7 @@ use core::fmt;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "sync")]
 use serde::Serialize;
+use sov_rollup_interface::stateful_statediff::StatefulStateDiff;
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::{SparseMerkleProofSha2, StorageRootHash};
@@ -209,7 +210,7 @@ pub trait Storage: Clone {
         (
             StateRootTransition,
             Self::StateUpdate,
-            StateDiff, // computed in Zk mode
+            (StateDiff, StatefulStateDiff), // computed in Zk mode
         ),
         anyhow::Error,
     >;

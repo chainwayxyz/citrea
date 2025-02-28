@@ -10,6 +10,7 @@ use sov_modules_core::{
     CacheKey, NativeStorage, OrderedWrites, ReadWriteLog, Storage, StorageKey, StorageProof,
     StorageValue,
 };
+use sov_rollup_interface::stateful_statediff::{self, StatefulStateDiff};
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::StorageRootHash;
@@ -139,7 +140,14 @@ impl Storage for ProverStorage {
         &self,
         state_log: &ReadWriteLog,
         witness: &mut Witness,
-    ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
+    ) -> Result<
+        (
+            StateRootTransition,
+            Self::StateUpdate,
+            (StateDiff, StatefulStateDiff),
+        ),
+        anyhow::Error,
+    > {
         let version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
@@ -170,11 +178,19 @@ impl Storage for ProverStorage {
             witness.add_hint(&proof);
         }
 
-        let pre_state = crate::stateful_statediff::build_pre_state(state_log.ordered_reads());
+        let pre_state =
+            stateful_statediff::build_pre_state(state_log.ordered_reads().iter().map(|(k, v)| {
+                let k = k.key.clone();
+                let v = v.as_ref().map(|v| v.value.clone());
+                (k, v)
+            }));
         let post_state =
-            crate::stateful_statediff::build_post_state(state_log.iter_ordered_writes());
-
-        let _st_statediff = crate::stateful_statediff::compress_state(pre_state, post_state);
+            stateful_statediff::build_post_state(state_log.iter_ordered_writes().map(|(k, v)| {
+                let k = k.key.clone();
+                let v = v.as_ref().map(|v| v.value.clone());
+                (k, v)
+            }));
+        let st_statediff = stateful_statediff::compress_state(pre_state, post_state);
 
         let mut key_preimages = vec![];
         let mut diff = vec![];
@@ -198,15 +214,15 @@ impl Storage for ProverStorage {
             .put_value_set_with_proof(batch, next_version)
             .expect("JMT update must succeed");
 
-        let unparsed_len: usize = _st_statediff
+        let unparsed_len: usize = st_statediff
             .unparsed
             .iter()
             .map(|(_k, v)| if let Some(x) = v { x.len() } else { 0 })
             .sum();
-        let ststdiff = borsh::to_vec(&_st_statediff).unwrap();
-        let _orig: crate::stateful_statediff::StatefulStateDiff =
-            borsh::from_slice(&ststdiff).unwrap(); // check if we can parse it
+        let ststdiff = borsh::to_vec(&st_statediff).unwrap();
+        let _orig: StatefulStateDiff = borsh::from_slice(&ststdiff).unwrap(); // check if we can parse it
         let prevdiff = borsh::to_vec(&diff).unwrap();
+        let _ = st_statediff;
 
         println!(
             "ststdiff: {} bytes, diff: {} bytes, ststdiff unparsed: {} bytes \n",
@@ -233,7 +249,7 @@ impl Storage for ProverStorage {
                 final_root: new_root.into(),
             },
             state_update,
-            diff,
+            (diff, st_statediff),
         ))
     }
 
