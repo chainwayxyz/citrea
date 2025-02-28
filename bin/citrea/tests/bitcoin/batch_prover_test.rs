@@ -41,6 +41,7 @@ pub async fn wait_for_zkproofs(
     full_node: &FullNode,
     height: u64,
     timeout: Option<Duration>,
+    count: usize,
 ) -> Result<Vec<VerifiedBatchProofResponse>> {
     let start = Instant::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(240));
@@ -56,7 +57,11 @@ pub async fn wait_for_zkproofs(
             .get_verified_batch_proofs_by_slot_height(U64::from(height))
             .await?
         {
-            Some(proofs) => return Ok(proofs),
+            Some(proofs) => {
+                if proofs.len() >= count {
+                    return Ok(proofs)
+                }
+            }
             None => sleep(Duration::from_millis(500)).await,
         }
     }
@@ -134,6 +139,7 @@ impl TestCase for BasicProverTest {
             full_node,
             finalized_height + FINALITY_DEPTH,
             Some(Duration::from_secs(120)),
+            1,
         )
         .await
         .unwrap();
@@ -270,7 +276,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let _proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None)
+        let _proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 1)
             .await
             .unwrap();
 
@@ -342,7 +348,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Wait for the full node to see all process verify and store all batch proofs
         full_node.wait_for_l1_height(finalized_height, None).await?;
         let _proofs =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(600)))
+            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(600)), 1)
                 .await
                 .unwrap();
 
@@ -445,7 +451,7 @@ impl TestCase for LocalProvingTest {
         let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
         let proofs =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
+            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)), 1)
                 .await
                 .unwrap();
 
@@ -544,10 +550,10 @@ impl TestCase for ParallelProvingTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Retrieve proofs from fullnode
-        let proofs = wait_for_zkproofs(full_node, finalized_height, None)
+        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 2)
             .await
             .unwrap();
-        dbg!(proofs.len());
+        assert_eq!(proofs.len(), 2);
 
         Ok(())
     }
@@ -730,7 +736,7 @@ impl TestCase for ForkElfSwitchingTest {
         full_node
             .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
             .await?;
-        let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None)
+        let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 3)
             .await
             .unwrap();
 
