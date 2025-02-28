@@ -547,11 +547,11 @@ impl TestCase for ParallelProvingTest {
 
         // Wait until batch prover processes the commitments
         batch_prover
-            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(1800)))
+            .wait_for_l1_height(finalized_height, None)
             .await?;
 
         // Wait for batch proof txs to hit mempool
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(4, Some(Duration::from_secs(420))).await?;
 
         // Write 2 batch proofs (4 txs) to a finalized DA block
         da.generate(FINALITY_DEPTH).await?;
