@@ -285,14 +285,11 @@ where
                 None,
             );
 
+            let l1_start_height = rollup_config.runner.unwrap().l1_start_height.unwrap();
+
             task_manager.spawn(|cancellation_token| async move {
-                let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
-                else {
-                    error!("Failed to start prover L1 block handler due to start l1 height not present");
-                    return;
-                };
                 l1_block_handler
-                    .run(start_l1_height, cancellation_token)
+                    .run(l1_start_height, cancellation_token)
                     .await
             });
 
@@ -364,15 +361,12 @@ where
                 rpc_module,
                 None,
             );
-
+            let l1_start_height = rollup_config.runner.unwrap().l1_start_height.expect(
+                "Failed to start fullnode L1 block handler due to start l1 height not present",
+            );
             task_manager.spawn(|cancellation_token| async move {
-                let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
-                else {
-                    error!("Failed to start fullnode L1 block handler due to start l1 height not present");
-                    return;
-                };
                 l1_block_handler
-                    .run(start_l1_height, cancellation_token)
+                    .run(l1_start_height, cancellation_token)
                     .await
             });
 
