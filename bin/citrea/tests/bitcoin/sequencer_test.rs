@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
@@ -6,9 +8,14 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
+use citrea_evm::EvmRpcClient;
+use citrea_primitives::forks::use_network_forks;
+use citrea_sequencer::SequencerRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
+use crate::common::helpers::wait_for_l2_block;
+use crate::common::make_test_client;
 
 struct BasicSequencerTest;
 
@@ -81,6 +88,12 @@ impl TestCase for SequencerMissedDaBlocksTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config.rpc_bind_host().parse()?,
+            sequencer.config.rpc_bind_port(),
+        ))
+        .await?;
+
         let initial_l1_height = da.get_finalized_height(None).await?;
 
         // Create initial DA blocks
@@ -90,27 +103,25 @@ impl TestCase for SequencerMissedDaBlocksTest {
 
         sequencer.wait_until_stopped().await?;
 
-        // Create 10 more DA blocks while the sequencer is down
-        da.generate(10).await?;
+        // Create 100 more DA blocks while the sequencer is down
+        // This on its own should generate 10 l2 blocks
+        da.generate(100).await?;
 
         // Restart the sequencer
         sequencer.start(None, None).await?;
 
-        for _ in 0..10 {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+        sequencer.client.send_publish_batch_request().await?;
+
+        sequencer.client.wait_for_l2_block(13, None).await?;
 
         let head_soft_confirmation_height = sequencer
             .client
             .ledger_get_head_soft_confirmation_height()
             .await?;
 
-        let mut last_used_l1_height = initial_l1_height;
-
-        // check that the sequencer has at least one block for each DA block
-        // starting from DA #3 all the way up to DA #13 without no gaps
-        // the first soft confirmation should be on DA #3
-        // the last soft confirmation should be on DA #13
+        // check that the sequencer has at least one block for each 10 DA blocks
+        // starting from l2 #2 all the way up to l2 #12 without no gaps
+        // Blocks should have 10 txs which are all set block infos
         for i in 1..=head_soft_confirmation_height {
             let soft_confirmation = sequencer
                 .client
@@ -119,20 +130,20 @@ impl TestCase for SequencerMissedDaBlocksTest {
                 .await?
                 .unwrap();
 
+            let block = seq_test_client
+                .eth_get_block_by_number(Some(i.into()))
+                .await;
+
             if i == 1 {
-                assert_eq!(soft_confirmation.da_slot_height, last_used_l1_height);
+                assert_eq!(block.transactions.len(), 3);
+            } else if i == 12 {
+                assert_eq!(block.transactions.len(), 2);
+            } else if i == 13 {
+                assert_eq!(block.transactions.len(), 1);
             } else {
-                assert!(
-                    soft_confirmation.da_slot_height == last_used_l1_height
-                        || soft_confirmation.da_slot_height == last_used_l1_height + 1,
-                );
+                assert_eq!(block.transactions.len(), 10);
             }
-
-            last_used_l1_height = soft_confirmation.da_slot_height;
         }
-
-        let finalized_height = da.get_finalized_height(None).await?;
-        assert_eq!(last_used_l1_height, finalized_height);
 
         Ok(())
     }

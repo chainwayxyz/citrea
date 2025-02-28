@@ -41,6 +41,10 @@ impl TestCase for TestSequencerTransactionChaining {
         }
     }
 
+    fn l1_start_height() -> Option<u64> {
+        Some(146)
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");

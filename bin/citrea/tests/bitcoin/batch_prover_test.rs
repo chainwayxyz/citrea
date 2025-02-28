@@ -78,6 +78,10 @@ impl TestCase for BasicProverTest {
         }
     }
 
+    fn l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -162,6 +166,10 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             min_soft_confirmations_per_commitment: 1,
             ..Default::default()
         }
+    }
+
+    fn l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -785,7 +793,7 @@ impl TestCase for L1HashOutputTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 50,
+            min_soft_confirmations_per_commitment: 12,
             ..Default::default()
         }
     }
@@ -807,7 +815,7 @@ impl TestCase for L1HashOutputTest {
 
         sequencer.client.wait_for_l2_block(1, None).await?;
 
-        da.generate(100).await?;
+        da.generate(100).await?; // This will produce ceil(100 - 1 / MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK) l2 blocks post fork2 which is 10
 
         tokio::time::sleep(Duration::from_secs(10)).await;
         sequencer.client.send_publish_batch_request().await?;
@@ -848,13 +856,13 @@ impl TestCase for L1HashOutputTest {
         assert_eq!(hash_from_rpc.as_raw_hash().to_byte_array(), l1_hash);
 
         // part 2
-        for _ in 0..110 {
+        for _ in 0..26 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         da.wait_mempool_len(6, None).await?;
 
-        for _ in 0..51 {
+        for _ in 0..13 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
