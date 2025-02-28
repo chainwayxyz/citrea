@@ -3,15 +3,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use prover_services::{ParallelProverService, ProofData, ProofGenMode};
-use sov_db::ledger_db::LedgerDB;
-use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
-use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::Witness;
-use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() {
@@ -26,29 +23,28 @@ async fn test_successful_prover_execution() {
     } = make_new_prover(1, da_service);
 
     let header_hash = MockHash::from([0; 32]);
-    prover_service
-        .add_proof_data(ProofData {
+    // Spawn mock proving in the background
+    let rx = prover_service
+        .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
             assumptions: vec![],
             elf: vec![],
         })
         .await;
 
-    // Spawn mock proving in the background
-    let rx = spawn_prove(prover_service.clone()).await;
+    // Emulate some execution
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
 
-    let proofs = rx.await.unwrap();
-    assert_eq!(proofs.len(), 1);
+    let proof = rx.await.unwrap();
 
     // Check that the output is correct
-    let header = extract_output_header(&proofs[0]);
+    let header = extract_output_header(&proof);
     assert_eq!(header.hash, header_hash);
 
-    let txs = prover_service.submit_proofs(proofs).await.unwrap();
-    assert_eq!(txs.len(), 1);
+    prover_service.submit_proof(proof).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -66,8 +62,8 @@ async fn test_parallel_proofs_equal_to_limit() {
 
     // 1st proof
     let header_hash_1 = MockHash::from([0; 32]);
-    prover_service
-        .add_proof_data(ProofData {
+    let rx_1 = prover_service
+        .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             assumptions: vec![],
             elf: vec![],
@@ -75,33 +71,34 @@ async fn test_parallel_proofs_equal_to_limit() {
         .await;
     // 2nd proof
     let header_hash_2 = MockHash::from([1; 32]);
-    prover_service
-        .add_proof_data(ProofData {
+    let rx_2 = prover_service
+        .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
             assumptions: vec![],
             elf: vec![],
         })
         .await;
 
-    // Spawn mock proving in the background
-    let rx = spawn_prove(prover_service.clone()).await;
+    // Emulate some execution
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
+    let proof_1 = rx_1.await.unwrap();
     // Signal finish to 2nd proof
     assert!(vm.finish_next_proof());
-
-    // Background proving job should be finished
-    let proofs = rx.await.unwrap();
-    assert_eq!(proofs.len(), 2);
+    let proof_2 = rx_2.await.unwrap();
 
     // Check that the output is correct and the order of proofs are same as the input
-    let header_1 = extract_output_header(&proofs[0]);
+    let header_1 = extract_output_header(&proof_1);
     assert_eq!(header_1.hash, header_hash_1);
-    let header_2 = extract_output_header(&proofs[1]);
+    let header_2 = extract_output_header(&proof_2);
     assert_eq!(header_2.hash, header_hash_2);
 
-    let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
+    let txs_and_proofs = prover_service
+        .submit_proofs(vec![proof_1, proof_2])
+        .await
+        .unwrap();
     assert_eq!(txs_and_proofs.len(), 2);
 }
 
@@ -120,8 +117,8 @@ async fn test_parallel_proofs_higher_than_limit() {
 
     // 1st proof
     let header_hash_1 = MockHash::from([0; 32]);
-    prover_service
-        .add_proof_data(ProofData {
+    let rx_1 = prover_service
+        .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             assumptions: vec![],
             elf: vec![],
@@ -129,8 +126,8 @@ async fn test_parallel_proofs_higher_than_limit() {
         .await;
     // 2nd proof
     let header_hash_2 = MockHash::from([1; 32]);
-    prover_service
-        .add_proof_data(ProofData {
+    let rx_2 = prover_service
+        .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
             assumptions: vec![],
             elf: vec![],
@@ -138,167 +135,69 @@ async fn test_parallel_proofs_higher_than_limit() {
         .await;
     // 3rd proof
     let header_hash_3 = MockHash::from([2; 32]);
-    prover_service
-        .add_proof_data(ProofData {
+    let rx_3 = prover_service
+        .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
             assumptions: vec![],
             elf: vec![],
         })
         .await;
-    // 4th proof
+    // 4th proof should not start and timeout
     let header_hash_4 = MockHash::from([3; 32]);
-    prover_service
-        .add_proof_data(ProofData {
+    let timeout = tokio::time::timeout(
+        Duration::from_millis(500),
+        prover_service.start_proving(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        }),
+    )
+    .await;
+    assert!(timeout.is_err());
+
+    // Signal finish to 1st proof
+    assert!(vm.finish_next_proof());
+    let proof_1 = rx_1.await.unwrap();
+
+    // 4th proof should now be able to start
+    let rx_4 = prover_service
+        .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
             assumptions: vec![],
             elf: vec![],
         })
         .await;
-    // 5th proof
-    let header_hash_5 = MockHash::from([4; 32]);
-    prover_service
-        .add_proof_data(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-
-    // Spawn mock proving in the background
-    let rx = spawn_prove(prover_service.clone()).await;
-
-    // Signal finish to 1st proof
-    assert!(vm.finish_next_proof());
-
-    // Emulate some execution
-    tokio::time::sleep(Duration::from_millis(200)).await;
-    // Signal finish to 2nd proof
-    assert!(vm.finish_next_proof());
 
     // Emulate some execution
     tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Signal finish to 2nd proof
+    assert!(vm.finish_next_proof());
+    let proof_2 = rx_2.await.unwrap();
+
     // Signal finish to 3rd proof
     assert!(vm.finish_next_proof());
+    let proof_3 = rx_3.await.unwrap();
 
     // Signal finish to 4th proof immediately
     assert!(vm.finish_next_proof());
-
-    // Emulate some execution
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    // Signal finish to 5th proof
-    assert!(vm.finish_next_proof());
-
-    // Background proving job should be finished
-    let proofs = rx.await.unwrap();
-    assert_eq!(proofs.len(), 5);
+    let proof_4 = rx_4.await.unwrap();
 
     // Check that the output is correct and the order of proofs are same as the input
-    let header_1 = extract_output_header(&proofs[0]);
+    let header_1 = extract_output_header(&proof_1);
     assert_eq!(header_1.hash, header_hash_1);
-    let header_2 = extract_output_header(&proofs[1]);
+    let header_2 = extract_output_header(&proof_2);
     assert_eq!(header_2.hash, header_hash_2);
-    let header_3 = extract_output_header(&proofs[2]);
+    let header_3 = extract_output_header(&proof_3);
     assert_eq!(header_3.hash, header_hash_3);
-    let header_4 = extract_output_header(&proofs[3]);
+    let header_4 = extract_output_header(&proof_4);
     assert_eq!(header_4.hash, header_hash_4);
-    let header_5 = extract_output_header(&proofs[4]);
-    assert_eq!(header_5.hash, header_hash_5);
 
-    let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
-    assert_eq!(txs_and_proofs.len(), 5);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_multiple_parallel_proof_run() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let da_service = Arc::new(MockDaService::new(
-        MockAddress::from([0; 32]),
-        tmpdir.path(),
-    ));
-
-    // Parallel proof limit is 3
-    let TestProver {
-        prover_service, vm, ..
-    } = make_new_prover(3, da_service);
-
-    // 1st proof
-    let header_hash_1 = MockHash::from([0; 32]);
-    prover_service
-        .add_proof_data(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-    // 2nd proof
-    let header_hash_2 = MockHash::from([1; 32]);
-    prover_service
-        .add_proof_data(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-
-    // Spawn mock proving in the background
-    let rx = spawn_prove(prover_service.clone()).await;
-
-    // Signal finish to 1st proof
-    assert!(vm.finish_next_proof());
-    // Signal finish to 2nd proof
-    assert!(vm.finish_next_proof());
-
-    // Background proving job should be finished
-    let proofs = rx.await.unwrap();
-    assert_eq!(proofs.len(), 2);
-
-    let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
-    assert_eq!(txs_and_proofs.len(), 2);
-
-    // 1st proof
-    let header_hash_3 = MockHash::from([2; 32]);
-    prover_service
-        .add_proof_data(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-    // 2nd proof
-    let header_hash_4 = MockHash::from([3; 32]);
-    prover_service
-        .add_proof_data(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-    // 3rd proof
-    let header_hash_5 = MockHash::from([4; 32]);
-    prover_service
-        .add_proof_data(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
-        .await;
-
-    // Spawn mock proving in the background
-    let rx = spawn_prove(prover_service.clone()).await;
-
-    // Signal finish to 1st proof
-    assert!(vm.finish_next_proof());
-    // Signal finish to 2nd proof
-    assert!(vm.finish_next_proof());
-    // Signal finish to 3rd proof
-    assert!(vm.finish_next_proof());
-
-    // Background proving job should be finished
-    let proofs = rx.await.unwrap();
-    assert_eq!(proofs.len(), 3);
-
-    let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
-    assert_eq!(txs_and_proofs.len(), 3);
+    let txs_and_proofs = prover_service
+        .submit_proofs(vec![proof_1, proof_2, proof_3, proof_4])
+        .await
+        .unwrap();
+    assert_eq!(txs_and_proofs.len(), 4);
 }
 
 struct TestProver {
@@ -310,18 +209,10 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
     let vm = MockZkvm::new();
     let proof_mode = ProofGenMode::Execute;
 
-    let tmpdir = tempfile::tempdir().unwrap();
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
     TestProver {
         prover_service: Arc::new(
-            ParallelProverService::new(
-                da_service,
-                vm.clone(),
-                proof_mode,
-                thread_pool_size,
-                ledger_db,
-            )
-            .expect("Should be able to instantiate Prover service"),
+            ParallelProverService::new(da_service, vm.clone(), proof_mode, thread_pool_size)
+                .expect("Should be able to instantiate Prover service"),
         ),
         vm,
     }
@@ -355,21 +246,6 @@ fn make_transition_data(header_hash: MockHash) -> BatchProofCircuitInput<'static
         cache_prune_l2_heights: vec![],
         last_l1_hash_witness: Witness::default(),
     }
-}
-
-async fn spawn_prove(
-    prover_service: Arc<ParallelProverService<MockDaService, MockZkvm>>,
-) -> oneshot::Receiver<Vec<Proof>> {
-    let (tx, rx) = oneshot::channel();
-    tokio::spawn(async move {
-        let proofs = prover_service.prove().await.unwrap();
-        tx.send(proofs).unwrap();
-    });
-
-    // Sleep some time to ensure that prover service started proving tasks
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    rx
 }
 
 fn extract_output_header(proof: &Vec<u8>) -> MockBlockHeader {

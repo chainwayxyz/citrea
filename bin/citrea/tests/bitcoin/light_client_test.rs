@@ -887,6 +887,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .await
             .unwrap();
 
+        da.wait_mempool_len(2, None).await?;
+
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
             [3u8; 32],
@@ -899,6 +901,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
             .await
             .unwrap();
+        da.wait_mempool_len(4, None).await?;
 
         // Expect unparsable journal to be skipped
         let unparsable_batch_proof = create_serialized_fake_receipt_batch_proof(
@@ -913,6 +916,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
             .await
             .unwrap();
+        da.wait_mempool_len(6, None).await?;
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
@@ -926,6 +930,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
             .await
             .unwrap();
+        da.wait_mempool_len(8, None).await?;
 
         // Give it a random method id to make it unverifiable
         let random_method_id = [1u32; 8];

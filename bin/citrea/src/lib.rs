@@ -47,12 +47,15 @@ pub fn initialize_logging(level: Level) {
             "jmt=info".to_owned(),
             "hyper=info".to_owned(),
             "alloy_transport_http=info".to_owned(),
+            "alloy_rpc_client=info".to_owned(),
+            "alloy_provider=info".to_owned(),
             // Limit output as much as possible, use WARN.
             "[executor]=info".to_owned(), // risc0 guest code stats logging
             "risc0_zkvm=warn".to_owned(),
             "risc0_circuit_rv32im=info".to_owned(),
             "guest_execution=info".to_owned(),
             "jsonrpsee-server=info".to_owned(),
+            "jsonrpsee-client=info".to_owned(),
             "sov_schema_db=info".to_owned(),
             "sov_prover_storage_manager=info".to_owned(),
             "bitcoincore_rpc=info".to_owned(),
