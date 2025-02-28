@@ -539,7 +539,7 @@ impl TestCase for ParallelProvingTest {
         // Wait for batch proof txs to hit mempool
         da.wait_mempool_len(4, None).await?;
 
-        // Write 2 batch proofs to a finalized DA block
+        // Write 2 batch proofs (4 txs) to a finalized DA block
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
