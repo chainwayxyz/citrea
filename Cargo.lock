@@ -1844,6 +1844,7 @@ name = "citrea-batch-prover"
 version = "0.6.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-sol-types",
  "anyhow",
  "async-trait",
  "backoff",
@@ -1864,6 +1865,7 @@ dependencies = [
  "prover-services",
  "rand",
  "rayon",
+ "reth-primitives",
  "rs_merkle",
  "serde",
  "sha2",
@@ -1938,7 +1940,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=535704321136f15f589a7555f6aec1d2f3d1278e#535704321136f15f589a7555f6aec1d2f3d1278e"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=162e213a218d4420540965a8050f271a86603924#162e213a218d4420540965a8050f271a86603924"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2020,11 +2022,13 @@ name = "citrea-fullnode"
 version = "0.6.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-sol-types",
  "anyhow",
  "backoff",
  "bincode",
  "borsh",
  "citrea-common",
+ "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
  "citrea-storage-ops",
@@ -2033,6 +2037,7 @@ dependencies = [
  "metrics",
  "metrics-derive",
  "once_cell",
+ "reth-primitives",
  "rs_merkle",
  "sov-db",
  "sov-ledger-rpc",
