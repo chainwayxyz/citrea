@@ -54,11 +54,8 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             .expect("Should deserialize short header proof");
 
         if let Ok(l1_update_info) = shp.verify() {
-            let prev_hash_cond = if prev_block_hash == [0; 32] {
-                true
-            } else {
-                prev_block_hash == l1_update_info.prev_header_hash
-            };
+            let prev_hash_cond =
+                prev_block_hash == [0; 32] || prev_block_hash == l1_update_info.prev_header_hash;
 
             let return_cond = txs_commitment == l1_update_info.tx_commitment
                 && block_hash == l1_update_info.header_hash
