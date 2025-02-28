@@ -551,7 +551,8 @@ impl TestCase for ParallelProvingTest {
             .await?;
 
         // Wait for batch proof txs to hit mempool
-        da.wait_mempool_len(4, Some(Duration::from_secs(420))).await?;
+        da.wait_mempool_len(4, Some(Duration::from_secs(420)))
+            .await?;
 
         // Write 2 batch proofs (4 txs) to a finalized DA block
         da.generate(FINALITY_DEPTH).await?;
