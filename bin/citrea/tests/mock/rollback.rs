@@ -747,7 +747,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     .unwrap();
 
     //------------------
-    // Assert state after re-sync
+    // Assert state after rollback
     //------------------
     let new_sequencer_db_dir = storage_dir.path().join("sequencer4").to_path_buf();
     copy_db_dir_recursive(

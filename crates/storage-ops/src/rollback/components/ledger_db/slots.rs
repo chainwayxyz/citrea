@@ -31,6 +31,14 @@ pub(crate) fn rollback_slots(
 
         delete_slots_by_number(node_type, ledger_db, slot_height)?;
 
+        if !matches!(node_type, StorageNodeType::Sequencer) {
+            rollback_slot_by_hash(node_type, ledger_db, slot_height)?;
+        }
+
+        if matches!(node_type, StorageNodeType::FullNode) {
+            rollback_verified_proofs_by_slot_number(ledger_db, slot_height)?;
+        }
+
         deleted += 1;
     }
 
@@ -61,14 +69,6 @@ pub(crate) fn rollback_light_client_slots(
         }
 
         delete_slots_by_number(node_type, ledger_db, slot_height)?;
-
-        if !matches!(node_type, StorageNodeType::Sequencer) {
-            rollback_slot_by_hash(node_type, ledger_db, slot_height)?;
-        }
-
-        if matches!(node_type, StorageNodeType::FullNode) {
-            rollback_verified_proofs_by_slot_number(ledger_db, slot_height)?;
-        }
 
         deleted += 1;
     }
@@ -119,9 +119,12 @@ fn rollback_verified_proofs_by_slot_number(
         let Ok(record) = record else {
             continue;
         };
-        if record.key >= slot_number {
-            ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
+
+        if record.key < slot_number {
+            break;
         }
+
+        ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
     }
 
     Ok(())
