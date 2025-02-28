@@ -28,6 +28,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 # 3rd-party deps
 alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
@@ -43,6 +44,7 @@ once_cell = { workspace = true, default-features = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
+reth-primitives = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }

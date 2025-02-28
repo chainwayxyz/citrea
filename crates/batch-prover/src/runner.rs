@@ -4,20 +4,26 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use alloy_primitives::U64;
+use alloy_sol_types::SolCall;
 use anyhow::{bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
+use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::compute_tx_hashes;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
+use citrea_evm::system_contracts::BitcoinLightClientContract;
+use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
+use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use reth_primitives::TransactionSignedEcRecovered;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::SoftConfirmationNumber;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::Transaction;
@@ -189,30 +195,44 @@ where
 
         let l2_height = soft_confirmation.l2_height;
 
-        // TODO: this is a problem after sequencer puts set block info system transactions in blocks
-        let current_l1_block = get_da_block_at_height(
-            &self.da_service,
-            soft_confirmation.da_slot_height,
-            self.l1_block_cache.clone(),
-        )
-        .await?;
-
-        // Save short header proof to ledger db for Native Short Header Proof Provider Service
-        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
-            Da::block_to_short_header_proof(current_l1_block.clone());
-        self.ledger_db
-            .put_short_header_proof_by_l1_hash(
-                &current_l1_block.hash(),
-                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+        let spec = fork_from_block_number(soft_confirmation.l2_height).spec_id;
+        let current_l1_block = if spec < SpecId::Fork2 {
+            let current_l1_block = get_da_block_at_height(
+                &self.da_service,
+                soft_confirmation.da_slot_height, // THIS IS 0 AFTER FORK2
+                self.l1_block_cache.clone(),
             )
-            .expect("Should save short header proof to ledger db");
+            .await?;
 
-        info!(
-            "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
-            l2_height,
-            hex::encode(soft_confirmation.hash),
-            current_l1_block.header().height()
-        );
+            // Save short header proof to ledger db for Native Short Header Proof Provider Service
+            let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+                Da::block_to_short_header_proof(current_l1_block.clone());
+            self.ledger_db
+                .put_short_header_proof_by_l1_hash(
+                    &current_l1_block.hash(),
+                    borsh::to_vec(&short_header_proof)
+                        .expect("Should serialize short header proof"),
+                )
+                .expect("Should save short header proof to ledger db");
+            info!(
+                "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
+                l2_height,
+                hex::encode(soft_confirmation.hash),
+                current_l1_block.header().height()
+            );
+            Some(current_l1_block)
+        } else {
+            // Since Post fork2 we do not have the slot hash in soft confirmations we inspect the txs and get the slot hashes from set block infos
+            // Then store the short header proofs of those blocks in the ledger db
+            self.decode_sov_tx_and_update_short_header_proofs(soft_confirmation)
+                .await?;
+            info!(
+                "Running soft confirmation batch #{} with hash: 0x{}",
+                l2_height,
+                hex::encode(soft_confirmation.hash)
+            );
+            None
+        };
 
         if self.soft_confirmation_hash != soft_confirmation.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
@@ -246,18 +266,34 @@ where
             self.sequencer_pub_key.as_slice()
         };
 
-        let soft_confirmation_result = self.stf.apply_soft_confirmation(
-            current_spec,
-            sequencer_pub_key,
-            &self.state_root,
-            pre_state,
-            None,
-            None,
-            Default::default(),
-            Default::default(),
-            current_l1_block.header(),
-            &l2_block,
-        )?;
+        let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
+            self.stf.apply_soft_confirmation(
+                current_spec,
+                sequencer_pub_key,
+                &self.state_root,
+                pre_state,
+                None,
+                None,
+                Default::default(),
+                Default::default(),
+                &l2_block,
+            )?
+        } else {
+            self.stf.apply_soft_confirmation_pre_fork2(
+                current_spec,
+                sequencer_pub_key,
+                &self.state_root,
+                pre_state,
+                None,
+                None,
+                Default::default(),
+                Default::default(),
+                current_l1_block
+                    .expect("Pre fork2 soft confirmation must have da data")
+                    .header(),
+                &l2_block,
+            )?
+        };
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation
@@ -279,10 +315,11 @@ where
         self.ledger_db
             .commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
 
-        self.ledger_db.extend_l2_range_of_l1_slot(
-            SlotNumber(current_l1_block.header().height()),
-            SoftConfirmationNumber(l2_height),
-        )?;
+        // TODO: https://github.com/chainwayxyz/citrea/issues/1992
+        // self.ledger_db.extend_l2_range_of_l1_slot(
+        //     SlotNumber(current_l1_block.header().height()),
+        //     SoftConfirmationNumber(l2_height),
+        // )?;
 
         // Only errors when there are no receivers
         let _ = self.soft_confirmation_tx.send(l2_height);
@@ -309,6 +346,69 @@ where
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &StorageRootHash {
         &self.state_root
+    }
+
+    pub async fn decode_sov_tx_and_update_short_header_proofs(
+        &self,
+        soft_confirmation_response: &SoftConfirmationResponse,
+    ) -> anyhow::Result<()> {
+        if let Some(txs) = &soft_confirmation_response.txs {
+            for tx in txs {
+                let tx = &tx.tx;
+                let tx = Transaction::try_from_slice(tx).expect("Should deserialize transaction");
+                let runtime_msg = tx.runtime_msg();
+                if runtime_msg[0] == 1 {
+                    // This is evm call message
+                    let evm_call_message = EvmCallMessage::try_from_slice(&runtime_msg[1..])
+                        .expect("Should be the tx");
+                    let evm_txs = evm_call_message.txs;
+                    for tx in evm_txs {
+                        let tx = TransactionSignedEcRecovered::try_from(tx)
+                            .expect("Should deserialize evm transaction");
+                        if tx.signer() == SYSTEM_SIGNER {
+                            self.update_short_header_proof_from_sys_tx(&tx).await?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn update_short_header_proof_from_sys_tx(
+        &self,
+        tx: &TransactionSignedEcRecovered,
+    ) -> anyhow::Result<()> {
+        let function_selector: [u8; 4] = tx.input()[0..4].try_into()?;
+
+        if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+            let l1_block_hash: [u8; 32] = tx.input()[4..36].try_into()?;
+            // Check if shp exists for this l1 block hash
+            if let Some(_) = self
+                .ledger_db
+                .get_short_header_proof_by_l1_hash(&l1_block_hash)?
+            {
+                return Ok(());
+            }
+            let da_block = self
+                .da_service
+                .get_block_by_hash(l1_block_hash.into())
+                .await?;
+            let short_header_proof = Da::block_to_short_header_proof(da_block);
+            println!(
+                "BATCH PROVER Saving short header proof for l1 block hash: {:?}, proof: {:?}",
+                l1_block_hash, short_header_proof
+            );
+            self.ledger_db
+                .put_short_header_proof_by_l1_hash(
+                    &l1_block_hash,
+                    borsh::to_vec(&short_header_proof)
+                        .expect("Should serialize short header proof"),
+                )
+                .expect("Should save short header proof to ledger db");
+        }
+
+        Ok(())
     }
 }
 
