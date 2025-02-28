@@ -1,4 +1,7 @@
-use sov_db::schema::tables::{CommitmentsByNumber, LightClientProofBySlotNumber};
+use sov_db::schema::tables::{
+    CommitmentsByNumber, LightClientProofBySlotNumber, ShortHeaderProofBySlotHash, SlotByHash,
+    VerifiedBatchProofsBySlotNumber,
+};
 use sov_db::schema::types::SlotNumber;
 use sov_schema_db::{ScanDirection, DB};
 
@@ -59,8 +62,67 @@ pub(crate) fn rollback_light_client_slots(
 
         delete_slots_by_number(node_type, ledger_db, slot_height)?;
 
+        if !matches!(node_type, StorageNodeType::Sequencer) {
+            rollback_slot_by_hash(node_type, ledger_db, slot_height)?;
+        }
+
+        if matches!(node_type, StorageNodeType::FullNode) {
+            rollback_verified_proofs_by_slot_number(ledger_db, slot_height)?;
+        }
+
         deleted += 1;
     }
 
     Ok(deleted)
+}
+
+fn rollback_slot_by_hash(
+    node_type: StorageNodeType,
+    ledger_db: &DB,
+    slot_number: SlotNumber,
+) -> anyhow::Result<()> {
+    let mut slots =
+        ledger_db.iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Backward)?;
+    slots.seek_to_last();
+
+    for record in slots {
+        let Ok(record) = record else {
+            continue;
+        };
+
+        if record.value < slot_number {
+            break;
+        }
+
+        if !matches!(node_type, StorageNodeType::LightClient) {
+            ledger_db.delete::<ShortHeaderProofBySlotHash>(&record.key)?;
+        }
+
+        ledger_db.delete::<SlotByHash>(&record.key)?;
+    }
+
+    Ok(())
+}
+
+fn rollback_verified_proofs_by_slot_number(
+    ledger_db: &DB,
+    slot_number: SlotNumber,
+) -> anyhow::Result<()> {
+    let mut verified_proofs_by_number = ledger_db
+        .iter_with_direction::<VerifiedBatchProofsBySlotNumber>(
+            Default::default(),
+            ScanDirection::Backward,
+        )?;
+    verified_proofs_by_number.seek_to_last();
+
+    for record in verified_proofs_by_number {
+        let Ok(record) = record else {
+            continue;
+        };
+        if record.key >= slot_number {
+            ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
+        }
+    }
+
+    Ok(())
 }

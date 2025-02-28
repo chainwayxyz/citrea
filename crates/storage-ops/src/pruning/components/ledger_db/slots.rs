@@ -1,5 +1,7 @@
-use sov_db::schema::tables::L2RangeByL1Height;
-use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::schema::tables::{
+    L2RangeByL1Height, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
+};
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::pruning::types::StorageNodeType;
@@ -29,8 +31,70 @@ pub(crate) fn prune_slots(
 
         delete_slots_by_number(node_type, ledger_db, slot_height)?;
 
+        if !matches!(node_type, StorageNodeType::Sequencer) {
+            prune_slot_by_hash(node_type, ledger_db, slot_height)?;
+        }
+
+        if matches!(node_type, StorageNodeType::FullNode) {
+            prune_verified_proofs_by_slot_number(ledger_db, slot_height)?;
+        }
+
         deleted += 1;
     }
 
     Ok(deleted)
+}
+
+fn prune_slot_by_hash(
+    node_type: StorageNodeType,
+    ledger_db: &DB,
+    slot_number: SlotNumber,
+) -> anyhow::Result<()> {
+    let mut slots =
+        ledger_db.iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Forward)?;
+    slots.seek_to_first();
+
+    for record in slots {
+        let Ok(record) = record else {
+            continue;
+        };
+
+        if record.value > slot_number {
+            break;
+        }
+
+        if !matches!(node_type, StorageNodeType::LightClient) {
+            ledger_db.delete::<ShortHeaderProofBySlotHash>(&record.key)?;
+        }
+
+        ledger_db.delete::<SlotByHash>(&record.key)?;
+    }
+
+    Ok(())
+}
+
+fn prune_verified_proofs_by_slot_number(
+    ledger_db: &DB,
+    slot_number: SlotNumber,
+) -> anyhow::Result<()> {
+    let mut verified_proofs_by_number = ledger_db
+        .iter_with_direction::<VerifiedBatchProofsBySlotNumber>(
+            Default::default(),
+            ScanDirection::Forward,
+        )?;
+    verified_proofs_by_number.seek_to_first();
+
+    for record in verified_proofs_by_number {
+        let Ok(record) = record else {
+            continue;
+        };
+
+        if record.key > slot_number {
+            break;
+        }
+
+        ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
+    }
+
+    Ok(())
 }
