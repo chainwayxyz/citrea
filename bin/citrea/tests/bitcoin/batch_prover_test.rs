@@ -828,14 +828,19 @@ impl TestCase for L1HashOutputTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
 
         sequencer.client.send_publish_batch_request().await?;
-        let start_l1_height = da.get_finalized_height(None).await?;
-
         sequencer.client.wait_for_l2_block(1, None).await?;
 
-        da.generate(100).await?;
+        let start_l1_height = da.get_finalized_height(None).await?;
 
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        da.generate(50).await?;
+
+        // We need to generate 2 L2 blocks here with some delay due to the fact that
+        // L1 syncing of sequencer is asynchronously happenning, and it might be the
+        // case that it saw 20 missing L1 blocks while DA was still generating blocks,
+        // which would prevent further updating the missing DA blocks, hence the second L2 block
+        tokio::time::sleep(Duration::from_secs(1)).await;
         sequencer.client.send_publish_batch_request().await?;
+        tokio::time::sleep(Duration::from_secs(1)).await;
         sequencer.client.send_publish_batch_request().await?;
 
         // Wait for blob inscribe tx to be in mempool
@@ -846,7 +851,6 @@ impl TestCase for L1HashOutputTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         let zkp = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
-
         assert_eq!(zkp.len(), 1);
 
         let l1_hash = zkp[0]
@@ -856,8 +860,7 @@ impl TestCase for L1HashOutputTest {
             .expect("Should exist")
             .0;
 
-        let hash_from_rpc = sequencer.da.get_block_hash(start_l1_height + 100).await?;
-
+        let hash_from_rpc = sequencer.da.get_block_hash(start_l1_height + 50).await?;
         assert_eq!(hash_from_rpc.as_raw_hash().to_byte_array(), l1_hash);
 
         // part 2
@@ -892,7 +895,6 @@ impl TestCase for L1HashOutputTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         let zkp_prev = wait_for_proving_finish(batch_prover, finalized_height - 1, None).await?;
-
         assert_eq!(zkp_prev.len(), 1);
 
         let prev_l1_hash = zkp_prev[0]
@@ -901,12 +903,10 @@ impl TestCase for L1HashOutputTest {
             .clone()
             .expect("Should exist")
             .0;
-
         assert_ne!(prev_l1_hash, l1_hash);
 
         let zkp_last = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
-
-        assert_eq!(zkp.len(), 1);
+        assert_eq!(zkp_last.len(), 1);
 
         let new_l1_hash = zkp_last[0]
             .proof_output
