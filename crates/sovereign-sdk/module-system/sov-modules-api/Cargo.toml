@@ -20,7 +20,6 @@ sov-state = { path = "../sov-state" }
 sov-modules-core = { path = "../sov-modules-core" }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-macros = { path = "../sov-modules-macros", optional = true, default-features = false }
-sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", optional = true }
 serde = { workspace = true }
 borsh = { workspace = true }
 thiserror = { workspace = true }
@@ -63,7 +62,6 @@ native = [
     "sov-modules-core/native",
     "sov-modules-macros/native",
     "sov-state/native",
-    "sov-prover-storage-manager",
 ]
 macros = ["sov-modules-macros"]
 serde = ["sov-modules-core/serde"]
