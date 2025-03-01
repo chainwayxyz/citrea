@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::bail;
-use rocksdb::backup::{self, BackupEngine};
+use rocksdb::backup::BackupEngine;
 use tracing::info;
 
 pub(super) fn restore_from_backup(
