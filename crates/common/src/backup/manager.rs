@@ -280,6 +280,7 @@ impl BackupManager {
         &self,
         db_path: P,
         backup_path: P,
+        backup_id: u32,
     ) -> anyhow::Result<()> {
         // Validate backup before trying to restore
         self.validate_backup(&backup_path)?;
@@ -303,7 +304,7 @@ impl BackupManager {
             info!("Restoring {dir} database");
             let backup_path = backup_path.join(dir);
             let path = tmp_path.join(dir);
-            restore_from_backup(path, backup_path)?;
+            restore_from_backup(path, backup_path, backup_id)?;
             info!(
                 "{dir} database restore completed in {:.2}s",
                 dir_start.elapsed().as_secs_f32()

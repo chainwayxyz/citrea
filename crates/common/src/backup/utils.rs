@@ -1,12 +1,13 @@
 use std::path::Path;
 
 use anyhow::bail;
-use rocksdb::backup::BackupEngine;
+use rocksdb::backup::{self, BackupEngine};
 use tracing::info;
 
 pub(super) fn restore_from_backup(
     db_path: impl AsRef<Path>,
     backup_path: impl AsRef<Path>,
+    backup_id: u32,
 ) -> anyhow::Result<()> {
     let db_path = db_path.as_ref();
     let backup_path = backup_path.as_ref();
@@ -23,6 +24,8 @@ pub(super) fn restore_from_backup(
 
     let restore_options = rocksdb::backup::RestoreOptions::default();
     backup_engine.restore_from_latest_backup(db_path, db_path, &restore_options)?;
+
+    backup_engine.restore_from_backup(db_path, db_path, &restore_options, backup_id);
 
     info!(
         path = ?backup_path,
