@@ -23,9 +23,8 @@ pub(super) fn restore_from_backup(
     }
 
     let restore_options = rocksdb::backup::RestoreOptions::default();
-    backup_engine.restore_from_latest_backup(db_path, db_path, &restore_options)?;
 
-    backup_engine.restore_from_backup(db_path, db_path, &restore_options, backup_id);
+    backup_engine.restore_from_backup(db_path, db_path, &restore_options, backup_id)?;
 
     info!(
         path = ?backup_path,
