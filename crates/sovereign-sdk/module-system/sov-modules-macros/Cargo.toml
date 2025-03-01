@@ -20,6 +20,11 @@ name = "tests"
 path = "tests/all_tests.rs"
 
 [dev-dependencies]
+sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
+sov-modules-core = { path = "../sov-modules-core" }
+sov-state = { path = "../sov-state" }
+
+borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "http-client", "server"] }
 serde = { workspace = true }
 trybuild = "1.0"
@@ -34,3 +39,6 @@ syn = { version = "1.0", features = ["full", "extra-traits"] }
 [features]
 default = ["native"]
 native = ["jsonrpsee"]
+
+[package.metadata.cargo-udeps.ignore]
+development = ["borsh", "sov-modules-api", "sov-modules-core", "sov-state"]

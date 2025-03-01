@@ -8039,11 +8039,15 @@ dependencies = [
 name = "sov-modules-macros"
 version = "0.6.0"
 dependencies = [
+ "borsh",
  "jsonrpsee",
  "proc-macro2",
  "quote",
  "serde",
  "serde_json",
+ "sov-modules-api",
+ "sov-modules-core",
+ "sov-state",
  "syn 1.0.109",
  "trybuild",
 ]
