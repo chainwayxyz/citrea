@@ -286,7 +286,9 @@ where
 
             let l1_start_height = rollup_config
                 .runner
-                .ok_or(anyhow!("Failed to start batch prover L1 block handler due to runner config not present"))?
+                .ok_or(anyhow!(
+                    "Failed to start batch prover L1 block handler: Runner config not present"
+                ))?
                 .scan_l1_start_height;
 
             task_manager.spawn(|cancellation_token| async move {
@@ -367,7 +369,7 @@ where
             let l1_start_height = rollup_config
                 .runner
                 .ok_or(anyhow!(
-                    "Failed to start fullnode L1 block handler due to runner config not present"
+                    "Failed to start fullnode L1 block handler: Runner config not present"
                 ))?
                 .scan_l1_start_height;
 

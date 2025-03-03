@@ -188,7 +188,7 @@ where
         let l2_height = soft_confirmation.l2_height;
 
         info!(
-            "Running soft confirmation batch #{} with hash: 0x{}",
+            "Running L2 block #{} with hash: 0x{}",
             l2_height,
             hex::encode(soft_confirmation.hash)
         );

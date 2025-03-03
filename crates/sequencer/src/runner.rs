@@ -155,7 +155,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn dry_run_transactions(
+    async fn dry_run_transactions_post_fork2(
         &mut self,
         mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
@@ -566,7 +566,7 @@ where
         // all transactions that would fit into the current block and the list of transactions
         // which do not have enough balance to pay for the L1 fee.
         let (txs_to_run, l1_fee_failed_txs) = self
-            .dry_run_transactions(
+            .dry_run_transactions_post_fork2(
                 evm_txs,
                 &pub_key,
                 prestate.clone(),
@@ -1419,6 +1419,7 @@ where
                 self.produce_l2_block(
                     chunk_of_filtered_blocks.to_vec(),
                     l1_fee_rate,
+                    // l2 block mode is ignored for post fork2 block production
                     &L2BlockMode::Empty,
                 )
                 .await?;
