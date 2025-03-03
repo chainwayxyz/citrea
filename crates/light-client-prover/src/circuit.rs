@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaVerifier};
 use sov_rollup_interface::mmr::{MMRChunk, MMRGuest, Wtxid};
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
@@ -77,7 +77,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             &input.da_block_header,
             input.inclusion_proof,
             input.completeness_proof,
-            DaNamespace::ToLightClientProver,
         )
         .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
 

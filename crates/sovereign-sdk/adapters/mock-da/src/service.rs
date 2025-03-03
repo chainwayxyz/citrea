@@ -9,8 +9,8 @@ use borsh::BorshDeserialize;
 use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec,
-    DaTxRequest, SequencerCommitment, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaSpec, DaTxRequest,
+    SequencerCommitment, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SlotData, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
@@ -450,7 +450,6 @@ impl DaService for MockDaService {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-        namespace: DaNamespace,
     ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
@@ -460,18 +459,14 @@ impl DaService for MockDaService {
         for b in block.blobs.clone() {
             let clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
-            match namespace {
-                DaNamespace::ToBatchProver => {
-                    if DaDataBatchProof::try_from_slice(full_data).is_ok() {
-                        txs.push(b)
-                    }
-                }
-                DaNamespace::ToLightClientProver => {
-                    if DaDataLightClient::try_from_slice(full_data).is_ok() {
-                        txs.push(b)
-                    }
-                }
-            };
+            if DaDataBatchProof::try_from_slice(full_data).is_ok() {
+                txs.push(b);
+                continue;
+            }
+            if DaDataLightClient::try_from_slice(full_data).is_ok() {
+                txs.push(b);
+                continue;
+            }
         }
         (txs.clone(), [0u8; 32], txs)
     }

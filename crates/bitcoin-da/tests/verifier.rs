@@ -12,8 +12,8 @@ use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaVerifier};
+use citrea_primitives::REVEAL_TX_PREFIX;
+use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::macros::assert_panic;
 use test_utils::{
@@ -47,9 +47,9 @@ impl TestCase for BitcoinVerifierTest {
         let (block, _, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
 
         let (mut b_txs, b_inclusion_proof, b_completeness_proof) =
-            service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
+            service.extract_relevant_blobs_with_proof(&block);
         let (mut l_txs, l_inclusion_proof, l_completeness_proof) =
-            service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
+            service.extract_relevant_blobs_with_proof(&block);
         b_txs.iter_mut().for_each(|t| {
             t.full_data();
         });
@@ -58,8 +58,7 @@ impl TestCase for BitcoinVerifierTest {
         });
 
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
         });
 
         // Correct batch proof
@@ -69,7 +68,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Ok(b_txs.clone()),
             );
@@ -82,7 +80,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     l_inclusion_proof.clone(),
                     l_completeness_proof.clone(),
-                    DaNamespace::ToLightClientProver,
                 ),
                 Ok(l_txs.clone()),
             );
@@ -96,7 +93,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
-                    DaNamespace::ToLightClientProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
@@ -107,7 +103,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     l_inclusion_proof.clone(),
                     l_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
@@ -133,12 +128,7 @@ impl TestCase for BitcoinVerifierTest {
                 coinbase_merkle_proof: tree.get_idx_path(0),
             };
             assert_eq!(
-                verifier.verify_transactions(
-                    &nonsegwit_block.header,
-                    inclusion_proof,
-                    vec![],
-                    DaNamespace::ToBatchProver,
-                ),
+                verifier.verify_transactions(&nonsegwit_block.header, inclusion_proof, vec![],),
                 Ok(Vec::new())
             );
         }
@@ -173,7 +163,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     inclusion_proof,
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::IncorrectInclusionProof),
             );
@@ -222,7 +211,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     inclusion_proof,
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::IncorrectInclusionProof),
             );
@@ -266,12 +254,7 @@ impl TestCase for BitcoinVerifierTest {
             };
 
             assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    inclusion_proof,
-                    completeness_proof,
-                    DaNamespace::ToBatchProver,
-                ),
+                verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
                 Err(ValidationError::RelevantTxNotInProof),
             );
         }
@@ -288,7 +271,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     inclusion_proof,
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
@@ -301,7 +283,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     inclusion_proof,
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::IncorrectInclusionProof),
             );
@@ -317,7 +298,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::HeaderInclusionTxCountMismatch),
             );
@@ -333,7 +313,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::HeaderInclusionTxCountMismatch),
             );
@@ -349,7 +328,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::IncorrectInclusionProof),
             );
@@ -365,7 +343,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
-                    DaNamespace::ToBatchProver,
                 ),
                 "itertools: .zip_eq() reached end of one iterator before the other"
             );
@@ -381,7 +358,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
-                    DaNamespace::ToBatchProver,
                 ),
                 "itertools: .zip_eq() reached end of one iterator before the other"
             );
@@ -403,7 +379,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
@@ -419,7 +394,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
@@ -437,7 +411,6 @@ impl TestCase for BitcoinVerifierTest {
                     &block.header,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
-                    DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );

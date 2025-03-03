@@ -15,7 +15,7 @@ use sov_db::schema::types::SlotNumber;
 use sov_modules_api::{
     BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, Zkvm,
 };
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient};
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -162,9 +162,8 @@ where
             .set_l1_height_of_l1_hash(l1_hash, l1_height)
             .expect("Setting l1 height of l1 hash in ledger db");
 
-        let (mut da_data, inclusion_proof, completeness_proof) = self
-            .da_service
-            .extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToLightClientProver);
+        let (mut da_data, inclusion_proof, completeness_proof) =
+            self.da_service.extract_relevant_blobs_with_proof(&l1_block);
 
         let mut assumptions = vec![];
 

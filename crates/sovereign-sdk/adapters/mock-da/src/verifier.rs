@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, L1UpdateSystemTransactionInfo, LatestDaState,
+    BlobReaderTrait, DaSpec, DaVerifier, L1UpdateSystemTransactionInfo, LatestDaState,
     ShortHeaderProofVerificationError, VerifableShortHeaderProof,
 };
 use sov_rollup_interface::Network;
@@ -98,7 +98,6 @@ impl DaVerifier for MockDaVerifier {
         _block_header: &<Self::Spec as DaSpec>::BlockHeader,
         _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-        _namespace: DaNamespace,
     ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error> {
         Ok(completeness_proof)
     }

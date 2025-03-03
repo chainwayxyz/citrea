@@ -109,14 +109,6 @@ pub enum DaDataBatchProof {
     // ForcedTransaction(ForcedTransaction),
 }
 
-/// Which type of tx we operate on in DaVerifier
-pub enum DaNamespace {
-    /// Txs going to batch-prover
-    ToBatchProver,
-    /// Txs going to light-client-prover
-    ToLightClientProver,
-}
-
 /// A specification for the types used by a DA layer.
 pub trait DaSpec:
     'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone + Send + Sync
@@ -256,7 +248,6 @@ pub trait DaVerifier: Send + Sync {
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-        namespace: DaNamespace,
     ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error>;
 
     /// Verify that the block header is valid for the given previous light client proof output

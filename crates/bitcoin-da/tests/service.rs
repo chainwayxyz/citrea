@@ -15,8 +15,8 @@ use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaVerifier};
+use citrea_primitives::REVEAL_TX_PREFIX;
+use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::{
     generate_mock_txs, get_citrea_path, get_default_service, get_mock_false_signature_txs_block,
@@ -48,8 +48,7 @@ impl TestCase for BitcoinServiceTest {
 
         let service = get_default_service(&mut task_manager, &da_node.config).await;
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
         });
 
         let (block, block_commitments, block_proofs, _) =
@@ -65,7 +64,7 @@ impl TestCase for BitcoinServiceTest {
         // Extracts relevant batch proof blobs with proof correctly
         {
             let (mut txs, inclusion_proof, completeness_proof) =
-                service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
+                service.extract_relevant_blobs_with_proof(&block);
             assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 3 valid commitments, and 1 invalid commitment with wrong public key
@@ -92,12 +91,7 @@ impl TestCase for BitcoinServiceTest {
 
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    inclusion_proof,
-                    completeness_proof,
-                    DaNamespace::ToBatchProver
-                ),
+                verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
                 Ok(txs)
             );
         }
@@ -105,7 +99,7 @@ impl TestCase for BitcoinServiceTest {
         // Extracts relevant light client proof blobs with proof correctly
         {
             let (mut txs, inclusion_proof, completeness_proof) =
-                service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
+                service.extract_relevant_blobs_with_proof(&block);
             assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 2 complete, 2 aggregate proofs with 2 chunks for the first and 3 chunks for the second agg, and 2 method id txs
@@ -124,12 +118,7 @@ impl TestCase for BitcoinServiceTest {
 
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    inclusion_proof,
-                    completeness_proof,
-                    DaNamespace::ToLightClientProver
-                ),
+                verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
                 Ok(txs)
             );
         }
@@ -167,8 +156,7 @@ impl TestCase for BitcoinServiceTest {
 
             let false_sig_block = get_mock_false_signature_txs_block();
 
-            let (txs, _, _) = service
-                .extract_relevant_blobs_with_proof(&false_sig_block, DaNamespace::ToBatchProver);
+            let (txs, _, _) = service.extract_relevant_blobs_with_proof(&false_sig_block);
             // There is one tx with right prefix, but wrong signature
             assert_eq!(txs.len(), 1);
             assert_eq!(txs[0].sender.0, wrong_pubkey);
@@ -191,7 +179,7 @@ impl TestCase for BitcoinServiceTest {
 
             let txs = get_relevant_blobs_from_txs(
                 block.txdata.iter().map(|tx| tx.inner().clone()).collect(),
-                TO_BATCH_PROOF_PREFIX,
+                REVEAL_TX_PREFIX,
             );
             assert_eq!(txs.len(), 4);
 

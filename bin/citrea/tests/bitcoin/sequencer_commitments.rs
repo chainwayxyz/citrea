@@ -13,7 +13,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{FullNode, Sequencer};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_primitives::TO_BATCH_PROOF_PREFIX;
+use citrea_primitives::REVEAL_TX_PREFIX;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_ledger_rpc::LedgerRpcClient;
@@ -243,7 +243,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             let hash = da.get_block_hash(height).await?;
             let block = da.get_block(&hash).await?;
 
-            let mut blobs = get_relevant_blobs_from_txs(block.txdata, TO_BATCH_PROOF_PREFIX);
+            let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_TX_PREFIX);
 
             for blob in blobs.drain(0..) {
                 let data = blob.full_data();
@@ -304,7 +304,7 @@ impl SequencerSendCommitmentsToDaTest {
         let hash = da.get_block_hash(finalized_height).await?;
         let block = da.get_block(&hash).await?;
 
-        let mut blobs = get_relevant_blobs_from_txs(block.txdata, TO_BATCH_PROOF_PREFIX);
+        let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_TX_PREFIX);
 
         assert_eq!(blobs.len(), 1);
 

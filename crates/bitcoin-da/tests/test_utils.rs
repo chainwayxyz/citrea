@@ -17,7 +17,7 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
-use citrea_primitives::{MAX_TXBODY_SIZE, TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{MAX_TXBODY_SIZE, REVEAL_TX_PREFIX};
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 
@@ -33,8 +33,7 @@ pub async fn get_default_service(
         config,
         NodeKind::Bitcoin.to_string(),
         DEFAULT_DA_PRIVATE_KEY.to_string(),
-        TO_BATCH_PROOF_PREFIX.to_vec(),
-        TO_LIGHT_CLIENT_PREFIX.to_vec(),
+        REVEAL_TX_PREFIX.to_vec(),
     )
     .await
 }
@@ -44,8 +43,7 @@ pub async fn get_service(
     config: &BitcoinConfig,
     wallet: String,
     da_private_key: String,
-    to_batch_proof_prefix: Vec<u8>,
-    to_light_client_prefix: Vec<u8>,
+    reveal_tx_prefix: Vec<u8>,
 ) -> Arc<BitcoinService> {
     let node_url = format!("http://127.0.0.1:{}/wallet/{}", config.rpc_port, wallet,);
 
@@ -64,10 +62,7 @@ pub async fn get_service(
 
     let da_service = BitcoinService::new_without_wallet_check(
         runtime_config,
-        RollupParams {
-            to_batch_proof_prefix,
-            to_light_client_prefix,
-        },
+        RollupParams { reveal_tx_prefix },
         tx,
     )
     .await
@@ -111,7 +106,6 @@ pub async fn generate_mock_txs(
         &da_node.config,
         wrong_prefix_wallet,
         DEFAULT_DA_PRIVATE_KEY.to_string(),
-        vec![5],
         vec![6],
     )
     .await;
@@ -123,8 +117,7 @@ pub async fn generate_mock_txs(
         &da_node.config,
         wrong_key_wallet,
         "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
-        TO_BATCH_PROOF_PREFIX.to_vec(),
-        TO_LIGHT_CLIENT_PREFIX.to_vec(),
+        REVEAL_TX_PREFIX.to_vec(),
     )
     .await;
 

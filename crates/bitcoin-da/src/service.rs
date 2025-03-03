@@ -25,7 +25,7 @@ use citrea_primitives::MAX_TXBODY_SIZE;
 use metrics::histogram;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, DaTxRequest, SequencerCommitment,
+    DaDataBatchProof, DaDataLightClient, DaSpec, DaTxRequest, SequencerCommitment,
 };
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
@@ -110,8 +110,7 @@ pub struct BitcoinService {
     client: Arc<Client>,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
-    to_light_client_prefix: Vec<u8>,
-    to_batch_proof_prefix: Vec<u8>,
+    reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
@@ -161,8 +160,7 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key: private_key,
-            to_light_client_prefix: chain_params.to_light_client_prefix,
-            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
+            reveal_tx_prefix: chain_params.reveal_tx_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
@@ -204,8 +202,7 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key,
-            to_light_client_prefix: chain_params.to_light_client_prefix,
-            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
+            reveal_tx_prefix: chain_params.reveal_tx_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
@@ -349,7 +346,7 @@ impl BitcoinService {
             DaTxRequest::ZKProof(zkproof) => {
                 let data = split_proof(zkproof);
 
-                let reveal_light_client_prefix = self.to_light_client_prefix.clone();
+                let reveal_light_client_prefix = self.reveal_tx_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -391,7 +388,7 @@ impl BitcoinService {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
 
-                let prefix = self.to_batch_proof_prefix.clone();
+                let prefix = self.reveal_tx_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -421,7 +418,7 @@ impl BitcoinService {
                 let data = DaDataLightClient::BatchProofMethodId(method_id);
                 let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
 
-                let prefix = self.to_light_client_prefix.clone();
+                let prefix = self.reveal_tx_prefix.clone();
 
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
@@ -779,7 +776,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_light_client_prefix)
+                .starts_with(&self.reveal_tx_prefix)
             {
                 continue;
             }
@@ -911,7 +908,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_batch_proof_prefix)
+                .starts_with(&self.reveal_tx_prefix)
             {
                 continue;
             }
@@ -942,7 +939,6 @@ impl DaService for BitcoinService {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-        namespace: DaNamespace,
     ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
@@ -953,10 +949,7 @@ impl DaService for BitcoinService {
             block.header.block_hash()
         );
 
-        let prefix = match namespace {
-            DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
-            DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
-        };
+        let prefix = self.reveal_tx_prefix.as_slice();
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
@@ -1000,74 +993,70 @@ impl DaService for BitcoinService {
         let mut relevant_txs = vec![];
         for tx in &completeness_proof {
             let wtxid = tx.compute_wtxid();
-            match namespace {
-                DaNamespace::ToBatchProver => {
-                    if let Ok(tx) = parse_batch_proof_transaction(tx) {
-                        match tx {
-                            ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                                if let Some(hash) = seq_comm.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
-                                        seq_comm.body,
-                                        seq_comm.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
+            if let Ok(tx) = parse_batch_proof_transaction(tx) {
+                match tx {
+                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                        if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                            let relevant_tx = BlobWithSender::new(
+                                seq_comm.body,
+                                seq_comm.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
 
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
+                            relevant_txs.push(relevant_tx);
                         }
                     }
                 }
-                DaNamespace::ToLightClientProver => {
-                    if let Ok(tx) = parse_light_client_transaction(tx) {
-                        match tx {
-                            ParsedLightClientTransaction::Complete(complete) => {
-                                if let Some(hash) = complete.get_sig_verified_hash() {
-                                    let blob = decompress_blob(&complete.body);
-                                    let relevant_tx = BlobWithSender::new(
-                                        blob,
-                                        complete.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
-                            ParsedLightClientTransaction::Aggregate(aggregate) => {
-                                if let Some(hash) = aggregate.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
-                                        aggregate.body,
-                                        aggregate.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
-                            ParsedLightClientTransaction::Chunk(chunk) => {
-                                let relevant_tx = BlobWithSender::new(
-                                    chunk.body,
-                                    vec![],
-                                    [0; 32],
-                                    Some(wtxid.to_byte_array()),
-                                );
-                                relevant_txs.push(relevant_tx);
-                            }
-                            ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
-                                if let Some(hash) = method_id.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
-                                        method_id.body,
-                                        method_id.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
+                continue;
+            }
+            if let Ok(tx) = parse_light_client_transaction(tx) {
+                match tx {
+                    ParsedLightClientTransaction::Complete(complete) => {
+                        if let Some(hash) = complete.get_sig_verified_hash() {
+                            let blob = decompress_blob(&complete.body);
+                            let relevant_tx = BlobWithSender::new(
+                                blob,
+                                complete.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
+                            relevant_txs.push(relevant_tx);
+                        }
+                    }
+                    ParsedLightClientTransaction::Aggregate(aggregate) => {
+                        if let Some(hash) = aggregate.get_sig_verified_hash() {
+                            let relevant_tx = BlobWithSender::new(
+                                aggregate.body,
+                                aggregate.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
+                            relevant_txs.push(relevant_tx);
+                        }
+                    }
+                    ParsedLightClientTransaction::Chunk(chunk) => {
+                        let relevant_tx = BlobWithSender::new(
+                            chunk.body,
+                            vec![],
+                            [0; 32],
+                            Some(wtxid.to_byte_array()),
+                        );
+                        relevant_txs.push(relevant_tx);
+                    }
+                    ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
+                        if let Some(hash) = method_id.get_sig_verified_hash() {
+                            let relevant_tx = BlobWithSender::new(
+                                method_id.body,
+                                method_id.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
+                            relevant_txs.push(relevant_tx);
                         }
                     }
                 }
+                continue;
             }
         }
 
@@ -1183,7 +1172,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_batch_proof_prefix)
+                .starts_with(&self.reveal_tx_prefix)
             {
                 continue;
             }
