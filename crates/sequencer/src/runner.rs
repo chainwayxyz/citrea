@@ -49,6 +49,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
+use sov_rollup_interface::stf::SoftConfirmationResult;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -624,9 +625,13 @@ where
             .end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
 
         // Finalize soft confirmation
-        let soft_confirmation_result =
-            self.stf
-                .finalize_soft_confirmation(active_fork_spec, working_set, prestate);
+        let soft_confirmation_result: sov_rollup_interface::stf::SoftConfirmationResult<
+            ProverStorage,
+            sov_state::Witness,
+            sov_state::ReadWriteLog,
+        > = self
+            .stf
+            .finalize_soft_confirmation(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
         let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, active_fork_spec);
@@ -662,8 +667,35 @@ where
             [0u8; 32],
         );
 
-        // TODO: Put below this part under fn produce_l2_house_keeping()
+        self.save_l2_block(
+            l2_block,
+            soft_confirmation_result,
+            l2_height,
+            evm_txs_count,
+            l1_fee_failed_txs,
+            tx_hashes,
+            blobs,
+            last_da_block.header().height(),
+            start,
+        )
+    }
 
+    fn save_l2_block(
+        &mut self,
+        l2_block: L2Block<Transaction>,
+        soft_confirmation_result: SoftConfirmationResult<
+            ProverStorage,
+            sov_state::Witness,
+            sov_state::ReadWriteLog,
+        >,
+        l2_height: u64,
+        evm_txs_count: usize,
+        l1_fee_failed_txs: Vec<TxHash>,
+        tx_hashes: Vec<[u8; 32]>,
+        blobs: Vec<Vec<u8>>,
+        last_l1_height: u64,
+        start: Instant,
+    ) -> anyhow::Result<(u64, u64, StateDiff)> {
         debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
             hex::encode(l2_block.hash()),
@@ -730,7 +762,7 @@ where
 
         Ok((
             l2_height,
-            last_da_block.header().height(),
+            last_l1_height,
             soft_confirmation_result.state_diff,
         ))
     }
@@ -923,74 +955,17 @@ where
             da_header.txs_commitment().into(),
         );
 
-        debug!(
-            "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
-            hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
-        );
-
-        let state_root_transition = soft_confirmation_result.state_root_transition;
-
-        if state_root_transition.final_root.as_ref() == self.state_root.as_ref() {
-            bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
-        }
-
-        trace!(
-            "State root after applying slot: {:?}",
-            state_root_transition.final_root,
-        );
-
-        let next_state_root = state_root_transition.final_root;
-
-        self.storage_manager
-            .finalize_storage(soft_confirmation_result.change_set);
-
-        let soft_confirmation_hash = l2_block.hash();
-
-        self.ledger_db
-            .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
-
-        // TODO: https://github.com/chainwayxyz/citrea/issues/1992
-        // // connect L1 and L2 height
-        // self.ledger_db.extend_l2_range_of_l1_slot(
-        //     SlotNumber(da_block.header().height()),
-        //     SoftConfirmationNumber(l2_height),
-        // )?;
-        info!("New block #{}, Tx count: #{}", l2_height, evm_txs_count,);
-
-        self.state_root = next_state_root;
-        self.soft_confirmation_hash = soft_confirmation_hash;
-
-        let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
-        txs_to_remove.extend(l1_fee_failed_txs);
-
-        self.mempool.remove_transactions(txs_to_remove.clone());
-        SEQUENCER_METRICS.mempool_txs.set(self.mempool.len() as f64);
-
-        let account_updates = self.get_account_updates()?;
-
-        self.mempool.update_accounts(account_updates);
-
-        let txs = txs_to_remove
-            .iter()
-            .map(|tx_hash| tx_hash.to_vec())
-            .collect::<Vec<Vec<u8>>>();
-        if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
-            warn!("Failed to remove txs from mempool: {:?}", e);
-        }
-
-        SEQUENCER_METRICS.block_production_execution.record(
-            Instant::now()
-                .saturating_duration_since(start)
-                .as_secs_f64(),
-        );
-        SEQUENCER_METRICS.current_l2_block.set(l2_height as f64);
-
-        Ok((
+        self.save_l2_block(
+            l2_block,
+            soft_confirmation_result,
             l2_height,
+            evm_txs_count,
+            l1_fee_failed_txs,
+            tx_hashes,
+            blobs,
             da_block_height,
-            soft_confirmation_result.state_diff,
-        ))
+            start,
+        )
     }
 
     #[instrument(level = "trace", skip(self, cancellation_token), err, ret)]
