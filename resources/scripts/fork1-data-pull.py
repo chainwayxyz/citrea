@@ -49,7 +49,7 @@ for i in range(start, 0, -1):
 
         print("Sequencer commitment start:\t", sequencer_commitment['l2StartBlockNumber'], "\tend:\t", sequencer_commitment['l2EndBlockNumber'])
 
-        fork1_genesis_state_root_height = sequencer_commitment['l2StartBlockNumber'] - 1
+        fork1_genesis_state_root_height = int(sequencer_commitment['l2StartBlockNumber'], 16) - 1
 
         print("Genesis state root height:\t", fork1_genesis_state_root_height)
 
