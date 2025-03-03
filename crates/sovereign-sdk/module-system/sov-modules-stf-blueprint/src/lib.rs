@@ -599,10 +599,10 @@ where
                     "Soft confirmation heights not sequential"
                 );
 
-                if fork_manager.active_fork().spec_id < SpecId::Fork2 {
-                    if l2_block.da_slot_hash() != da_block_headers[index_headers].hash().into() {
-                        index_headers += 1;
-                    }
+                if fork_manager.active_fork().spec_id < SpecId::Fork2
+                    && l2_block.da_slot_hash() != da_block_headers[index_headers].hash().into()
+                {
+                    index_headers += 1;
                 }
 
                 let sequencer_pub_key = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {

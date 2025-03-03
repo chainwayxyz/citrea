@@ -11,7 +11,6 @@ repository.workspace = true
 [dependencies]
 # Citrea Deps
 citrea-common = { path = "../common" }
-citrea-evm = { path = "../evm" }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf" }
 citrea-storage-ops = { path = "../storage-ops" }
@@ -27,7 +26,6 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 # 3rd-party deps
 alloy-primitives = { workspace = true }
-alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
 backoff = { workspace = true }
 bincode = { workspace = true }
@@ -37,7 +35,6 @@ jsonrpsee = { workspace = true }
 metrics = { workspace = true }
 metrics-derive = { workspace = true }
 once_cell = { workspace = true, default-features = true }
-reth-primitives = { workspace = true }
 rs_merkle = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
