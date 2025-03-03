@@ -11,7 +11,6 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::{compute_tx_hashes, decode_sov_tx_and_update_short_header_proofs};
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
-use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -23,7 +22,6 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SpecId};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -117,38 +115,11 @@ where
 
         let l2_height = soft_confirmation.l2_height;
 
-        let spec = fork_from_block_number(soft_confirmation.l2_height).spec_id;
-        let current_l1_block = if spec < SpecId::Fork2 {
-            let current_l1_block = get_da_block_at_height(
-                &self.da_service,
-                soft_confirmation.da_slot_height, // THIS IS 0 AFTER FORK2
-                self.l1_block_cache.clone(),
-            )
-            .await?;
-
-            info!(
-                "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
-                l2_height,
-                hex::encode(soft_confirmation.hash),
-                current_l1_block.header().height()
-            );
-            Some(current_l1_block)
-        } else {
-            // Since Post fork2 we do not have the slot hash in soft confirmations we inspect the txs and get the slot hashes from set block infos
-            // Then store the short header proofs of those blocks in the ledger db
-            decode_sov_tx_and_update_short_header_proofs(
-                soft_confirmation,
-                &self.ledger_db,
-                self.da_service.clone(),
-            )
-            .await?;
-            info!(
-                "Running soft confirmation batch #{} with hash: 0x{}",
-                l2_height,
-                hex::encode(soft_confirmation.hash)
-            );
-            None
-        };
+        info!(
+            "Running soft confirmation batch #{} with hash: 0x{}",
+            l2_height,
+            hex::encode(soft_confirmation.hash)
+        );
 
         if self.soft_confirmation_hash != soft_confirmation.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
@@ -182,6 +153,14 @@ where
         };
 
         let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
+            // Since Post fork2 we do not have the slot hash in soft confirmations we inspect the txs and get the slot hashes from set block infos
+            // Then store the short header proofs of those blocks in the ledger db
+            decode_sov_tx_and_update_short_header_proofs(
+                soft_confirmation,
+                &self.ledger_db,
+                self.da_service.clone(),
+            )
+            .await?;
             self.stf.apply_soft_confirmation(
                 current_spec,
                 sequencer_pub_key,
@@ -194,6 +173,12 @@ where
                 &l2_block,
             )?
         } else {
+            let current_l1_block = get_da_block_at_height(
+                &self.da_service,
+                soft_confirmation.da_slot_height, // THIS IS 0 AFTER FORK2
+                self.l1_block_cache.clone(),
+            )
+            .await?;
             self.stf.apply_soft_confirmation_pre_fork2(
                 current_spec,
                 sequencer_pub_key,
@@ -203,9 +188,7 @@ where
                 None,
                 Default::default(),
                 Default::default(),
-                current_l1_block
-                    .expect("Pre fork2 soft confirmation must have l1 data")
-                    .header(),
+                current_l1_block.header(),
                 &l2_block,
             )?
         };
