@@ -279,13 +279,16 @@ where
         let prover_service = self.prover_service.as_ref();
         let txs_and_proofs = prover_service.recover_and_submit_proving_sessions().await?;
 
-        extract_and_store_proof::<DB, Da, Vm>(
-            self.ledger_db.clone(),
-            txs_and_proofs,
-            self.code_commitments_by_spec.clone(),
-            0, // TODO: since we don't support session recovery any more put in 0 to make it work
-        )
-        .await?;
+        for (tx_id, proof) in txs_and_proofs {
+            extract_and_store_proof::<_, Da, Vm>(
+                &self.ledger_db,
+                tx_id,
+                proof,
+                &self.code_commitments_by_spec,
+                0, // TODO: since we don't support session recovery any more put in 0 to make it work
+            )
+            .await?;
+        }
 
         Ok(())
     }
