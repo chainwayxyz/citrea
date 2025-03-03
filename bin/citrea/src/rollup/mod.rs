@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use citrea_batch_prover::da_block_handler::L1BlockHandler as BatchProverL1BlockHandler;
 use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::backup::BackupManager;
+use citrea_common::l2::L2SyncWorker;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, SequencerConfig,
@@ -196,7 +197,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         soft_confirmation_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        CitreaFullnode<Self::DaService, LedgerDB>,
+        CitreaFullnode<LedgerDB>,
+        L2SyncWorker<Self::DaService, LedgerDB>,
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
     )> {

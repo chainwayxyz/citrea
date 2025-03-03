@@ -7,6 +7,7 @@ pub mod config;
 pub mod da;
 pub mod db_migrations;
 pub mod error;
+pub mod l2;
 pub mod rpc;
 pub mod tasks;
 pub mod utils;

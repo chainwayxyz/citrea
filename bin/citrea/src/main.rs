@@ -344,7 +344,7 @@ where
             });
         }
         _ => {
-            let (mut full_node, l1_block_handler, pruner_service) =
+            let (full_node, mut l2_sync_worker, l1_block_handler, pruner_service) =
                 CitreaRollupBlueprint::create_full_node(
                     &rollup_blueprint,
                     genesis_config,
@@ -384,6 +384,11 @@ where
                         .await
                 });
             }
+
+            // Spawn pruner if configs are set
+            task_manager.spawn(|cancellation_token| async move {
+                l2_sync_worker.run(cancellation_token).await
+            });
 
             task_manager.spawn(|cancellation_token| async move {
                 if let Err(e) = full_node.run(cancellation_token).await {
