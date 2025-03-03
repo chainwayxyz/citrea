@@ -249,7 +249,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        CitreaBatchProver<Self::DaService, LedgerDB>,
+        CitreaBatchProver<LedgerDB>,
+        L2SyncWorker<Self::DaService, LedgerDB>,
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
     )> {

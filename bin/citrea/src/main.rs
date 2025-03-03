@@ -262,7 +262,7 @@ where
             });
         }
         NodeType::BatchProver(batch_prover_config) => {
-            let (mut prover, l1_block_handler, rpc_module) =
+            let (prover, mut l2_sync_worker, l1_block_handler, rpc_module) =
                 CitreaRollupBlueprint::create_batch_prover(
                     &rollup_blueprint,
                     batch_prover_config,
@@ -294,6 +294,10 @@ where
                 l1_block_handler
                     .run(start_l1_height, cancellation_token)
                     .await
+            });
+
+            task_manager.spawn(|cancellation_token| async move {
+                l2_sync_worker.run(cancellation_token).await
             });
 
             task_manager.spawn(|cancellation_token| async move {
