@@ -29,7 +29,9 @@ use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_state::Witness;
 use tokio::sync::Mutex;
+use tracing::level_filters::LevelFilter;
 use tracing::{debug, info};
+use tracing_subscriber::layer::SubscriberExt;
 
 use crate::da_block_handler::break_sequencer_commitments_into_groups;
 use crate::errors::L1ProcessingError;
@@ -492,34 +494,38 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                 sequencer_pub_key
             };
 
-            let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
-                stf.apply_soft_confirmation(
-                    current_spec,
-                    sequencer_public_key,
-                    &init_state_root,
-                    pre_state,
-                    cumulative_state_log.take(),
-                    cumulative_offchain_log.take(),
-                    Default::default(),
-                    Default::default(),
-                    l2_block,
-                )?
-            } else {
-                stf.apply_soft_confirmation_pre_fork2(
-                    current_spec,
-                    sequencer_public_key,
-                    &init_state_root,
-                    pre_state,
-                    cumulative_state_log.take(),
-                    cumulative_offchain_log.take(),
-                    Default::default(),
-                    Default::default(),
-                    l1_block
-                        .expect("Pre fork2 l2 block should have l1 data")
-                        .header(),
-                    l2_block,
-                )?
-            };
+            let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
+            let soft_confirmation_result =
+                tracing::subscriber::with_default(silent_subscriber, || {
+                    if current_spec >= SpecId::Fork2 {
+                        stf.apply_soft_confirmation(
+                            current_spec,
+                            sequencer_public_key,
+                            &init_state_root,
+                            pre_state,
+                            cumulative_state_log.take(),
+                            cumulative_offchain_log.take(),
+                            Default::default(),
+                            Default::default(),
+                            l2_block,
+                        )?
+                    } else {
+                        stf.apply_soft_confirmation_pre_fork2(
+                            current_spec,
+                            sequencer_public_key,
+                            &init_state_root,
+                            pre_state,
+                            cumulative_state_log.take(),
+                            cumulative_offchain_log.take(),
+                            Default::default(),
+                            Default::default(),
+                            l1_block
+                                .expect("Pre fork2 l2 block should have l1 data")
+                                .header(),
+                            l2_block,
+                        )?
+                    }
+                })?;
 
             assert_eq!(
                 l2_block.state_root(),

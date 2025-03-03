@@ -1868,23 +1868,20 @@ dependencies = [
  "reth-primitives",
  "rs_merkle",
  "serde",
- "sha2",
  "short-header-proof-provider",
  "sov-db",
  "sov-ledger-rpc",
- "sov-mock-da",
- "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-core",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
- "tempfile",
  "tokio",
  "tokio-util",
  "tower 0.4.13",
  "tracing",
+ "tracing-subscriber 0.3.19",
 ]
 
 [[package]]
@@ -5314,9 +5311,14 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "borsh",
  "futures",
  "rand",
+ "sov-mock-da",
+ "sov-mock-zkvm",
  "sov-rollup-interface",
+ "sov-state",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -8043,9 +8045,7 @@ dependencies = [
 name = "sov-modules-macros"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "borsh",
- "clap",
  "jsonrpsee",
  "proc-macro2",
  "quote",
@@ -8053,7 +8053,6 @@ dependencies = [
  "serde_json",
  "sov-modules-api",
  "sov-modules-core",
- "sov-rollup-interface",
  "sov-state",
  "syn 1.0.109",
  "trybuild",

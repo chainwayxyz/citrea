@@ -51,13 +51,4 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 tower = { workspace = true }
 tracing = { workspace = true }
-
-[dev-dependencies]
-sha2 = { workspace = true }
-tempfile = { workspace = true }
-
-citrea-primitives = { path = "../primitives", features = ["testing"] }
-prover-services = { path = "../prover-services" }
-sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
-sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
+tracing-subscriber = { workspace = true }
