@@ -98,7 +98,7 @@ There is three different ways to run a Citra full node: using a [pre-built binar
 
 Before continueuing we suggest creating a `citrea/` directory and executing these commands in that directory.
 
-#### Step 1.1: Download neccessary files
+#### Step 1.1: Download necessary files
 
 Go to this [webpage](https://github.com/chainwayxyz/citrea/releases) and download latest binary for your operating system under "Assets" section.
 
