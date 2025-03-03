@@ -117,7 +117,7 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-RISC0_DEV_MODE=1 ./citrea-v0.6.6-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+RISC0_DEV_MODE=1 ./citrea-v0.6.7-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
