@@ -12,7 +12,6 @@ use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
-use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
@@ -95,7 +94,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
         ))
         .await?;
 
-        let mut next_da_block = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
+        let init_da_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
 
         // Create initial DA blocks
         da.generate(3).await?;
@@ -120,6 +119,22 @@ impl TestCase for SequencerMissedDaBlocksTest {
             .ledger_get_head_soft_confirmation_height()
             .await?;
 
+        for l1_height in init_da_height..init_da_height + 103 {
+            let res: String = seq_test_client
+                .contract_call(
+                    BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                    BitcoinLightClient::get_block_hash(l1_height).to_vec(),
+                    None,
+                )
+                .await
+                .unwrap();
+            let l1_block_hash = da.get_block_hash(l1_height).await?;
+            assert_eq!(
+                l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
+                hex::decode(&res[2..]).unwrap()
+            );
+        }
+
         // check that the sequencer has at least one block for each 10 DA blocks
         // starting from l2 #2 all the way up to l2 #12 without no gaps
         // Blocks should have 10 txs which are all set block infos
@@ -130,71 +145,11 @@ impl TestCase for SequencerMissedDaBlocksTest {
 
             if i == 1 {
                 assert_eq!(block.transactions.len(), 3);
-                let res: String = seq_test_client
-                    .contract_call(
-                        BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                        BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
-                        None,
-                    )
-                    .await
-                    .unwrap();
-                let l1_block_hash = da.get_block_hash(next_da_block).await?;
-                assert_eq!(
-                    l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                    hex::decode(&res[2..]).unwrap()
-                );
-                next_da_block += 1;
             } else if i == 12 {
-                for _ in 0..2 {
-                    let res: String = seq_test_client
-                        .contract_call(
-                            BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                            BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
-                            None,
-                        )
-                        .await
-                        .unwrap();
-                    let l1_block_hash = da.get_block_hash(next_da_block).await?;
-                    assert_eq!(
-                        l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                        hex::decode(&res[2..]).unwrap()
-                    );
-                    next_da_block += 1;
-                }
                 assert_eq!(block.transactions.len(), 2);
             } else if i == 13 {
                 assert_eq!(block.transactions.len(), 1);
-                let res: String = seq_test_client
-                    .contract_call(
-                        BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                        BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
-                        None,
-                    )
-                    .await
-                    .unwrap();
-                let l1_block_hash = da.get_block_hash(next_da_block).await?;
-                assert_eq!(
-                    l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                    hex::decode(&res[2..]).unwrap()
-                );
-                next_da_block += 1;
             } else {
-                for _ in 0..MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK {
-                    let res: String = seq_test_client
-                        .contract_call(
-                            BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                            BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
-                            None,
-                        )
-                        .await
-                        .unwrap();
-                    let l1_block_hash = da.get_block_hash(next_da_block).await?;
-                    assert_eq!(
-                        l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                        hex::decode(&res[2..]).unwrap()
-                    );
-                    next_da_block += 1;
-                }
                 assert_eq!(block.transactions.len(), 10);
             }
         }
