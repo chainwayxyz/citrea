@@ -284,7 +284,10 @@ where
                 None,
             );
 
-            let l1_start_height = rollup_config.runner.unwrap().l1_start_height.unwrap();
+            let l1_start_height = rollup_config
+                .runner
+                .ok_or(anyhow!("Failed to start batch prover L1 block handler due to runner config not present"))?
+                .scan_l1_start_height;
 
             task_manager.spawn(|cancellation_token| async move {
                 l1_block_handler
@@ -360,9 +363,14 @@ where
                 rpc_module,
                 None,
             );
-            let l1_start_height = rollup_config.runner.unwrap().l1_start_height.expect(
-                "Failed to start fullnode L1 block handler due to start l1 height not present",
-            );
+
+            let l1_start_height = rollup_config
+                .runner
+                .ok_or(anyhow!(
+                    "Failed to start fullnode L1 block handler due to runner config not present"
+                ))?
+                .scan_l1_start_height;
+
             task_manager.spawn(|cancellation_token| async move {
                 l1_block_handler
                     .run(l1_start_height, cancellation_token)
