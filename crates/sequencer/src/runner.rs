@@ -859,8 +859,6 @@ where
         //     }
         // };
 
-        error!("Sequencer: Last used L1 height: {:?}", last_used_l1_height);
-
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
         let (da_commitment_tx, da_commitment_rx) = unbounded_channel::<(u64, StateDiff)>();
