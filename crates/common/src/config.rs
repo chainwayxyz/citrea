@@ -523,7 +523,7 @@ mod tests {
             [runner]
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
-            l1_start_height = 1
+            scan_l1_start_height = 1
 
             [telemetry]
             bind_host = "0.0.0.0"
