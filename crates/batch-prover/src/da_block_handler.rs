@@ -141,13 +141,20 @@ where
                 .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
             let l1_height = l1_block.header().height();
+            let l1_block_hash = l1_block.header().hash().into();
+            let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+                Da::block_to_short_header_proof(l1_block);
+            self.ledger_db
+                .put_short_header_proof_by_l1_hash(
+                    &l1_block_hash,
+                    borsh::to_vec(&short_header_proof)
+                        .expect("Should serialize short header proof"),
+                )
+                .expect("Should save short header proof to ledger db");
 
             // Set the l1 height of the l1 hash
             self.ledger_db
-                .set_l1_height_of_l1_hash(
-                    l1_block.header().hash().into(),
-                    l1_block.header().height(),
-                )
+                .set_l1_height_of_l1_hash(l1_block_hash, l1_height)
                 .unwrap();
 
             if l1_height < self.skip_submission_until_l1 {

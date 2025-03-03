@@ -113,6 +113,15 @@ where
             return;
         };
 
+        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+            Da::block_to_short_header_proof(l1_block);
+        self.ledger_db
+            .put_short_header_proof_by_l1_hash(
+                &l1_block.header().hash().into(),
+                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            )
+            .expect("Should save short header proof to ledger db");
+
         let l1_height = l1_block.header().height();
         info!("Processing L1 block at height: {}", l1_height);
 
