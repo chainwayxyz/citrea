@@ -30,6 +30,6 @@ pub struct BatchProofCircuitOutputV3 {
     pub last_l2_height: u64,
     /// Hashes inside sequencer commitmentes that were processed.
     pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
-    /// L1 hashes added to the Bitocin light client contract
+    /// L1 hashes added to the Bitcoin light client contract
     pub last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 }
