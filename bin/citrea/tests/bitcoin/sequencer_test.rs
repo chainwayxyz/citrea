@@ -2,12 +2,19 @@ use std::net::SocketAddr;
 
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin::hashes::Hash;
+use bitcoin_da::service::FINALITY_DEPTH;
+use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::SequencerConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
+use citrea_evm::system_contracts::BitcoinLightClient;
+use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
+use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_rollup_interface::services::da::DaService;
 
 use super::get_citrea_path;
 use crate::common::make_test_client;
@@ -89,6 +96,8 @@ impl TestCase for SequencerMissedDaBlocksTest {
         ))
         .await?;
 
+        let mut next_da_block = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
+
         // Create initial DA blocks
         da.generate(3).await?;
 
@@ -122,11 +131,71 @@ impl TestCase for SequencerMissedDaBlocksTest {
 
             if i == 1 {
                 assert_eq!(block.transactions.len(), 3);
+                let res: String = seq_test_client
+                    .contract_call(
+                        BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                        BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                let l1_block_hash = da.get_block_hash(next_da_block).await?;
+                assert_eq!(
+                    l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
+                    hex::decode(res[2..].to_string()).unwrap()
+                );
+                next_da_block += 1;
             } else if i == 12 {
+                for _ in 0..2 {
+                    let res: String = seq_test_client
+                        .contract_call(
+                            BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                            BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
+                            None,
+                        )
+                        .await
+                        .unwrap();
+                    let l1_block_hash = da.get_block_hash(next_da_block).await?;
+                    assert_eq!(
+                        l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
+                        hex::decode(res[2..].to_string()).unwrap()
+                    );
+                    next_da_block += 1;
+                }
                 assert_eq!(block.transactions.len(), 2);
             } else if i == 13 {
                 assert_eq!(block.transactions.len(), 1);
+                let res: String = seq_test_client
+                    .contract_call(
+                        BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                        BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                let l1_block_hash = da.get_block_hash(next_da_block).await?;
+                assert_eq!(
+                    l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
+                    hex::decode(res[2..].to_string()).unwrap()
+                );
+                next_da_block += 1;
             } else {
+                for _ in 0..MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK {
+                    let res: String = seq_test_client
+                        .contract_call(
+                            BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                            BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
+                            None,
+                        )
+                        .await
+                        .unwrap();
+                    let l1_block_hash = da.get_block_hash(next_da_block).await?;
+                    assert_eq!(
+                        l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
+                        hex::decode(res[2..].to_string()).unwrap()
+                    );
+                    next_da_block += 1;
+                }
                 assert_eq!(block.transactions.len(), 10);
             }
         }
