@@ -122,7 +122,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
                     .unwrap();
                 assert_eq!(
                     block.header.hash.0.to_vec(),
-                    hex::decode(res[2..].to_string()).unwrap()
+                    hex::decode(&res[2..]).unwrap()
                 );
                 next_da_block += 1;
             }
@@ -143,7 +143,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
                     .unwrap();
                 assert_eq!(
                     block.header.hash.0.to_vec(),
-                    hex::decode(res[2..].to_string()).unwrap()
+                    hex::decode(&res[2..]).unwrap()
                 );
                 next_da_block += 1;
             }

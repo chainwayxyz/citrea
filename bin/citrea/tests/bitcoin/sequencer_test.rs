@@ -14,7 +14,6 @@ use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::services::da::DaService;
 
 use super::get_citrea_path;
 use crate::common::make_test_client;
@@ -142,7 +141,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
                 let l1_block_hash = da.get_block_hash(next_da_block).await?;
                 assert_eq!(
                     l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                    hex::decode(res[2..].to_string()).unwrap()
+                    hex::decode(&res[2..]).unwrap()
                 );
                 next_da_block += 1;
             } else if i == 12 {
@@ -158,7 +157,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
                     let l1_block_hash = da.get_block_hash(next_da_block).await?;
                     assert_eq!(
                         l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                        hex::decode(res[2..].to_string()).unwrap()
+                        hex::decode(&res[2..]).unwrap()
                     );
                     next_da_block += 1;
                 }
@@ -176,7 +175,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
                 let l1_block_hash = da.get_block_hash(next_da_block).await?;
                 assert_eq!(
                     l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                    hex::decode(res[2..].to_string()).unwrap()
+                    hex::decode(&res[2..]).unwrap()
                 );
                 next_da_block += 1;
             } else {
@@ -192,7 +191,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
                     let l1_block_hash = da.get_block_hash(next_da_block).await?;
                     assert_eq!(
                         l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
-                        hex::decode(res[2..].to_string()).unwrap()
+                        hex::decode(&res[2..]).unwrap()
                     );
                     next_da_block += 1;
                 }
