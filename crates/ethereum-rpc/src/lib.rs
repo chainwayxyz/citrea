@@ -579,6 +579,7 @@ where
         tx_hash: B256,
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<GethTrace> {
+        tracing::warn!("debug_traceTransaction");
         let evm = Evm::<C>::default();
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
 

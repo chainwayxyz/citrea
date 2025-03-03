@@ -10,7 +10,10 @@ use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
 use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
-use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
+use revm_inspectors::tracing::js::JsInspector;
+use revm_inspectors::tracing::{
+    FourByteInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
+};
 
 use crate::db::DBError;
 use crate::evm::db::EvmDb;
@@ -89,7 +92,25 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     Err(EthApiError::Unsupported("FlatCallTracer"))
                 }
             },
-            GethDebugTracerType::JsTracer(_code) => {
+            GethDebugTracerType::JsTracer(code) => {
+                let config = tracer_config.into_json();
+                let transaction_context = TransactionContext {
+                    block_hash: None,
+                    tx_hash: Some(tx_hash),
+                    tx_index: None,
+                };
+                let inspector =
+                    JsInspector::with_transaction_context(code, config, transaction_context)
+                        .unwrap();
+                let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
+                inspect_citrea(
+                    db,
+                    config_env,
+                    block_env,
+                    tx_env,
+                    tx_hash,
+                    &mut citrea_inspector,
+                )?;
                 // This also requires DatabaseRef trait
                 // Implement after readonly state is implemented
                 Err(EthApiError::Unsupported("JsTracer"))

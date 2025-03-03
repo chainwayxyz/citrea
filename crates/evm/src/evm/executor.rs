@@ -192,8 +192,11 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
 
         let citrea_spec = fork_from_block_number(l2_height).spec_id;
 
-        let (last_l1_height, prev_hash) =
-            get_last_l1_height_and_hash_in_light_client::<C>(db.evm, citrea_spec, db.working_set);
+        let (last_l1_height, prev_hash) = get_last_l1_height_and_hash_in_light_client::<C>(
+            db.evm,
+            citrea_spec,
+            *db.working_set.borrow_mut(),
+        );
 
         // counter intuitively the contract stores next block height (expected on setBlockInfo)
         let next_l1_height: u64 = last_l1_height.to::<u64>();

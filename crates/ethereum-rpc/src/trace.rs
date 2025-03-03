@@ -122,6 +122,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
     // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
     if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
+        tracing::warn!("Tracer not specified, skipping cache");
         let traces = evm.trace_block_transactions_by_number(
             block_number,
             opts,
@@ -145,12 +146,15 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             Some(idx) => vec![traces[idx].clone()],
             None => traces.to_vec(),
         };
+        tracing::warn!("Reading traces from cache");
         let traces =
             get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
         return Ok(traces);
     }
 
     let cache_options = create_trace_cache_opts();
+    tracing::warn!("Creating new traces");
+
     let traces = evm.trace_block_transactions_by_number(
         block_number,
         Some(cache_options),
@@ -158,6 +162,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         working_set,
         fork_from_block_number,
     )?;
+    tracing::warn!("Finished creating new traces");
     ethereum
         .trace_cache
         .lock()
@@ -169,7 +174,9 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         Some(idx) => vec![traces[idx].clone()],
         None => traces,
     };
+    tracing::warn!("Converting traces to requested format: {traces:?}");
     let traces = get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
+    tracing::warn!("Finished conversion");
 
     Ok(traces)
 }

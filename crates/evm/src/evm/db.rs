@@ -1,9 +1,10 @@
+use std::cell::RefCell;
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
 use alloy_primitives::{keccak256, Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, SpecId as EvmSpecId, U256};
-use revm::Database;
+use revm::{Database, DatabaseRef};
 use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, WorkingSet};
 
 #[cfg(feature = "native")]
@@ -28,7 +29,7 @@ impl std::fmt::Display for DBError {
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) evm: &'a Evm<C>,
-    pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
+    pub(crate) working_set: RefCell<&'a mut WorkingSet<C::Storage>>,
     pub(crate) citrea_spec: CitreaSpecId,
     pub(crate) evm_spec: EvmSpecId,
 }
@@ -41,7 +42,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     ) -> Self {
         Self {
             evm,
-            working_set,
+            working_set: RefCell::new(working_set),
             citrea_spec,
             evm_spec: citrea_spec_id_to_evm_spec_id(citrea_spec),
         }
@@ -49,15 +50,21 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
 
     #[cfg(feature = "native")]
     pub(crate) fn override_block_hash(&mut self, number: u64, hash: B256) {
-        self.evm
-            .latest_block_hashes
-            .set(&U256::from(number), &hash, self.working_set);
+        self.evm.latest_block_hashes.set(
+            &U256::from(number),
+            &hash,
+            *self.working_set.borrow_mut(),
+        );
     }
 
     #[cfg(feature = "native")]
     pub(crate) fn override_account(&mut self, account: &Address, info: AccountInfo) {
-        self.evm
-            .account_set(account, &info, self.citrea_spec, self.working_set);
+        self.evm.account_set(
+            account,
+            &info,
+            self.citrea_spec,
+            *self.working_set.borrow_mut(),
+        );
     }
 
     #[cfg(feature = "native")]
@@ -72,23 +79,23 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
                 &slot.into(),
                 &U256::from_be_bytes(value.0),
                 self.citrea_spec,
-                self.working_set,
+                *self.working_set.borrow_mut(),
             );
         }
     }
 }
 
-impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
+impl<'a, C: sov_modules_api::Context> DatabaseRef for EvmDb<'a, C> {
     type Error = DBError;
 
-    fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
-        let db_account = self
-            .evm
-            .account_info(&address, self.citrea_spec, self.working_set);
+    fn basic_ref(&self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+        let db_account =
+            self.evm
+                .account_info(&address, self.citrea_spec, *self.working_set.borrow_mut());
         Ok(db_account.map(Into::into))
     }
 
-    fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+    fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         // TODO move to new_raw_with_hash for better performance
 
         // If CANCUN or later forks are activated, try to fetch code from offchain storage
@@ -108,19 +115,22 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
                         }
                     })
                 },
-                &mut self.working_set.offchain_state(),
+                &mut self.working_set.borrow_mut().offchain_state(),
             )? {
                 return Ok(code);
             }
         }
-        let code = self.evm.code.get(&code_hash, self.working_set);
+        let code = self
+            .evm
+            .code
+            .get(&code_hash, *self.working_set.borrow_mut());
         if let Some(code) = code {
             // Gradually migrate contract codes into the offchain code state map.
             if self.evm_spec.is_enabled_in(EvmSpecId::CANCUN) {
                 self.evm.offchain_code.set(
                     &code_hash,
                     &code,
-                    &mut self.working_set.offchain_state(),
+                    &mut self.working_set.borrow_mut().offchain_state(),
                 );
             }
             Ok(code)
@@ -129,26 +139,51 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         }
     }
 
-    fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
+    fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let storage_value = self
             .evm
-            .storage_get(&address, &index, self.citrea_spec, self.working_set)
+            .storage_get(
+                &address,
+                &index,
+                self.citrea_spec,
+                *self.working_set.borrow_mut(),
+            )
             .unwrap_or_default();
 
         Ok(storage_value)
     }
 
-    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+    fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
         // no need to check block number ranges
         // revm already checks it
 
         let block_hash = self
             .evm
             .latest_block_hashes
-            .get(&U256::from(number), self.working_set)
+            .get(&U256::from(number), *self.working_set.borrow_mut())
             .unwrap_or(B256::ZERO);
 
         Ok(block_hash)
+    }
+}
+
+impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
+    type Error = DBError;
+
+    fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+        self.basic_ref(address)
+    }
+
+    fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+        self.code_by_hash_ref(code_hash)
+    }
+
+    fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
+        self.storage_ref(address, index)
+    }
+
+    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+        self.block_hash_ref(number)
     }
 }
 
