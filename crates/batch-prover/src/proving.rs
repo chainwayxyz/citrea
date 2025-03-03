@@ -508,7 +508,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                             Default::default(),
                             Default::default(),
                             l2_block,
-                        )?
+                        )
                     } else {
                         stf.apply_soft_confirmation_pre_fork2(
                             current_spec,
@@ -523,7 +523,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                                 .expect("Pre fork2 l2 block should have l1 data")
                                 .header(),
                             l2_block,
-                        )?
+                        )
                     }
                 })?;
 
