@@ -1,6 +1,6 @@
 ## Soft Confirmation Rule Enforcer
 
-Implementation of Citrea's soft confirmaiton rules as a Sovereign SDK Module.
+Implementation of Citrea's soft confirmation rules as a Sovereign SDK Module.
 
 This module can be used in any [`State Transition Function`](../citrea-stf/README.md) to enforce two rules:
 
