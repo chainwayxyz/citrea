@@ -144,8 +144,7 @@ where
                     // However, when an L2 block fails to process for whatever reason, we want to block this process
                     // and make sure that we start processing L2 blocks in queue.
                     if pending_l2_blocks.is_empty() {
-
-                                for (index, l2_block) in l2_blocks.iter().enumerate() {
+                        for (index, l2_block) in l2_blocks.iter().enumerate() {
                             let _l2_lock = backup_manager.start_l2_processing().await;
                             if let Err(e) = self.process_l2_block(l2_block).await {
 
