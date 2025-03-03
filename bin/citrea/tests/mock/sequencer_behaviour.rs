@@ -8,10 +8,13 @@ use alloy::signers::Signer;
 use alloy_primitives::Address;
 use alloy_rlp::{BytesMut, Encodable};
 use citrea_common::{SequencerConfig, SequencerMempoolConfig};
+use citrea_evm::system_contracts::BitcoinLightClient;
+use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
 
 use super::evm::init_test_rollup;
@@ -98,6 +101,8 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     // wait for all corresponding da blocks to be filled by sequencer
     wait_for_l2_block(&seq_test_client, last_filler_l2_block, None).await;
 
+    let mut next_da_block = 2;
+
     // ensure that all the system transactions are set correctly
     for filler_l2_block in first_filler_l2_block..=last_filler_l2_block {
         let block = seq_test_client
@@ -105,11 +110,43 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
             .await;
 
         if filler_l2_block == last_filler_l2_block {
+            for _ in 0..(to_be_filled_da_block_count - 1) % MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK {
+                let block = da_service.get_block_at(next_da_block).await.unwrap();
+                let res: String = seq_test_client
+                    .contract_call(
+                        BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                        BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    block.header.hash.0.to_vec(),
+                    hex::decode(res[2..].to_string()).unwrap()
+                );
+                next_da_block += 1;
+            }
             assert_eq!(
                 block.transactions.len() as u64,
                 (to_be_filled_da_block_count - 1) % MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK
             );
         } else {
+            for _ in 0..MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK {
+                let block = da_service.get_block_at(next_da_block).await.unwrap();
+                let res: String = seq_test_client
+                    .contract_call(
+                        BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                        BitcoinLightClient::get_block_hash(next_da_block).to_vec(),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    block.header.hash.0.to_vec(),
+                    hex::decode(res[2..].to_string()).unwrap()
+                );
+                next_da_block += 1;
+            }
             assert_eq!(
                 block.transactions.len() as u64,
                 MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK
