@@ -343,7 +343,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 /// whole blocks on their own.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_gas_limit_too_high() {
-    citrea::initialize_logging(tracing::Level::INFO);
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir: tempfile::TempDir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();

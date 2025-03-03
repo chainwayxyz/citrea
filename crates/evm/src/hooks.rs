@@ -405,6 +405,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 }
 
+/// TODO: https://github.com/chainwayxyz/citrea/issues/2013
 /// Populates system events based on the current soft confirmation info.
 pub fn populate_system_events<'a>(
     deposit_data: &[Vec<u8>],
