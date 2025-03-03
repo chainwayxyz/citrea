@@ -182,10 +182,6 @@ where
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        verify_tx_merkle_root::<C>(current_spec, l2_block).map_err(|_| {
-            StateTransitionError::SoftConfirmationError(SoftConfirmationError::InvalidTxMerkleRoot)
-        })?;
-
         match current_spec {
             SpecId::Genesis => {
                 let blobs = l2_block.compute_blobs();
@@ -261,10 +257,7 @@ where
         })?;
 
         match current_spec {
-            SpecId::Genesis => {
-                panic!("This should not be called for pre fork2 blocks")
-            }
-            SpecId::Kumquat => {
+            SpecId::Genesis | SpecId::Kumquat => {
                 panic!("This should not be called for pre fork2 blocks")
             }
             _ => {
@@ -576,11 +569,6 @@ where
             let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
 
             let mut index_headers = 0;
-            let mut current_da_height = if da_block_headers.is_empty() {
-                0
-            } else {
-                da_block_headers[index_headers].height()
-            };
 
             for _ in 0..state_change_count {
                 let soft_confirmation_l2_height = guest.read_from_host::<u64>();
@@ -605,59 +593,17 @@ where
                     );
                 }
 
-                if fork_manager.active_fork().spec_id < SpecId::Fork2 {
-                    // the soft confirmations DA hash must equal to da hash in index_headers
-                    // if it's not matching, and if it's not matching the next one, then state transition is invalid.
-                    if l2_block.da_slot_hash() == da_block_headers[index_headers].hash().into() {
-                        assert_eq!(
-                            l2_block.da_slot_height(),
-                            da_block_headers[index_headers].height(),
-                            "Soft confirmation DA slot height must match DA block header height"
-                        );
-                    } else {
-                        // before going to the next DA block header, we must check if it's hash was supplied
-                        // correctly
-                        assert!(
-                            da_block_headers[index_headers].verify_hash(),
-                            "Invalid DA block header hash"
-                        );
-
-                        index_headers += 1;
-
-                        // this can also be done in soft confirmation rule enforcer?
-                        assert_eq!(
-                            da_block_headers[index_headers].height(),
-                            current_da_height + 1,
-                            "DA block headers must be in order"
-                        );
-
-                        assert_eq!(
-                            da_block_headers[index_headers - 1].hash(),
-                            da_block_headers[index_headers].prev_hash(),
-                            "DA block headers must be in order"
-                        );
-
-                        current_da_height += 1;
-
-                        // if the next one is not matching, then the state transition is invalid.
-                        assert_eq!(
-                            l2_block.da_slot_hash(),
-                            da_block_headers[index_headers].hash().into(),
-                            "Soft confirmation DA slot hash must match DA block header hash"
-                        );
-
-                        assert_eq!(
-                            l2_block.da_slot_height(),
-                            da_block_headers[index_headers].height(),
-                            "Soft confirmation DA slot height must match DA block header height"
-                        );
-                    }
-                }
                 assert_eq!(
                     l2_block.l2_height(),
                     l2_height,
                     "Soft confirmation heights not sequential"
                 );
+
+                if fork_manager.active_fork().spec_id < SpecId::Fork2 {
+                    if l2_block.da_slot_hash() != da_block_headers[index_headers].hash().into() {
+                        index_headers += 1;
+                    }
+                }
 
                 let sequencer_pub_key = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
                     sequencer_k256_public_key
@@ -723,18 +669,6 @@ where
 
                 cumulative_state_log = Some(state_log);
                 cumulative_offchain_log = Some(offchain_log);
-            }
-            if fork_manager.active_fork().spec_id < SpecId::Fork2 {
-                assert_eq!(
-                    index_headers,
-                    da_block_headers.len() - 1,
-                    "All DA headers must be checked"
-                );
-                // also it's hash wasn't verified
-                assert!(
-                    da_block_headers[index_headers].verify_hash(),
-                    "Invalid DA block header hash"
-                );
             }
 
             // now verify the claimed merkle root of soft confirmation hashes
