@@ -242,7 +242,7 @@ pub async fn start_rollup(
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
-        let (mut prover, l1_block_handler, rpc_module) =
+        let (prover, mut l2_sync_worker, l1_block_handler, rpc_module) =
             CitreaRollupBlueprint::create_batch_prover(
                 &mock_demo_rollup,
                 rollup_prover_config,
@@ -275,6 +275,14 @@ pub async fn start_rollup(
                 .run(start_l1_height, cancellation_token)
                 .instrument(handler_span.clone())
                 .await
+        });
+
+        let sync_worker_span = span.clone();
+        task_manager.spawn(|cancellation_token| async move {
+            l2_sync_worker
+                .run(cancellation_token)
+                .instrument(sync_worker_span)
+                .await;
         });
 
         task_manager.spawn(|cancellation_token| async move {
@@ -337,19 +345,20 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (mut rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
-            &mock_demo_rollup,
-            genesis_config,
-            rollup_config.clone(),
-            da_service,
-            ledger_db.clone(),
-            storage_manager,
-            soft_confirmation_channel.0,
-            backup_manager,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
+        let (rollup, mut l2_sync_worker, l1_block_handler, pruner) =
+            CitreaRollupBlueprint::create_full_node(
+                &mock_demo_rollup,
+                genesis_config,
+                rollup_config.clone(),
+                da_service,
+                ledger_db.clone(),
+                storage_manager,
+                soft_confirmation_channel.0,
+                backup_manager,
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
 
         start_rpc_server(
             rollup_config.rpc.clone(),
@@ -377,6 +386,14 @@ pub async fn start_rollup(
                     .await
             });
         }
+
+        let sync_worker_span = span.clone();
+        task_manager.spawn(|cancellation_token| async move {
+            l2_sync_worker
+                .run(cancellation_token)
+                .instrument(sync_worker_span)
+                .await;
+        });
 
         task_manager.spawn(|cancellation_token| async move {
             rollup
