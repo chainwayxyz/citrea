@@ -308,7 +308,7 @@ where
             .send(L2BlockSignal {
                 height: l2_height,
                 process_duration: duration,
-                state_diff: None,
+                state_diff: Some(soft_confirmation_result.state_diff),
             })
             .await
         {
