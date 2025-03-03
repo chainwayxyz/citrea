@@ -91,6 +91,7 @@ where
         soft_confirmation_tx,
         backup_manager.clone(),
         l2_signal_tx,
+        true,
     )?;
 
     let batch_prover = CitreaBatchProver::new(ledger_db.clone(), l2_signal_rx)?;

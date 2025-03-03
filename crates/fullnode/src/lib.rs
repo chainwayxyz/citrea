@@ -65,6 +65,7 @@ where
         PrunerService::new(pruner, last_pruned_block, soft_confirmation_tx.subscribe())
     });
 
+    let include_tx_bodies = runner_config.include_tx_body;
     let (l2_signal_tx, l2_signal_rx) = mpsc::channel(1);
     let l2_sync_worker = L2SyncWorker::new(
         runner_config,
@@ -78,6 +79,7 @@ where
         soft_confirmation_tx,
         backup_manager.clone(),
         l2_signal_tx,
+        include_tx_bodies,
     )?;
 
     let runner = CitreaFullnode::<DB>::new(ledger_db.clone(), l2_signal_rx)?;

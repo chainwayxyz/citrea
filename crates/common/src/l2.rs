@@ -89,6 +89,7 @@ where
         soft_confirmation_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
         l2_signal_tx: mpsc::Sender<L2BlockSignal>,
+        include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
         let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
@@ -106,7 +107,7 @@ where
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
-            include_tx_body: runner_config.include_tx_body,
+            include_tx_body,
             sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
