@@ -13,6 +13,7 @@ resolver = "2"
 [dependencies]
 # 3rd-party deps
 alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
@@ -23,6 +24,7 @@ hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lru = { workspace = true }
 metrics = { workspace = true }
+reth-primitives = { workspace = true }
 rocksdb = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
@@ -44,6 +46,7 @@ sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 # sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
 # Citrea
+citrea-evm = { path = "../evm" }
 citrea-primitives = { path = "../primitives/" }
 citrea-storage-ops = { path = "../storage-ops" }
 

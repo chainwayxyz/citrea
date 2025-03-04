@@ -443,6 +443,7 @@ pub fn create_default_rollup_config(
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 sync_blocks_count: 10,
                 pruning_config,
+                scan_l1_start_height: 1,
             }),
             NodeMode::SequencerNode => None,
         },

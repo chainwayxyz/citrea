@@ -1,4 +1,3 @@
-use core::panic;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -10,22 +9,21 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
-use citrea_common::utils::compute_tx_hashes;
+use citrea_common::utils::{compute_tx_hashes, decode_sov_tx_and_update_short_header_proofs};
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::SoftConfirmationNumber;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{DaSpec, L2Block, SlotData, SpecId};
+use sov_modules_api::{L2Block, SlotData, SpecId};
 use sov_modules_core::storage::NativeStorage;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -189,29 +187,10 @@ where
 
         let l2_height = soft_confirmation.l2_height;
 
-        // TODO: this is a problem after sequencer puts set block info system transactions in blocks
-        let current_l1_block = get_da_block_at_height(
-            &self.da_service,
-            soft_confirmation.da_slot_height,
-            self.l1_block_cache.clone(),
-        )
-        .await?;
-
-        // Save short header proof to ledger db for Native Short Header Proof Provider Service
-        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
-            Da::block_to_short_header_proof(current_l1_block.clone());
-        self.ledger_db
-            .put_short_header_proof_by_l1_hash(
-                &current_l1_block.hash(),
-                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
-            )
-            .expect("Should save short header proof to ledger db");
-
         info!(
-            "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
+            "Running L2 block #{} with hash: 0x{}",
             l2_height,
-            hex::encode(soft_confirmation.hash),
-            current_l1_block.header().height()
+            hex::encode(soft_confirmation.hash)
         );
 
         if self.soft_confirmation_hash != soft_confirmation.prev_hash {
@@ -246,18 +225,47 @@ where
             self.sequencer_pub_key.as_slice()
         };
 
-        let soft_confirmation_result = self.stf.apply_soft_confirmation(
-            current_spec,
-            sequencer_pub_key,
-            &self.state_root,
-            pre_state,
-            None,
-            None,
-            Default::default(),
-            Default::default(),
-            current_l1_block.header(),
-            &l2_block,
-        )?;
+        let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
+            // After Post fork2 we do not have the slot hash in soft confirmations
+            // we inspect the txs and get the slot hashes from set block info sys txs
+            // Then store the short header proofs of those blocks in the ledger db
+            decode_sov_tx_and_update_short_header_proofs(
+                soft_confirmation,
+                &self.ledger_db,
+                Arc::clone(&self.da_service),
+            )
+            .await?;
+            self.stf.apply_soft_confirmation(
+                current_spec,
+                sequencer_pub_key,
+                &self.state_root,
+                pre_state,
+                None,
+                None,
+                Default::default(),
+                Default::default(),
+                &l2_block,
+            )?
+        } else {
+            let current_l1_block = get_da_block_at_height(
+                &self.da_service,
+                soft_confirmation.da_slot_height,
+                self.l1_block_cache.clone(),
+            )
+            .await?;
+            self.stf.apply_soft_confirmation_pre_fork2(
+                current_spec,
+                sequencer_pub_key,
+                &self.state_root,
+                pre_state,
+                None,
+                None,
+                Default::default(),
+                Default::default(),
+                current_l1_block.header(),
+                &l2_block,
+            )?
+        };
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation
@@ -279,10 +287,11 @@ where
         self.ledger_db
             .commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
 
-        self.ledger_db.extend_l2_range_of_l1_slot(
-            SlotNumber(current_l1_block.header().height()),
-            SoftConfirmationNumber(l2_height),
-        )?;
+        // TODO: https://github.com/chainwayxyz/citrea/issues/1992
+        // self.ledger_db.extend_l2_range_of_l1_slot(
+        //     SlotNumber(current_l1_block.header().height()),
+        //     SoftConfirmationNumber(l2_height),
+        // )?;
 
         // Only errors when there are no receivers
         let _ = self.soft_confirmation_tx.send(l2_height);

@@ -56,7 +56,7 @@ impl DaSpec for MockDaSpec {
     type ShortHeaderProof = MockShortHeaderProof;
 }
 
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug)]
 /// Short form header proof for mock da
 pub struct MockShortHeaderProof {
     /// Header hash

@@ -291,7 +291,7 @@ where
 
     async fn get_mined_commitments_from(
         &self,
-        da_height: SlotNumber,
+        _da_height: SlotNumber,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let head_da_height = self
             .da_service
@@ -300,7 +300,9 @@ where
             .map_err(|e| anyhow!(e))?
             .height();
         let mut mined_commitments = vec![];
-        for height in da_height.0..=head_da_height {
+        // TODO: UPDATE RESUBMISSION LOGIC BECAUSE AFTER FORK2 DA HEIGHT OF SC IS 0
+        // TODO: https://github.com/chainwayxyz/citrea/issues/1998
+        for height in 1..=head_da_height {
             let block = self
                 .da_service
                 .get_block_at(height)
