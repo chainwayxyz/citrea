@@ -39,7 +39,6 @@ multiple-versions = "allow"
 # using OpenSSL. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/352>.
 deny = [{ name = "native-tls" }, { name = "openssl" }]
 
-
 [advisories]
 ignore = [
   "RUSTSEC-2024-0388", # Unmaintained derivative crate
