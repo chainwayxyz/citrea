@@ -123,7 +123,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
     if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
         tracing::warn!("Tracer not specified, skipping cache");
-        let traces = evm.trace_block_transactions_by_number(
+        let mut traces = evm.trace_block_transactions_by_number(
             block_number,
             opts,
             trace_idx,
@@ -131,7 +131,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             fork_from_block_number,
         )?;
         return match trace_idx {
-            Some(idx) => Ok(vec![traces[idx].clone()]),
+            Some(idx) => Ok(vec![traces.remove(idx)]),
             None => Ok(traces),
         };
     }
@@ -139,6 +139,9 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     let requested_opts = opts.unwrap();
     let tracer_type = requested_opts.tracer.unwrap();
     let tracer_config = requested_opts.tracer_config;
+
+    // // If JsTracer specified, we can not benefit from the cache
+    // if matches!(tracer_type, GethDebugTracerType::JsTracer(_)) {}
 
     if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
         // If traces are found in cache convert them to specified opts and then return
@@ -155,7 +158,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     let cache_options = create_trace_cache_opts();
     tracing::warn!("Creating new traces");
 
-    let traces = evm.trace_block_transactions_by_number(
+    let mut traces = evm.trace_block_transactions_by_number(
         block_number,
         Some(cache_options),
         None,
@@ -171,7 +174,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
 
     // Convert the traces to the requested tracer and config
     let traces = match trace_idx {
-        Some(idx) => vec![traces[idx].clone()],
+        Some(idx) => vec![traces.remove(idx)],
         None => traces,
     };
     tracing::warn!("Converting traces to requested format: {traces:?}");
