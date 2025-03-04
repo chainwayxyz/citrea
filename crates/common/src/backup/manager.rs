@@ -481,7 +481,6 @@ impl BackupManager {
         Ok(())
     }
 
-    /// Updates the metadata file after purging backups
     async fn update_metadata_after_purge<P: AsRef<Path>>(
         backup_path: P,
         backup_id: u32,
