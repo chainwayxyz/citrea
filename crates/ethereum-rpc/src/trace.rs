@@ -125,7 +125,6 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         matches!(o.tracer, None | Some(GethDebugTracerType::JsTracer(_)))
     });
     if skip_cache {
-        tracing::warn!("Skipping cache and getting traces");
         let mut traces = evm.trace_block_transactions_by_number(
             block_number,
             opts,
@@ -152,14 +151,12 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             Some(idx) => vec![traces[idx].clone()],
             None => traces.to_vec(),
         };
-        tracing::warn!("Reading traces from cache");
         let traces =
             get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
         return Ok(traces);
     }
 
     let cache_options = create_trace_cache_opts();
-    tracing::warn!("Creating new traces");
 
     let mut traces = evm.trace_block_transactions_by_number(
         block_number,
@@ -168,7 +165,6 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         working_set,
         fork_from_block_number,
     )?;
-    tracing::warn!("Finished creating new traces");
     ethereum
         .trace_cache
         .lock()
@@ -180,9 +176,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         Some(idx) => vec![traces.remove(idx)],
         None => traces,
     };
-    tracing::warn!("Converting traces to requested format");
     let traces = get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
-    tracing::warn!("Finished conversion");
 
     Ok(traces)
 }
