@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -74,7 +74,7 @@ pub struct CreateBackupInfo {
 struct BackupMetadata {
     version: u32,
     node_kind: String,
-    backups: HashMap<u32, u64>, // backup_id -> block_height
+    backups: BTreeMap<u32, u64>, // backup_id -> block_height
 }
 
 impl BackupManager {
@@ -240,7 +240,7 @@ impl BackupManager {
         } else {
             BackupMetadata {
                 node_kind: self.node_kind.to_string(),
-                backups: HashMap::new(),
+                backups: BTreeMap::new(),
                 version: 0,
             }
         };
