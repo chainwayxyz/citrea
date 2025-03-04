@@ -308,6 +308,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rocksdb_config: &RocksdbConfig,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
+        storage_manager: ProverStorageManager,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
@@ -345,6 +346,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             prover_config,
             runner_config,
             rocksdb_config,
+            storage_manager,
             ledger_db,
             da_service,
             prover_service,

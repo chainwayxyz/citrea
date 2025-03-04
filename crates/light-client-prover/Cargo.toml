@@ -17,6 +17,7 @@ prover-services = { path = "../prover-services", optional = true }
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
@@ -43,6 +44,7 @@ native = [
   "dep:prover-services",
   "dep:citrea-primitives",
   "dep:citrea-common",
+  "dep:sov-prover-storage-manager",
   "dep:sov-db",
   "dep:hex",
   "dep:anyhow",

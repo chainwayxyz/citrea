@@ -318,6 +318,7 @@ where
                     &rocksdb_config,
                     da_service,
                     ledger_db,
+                    storage_manager,
                     rpc_module,
                     backup_manager,
                 )

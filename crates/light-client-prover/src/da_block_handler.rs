@@ -15,6 +15,7 @@ use sov_db::schema::types::SlotNumber;
 use sov_modules_api::{
     BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, Zkvm,
 };
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -44,6 +45,7 @@ where
 {
     _prover_config: LightClientProverConfig,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
+    storage_manager: ProverStorageManager,
     ledger_db: DB,
     da_service: Arc<Da>,
     batch_prover_da_pub_key: Vec<u8>,
@@ -66,6 +68,7 @@ where
     pub fn new(
         prover_config: LightClientProverConfig,
         prover_service: Arc<ParallelProverService<Da, Vm>>,
+        storage_manager: ProverStorageManager,
         ledger_db: DB,
         da_service: Arc<Da>,
         batch_prover_da_pub_key: Vec<u8>,
@@ -79,6 +82,7 @@ where
         Self {
             _prover_config: prover_config,
             prover_service,
+            storage_manager,
             ledger_db,
             da_service,
             batch_prover_da_pub_key,

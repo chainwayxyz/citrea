@@ -10,6 +10,7 @@ use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{SpecId, Zkvm};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 
@@ -22,6 +23,7 @@ pub fn build_services<Vm, Da, DB>(
     prover_config: LightClientProverConfig,
     runner_config: RunnerConfig,
     rocksdb_config: &RocksdbConfig,
+    storage_manager: ProverStorageManager,
     ledger_db: DB,
     da_service: Arc<Da>,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
@@ -50,6 +52,7 @@ where
     let l1_block_handler = L1BlockHandler::new(
         prover_config,
         prover_service,
+        storage_manager,
         ledger_db,
         da_service,
         public_keys.prover_da_pub_key,
