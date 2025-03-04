@@ -10,15 +10,21 @@ repository.workspace = true
 
 [dependencies]
 # Sov SDK deps
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
-num_cpus = { workspace = true }
 rand = { workspace = true }
-rayon = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+borsh = { workspace = true }
+tempfile = { workspace = true }
+
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }

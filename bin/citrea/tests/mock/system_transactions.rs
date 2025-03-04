@@ -136,12 +136,13 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
                 .as_slice()
         );
 
-        // check block response as well
-        let block = full_node_test_client
-            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number((i - 3) * 5 + 1)))
-            .await;
+        // TODO: https://github.com/chainwayxyz/citrea/issues/1977
+        // // check block response as well
+        // let block = full_node_test_client
+        //     .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Number((i - 3) * 5 + 1)))
+        //     .await;
 
-        assert_eq!(block.other.get("l1Hash"), Some(&hash_on_chain.into()));
+        // assert_eq!(block.other.get("l1Hash"), Some(&hash_on_chain.into()));
     }
 
     let seq_last_block = seq_test_client

@@ -19,6 +19,10 @@ pub(crate) mod primitive_types;
 pub mod system_contracts;
 /// System events used for creating system transactions
 pub mod system_events;
+/// Get the last l1 block hash set in bitcoin light client contract
+pub use executor::{
+    get_last_l1_height_and_hash_in_light_client, get_last_l1_height_in_light_client,
+};
 
 #[cfg(feature = "native")]
 pub(crate) mod call;
@@ -120,17 +124,15 @@ impl DbAccount {
 
     /// Create a storage prefix
     pub(crate) fn create_storage_prefix(address: &Address) -> Prefix {
-        let mut prefix = [0u8; 26];
-        prefix[0..6].copy_from_slice(&DBACCOUNT_STORAGE_PREFIX);
-        prefix[6..].copy_from_slice(address.as_raw_slice());
-        Prefix::new(prefix.to_vec())
+        let mut prefix = Prefix::from_slice(&DBACCOUNT_STORAGE_PREFIX);
+        prefix.extend_from_slice(address.as_raw_slice());
+        prefix
     }
 
     fn create_keys_prefix(address: &Address) -> Prefix {
-        let mut prefix = [0u8; 26];
-        prefix[0..6].copy_from_slice(&DBACCOUNT_KEYS_PREFIX);
-        prefix[6..].copy_from_slice(address.as_raw_slice());
-        Prefix::new(prefix.to_vec())
+        let mut prefix = Prefix::from_slice(&DBACCOUNT_KEYS_PREFIX);
+        prefix.extend_from_slice(address.as_raw_slice());
+        prefix
     }
 }
 

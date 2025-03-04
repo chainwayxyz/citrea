@@ -1,14 +1,21 @@
-use alloy_primitives::U64;
+use std::net::SocketAddr;
+
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin::hashes::Hash;
+use bitcoin_da::service::FINALITY_DEPTH;
+use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::SequencerConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
+use citrea_evm::system_contracts::BitcoinLightClient;
+use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
+use crate::common::make_test_client;
 
 struct BasicSequencerTest;
 
@@ -81,7 +88,13 @@ impl TestCase for SequencerMissedDaBlocksTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
-        let initial_l1_height = da.get_finalized_height(None).await?;
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config.rpc_bind_host().parse()?,
+            sequencer.config.rpc_bind_port(),
+        ))
+        .await?;
+
+        let init_da_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
 
         // Create initial DA blocks
         da.generate(3).await?;
@@ -90,49 +103,56 @@ impl TestCase for SequencerMissedDaBlocksTest {
 
         sequencer.wait_until_stopped().await?;
 
-        // Create 10 more DA blocks while the sequencer is down
-        da.generate(10).await?;
+        // Create 100 more DA blocks while the sequencer is down
+        // This on its own should generate 10 l2 blocks
+        da.generate(100).await?;
 
         // Restart the sequencer
         sequencer.start(None, None).await?;
 
-        for _ in 0..10 {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+        sequencer.client.send_publish_batch_request().await?;
+
+        sequencer.client.wait_for_l2_block(13, None).await?;
 
         let head_soft_confirmation_height = sequencer
             .client
             .ledger_get_head_soft_confirmation_height()
             .await?;
 
-        let mut last_used_l1_height = initial_l1_height;
-
-        // check that the sequencer has at least one block for each DA block
-        // starting from DA #3 all the way up to DA #13 without no gaps
-        // the first soft confirmation should be on DA #3
-        // the last soft confirmation should be on DA #13
-        for i in 1..=head_soft_confirmation_height {
-            let soft_confirmation = sequencer
-                .client
-                .http_client()
-                .get_soft_confirmation_by_number(U64::from(i))
-                .await?
+        for l1_height in init_da_height..init_da_height + 103 {
+            let res: String = seq_test_client
+                .contract_call(
+                    BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                    BitcoinLightClient::get_block_hash(l1_height).to_vec(),
+                    None,
+                )
+                .await
                 .unwrap();
-
-            if i == 1 {
-                assert_eq!(soft_confirmation.da_slot_height, last_used_l1_height);
-            } else {
-                assert!(
-                    soft_confirmation.da_slot_height == last_used_l1_height
-                        || soft_confirmation.da_slot_height == last_used_l1_height + 1,
-                );
-            }
-
-            last_used_l1_height = soft_confirmation.da_slot_height;
+            let l1_block_hash = da.get_block_hash(l1_height).await?;
+            assert_eq!(
+                l1_block_hash.to_raw_hash().to_byte_array().to_vec(),
+                hex::decode(&res[2..]).unwrap()
+            );
         }
 
-        let finalized_height = da.get_finalized_height(None).await?;
-        assert_eq!(last_used_l1_height, finalized_height);
+        // check that the sequencer has at least one block for each 10 DA blocks
+        // starting from l2 #2 all the way up to l2 #12 without no gaps
+        // Blocks should have 10 txs which are all set block infos
+        for i in 1..=head_soft_confirmation_height {
+            let block = seq_test_client
+                .eth_get_block_by_number(Some(i.into()))
+                .await;
+
+            if i == 1 {
+                assert_eq!(block.transactions.len(), 3);
+            } else if i == 12 {
+                assert_eq!(block.transactions.len(), 2);
+            } else if i == 13 {
+                assert_eq!(block.transactions.len(), 1);
+            } else {
+                assert_eq!(block.transactions.len(), 10);
+            }
+        }
 
         Ok(())
     }

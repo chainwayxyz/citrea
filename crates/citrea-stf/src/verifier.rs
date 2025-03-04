@@ -138,7 +138,7 @@ pub fn get_last_l1_hash_on_contract<C: Context>(
 
     // first we try to get next L1 height from cache, if it does not exist in cache
     // we need to provide proof with respect to the latest root
-    let next_l1_height: U256 = match state_log.get_value(&key.clone().into_cache_key()) {
+    let next_l1_height: U256 = match state_log.get_value(&key.to_cache_key_version(None)) {
         ValueExists::Yes(cache_value) => borsh_deserialize_value(
             cache_value
                 .expect("Next L1 height can't be None in cache")
@@ -189,7 +189,7 @@ pub fn get_last_l1_hash_on_contract<C: Context>(
     // we look for the value inside cache
     // if in cache we don't need to do anything
     // if not in cache we need to provide proof with respect to the latest root
-    let last_l1_hash: U256 = match state_log.get_value(&key.clone().into_cache_key()) {
+    let last_l1_hash: U256 = match state_log.get_value(&key.to_cache_key_version(None)) {
         ValueExists::Yes(value) => {
             borsh_deserialize_value(value.expect("L1 hash can't be None in cache").value)
         }

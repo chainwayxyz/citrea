@@ -29,7 +29,10 @@ impl BitcoinLightClient {
     }
 
     // Kept for backwards compatibility
-    pub(crate) fn set_block_info_pre_fork2(block_hash: [u8; 32], txs_commitments: [u8; 32]) -> Bytes {
+    pub(crate) fn set_block_info_pre_fork2(
+        block_hash: [u8; 32],
+        txs_commitments: [u8; 32],
+    ) -> Bytes {
         let mut func_selector = Vec::with_capacity(4 + 32 + 32);
         func_selector.extend(BitcoinLightClientContract::setBlockInfo_0Call::SELECTOR);
         func_selector.extend_from_slice(&block_hash);
@@ -37,7 +40,11 @@ impl BitcoinLightClient {
         func_selector.into()
     }
 
-    pub(crate) fn set_block_info(block_hash: [u8; 32], txs_commitments: [u8; 32], coinbase_depth: u64) -> Bytes {
+    pub(crate) fn set_block_info(
+        block_hash: [u8; 32],
+        txs_commitments: [u8; 32],
+        coinbase_depth: u64,
+    ) -> Bytes {
         let coinbase_depth = U256::from(coinbase_depth);
 
         let mut func_selector = Vec::with_capacity(4 + 32 + 32 + 32);

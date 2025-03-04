@@ -4,12 +4,12 @@ use borsh::BorshSerialize;
 
 use super::BatchProofCircuitInput;
 use crate::da::{BlobReaderTrait, DaSpec};
-use crate::soft_confirmation::SignedSoftConfirmationV1;
+use crate::soft_confirmation::L2Block;
 use crate::witness::PreFork2Witness;
 use crate::zk::StorageRootHash;
 
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInputV1<Da: DaSpec> {
+pub struct BatchProofCircuitInputV1<'txs, Da: DaSpec, Tx: BorshSerialize + Clone> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
@@ -27,7 +27,7 @@ pub struct BatchProofCircuitInputV1<Da: DaSpec> {
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
     /// The soft confirmations that are inside the sequencer commitments.
-    pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmationV1>>,
+    pub soft_confirmations: VecDeque<Vec<L2Block<'txs, Tx>>>,
     /// Corresponding witness for the soft confirmations.
     pub state_transition_witnesses: VecDeque<Vec<PreFork2Witness>>,
     /// DA block headers the L2 blocks were constructed on.
@@ -40,7 +40,9 @@ pub struct BatchProofCircuitInputV1<Da: DaSpec> {
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
 }
-impl<Da: DaSpec> BorshSerialize for BatchProofCircuitInputV1<Da> {
+impl<'txs, Da: DaSpec, Tx: BorshSerialize + Clone> BorshSerialize
+    for BatchProofCircuitInputV1<'txs, Da, Tx>
+{
     /// Pre fork 1 serialization
     /// An additional [u8; 32] is added to the end of the bitcoin da header
     /// So the genesis fork guest fails to deserialize the header
@@ -64,7 +66,15 @@ impl<Da: DaSpec> BorshSerialize for BatchProofCircuitInputV1<Da> {
         BorshSerialize::serialize(&self.inclusion_proof, writer)?;
         BorshSerialize::serialize(&self.completeness_proof, writer)?;
         BorshSerialize::serialize(&self.preproven_commitments, writer)?;
-        BorshSerialize::serialize(&self.soft_confirmations, writer)?;
+
+        // Serialize L2Blocks into v1 format
+        BorshSerialize::serialize(&(self.soft_confirmations.len() as u32), writer)?;
+        for soft_conf in &self.soft_confirmations {
+            BorshSerialize::serialize(&(soft_conf.len() as u32), writer)?;
+            for conf in soft_conf {
+                conf.serialize_v1(writer)?;
+            }
+        }
         BorshSerialize::serialize(&self.state_transition_witnesses, writer)?;
 
         // for every Da::BlockHeader we serialize it and remove last 32 bytes
@@ -85,7 +95,8 @@ impl<Da: DaSpec> BorshSerialize for BatchProofCircuitInputV1<Da> {
     }
 }
 
-impl<'txs, Da, Tx> From<BatchProofCircuitInput<'txs, Da, Tx>> for BatchProofCircuitInputV1<Da>
+impl<'txs, Da, Tx> From<BatchProofCircuitInput<'txs, Da, Tx>>
+    for BatchProofCircuitInputV1<'txs, Da, Tx>
 where
     Da: DaSpec,
     Tx: Clone + BorshSerialize,
@@ -100,16 +111,8 @@ where
             inclusion_proof: input.inclusion_proof,
             completeness_proof: input.completeness_proof,
             preproven_commitments: input.preproven_commitments,
-            soft_confirmations: input
-                .l2_blocks
-                .into_iter()
-                .map(|confirmations| {
-                    confirmations
-                        .into_iter()
-                        .map(SignedSoftConfirmationV1::from)
-                        .collect()
-                })
-                .collect(),
+            soft_confirmations: input.l2_blocks,
+
             state_transition_witnesses: input
                 .state_transition_witnesses
                 .into_iter()

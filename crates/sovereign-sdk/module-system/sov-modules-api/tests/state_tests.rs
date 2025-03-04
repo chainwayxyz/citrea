@@ -80,7 +80,7 @@ fn create_state_map(
     value: u32,
     working_set: &mut WorkingSet<ProverStorage>,
 ) -> StateMap<u32, u32> {
-    let state_map = StateMap::new(Prefix::new(vec![0]));
+    let state_map = StateMap::new(Prefix::from_vec(vec![0]));
     state_map.set(&key, &value, working_set);
     state_map
 }
@@ -122,7 +122,7 @@ fn test_state_map_with_delete() {
 }
 
 fn create_state_value(value: u32, working_set: &mut WorkingSet<ProverStorage>) -> StateValue<u32> {
-    let state_value = StateValue::new(Prefix::new(vec![0]));
+    let state_value = StateValue::new(Prefix::from_vec(vec![0]));
     state_value.set(&value, working_set);
     state_value
 }
@@ -164,7 +164,7 @@ fn test_state_value_with_delete() {
 #[test]
 fn test_witness_round_trip() {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_value = StateValue::new(Prefix::new(vec![0]));
+    let state_value = StateValue::new(Prefix::from_vec(vec![0]));
 
     // Native execution
     let witness: Witness = {
@@ -204,7 +204,7 @@ fn create_state_vec<T: BorshDeserialize + BorshSerialize>(
 where
     BorshCodec: StateValueCodec<T>,
 {
-    let state_vec = StateVec::new(Prefix::new(vec![0]));
+    let state_vec = StateVec::new(Prefix::from_vec(vec![0]));
     state_vec.set_all(values, working_set);
     state_vec
 }

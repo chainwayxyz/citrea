@@ -138,10 +138,14 @@ impl TestCase for LightClientProvingTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
-        let batch_proof =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
-                .await
-                .unwrap();
+        let batch_proof = wait_for_zkproofs(
+            full_node,
+            finalized_height,
+            Some(Duration::from_secs(7200)),
+            1,
+        )
+        .await
+        .unwrap();
 
         let light_client_proof = lcp.unwrap();
         assert_eq!(
@@ -271,7 +275,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 2).await?;
         assert_eq!(batch_proofs.len(), 2);
 
         // Wait for light client prover to process batch proofs.
@@ -396,7 +400,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 1).await?;
         assert_eq!(batch_proofs.len(), 1);
 
         // Wait for light client prover to process batch proofs.
@@ -611,8 +615,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
@@ -672,8 +676,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
@@ -706,8 +710,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
@@ -752,8 +756,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
                     method_id: [
-                        3959734984, 4106036156, 2425244281, 3654010981, 3408537711, 1100150423,
-                        1091683606, 3699805120
+                        2964727933, 2511287864, 172809710, 3985899245, 1451479689, 3494736368,
+                        3097495824, 56383634,
                     ]
                     .into()
                 },
@@ -887,6 +891,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .await
             .unwrap();
 
+        da.wait_mempool_len(2, None).await?;
+
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
             [3u8; 32],
@@ -899,6 +905,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
             .await
             .unwrap();
+        da.wait_mempool_len(4, None).await?;
 
         // Expect unparsable journal to be skipped
         let unparsable_batch_proof = create_serialized_fake_receipt_batch_proof(
@@ -913,6 +920,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
             .await
             .unwrap();
+        da.wait_mempool_len(6, None).await?;
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
@@ -926,6 +934,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
             .await
             .unwrap();
+        da.wait_mempool_len(8, None).await?;
 
         // Give it a random method id to make it unverifiable
         let random_method_id = [1u32; 8];

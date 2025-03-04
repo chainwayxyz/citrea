@@ -9,7 +9,6 @@ use citrea::{
     initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage,
 };
 use citrea_common::backup::BackupManager;
-use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::da_block_handler::StartVariant;
@@ -285,14 +284,16 @@ where
                 None,
             );
 
+            let l1_start_height = rollup_config
+                .runner
+                .ok_or(anyhow!(
+                    "Failed to start batch prover L1 block handler: Runner config not present"
+                ))?
+                .scan_l1_start_height;
+
             task_manager.spawn(|cancellation_token| async move {
-                let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
-                else {
-                    error!("Failed to start prover L1 block handler due to start l1 height not present");
-                    return;
-                };
                 l1_block_handler
-                    .run(start_l1_height, cancellation_token)
+                    .run(l1_start_height, cancellation_token)
                     .await
             });
 
@@ -365,14 +366,16 @@ where
                 None,
             );
 
+            let l1_start_height = rollup_config
+                .runner
+                .ok_or(anyhow!(
+                    "Failed to start fullnode L1 block handler: Runner config not present"
+                ))?
+                .scan_l1_start_height;
+
             task_manager.spawn(|cancellation_token| async move {
-                let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
-                else {
-                    error!("Failed to start fullnode L1 block handler due to start l1 height not present");
-                    return;
-                };
                 l1_block_handler
-                    .run(start_l1_height, cancellation_token)
+                    .run(l1_start_height, cancellation_token)
                     .await
             });
 

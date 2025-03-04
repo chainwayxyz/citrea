@@ -9,7 +9,9 @@ use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::KECCAK_EMPTY;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{
+    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
+};
 use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
@@ -71,17 +73,28 @@ pub(crate) fn get_evm_with_spec(
     let mut working_set = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root, &mut working_set.accessory_state());
 
-    let hook_info = HookSoftConfirmationInfo {
-        l2_height: 1,
-        da_slot_hash: [1u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [2u8; 32],
-        pre_state_root: root,
-        current_spec: spec_id,
-        pub_key: vec![],
-        deposit_data: vec![],
-        l1_fee_rate: 0,
-        timestamp: 0,
+    let hook_info = if spec_id >= SovSpecId::Fork2 {
+        HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+            l2_height: 1,
+            pre_state_root: root,
+            current_spec: spec_id,
+            pub_key: vec![],
+            l1_fee_rate: 0,
+            timestamp: 0,
+        })
+    } else {
+        HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+            l2_height: 1,
+            da_slot_hash: [1u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [2u8; 32],
+            pre_state_root: root,
+            current_spec: spec_id,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 0,
+            timestamp: 0,
+        })
     };
 
     // Pass the same struct to both hooks

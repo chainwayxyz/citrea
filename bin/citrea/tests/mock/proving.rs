@@ -10,7 +10,7 @@ use sov_rollup_interface::services::da::DaService;
 
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode,
+    wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height_proofs, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -132,7 +132,7 @@ async fn full_node_verify_proof_and_store() {
     wait_for_l2_block(&full_node_test_client, 5, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 4, None)
+    wait_for_prover_l1_height_proofs(&prover_node_test_client, 3, None)
         .await
         .unwrap();
 
@@ -339,7 +339,7 @@ async fn test_batch_prover_prove_rpc() {
         .await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 4, None)
+    wait_for_prover_l1_height_proofs(&prover_node_test_client, 3, None)
         .await
         .unwrap();
 

@@ -103,7 +103,7 @@ where
         async move {
             let resp = service.call(req).await;
             if resp.is_success() {
-                tracing::debug!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
+                tracing::trace!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
             } else {
                 tracing::warn!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error");
             }

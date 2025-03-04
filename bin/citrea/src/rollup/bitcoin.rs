@@ -280,10 +280,10 @@ impl RollupBlueprint for BitcoinRollup {
 
         if is_light_client_prover {
             // Parallel proof limit should be 1 for light client prover
-            ParallelProverService::new(da_service.clone(), vm, proof_mode, 1, ledger_db)
+            ParallelProverService::new(da_service.clone(), vm, proof_mode, 1)
                 .expect("Should be able to instantiate prover service")
         } else {
-            ParallelProverService::new_from_env(da_service.clone(), vm, proof_mode, ledger_db)
+            ParallelProverService::new_from_env(da_service.clone(), vm, proof_mode)
                 .expect("Should be able to instantiate prover service")
         }
     }

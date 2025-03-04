@@ -7,11 +7,11 @@ mod hooks_tests;
 #[cfg(test)]
 mod query_tests;
 
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{HookSoftConfirmationInfo, HookSoftConfirmationInfoV1};
 use sov_modules_api::SpecId;
 
 fn sc_info_helper() -> HookSoftConfirmationInfo {
-    HookSoftConfirmationInfo {
+    HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
         l2_height: 1,
         da_slot_height: 1,
         da_slot_hash: [1; 32],
@@ -22,5 +22,5 @@ fn sc_info_helper() -> HookSoftConfirmationInfo {
         deposit_data: vec![],
         l1_fee_rate: 1,
         timestamp: 10,
-    }
+    })
 }

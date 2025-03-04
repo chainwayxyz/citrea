@@ -15,7 +15,7 @@ use prover_services::ParallelProverService;
 use rand::Rng;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
-use sov_modules_api::{StateDiff, Zkvm};
+use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -141,13 +141,20 @@ where
                 .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
             let l1_height = l1_block.header().height();
+            let l1_block_hash = l1_block.header().hash().into();
+            let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+                Da::block_to_short_header_proof(l1_block.clone());
+            self.ledger_db
+                .put_short_header_proof_by_l1_hash(
+                    &l1_block_hash,
+                    borsh::to_vec(&short_header_proof)
+                        .expect("Should serialize short header proof"),
+                )
+                .expect("Should save short header proof to ledger db");
 
             // Set the l1 height of the l1 hash
             self.ledger_db
-                .set_l1_height_of_l1_hash(
-                    l1_block.header().hash().into(),
-                    l1_block.header().height(),
-                )
+                .set_l1_height_of_l1_hash(l1_block_hash, l1_height)
                 .unwrap();
 
             if l1_height < self.skip_submission_until_l1 {
@@ -279,13 +286,16 @@ where
         let prover_service = self.prover_service.as_ref();
         let txs_and_proofs = prover_service.recover_and_submit_proving_sessions().await?;
 
-        extract_and_store_proof::<DB, Da, Vm>(
-            self.ledger_db.clone(),
-            txs_and_proofs,
-            self.code_commitments_by_spec.clone(),
-            0, // TODO: since we don't support session recovery any more put in 0 to make it work
-        )
-        .await?;
+        for (tx_id, proof) in txs_and_proofs {
+            extract_and_store_proof::<_, Da, Vm>(
+                &self.ledger_db,
+                tx_id,
+                proof,
+                &self.code_commitments_by_spec,
+                0, // TODO: since we don't support session recovery any more put in 0 to make it work
+            )
+            .await?;
+        }
 
         Ok(())
     }

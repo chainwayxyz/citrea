@@ -139,6 +139,9 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     }
 
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+        // no need to check block number ranges
+        // revm already checks it
+
         let block_hash = self
             .evm
             .latest_block_hashes

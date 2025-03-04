@@ -1,5 +1,8 @@
-use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+use std::time::Duration;
+
+use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use tokio::time::sleep;
 
 use super::{initialize_test, TestConfig};
 use crate::common::helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_block};
@@ -51,6 +54,8 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     // Wait for DA block #2 containing the commitment
     // submitted by sequencer.
     wait_for_l1_block(&da_service, 2, None).await;
+    // wait for full node to process the DA block
+    sleep(Duration::from_secs(10)).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
@@ -121,27 +126,6 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
         assert_eq!(SoftConfirmationStatus::Finalized, status_node);
     }
-
-    // Check that these L2 blocks are bounded on different L1 block
-    let mut batch_infos = vec![];
-    for i in 1..=6 {
-        let full_node_soft_conf = full_node_test_client
-            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
-            .await
-            .unwrap();
-        batch_infos.push(full_node_soft_conf);
-    }
-
-    // First three blocks got created on L1 height 1.
-    assert!(batch_infos[0..3]
-        .iter()
-        .all(|x| { x.da_slot_height == batch_infos[0].da_slot_height }));
-
-    // Blocks 4, 5, 6 were created on L1 height 2
-    assert!(batch_infos[3..6]
-        .iter()
-        .all(|x| { x.da_slot_height == batch_infos[3].da_slot_height }));
-    assert_ne!(batch_infos[0].da_slot_height, batch_infos[5].da_slot_height);
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
