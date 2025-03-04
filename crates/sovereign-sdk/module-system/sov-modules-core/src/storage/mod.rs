@@ -90,11 +90,16 @@ impl StorageKey {
         Self { key: full_key.data }
     }
 
-    /// Creates a new [`StorageKey`] that combines a prefix and a key.
+    /// Treats a prefix as the key itself.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
             key: prefix.data.clone(),
         }
+    }
+
+    /// Treats a prefix as the key itself.
+    pub fn singleton_owned(prefix: Prefix) -> Self {
+        Self { key: prefix.data }
     }
 }
 
