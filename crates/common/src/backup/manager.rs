@@ -391,4 +391,99 @@ impl BackupManager {
 
         Ok(map)
     }
+
+    /// Purges backup files up to the specified backup_id.
+    ///
+    /// # Arguments
+    /// * `backup_path` - Path to the backup directory containing database backups
+    /// * `backup_id` - The backup ID up to which backups should be purged
+    ///
+    /// # Returns
+    /// * `Ok(())` if all purging operations succeeded
+    /// * `Err` if backup_path doesn't exist or if RocksDB purging fails
+    pub async fn purge_backup(&self, backup_path: PathBuf, backup_id: u32) -> anyhow::Result<()> {
+        if !backup_path.exists() {
+            bail!("Backup directory does not exist: {:?}", backup_path);
+        }
+
+        let start_time = Instant::now();
+        info!("Starting backup purge process for backups up to ID {backup_id}",);
+
+        for dir in &self.config.backup_dirs {
+            let path = backup_path.join(dir);
+            info!("Purging backups in {dir}");
+
+            let mut engine = get_backup_engine(&path)?;
+            let backup_info = engine.get_backup_info();
+
+            let ids_to_purge: Vec<u32> = backup_info
+                .iter()
+                .filter(|info| info.backup_id < backup_id)
+                .map(|info| info.backup_id)
+                .collect();
+
+            let num_backups_to_keep = backup_info.len() - ids_to_purge.len();
+
+            if ids_to_purge.is_empty() {
+                warn!("No backups to purge in {dir}");
+                continue;
+            }
+
+            info!("Purging and keeping {num_backups_to_keep} backups in {dir}");
+            engine.purge_old_backups(num_backups_to_keep)?;
+
+            info!(
+                "Successfully purged {} backups in {dir}",
+                ids_to_purge.len(),
+            );
+        }
+
+        if let Err(e) = Self::update_metadata_after_purge(backup_path, backup_id).await {
+            warn!("Failed to update metadata file: {}", e);
+        }
+
+        info!(
+            "Backup purge process completed successfully in {:.2}s",
+            start_time.elapsed().as_secs_f32(),
+        );
+
+        Ok(())
+    }
+
+    /// Updates the metadata file after purging backups
+    async fn update_metadata_after_purge<P: AsRef<Path>>(
+        backup_path: P,
+        backup_id: u32,
+    ) -> anyhow::Result<()> {
+        let metadata_path = backup_path.as_ref().join(".metadata");
+
+        if !metadata_path.exists() {
+            bail!("Metadata file not found")
+        }
+
+        let content = tokio::fs::read_to_string(&metadata_path).await?;
+        let mut metadata: BackupMetadata = serde_json::from_str(&content)?;
+
+        metadata.backups.retain(|&id, _| id >= backup_id);
+
+        let metadata_json = serde_json::to_string_pretty(&metadata)?;
+        tokio::fs::write(metadata_path, metadata_json).await?;
+
+        Ok(())
+    }
+
+    pub async fn backup_kind_from_metadata<P: AsRef<Path>>(
+        backup_path: P,
+    ) -> anyhow::Result<String> {
+        let metadata_path = backup_path.as_ref().join(".metadata");
+
+        if !metadata_path.exists() {
+            bail!("Metadata file not found")
+        }
+
+        let content = tokio::fs::read_to_string(&metadata_path).await?;
+        let metadata: BackupMetadata = serde_json::from_str(&content)?;
+
+        Ok(metadata.node_kind)
+    }
 }

@@ -58,7 +58,7 @@ enum Commands {
         #[arg(long)]
         blocks: u32,
     },
-    /// Backup DBs
+    /// Restore DBs from backup
     RestoreBackup {
         /// The node kind
         #[arg(long)]
@@ -70,6 +70,15 @@ enum Commands {
         #[arg(long)]
         backup_path: PathBuf,
         /// The backup ID
+        #[arg(long)]
+        backup_id: u32,
+    },
+    /// Purge backups up to backup ID
+    PurgeBackup {
+        /// The backup path
+        #[arg(long)]
+        backup_path: PathBuf,
+        /// The backup ID to purge up to (exclusive)
         #[arg(long)]
         backup_id: u32,
     },
@@ -105,6 +114,12 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::restore_backup(node_kind.to_string(), db_path, backup_path, backup_id)
                 .await?;
+        }
+        Commands::PurgeBackup {
+            backup_path,
+            backup_id,
+        } => {
+            commands::purge_backup(backup_path, backup_id).await?;
         }
     }
 
