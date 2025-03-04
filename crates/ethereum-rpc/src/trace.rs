@@ -274,9 +274,9 @@ fn get_traces_with_requested_tracer_and_config(
             }
         }
         GethDebugTracerType::JsTracer(_code) => {
-            // This also requires DatabaseRef trait
-            // Implement after readonly state is implemented
-            Err(EthApiError::Unsupported("JsTracer"))
+            unimplemented!(
+                "Converting frames into js traces not implemented, and should be handled in evm"
+            )
         }
     }
 }
