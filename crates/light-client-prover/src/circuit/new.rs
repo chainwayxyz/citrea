@@ -1,15 +1,27 @@
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{DaSpec, StateReaderAndWriter, WorkingSet};
-use sov_modules_core::Storage;
+use sov_modules_core::{ReadWriteLog, Storage};
 use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
-use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
+use sov_rollup_interface::zk::light_client_proof::output::{
+    BatchProofInfo, LightClientCircuitOutput,
+};
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
+use super::accessors::BlockHashAccessor;
 use super::old::LightClientVerificationError;
 use super::InitialBatchProofMethodIds;
+
+struct RunL1BlockResult {
+    l2_state_root: [u8; 32],
+    lcp_state_root: [u8; 32],
+    unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    last_l2_height: u64,
+    batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    witness: Witness,
+}
 
 struct LightClientProofCircuit<S: Storage, DaV: DaVerifier> {
     phantom: core::marker::PhantomData<(S, DaV)>,
@@ -17,8 +29,37 @@ struct LightClientProofCircuit<S: Storage, DaV: DaVerifier> {
 
 impl<S: Storage, DaV: DaVerifier> LightClientProofCircuit<S, DaV> {
     // will be called by the circuit and native
-    fn run_l1_block(storage: S, witness: Witness, l1_block_hash: <DaV::Spec as DaSpec>::SlotHash) {
-        let working_set = WorkingSet::with_witness(storage, witness, Default::default());
+    fn run_l1_block(
+        storage: S,
+        witness: Witness,
+        l1_block_hash: <DaV::Spec as DaSpec>::SlotHash,
+        da_txs: Vec<<DaV::Spec as DaSpec>::BlobTransaction>,
+    ) -> RunL1BlockResult {
+        let mut working_set =
+            WorkingSet::with_witness(storage.clone(), witness, Default::default());
+
+        // first insert the block hash into the JMT
+        BlockHashAccessor::<S>::insert(l1_block_hash.into(), &mut working_set);
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        // TODO: compute_state_update cretes state diff
+        // which we don't need in this circuit
+        // maybe create new function or pass argument for state diff building
+        let (lcp_state_root_transition, jmt_state_update, _) = storage
+            .compute_state_update(&read_write_log, &mut witness)
+            .expect("jellyfish merkle tree update must succeed");
+
+        storage.commit(&jmt_state_update, &vec![], &ReadWriteLog::default());
+
+        RunL1BlockResult {
+            l2_state_root: todo!(),
+            lcp_state_root: lcp_state_root_transition.final_root,
+            unchained_batch_proofs_info: todo!(),
+            last_l2_height: todo!(),
+            batch_proof_method_ids: todo!(),
+            witness,
+        }
     }
 
     // will only called by the circuit
@@ -74,10 +115,16 @@ impl<S: Storage, DaV: DaVerifier> LightClientProofCircuit<S, DaV> {
             .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
 
         // then we can call run_l1_block to run the logic of the circuit
-        Self::run_l1_block(storage, witness, input.da_block_header.hash());
+        let result = Self::run_l1_block(storage, witness, input.da_block_header.hash(), da_txs);
 
-        // then we get updates and commit to storage
-
-        todo!()
+        Ok(LightClientCircuitOutput {
+            state_root: result.lcp_state_root,
+            light_client_proof_method_id: input.light_client_proof_method_id,
+            latest_da_state: new_da_state,
+            unchained_batch_proofs_info: result.unchained_batch_proofs_info,
+            last_l2_height: result.last_l2_height,
+            batch_proof_method_ids: result.batch_proof_method_ids,
+            mmr_guest: todo!("will be removed"),
+        })
     }
 }
