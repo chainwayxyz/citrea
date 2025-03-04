@@ -23,10 +23,4 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
     /// Hints for the guest MMR tree.
     pub mmr_hints: VecDeque<(MMRChunk, MMRInclusionProof)>,
-    /// Hint for which proofs are expected to fail
-    ///
-    /// Note: Indices are u32 even though we don't expect that many proofs
-    /// on a DA block. However storing them as u32 is more efficient in zkVMs
-    /// and just to be sure we don't overflow u8.
-    pub expected_to_fail_hint: Vec<u32>,
 }

@@ -209,7 +209,6 @@ where
         let mut mmr_hints = vec![];
         // index only incremented for complete and aggregated proofs, in line with the circuit
         let mut proof_index = 0u32;
-        let mut expected_to_fail_hint = vec![];
 
         'proof_loop: for (wtxid, batch_proof) in batch_proofs {
             info!("Batch proof wtxid={}", hex::encode(wtxid));
@@ -224,7 +223,6 @@ where
                         }
                         Ok(false) => {
                             warn!("Complete proof is expected to fail");
-                            expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
                         }
                         Err(err) => {
@@ -297,8 +295,6 @@ where
                             proof_index += 1;
                         }
                         Ok(false) => {
-                            warn!("Aggregate proof is expected to fail");
-                            expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
                         }
                         Err(err) => {
@@ -351,7 +347,6 @@ where
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
             mmr_hints: mmr_hints.into(),
-            expected_to_fail_hint,
         };
 
         let proof = self

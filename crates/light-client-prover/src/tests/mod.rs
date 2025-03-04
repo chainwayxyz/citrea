@@ -37,7 +37,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -76,7 +75,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_3, blob_4],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -114,7 +112,6 @@ fn test_wrong_order_da_blocks_should_still_work() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_2, blob_1],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -156,7 +153,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_2, blob_1],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -206,7 +202,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -245,7 +240,6 @@ fn test_header_chain_proof_height_and_hash() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -284,7 +278,6 @@ fn test_header_chain_proof_height_and_hash() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_3, blob_4],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     // Header chain verification must fail because the l1 block 3 was given before l1 block 2
@@ -323,7 +316,6 @@ fn test_unverifiable_batch_proofs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![1],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -367,7 +359,6 @@ fn test_unverifiable_prev_light_client_proof() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![1],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -404,7 +395,6 @@ fn test_unverifiable_prev_light_client_proof() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let res = run_circuit::<_, MockZkGuest>(
@@ -444,7 +434,6 @@ fn test_new_method_id_txs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output_1 = run_circuit::<_, MockZkGuest>(
@@ -477,7 +466,6 @@ fn test_new_method_id_txs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -512,7 +500,6 @@ fn test_new_method_id_txs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output_3 = run_circuit::<_, MockZkGuest>(
@@ -557,7 +544,6 @@ fn test_expect_to_fail_on_correct_proof() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![1],
     };
 
     let _ = run_circuit::<_, MockZkGuest>(
@@ -595,7 +581,6 @@ fn test_expected_to_fail_proof_not_hinted() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let _ = run_circuit::<_, MockZkGuest>(
@@ -698,7 +683,6 @@ fn test_light_client_circuit_verify_chunks() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob1, blob2, blob3, blob4],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -804,7 +788,6 @@ fn test_missing_chunk() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob1, blob3, blob4],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -918,7 +901,6 @@ fn test_mmr_hints() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
         mmr_hints,
-        expected_to_fail_hint: vec![],
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1018,7 +1000,6 @@ fn test_malformed_mmr_proof_internal_index() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
         mmr_hints,
-        expected_to_fail_hint: vec![],
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1112,7 +1093,6 @@ fn test_malformed_mmr_proof_subroot_index() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
         mmr_hints,
-        expected_to_fail_hint: vec![],
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1206,7 +1186,6 @@ fn test_malformed_mmr_chunk_body() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
         mmr_hints,
-        expected_to_fail_hint: vec![],
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1299,7 +1278,6 @@ fn test_malformed_mmr_chunk_wtxid() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
         mmr_hints,
-        expected_to_fail_hint: vec![],
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1398,7 +1376,6 @@ fn test_malformed_mmr_inclusion_proof() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
         mmr_hints,
-        expected_to_fail_hint: vec![],
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1475,7 +1452,6 @@ fn test_malicious_aggregate_should_not_work() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob1.clone(), blob2.clone()],
         mmr_hints: Default::default(),
-        expected_to_fail_hint: vec![],
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1520,7 +1496,6 @@ fn test_malicious_aggregate_should_not_work() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![malicious_blob],
         mmr_hints: mmr_hints.clone().into(),
-        expected_to_fail_hint: vec![],
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1585,7 +1560,6 @@ fn test_malicious_aggregate_should_not_work() {
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob3, blob4],
         mmr_hints: mmr_hints.into(),
-        expected_to_fail_hint: vec![],
     };
 
     let output = run_circuit::<_, MockZkGuest>(

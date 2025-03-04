@@ -1,5 +1,5 @@
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::{DaSpec, StateReaderAndWriter, WorkingSet};
+use sov_modules_api::{DaSpec, StateReaderAndWriter, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
 use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::witness::Witness;
@@ -29,7 +29,7 @@ struct LightClientProofCircuit<S: Storage, DaV: DaVerifier> {
 
 impl<S: Storage, DaV: DaVerifier> LightClientProofCircuit<S, DaV> {
     // will be called by the circuit and native
-    fn run_l1_block(
+    fn run_l1_block<Z: Zkvm>(
         storage: S,
         witness: Witness,
         l1_block_hash: <DaV::Spec as DaSpec>::SlotHash,
@@ -63,7 +63,7 @@ impl<S: Storage, DaV: DaVerifier> LightClientProofCircuit<S, DaV> {
     }
 
     // will only called by the circuit
-    fn run_circuit<G: ZkvmGuest>(
+    fn run_circuit<G: ZkvmGuest + Zkvm>(
         da_verifier: DaV,
         input: LightClientCircuitInput<DaV::Spec>,
         l2_genesis_root: [u8; 32],
@@ -115,7 +115,8 @@ impl<S: Storage, DaV: DaVerifier> LightClientProofCircuit<S, DaV> {
             .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
 
         // then we can call run_l1_block to run the logic of the circuit
-        let result = Self::run_l1_block(storage, witness, input.da_block_header.hash(), da_txs);
+        let result =
+            Self::run_l1_block::<G>(storage, witness, input.da_block_header.hash(), da_txs);
 
         Ok(LightClientCircuitOutput {
             state_root: result.lcp_state_root,

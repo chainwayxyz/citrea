@@ -117,7 +117,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     // index only incremented on processing of a complete or aggregate DA tx
     let mut current_proof_index = 0u32;
-    let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
     'blob_loop: for blob in da_txs {
         let Ok(data) = DaDataLightClient::try_from_slice(blob.full_data()) else {
@@ -141,16 +140,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     continue;
                 }
 
-                let expected_to_fail = expected_to_fail_hints
-                    .next_if(|&x| x == current_proof_index)
-                    .is_some();
-                println!("Complete proof expected to fail: {}", expected_to_fail);
                 match process_complete_proof::<G>(
                     &proof,
                     &batch_proof_method_ids,
                     last_l2_height,
                     &mut initial_to_final,
-                    expected_to_fail,
                 ) {
                     Ok(()) => current_proof_index += 1,
                     Err(e) => println!("Error processing complete proof: {e}"),
@@ -221,16 +215,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     continue;
                 };
 
-                let expected_to_fail = expected_to_fail_hints
-                    .next_if(|&x| x == current_proof_index)
-                    .is_some();
-                println!("Aggregate proof expected to fail: {}", expected_to_fail);
                 match process_complete_proof::<G>(
                     &complete_proof,
                     &batch_proof_method_ids,
                     last_l2_height,
                     &mut initial_to_final,
-                    expected_to_fail,
                 ) {
                     Ok(()) => current_proof_index += 1,
                     // serialization or duplicate proof error
@@ -303,7 +292,6 @@ fn process_complete_proof<G: ZkvmGuest>(
     batch_proof_method_ids: &InitialBatchProofMethodIds,
     last_l2_height: u64,
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
-    expected_to_fail: bool,
 ) -> Result<(), CircuitError> {
     let Ok(journal) = G::extract_raw_output(proof) else {
         return Err("Failed to extract output from proof");
@@ -353,22 +341,16 @@ fn process_complete_proof<G: ZkvmGuest>(
 
     println!("Using batch proof method id {:?}", batch_proof_method_id);
 
-    if expected_to_fail {
-        // if index is in the expected to fail hints, then it should fail
-        G::verify_expected_to_fail(proof, &batch_proof_method_id.into())
-            .expect_err("Proof hinted to fail passed");
-    } else {
-        // if index is not in the expected to fail hints, then it should pass
-        G::verify(&journal, &batch_proof_method_id.into()).expect("Proof hinted to pass failed");
-        recursive_match_state_roots(
-            initial_to_final,
-            &BatchProofInfo::new(
-                batch_proof_output_initial_state_root,
-                batch_proof_output_final_state_root,
-                batch_proof_output_last_l2_height,
-            ),
-        );
-    }
+    // if index is not in the expected to fail hints, then it should pass
+    G::verify(&journal, &batch_proof_method_id.into()).expect("Proof hinted to pass failed");
+    recursive_match_state_roots(
+        initial_to_final,
+        &BatchProofInfo::new(
+            batch_proof_output_initial_state_root,
+            batch_proof_output_final_state_root,
+            batch_proof_output_last_l2_height,
+        ),
+    );
 
     Ok(())
 }
