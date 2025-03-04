@@ -2063,6 +2063,7 @@ dependencies = [
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
+ "sov-modules-core",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "tokio",

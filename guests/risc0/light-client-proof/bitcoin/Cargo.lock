@@ -624,6 +624,7 @@ version = "0.6.0"
 dependencies = [
  "borsh",
  "sov-modules-api",
+ "sov-modules-core",
  "sov-rollup-interface",
 ]
 

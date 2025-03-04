@@ -14,6 +14,7 @@ use sov_rollup_interface::zk::light_client_proof::output::{
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
+use super::InitialBatchProofMethodIds;
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
 type CircuitError = &'static str;
@@ -24,9 +25,6 @@ pub enum LightClientVerificationError<DaV: DaVerifier> {
     HeaderChainVerificationFailed(DaV::Error),
     InvalidPreviousLightClientProof,
 }
-
-// L2 activation height of the fork, and the batch proof method ID
-type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
