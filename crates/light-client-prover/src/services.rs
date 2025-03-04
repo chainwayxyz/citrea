@@ -13,6 +13,7 @@ use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::Network;
 
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc;
@@ -20,6 +21,7 @@ use crate::runner::CitreaLightClientProver;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Vm, Da, DB>(
+    network: Network,
     prover_config: LightClientProverConfig,
     runner_config: RunnerConfig,
     rocksdb_config: &RocksdbConfig,
@@ -50,6 +52,7 @@ where
     backup_manager.register_database(MmrDB::DB_PATH_SUFFIX.to_string(), mmr_db.db_handle())?;
 
     let l1_block_handler = L1BlockHandler::new(
+        network,
         prover_config,
         prover_service,
         storage_manager,

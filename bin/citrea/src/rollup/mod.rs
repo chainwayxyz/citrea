@@ -30,6 +30,7 @@ use sov_modules_stf_blueprint::{
 };
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
@@ -303,6 +304,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     async fn create_light_client_prover(
         &self,
+        network: Network,
         prover_config: LightClientProverConfig,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         rocksdb_config: &RocksdbConfig,
@@ -343,6 +345,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let elfs = self.get_light_client_elfs();
 
         citrea_light_client_prover::build_services(
+            network,
             prover_config,
             runner_config,
             rocksdb_config,

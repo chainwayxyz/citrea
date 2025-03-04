@@ -313,6 +313,7 @@ where
             let (mut prover, l1_block_handler, rpc_module) =
                 CitreaRollupBlueprint::create_light_client_prover(
                     &rollup_blueprint,
+                    network,
                     light_client_prover_config,
                     rollup_config.clone(),
                     &rocksdb_config,

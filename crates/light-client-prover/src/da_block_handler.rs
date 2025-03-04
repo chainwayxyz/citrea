@@ -24,6 +24,7 @@ use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
@@ -43,6 +44,7 @@ where
     Vm: ZkvmHost + Zkvm + 'static,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
 {
+    network: Network,
     _prover_config: LightClientProverConfig,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     storage_manager: ProverStorageManager,
@@ -66,6 +68,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        network: Network,
         prover_config: LightClientProverConfig,
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         storage_manager: ProverStorageManager,
@@ -80,6 +83,7 @@ where
     ) -> Self {
         let mmr_native = MMRNative::new(mmr_db);
         Self {
+            network,
             _prover_config: prover_config,
             prover_service,
             storage_manager,
