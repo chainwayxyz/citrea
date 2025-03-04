@@ -101,19 +101,30 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 };
                 let inspector =
                     JsInspector::with_transaction_context(code, config, transaction_context)
-                        .unwrap();
+                        .map_err(|e| EthApiError::InternalJsTracerError(e.to_string()))?;
                 let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
-                inspect_citrea(
+
+                let result_and_state = inspect_citrea(
                     db,
-                    config_env,
-                    block_env,
-                    tx_env,
+                    config_env.clone(),
+                    block_env.clone(),
+                    tx_env.clone(),
                     tx_hash,
                     &mut citrea_inspector,
                 )?;
-                // This also requires DatabaseRef trait
-                // Implement after readonly state is implemented
-                Err(EthApiError::Unsupported("JsTracer"))
+                let state = result_and_state.state.clone();
+
+                let env = revm::primitives::Env {
+                    cfg: config_env.cfg_env,
+                    block: block_env,
+                    tx: tx_env,
+                };
+
+                let json_value = citrea_inspector
+                    .inspector
+                    .json_result(result_and_state, &env, db)
+                    .map_err(|e| EthApiError::InternalJsTracerError(e.to_string()))?;
+                Ok((GethTrace::JS(json_value), state))
             }
         };
     }
