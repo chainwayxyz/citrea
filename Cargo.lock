@@ -2049,9 +2049,13 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bitcoin-da",
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "citrea-risc0-batch-proof",
+ "const-hex",
+ "constmuck",
  "hex",
  "jsonrpsee",
  "metrics",
@@ -2303,10 +2307,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
+name = "const_panic"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2459fc9262a1aa204eb4b5764ad4f189caec88aea9634389c0a25f8be7f6265e"
+
+[[package]]
 name = "constant_time_eq"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
+
+[[package]]
+name = "constmuck"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0e253ed9cc2e1bcc63d791dbe28f818fdff4fceb00d2ff1d3eb943574c623f8"
+dependencies = [
+ "bytemuck",
+ "constmuck_internal",
+ "typewit",
+]
+
+[[package]]
+name = "constmuck_internal"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5927bf986ef0398efc2725a986975c1bad3140c883e7bf102f3dec8bcdf0375"
+dependencies = [
+ "bytemuck",
+ "const_panic",
+]
 
 [[package]]
 name = "convert_case"
@@ -8853,6 +8884,12 @@ name = "typenum"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
+
+[[package]]
+name = "typewit"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb77c29baba9e4d3a6182d51fa75e3215c7fd1dab8f4ea9d107c716878e55fc0"
 
 [[package]]
 name = "ucd-trie"
