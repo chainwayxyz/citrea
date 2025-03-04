@@ -142,9 +142,6 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     let tracer_type = requested_opts.tracer.unwrap();
     let tracer_config = requested_opts.tracer_config;
 
-    // // If JsTracer specified, we can not benefit from the cache
-    // if matches!(tracer_type, GethDebugTracerType::JsTracer(_)) {}
-
     if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
         // If traces are found in cache convert them to specified opts and then return
         let traces = match trace_idx {
