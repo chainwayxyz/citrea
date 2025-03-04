@@ -351,18 +351,26 @@ where
             .unwrap_or(0)
             + 1;
         self.fork_manager.register_block(l2_height)?;
-        if self.fork_manager.active_fork().spec_id >= SpecId::Fork2 {
-            self.produce_l2_block_post_fork2(da_blocks, l1_fee_rate, l2_height, start)
+        let result = if self.fork_manager.active_fork().spec_id >= SpecId::Fork2 {
+            self.produce_l2_block_post_fork2(da_blocks, l1_fee_rate, l2_height)
                 .await
         } else {
             self.produce_l2_block_pre_fork2(
                 da_blocks.first().expect("Should have 1 da block").clone(),
                 l1_fee_rate,
                 l2_block_mode,
-                start,
             )
             .await
-        }
+        };
+
+        SEQUENCER_METRICS.block_production_execution.record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
+        SEQUENCER_METRICS.current_l2_block.set(l2_height as f64);
+
+        result
     }
 
     /// Post fork2 block production
@@ -371,7 +379,6 @@ where
         da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         l2_height: u64,
-        start: Instant,
     ) -> anyhow::Result<(u64, u64, StateDiff)> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
@@ -470,13 +477,9 @@ where
             .end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
 
         // Finalize soft confirmation
-        let soft_confirmation_result: sov_rollup_interface::stf::SoftConfirmationResult<
-            ProverStorage,
-            sov_state::Witness,
-            sov_state::ReadWriteLog,
-        > = self
-            .stf
-            .finalize_soft_confirmation(active_fork_spec, working_set, prestate);
+        let soft_confirmation_result =
+            self.stf
+                .finalize_soft_confirmation(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
         let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, active_fork_spec);
@@ -512,17 +515,18 @@ where
             [0u8; 32],
         );
 
-        self.save_l2_block(
-            l2_block,
-            soft_confirmation_result,
-            l2_height,
-            evm_txs_count,
-            l1_fee_failed_txs,
-            tx_hashes,
-            blobs,
-            last_da_block.header().height(),
-            start,
-        )
+        info!(
+            "Saving block #{}, Tx count: #{}",
+            l2_block.l2_height(),
+            evm_txs_count
+        );
+
+        let state_diff =
+            self.save_l2_block(l2_block, soft_confirmation_result, tx_hashes, blobs)?;
+
+        self.maintain_mempool(l1_fee_failed_txs)?;
+
+        Ok((l2_height, last_da_block.header().height(), state_diff))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -534,16 +538,11 @@ where
             sov_state::Witness,
             sov_state::ReadWriteLog,
         >,
-        l2_height: u64,
-        evm_txs_count: usize,
-        l1_fee_failed_txs: Vec<TxHash>,
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
-        last_l1_height: u64,
-        start: Instant,
-    ) -> anyhow::Result<(u64, u64, StateDiff)> {
+    ) -> anyhow::Result<StateDiff> {
         debug!(
-            "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
+            "Saving L2 block with hash: {:?} from sequencer {:?}",
             hex::encode(l2_block.hash()),
             hex::encode(l2_block.sequencer_pub_key()),
         );
@@ -576,11 +575,15 @@ where
         //     SoftConfirmationNumber(l2_height),
         // )?;
 
-        info!("New block #{}, Tx count: #{}", l2_height, evm_txs_count);
-
         self.state_root = next_state_root;
         self.soft_confirmation_hash = soft_confirmation_hash;
 
+        // this was saving L2 block
+
+        Ok(soft_confirmation_result.state_diff)
+    }
+
+    pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
         let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
         txs_to_remove.extend(l1_fee_failed_txs);
 
@@ -599,18 +602,7 @@ where
             warn!("Failed to remove txs from mempool: {:?}", e);
         }
 
-        SEQUENCER_METRICS.block_production_execution.record(
-            Instant::now()
-                .saturating_duration_since(start)
-                .as_secs_f64(),
-        );
-        SEQUENCER_METRICS.current_l2_block.set(l2_height as f64);
-
-        Ok((
-            l2_height,
-            last_l1_height,
-            soft_confirmation_result.state_diff,
-        ))
+        Ok(())
     }
 
     #[instrument(level = "trace", skip(self, cancellation_token), err, ret)]

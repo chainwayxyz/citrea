@@ -21,7 +21,7 @@ use sov_rollup_interface::soft_confirmation::L2Header;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::metrics::SEQUENCER_METRICS;
@@ -191,7 +191,6 @@ where
         da_block: Da::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: &L2BlockMode,
-        start: Instant,
     ) -> anyhow::Result<(u64, u64, StateDiff)> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
@@ -374,16 +373,17 @@ where
             da_header.txs_commitment().into(),
         );
 
-        self.save_l2_block(
-            l2_block,
-            soft_confirmation_result,
-            l2_height,
-            evm_txs_count,
-            l1_fee_failed_txs,
-            tx_hashes,
-            blobs,
-            da_block_height,
-            start,
-        )
+        info!(
+            "Saving block #{}, Tx count: #{}",
+            l2_block.l2_height(),
+            evm_txs_count
+        );
+
+        let state_diff =
+            self.save_l2_block(l2_block, soft_confirmation_result, tx_hashes, blobs)?;
+
+        self.maintain_mempool(l1_fee_failed_txs)?;
+
+        Ok((l2_height, da_block_height, state_diff))
     }
 }
