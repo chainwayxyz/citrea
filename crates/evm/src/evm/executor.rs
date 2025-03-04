@@ -238,6 +238,21 @@ pub(crate) fn execute_system_txs<C: sov_modules_api::Context, EXT: CitreaExterna
         .collect()
 }
 
+/// Returns the last set l1 block height in bitcoin light client contract
+pub fn get_last_l1_height_in_light_client<C: sov_modules_api::Context>(
+    evm: &Evm<C>,
+    spec_id: CitreaSpecId,
+    working_set: &mut WorkingSet<C::Storage>,
+) -> Option<U256> {
+    evm.storage_get(
+        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+        &U256::ZERO,
+        spec_id,
+        working_set,
+    )
+    .map(|v| v.saturating_sub(U256::from(1u64)))
+}
+
 /// Returns the last set l1 block hash in bitcoin light client contract
 pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
     evm: &Evm<C>,

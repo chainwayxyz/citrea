@@ -1849,7 +1849,6 @@ dependencies = [
  "backoff",
  "borsh",
  "citrea-common",
- "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
  "faster-hex",
@@ -1901,10 +1900,12 @@ name = "citrea-common"
 version = "0.6.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-sol-types",
  "anyhow",
  "async-trait",
  "backoff",
  "borsh",
+ "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
  "citrea-storage-ops",
@@ -1914,6 +1915,7 @@ dependencies = [
  "jsonrpsee",
  "lru",
  "metrics",
+ "reth-primitives",
  "rocksdb",
  "rs_merkle",
  "serde",
@@ -1939,7 +1941,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=535704321136f15f589a7555f6aec1d2f3d1278e#535704321136f15f589a7555f6aec1d2f3d1278e"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=96ea99b9f1f1ef70f8a41ad62baaea5be6c2a2e1#96ea99b9f1f1ef70f8a41ad62baaea5be6c2a2e1"
 dependencies = [
  "alloy-primitives",
  "anyhow",

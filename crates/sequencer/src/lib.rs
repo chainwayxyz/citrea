@@ -11,7 +11,7 @@ use jsonrpsee::RpcModule;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
 pub use rpc::SequencerRpcClient;
-pub use runner::CitreaSequencer;
+pub use runner::{CitreaSequencer, MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -21,6 +21,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 
 mod commitment;
+mod compat;
 pub mod db_migrations;
 mod db_provider;
 mod deposit_data_mempool;

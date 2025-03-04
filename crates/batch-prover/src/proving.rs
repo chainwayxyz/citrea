@@ -373,9 +373,13 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
-            if da_block_headers_to_push.is_empty()
-                || da_block_headers_to_push.last().unwrap().height()
-                    != soft_confirmation.da_slot_height
+            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
+
+            // No need to push l1 data if we are post fork2
+            if spec_id < SpecId::Fork2
+                && (da_block_headers_to_push.is_empty()
+                    || da_block_headers_to_push.last().unwrap().height()
+                        != soft_confirmation.da_slot_height)
             {
                 let filtered_block = get_da_block_at_height(
                     da_service,
@@ -473,12 +477,20 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
         for l2_block in l2_blocks_in_commitment {
             let l2_height = l2_block.l2_height();
-            let l1_block = get_da_block_at_height(
-                da_service,
-                l2_block.da_slot_height(),
-                l1_block_cache.clone(),
-            )
-            .await?;
+            let spec_id = fork_from_block_number(l2_height).spec_id;
+
+            let l1_block = if spec_id < SpecId::Fork2 {
+                Some(
+                    get_da_block_at_height(
+                        da_service,
+                        l2_block.da_slot_height(),
+                        l1_block_cache.clone(),
+                    )
+                    .await?,
+                )
+            } else {
+                None
+            };
 
             let pre_state = storage_manager.create_storage_for_l2_height(l2_height);
             let current_spec = fork_from_block_number(l2_height).spec_id;
@@ -492,18 +504,34 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
             let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
             let soft_confirmation_result =
                 tracing::subscriber::with_default(silent_subscriber, || {
-                    stf.apply_soft_confirmation(
-                        current_spec,
-                        sequencer_public_key,
-                        &init_state_root,
-                        pre_state,
-                        cumulative_state_log.take(),
-                        cumulative_offchain_log.take(),
-                        Default::default(),
-                        Default::default(),
-                        l1_block.header(),
-                        l2_block,
-                    )
+                    if current_spec >= SpecId::Fork2 {
+                        stf.apply_soft_confirmation(
+                            current_spec,
+                            sequencer_public_key,
+                            &init_state_root,
+                            pre_state,
+                            cumulative_state_log.take(),
+                            cumulative_offchain_log.take(),
+                            Default::default(),
+                            Default::default(),
+                            l2_block,
+                        )
+                    } else {
+                        stf.apply_soft_confirmation_pre_fork2(
+                            current_spec,
+                            sequencer_public_key,
+                            &init_state_root,
+                            pre_state,
+                            cumulative_state_log.take(),
+                            cumulative_offchain_log.take(),
+                            Default::default(),
+                            Default::default(),
+                            l1_block
+                                .expect("Pre fork2 l2 block should have l1 data")
+                                .header(),
+                            l2_block,
+                        )
+                    }
                 })?;
 
             assert_eq!(

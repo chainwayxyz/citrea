@@ -164,7 +164,8 @@ pub trait DaSpec:
         + BorshDeserialize
         + BorshSerialize
         + Send
-        + Sync;
+        + Sync
+        + Debug;
 }
 
 #[derive(Debug)]
