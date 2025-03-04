@@ -1,5 +1,5 @@
 #![no_main]
-use citrea_light_client_prover::circuit::run_circuit;
+use citrea_light_client_prover::circuit::old::run_circuit;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_mock_da::MockDaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;

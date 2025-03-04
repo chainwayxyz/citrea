@@ -14,7 +14,7 @@ use test_utils::{
     create_random_state_diff, create_serialized_mock_proof,
 };
 
-use crate::circuit::{run_circuit, LightClientVerificationError};
+use crate::circuit::old::{run_circuit, LightClientVerificationError};
 
 type Height = u64;
 const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
