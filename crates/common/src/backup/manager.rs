@@ -396,18 +396,57 @@ impl BackupManager {
     ///
     /// # Arguments
     /// * `backup_path` - Path to the backup directory containing database backups
-    /// * `backup_id` - The backup ID up to which backups should be purged
+    /// * `num_to_keep` - Optional. How many backup to keep.
+    /// * `backup_id` - Optional. Required if num_to_keep is None. The backup ID up to which backups should be purged
     ///
     /// # Returns
     /// * `Ok(())` if all purging operations succeeded
     /// * `Err` if backup_path doesn't exist or if RocksDB purging fails
-    pub async fn purge_backup(&self, backup_path: PathBuf, backup_id: u32) -> anyhow::Result<()> {
+    pub async fn purge_backup(
+        &self,
+        backup_path: PathBuf,
+        num_to_keep: Option<u32>,
+        backup_id: Option<u32>,
+    ) -> anyhow::Result<()> {
         if !backup_path.exists() {
             bail!("Backup directory does not exist: {:?}", backup_path);
         }
 
         let start_time = Instant::now();
-        info!("Starting backup purge process for backups up to ID {backup_id}",);
+
+        let backup_id = match (backup_id, num_to_keep) {
+            (Some(backup_id), None) => backup_id,
+            (None, Some(keep)) => {
+                info!("Starting backup purge process keeping {keep} most recent backups");
+                let metadata_path = backup_path.join(".metadata");
+                if !metadata_path.exists() {
+                    bail!("Metadata file not found at {}", metadata_path.display());
+                }
+
+                let content = std::fs::read_to_string(&metadata_path)?;
+                let metadata: BackupMetadata = serde_json::from_str(&content)?;
+
+                if metadata.backups.len() <= keep as usize {
+                    info!(
+                        "No backups to purge: {} backups exist, requested to keep {}",
+                        metadata.backups.len(),
+                        keep
+                    );
+                    return Ok(());
+                }
+
+                let skip_count = metadata.backups.len() - keep as usize;
+                let threshold_id = *metadata
+                    .backups
+                    .keys()
+                    .nth(skip_count)
+                    .context("Could not determine threshold backup ID")?;
+
+                info!("Keep backups up to id {threshold_id}");
+                threshold_id
+            }
+            _ => bail!("Only one of backup_id or num_to_keep must be specified"),
+        };
 
         for dir in &self.config.backup_dirs {
             let path = backup_path.join(dir);
@@ -424,18 +463,10 @@ impl BackupManager {
 
             let num_backups_to_keep = backup_info.len() - ids_to_purge.len();
 
-            if ids_to_purge.is_empty() {
-                warn!("No backups to purge in {dir}");
-                continue;
-            }
-
             info!("Purging and keeping {num_backups_to_keep} backups in {dir}");
             engine.purge_old_backups(num_backups_to_keep)?;
 
-            info!(
-                "Successfully purged {} backups in {dir}",
-                ids_to_purge.len(),
-            );
+            info!("Successfully purged backups in {dir}",);
         }
 
         if let Err(e) = Self::update_metadata_after_purge(backup_path, backup_id).await {

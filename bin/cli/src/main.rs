@@ -79,8 +79,20 @@ enum Commands {
         #[arg(long)]
         backup_path: PathBuf,
         /// The backup ID to purge up to (exclusive)
-        #[arg(long)]
-        backup_id: u32,
+        #[arg(
+            long,
+            conflicts_with = "num_to_keep",
+            required_unless_present = "num_to_keep"
+        )]
+        backup_id: Option<u32>,
+
+        /// Number of most recent backups to keep
+        #[arg(
+            long,
+            conflicts_with = "backup_id",
+            required_unless_present = "backup_id"
+        )]
+        num_to_keep: Option<u32>,
     },
 }
 
@@ -118,8 +130,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::PurgeBackup {
             backup_path,
             backup_id,
+            num_to_keep,
         } => {
-            commands::purge_backup(backup_path, backup_id).await?;
+            commands::purge_backup(backup_path, num_to_keep, backup_id).await?;
         }
     }
 
