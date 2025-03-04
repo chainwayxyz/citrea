@@ -15,7 +15,7 @@ impl<S: Storage> BlockHashAccessor<S> {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key.copy_from_slice(&[Self::PREFIX]);
+        key[0..1].copy_from_slice(&[Self::PREFIX]);
         key[1..].copy_from_slice(&hash);
 
         let p = Prefix::from_slice(&key);
@@ -29,7 +29,7 @@ impl<S: Storage> BlockHashAccessor<S> {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key.copy_from_slice(&[Self::PREFIX]);
+        key[0..1].copy_from_slice(&[Self::PREFIX]);
         key[1..].copy_from_slice(&hash);
 
         let p = Prefix::from_slice(&key);
@@ -52,7 +52,7 @@ impl<S: Storage> ChunkAccessor<S> {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key.copy_from_slice(&[Self::PREFIX]);
+        key[0..1].copy_from_slice(&[Self::PREFIX]);
         key[1..].copy_from_slice(&wtxid);
 
         let p = Prefix::from_slice(&key);
@@ -68,7 +68,7 @@ impl<S: Storage> ChunkAccessor<S> {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key.copy_from_slice(&[Self::PREFIX]);
+        key[0..1].copy_from_slice(&[Self::PREFIX]);
         key[1..].copy_from_slice(&wtxid);
 
         let p = Prefix::from_slice(&key);
@@ -84,4 +84,102 @@ impl<S: Storage> ChunkAccessor<S> {
 // TODO: write raw accessor tests with JMT
 // and prover storage manager
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use sov_modules_api::WorkingSet;
+    use sov_modules_core::Storage;
+    use sov_prover_storage_manager::{new_orphan_storage, ProverStorage};
+    use sov_rollup_interface::witness::Witness;
+
+    use super::{BlockHashAccessor, ChunkAccessor};
+
+    #[test]
+    fn test_block_hash_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        BlockHashAccessor::<ProverStorage>::insert([1; 32], &mut working_set);
+
+        assert!(BlockHashAccessor::<ProverStorage>::exists(
+            [1; 32],
+            &mut working_set
+        ));
+
+        assert!(!BlockHashAccessor::<ProverStorage>::exists(
+            [2; 32],
+            &mut working_set
+        ));
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        // assert_eq!(witness.len(), 2);
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness)
+            .expect("should not fail");
+
+        // sanity check
+        // why 6?
+        // 1 exists value for [2; 32] (None)
+        // 1 non-existence proof for [2; 32] -> commit
+        // 1 initial root -> commit
+        // 1 update proof -> commit
+        // 1 final root
+        assert_eq!(witness.len(), 5);
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert!(BlockHashAccessor::<ProverStorage>::exists(
+            [1; 32],
+            &mut working_set
+        ));
+
+        assert!(!BlockHashAccessor::<ProverStorage>::exists(
+            [2; 32],
+            &mut working_set
+        ));
+    }
+
+    #[test]
+    fn test_chunk_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        ChunkAccessor::<ProverStorage>::insert([1; 32], vec![12; 150], &mut working_set);
+
+        assert_eq!(
+            ChunkAccessor::<ProverStorage>::get([1; 32], &mut working_set).unwrap(),
+            vec![12; 150]
+        );
+
+        assert!(ChunkAccessor::<ProverStorage>::get([2; 32], &mut working_set).is_none());
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        // assert_eq!(witness.len(), 2);
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness)
+            .expect("should not fail");
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert_eq!(
+            ChunkAccessor::<ProverStorage>::get([1; 32], &mut working_set).unwrap(),
+            vec![12; 150]
+        );
+
+        assert!(ChunkAccessor::<ProverStorage>::get([2; 32], &mut working_set).is_none());
+    }
+}

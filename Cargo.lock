@@ -2066,6 +2066,7 @@ dependencies = [
  "sov-modules-core",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
+ "tempfile",
  "tokio",
  "tokio-util",
  "tracing",
