@@ -25,9 +25,6 @@ pub enum ProofGenMode {
 /// Borsh serialized input to the guest
 pub type Input = Vec<u8>;
 
-/// Vector of assumption to the proving session
-pub type Assumptions = Vec<Vec<u8>>;
-
 /// Elf used in the proving session
 pub type Elf = Vec<u8>;
 
@@ -35,9 +32,6 @@ pub type Elf = Vec<u8>;
 pub struct ProofData {
     /// The input data to be processed
     pub input: Input,
-
-    /// Collection of assumptions used in the proving process
-    pub assumptions: Assumptions,
 
     /// The ELF binary to be used
     pub elf: Elf,

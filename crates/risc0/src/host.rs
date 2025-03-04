@@ -40,7 +40,6 @@ pub struct RecoveredBonsaiSession {
 #[derive(Clone)]
 pub struct Risc0BonsaiHost {
     env: Vec<u8>,
-    assumptions: Vec<AssumptionReceipt>,
     _ledger_db: LedgerDB,
     #[cfg(feature = "testing")]
     network: Network,
@@ -83,7 +82,6 @@ impl Risc0BonsaiHost {
 
         Self {
             env: Default::default(),
-            assumptions: vec![],
             _ledger_db: ledger_db,
             #[cfg(feature = "testing")]
             network: _network,
@@ -106,11 +104,6 @@ impl ZkvmHost for Risc0BonsaiHost {
         todo!("we don't use it yet")
     }
 
-    fn add_assumption(&mut self, receipt_buf: Vec<u8>) {
-        let receipt = receipt_from_proof(&receipt_buf).expect("Receipt should be valid");
-        self.assumptions.push(receipt.into());
-    }
-
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
     fn run(&mut self, elf: Vec<u8>, with_proof: bool) -> Result<Proof, anyhow::Error> {
@@ -123,11 +116,6 @@ impl ZkvmHost for Risc0BonsaiHost {
         }
 
         let mut env = ExecutorEnvBuilder::default();
-        for assumption in self.assumptions.iter() {
-            env.add_assumption(assumption.clone());
-        }
-
-        tracing::debug!("{:?} assumptions added to the env", self.assumptions.len());
 
         #[cfg(feature = "testing")]
         {
@@ -170,9 +158,6 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         // Cleanup env
         self.env.clear();
-
-        // Cleanup assumptions
-        self.assumptions.clear();
 
         Ok(serialized_receipt)
     }

@@ -208,7 +208,6 @@ async fn start_proof(
     let rx = prover_service
         .start_proving(ProofData {
             input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-            assumptions: vec![],
             elf: vec![],
         })
         .await;
