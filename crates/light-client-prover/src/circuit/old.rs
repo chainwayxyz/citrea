@@ -115,8 +115,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut in_memory_chunks: BTreeMap<Wtxid, Vec<u8>> = Default::default();
     let mut mmr_hints = input.mmr_hints;
 
-    // index only incremented on processing of a complete or aggregate DA tx
-    let mut current_proof_index = 0u32;
     // Parse the batch proof da data
     'blob_loop: for blob in da_txs {
         let Ok(data) = DaDataLightClient::try_from_slice(blob.full_data()) else {
@@ -146,7 +144,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     last_l2_height,
                     &mut initial_to_final,
                 ) {
-                    Ok(()) => current_proof_index += 1,
+                    Ok(()) => {}
                     Err(e) => println!("Error processing complete proof: {e}"),
                 }
             }
@@ -221,7 +219,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     last_l2_height,
                     &mut initial_to_final,
                 ) {
-                    Ok(()) => current_proof_index += 1,
+                    Ok(()) => {}
                     // serialization or duplicate proof error
                     Err(e) => {
                         reinsert_used_chunks();

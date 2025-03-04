@@ -204,8 +204,6 @@ where
 
         let mut unused_chunks = BTreeMap::<Wtxid, Vec<u8>>::new();
         let mut mmr_hints = vec![];
-        // index only incremented for complete and aggregated proofs, in line with the circuit
-        let mut proof_index = 0u32;
 
         'proof_loop: for (wtxid, batch_proof) in batch_proofs {
             info!("Batch proof wtxid={}", hex::encode(wtxid));
@@ -215,11 +213,9 @@ where
                     match self.verify_complete_proof(&proof, l2_last_height) {
                         Ok(true) => {
                             info!("Complete proof verified successfully");
-                            proof_index += 1;
                         }
                         Ok(false) => {
                             warn!("Complete proof is expected to fail");
-                            proof_index += 1;
                         }
                         Err(err) => {
                             error!("Batch proof verification failed: {err}");
@@ -287,10 +283,9 @@ where
                     match self.verify_complete_proof(&complete_proof, l2_last_height) {
                         Ok(true) => {
                             info!("Aggregate proof verified successfully");
-                            proof_index += 1;
                         }
                         Ok(false) => {
-                            proof_index += 1;
+                            warn!("Aggregate proof is expected to fail");
                         }
                         Err(err) => {
                             error!("Invalid aggregate batch proof found: {err}");
