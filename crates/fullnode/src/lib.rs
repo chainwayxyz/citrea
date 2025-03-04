@@ -26,16 +26,16 @@ mod metrics;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn build_services<Da, DB, Vm>(
+pub fn build_services<DA, DB, Vm>(
     runner_config: RunnerConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
         DefaultContext,
-        <Da as DaService>::Spec,
-        CitreaRuntime<DefaultContext, <Da as DaService>::Spec>,
+        <DA as DaService>::Spec,
+        CitreaRuntime<DefaultContext, <DA as DaService>::Spec>,
     >,
     public_keys: RollupPublicKeys,
-    da_service: Arc<Da>,
+    da_service: Arc<DA>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
@@ -43,13 +43,12 @@ pub fn build_services<Da, DB, Vm>(
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    CitreaFullnode<DB>,
-    L2SyncWorker<Da, DB>,
-    L1BlockHandler<Vm, Da, DB>,
+    CitreaFullnode<DA, DB>,
+    L1BlockHandler<Vm, DA, DB>,
     Option<PrunerService>,
 )>
 where
-    Da: DaService<Error = anyhow::Error>,
+    DA: DaService<Error = anyhow::Error>,
     DB: NodeLedgerOps + Send + Sync + Clone + 'static,
     Vm: ZkvmHost + Zkvm,
 {
@@ -82,7 +81,7 @@ where
         include_tx_bodies,
     )?;
 
-    let runner = CitreaFullnode::<DB>::new(ledger_db.clone(), l2_signal_rx)?;
+    let runner = CitreaFullnode::<DA, DB>::new(ledger_db.clone(), l2_sync_worker, l2_signal_rx)?;
 
     let l1_block_handler = L1BlockHandler::new(
         ledger_db,
@@ -95,5 +94,5 @@ where
         backup_manager,
     );
 
-    Ok((runner, l2_sync_worker, l1_block_handler, pruner))
+    Ok((runner, l1_block_handler, pruner))
 }
