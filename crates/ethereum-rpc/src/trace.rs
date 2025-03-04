@@ -120,9 +120,12 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     working_set: &mut WorkingSet<C::Storage>,
     opts: Option<GethDebugTracingOptions>,
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
-    // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
-    if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-        tracing::warn!("Tracer not specified, skipping cache");
+    // If tracer option is not specified, or it is JsTracer, then do not check cache or insert cache, just perform the operation
+    let skip_cache = opts.as_ref().map_or(true, |o| {
+        matches!(o.tracer, None | Some(GethDebugTracerType::JsTracer(_)))
+    });
+    if skip_cache {
+        tracing::warn!("Skipping cache and getting traces");
         let mut traces = evm.trace_block_transactions_by_number(
             block_number,
             opts,
