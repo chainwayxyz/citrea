@@ -189,6 +189,7 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
         let txs_commitment: [u8; 32] = tx.input()[36..68]
             .try_into()
             .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+        let coinbase_depth: u8 = U256::from_be_slice(&tx.input()[68..100]).to::<u8>();
 
         let citrea_spec = fork_from_block_number(l2_height).spec_id;
 
@@ -203,6 +204,7 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
             prev_hash.unwrap().to_be_bytes(),
             next_l1_height,
             txs_commitment,
+            coinbase_depth,
             l2_height,
         ) {
             Ok(true) => return Ok(()),
