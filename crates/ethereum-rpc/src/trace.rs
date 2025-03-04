@@ -177,7 +177,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         Some(idx) => vec![traces.remove(idx)],
         None => traces,
     };
-    tracing::warn!("Converting traces to requested format: {traces:?}");
+    tracing::warn!("Converting traces to requested format");
     let traces = get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
     tracing::warn!("Finished conversion");
 
