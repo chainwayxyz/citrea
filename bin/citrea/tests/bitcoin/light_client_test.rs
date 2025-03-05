@@ -44,7 +44,7 @@ impl TestCase for LightClientProvingTest {
             with_batch_prover: true,
             with_light_client_prover: true,
             with_full_node: true,
-            mode: CitreaMode::DevAllForks,
+            mode: CitreaMode::Dev,
             ..Default::default()
         }
     }
@@ -178,7 +178,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             with_batch_prover: true,
             with_light_client_prover: true,
             with_full_node: true,
-            mode: CitreaMode::DevAllForks,
+            mode: CitreaMode::Dev,
             ..Default::default()
         }
     }
@@ -465,7 +465,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             with_sequencer: true,
             with_batch_prover: true,
             with_light_client_prover: true,
-            mode: CitreaMode::DevAllForks,
+            mode: CitreaMode::Dev,
             ..Default::default()
         }
     }

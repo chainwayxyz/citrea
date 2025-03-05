@@ -1,5 +1,3 @@
-use core::num::NonZeroU16;
-
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
@@ -147,7 +145,7 @@ pub enum ParserError {
     #[error("Invalid header length")]
     InvalidHeaderLength,
     #[error("Invalid header type {0}")]
-    InvalidHeaderType(NonZeroU16),
+    InvalidHeaderType(u16),
     #[error("No witness in tapscript")]
     NonTapscriptWitness,
     #[error("Unexpected end of script")]

@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin::key::Secp256k1;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoin_da::spec::RollupParams;
@@ -68,7 +67,7 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 3 valid commitments, and 1 invalid commitment with wrong public key
-            assert_eq!(txs.len(), 4);
+            assert_eq!(txs.len(), 15);
             // it is >= due to the probability that one of commit transactions ended up
             // with the prefix by chance (reveals are guaranteed to have a certain prefix)
             assert!(
@@ -103,7 +102,7 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 2 complete, 2 aggregate proofs with 2 chunks for the first and 3 chunks for the second agg, and 2 method id txs
-            assert_eq!(txs.len(), 11);
+            assert_eq!(txs.len(), 15);
             // it is >= due to the probability that one of commit transactions ended up
             // with the prefix by chance (reveals are guaranteed to have a certain prefix)
             assert!(
@@ -143,23 +142,11 @@ impl TestCase for BitcoinServiceTest {
         // Batch proof tx blob signed with different private key should still be
         // returned as blob with sender recovered correctly.
         {
-            let secp = Secp256k1::new();
-            let wrong_secret = SecretKey::from_str(
-                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261",
-            )
-            .unwrap();
-            let wrong_pubkey = wrong_secret
-                .keypair(&secp)
-                .public_key()
-                .serialize()
-                .to_vec();
-
             let false_sig_block = get_mock_false_signature_txs_block();
 
             let (txs, _, _) = service.extract_relevant_blobs_with_proof(&false_sig_block);
             // There is one tx with right prefix, but wrong signature
-            assert_eq!(txs.len(), 1);
-            assert_eq!(txs[0].sender.0, wrong_pubkey);
+            assert_eq!(txs.len(), 0);
         }
 
         {

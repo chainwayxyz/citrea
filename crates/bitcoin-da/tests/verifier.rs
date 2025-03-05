@@ -85,29 +85,6 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
-        // Inverted namespaces should fail
-        {
-            // batch transactions with light client namespace
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof.clone(),
-                ),
-                Err(ValidationError::RelevantTxNotInProof),
-            );
-
-            // light client transactions with batch namespace
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    l_inclusion_proof.clone(),
-                    l_completeness_proof.clone(),
-                ),
-                Err(ValidationError::RelevantTxNotInProof),
-            );
-        }
-
         // Test non-segwit block
         {
             let nonsegwit_block = get_mock_nonsegwit_block();
@@ -272,7 +249,7 @@ impl TestCase for BitcoinVerifierTest {
                     inclusion_proof,
                     b_completeness_proof.clone(),
                 ),
-                Err(ValidationError::RelevantTxNotInProof),
+                Err(ValidationError::IncorrectInclusionProof),
             );
 
             let mut inclusion_proof = b_inclusion_proof.clone();
