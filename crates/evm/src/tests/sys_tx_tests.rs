@@ -510,7 +510,7 @@ fn test_bridge() {
 
     config_push_contracts(
         &mut config,
-        Some("../../resources/test-data/integration-tests-old-bridge/evm.json"),
+        Some("../../resources/test-data/integration-tests-old-light-client/evm.json"),
     );
 
     let (mut evm, mut working_set, spec_id) = get_evm_pre_fork2(&config);
