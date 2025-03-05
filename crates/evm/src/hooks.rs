@@ -397,22 +397,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
 }
 
 /// Initializes system contracts
-pub fn create_initial_system_events<'a>(
+pub fn create_initial_system_events(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
     current_da_height: u64,
-    bridge_initialize_params: &'a [u8],
-) -> Vec<SystemEvent<'a>> {
-    let mut system_events = vec![];
-    // That's the first L2 block in the first seen L1 block.
-    system_events.push(SystemEvent::BitcoinLightClientInitialize(current_da_height));
-    system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
-        current_slot_hash,
-        current_da_txs_commitment,
-        coinbase_depth,
-    ));
-    system_events.push(SystemEvent::BridgeInitialize(bridge_initialize_params));
+    bridge_initialize_params: &[u8],
+) -> Vec<SystemEvent<'_>> {
+    let system_events = vec![
+        SystemEvent::BitcoinLightClientInitialize(current_da_height),
+        SystemEvent::BitcoinLightClientSetBlockInfo(
+            current_slot_hash,
+            current_da_txs_commitment,
+            coinbase_depth,
+        ),
+        SystemEvent::BridgeInitialize(bridge_initialize_params),
+    ];
     system_events
 }
 
