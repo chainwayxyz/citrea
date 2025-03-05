@@ -99,7 +99,6 @@ impl BridgeWrapper {
     }
 
     pub(crate) fn initialize(params: &[u8]) -> Bytes {
-        // Hardcoded until better times.
         let mut func_selector = Vec::with_capacity(4 + params.len());
         func_selector.extend(BridgeContract::initializeCall::SELECTOR);
         func_selector.extend(params);
