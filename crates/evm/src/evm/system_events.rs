@@ -94,7 +94,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
     Transaction::Eip1559(body)
 }
 
-fn signed_system_transaction(
+pub(crate) fn signed_system_transaction(
     event: SystemEvent,
     nonce: u64,
     chain_id: u64,
