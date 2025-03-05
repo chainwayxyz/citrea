@@ -70,7 +70,7 @@ impl DaVerifier for BitcoinVerifier {
     }
 
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        borsh::from_slice(decompress_blob(complete_chunks).as_slice())
+        BitcoinSpec::decompress_chunks(complete_chunks)
             .map_err(|_| ValidationError::FailedToDeserializeCompleteChunks)
     }
 

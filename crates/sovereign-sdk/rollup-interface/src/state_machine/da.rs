@@ -165,6 +165,9 @@ pub trait DaSpec:
         + BorshSerialize
         + Send
         + Sync;
+
+    /// Decompress chunks to complete
+    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, ()>;
 }
 
 #[derive(Debug)]

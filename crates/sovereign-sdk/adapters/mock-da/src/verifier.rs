@@ -54,6 +54,10 @@ impl DaSpec for MockDaSpec {
     type CompletenessProof = Vec<MockBlob>;
     type ChainParams = ();
     type ShortHeaderProof = MockShortHeaderProof;
+
+    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, ()> {
+        Ok(complete_chunks.to_vec())
+    }
 }
 
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
