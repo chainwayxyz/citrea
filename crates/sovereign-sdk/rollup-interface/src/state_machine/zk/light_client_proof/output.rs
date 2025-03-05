@@ -2,7 +2,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::LatestDaState;
-use crate::mmr::MMRGuest;
 use crate::zk::StorageRootHash;
 
 /// The output of light client proof

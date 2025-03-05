@@ -38,6 +38,8 @@
 //! ├── state/        # Required - stores state database
 //! ├── native-db/    # Required - stores native database
 //! └── mmr/          # Optional - used by light client prover
+//!
+//! MMR is now deprecated and will be removed in future versions.
 //! ```
 mod manager;
 mod rpc;

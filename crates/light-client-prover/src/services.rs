@@ -7,7 +7,6 @@ use citrea_common::{LightClientProverConfig, RollupPublicKeys, RunnerConfig};
 use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
-use sov_db::mmr_db::MmrDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -50,9 +49,6 @@ where
     let rpc_context = rpc::create_rpc_context(ledger_db.clone());
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
-    let mmr_db = MmrDB::new(rocksdb_config)?;
-    backup_manager.register_database(MmrDB::DB_PATH_SUFFIX.to_string(), mmr_db.db_handle())?;
-
     let l1_block_handler = L1BlockHandler::new(
         network,
         prover_config,
@@ -64,7 +60,6 @@ where
         batch_prover_code_commitments,
         light_client_prover_code_commitments,
         light_client_prover_elfs,
-        mmr_db,
         backup_manager,
     );
 

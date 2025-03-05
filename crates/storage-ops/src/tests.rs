@@ -16,7 +16,6 @@ use sov_db::schema::types::light_client_proof::{
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_db::state_db::StateDB;
-use sov_rollup_interface::mmr::MMRGuest;
 use sov_schema_db::DB;
 use sov_state::Storage;
 use tokio::sync::broadcast;

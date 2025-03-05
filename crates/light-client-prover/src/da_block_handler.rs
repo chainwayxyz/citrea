@@ -9,7 +9,6 @@ use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData};
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
-use sov_db::mmr_db::MmrDB;
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::{
@@ -17,7 +16,7 @@ use sov_modules_api::{
 };
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
-use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
+use sov_rollup_interface::mmr::Wtxid;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
@@ -58,7 +57,6 @@ where
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
-    mmr_native: MMRNative<MmrDB>,
     backup_manager: Arc<BackupManager>,
 }
 
@@ -81,10 +79,8 @@ where
         batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
-        mmr_db: MmrDB,
         backup_manager: Arc<BackupManager>,
     ) -> Self {
-        let mmr_native = MMRNative::new(mmr_db);
         Self {
             network,
             _prover_config: prover_config,
@@ -98,7 +94,6 @@ where
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
-            mmr_native,
             backup_manager,
         }
     }
@@ -209,117 +204,7 @@ where
             batch_proofs.len()
         );
 
-        let mut unused_chunks = BTreeMap::<Wtxid, Vec<u8>>::new();
-        let mut mmr_hints = vec![];
-
-        'proof_loop: for (wtxid, batch_proof) in batch_proofs {
-            info!("Batch proof wtxid={}", hex::encode(wtxid));
-            match batch_proof {
-                DaDataLightClient::Complete(proof) => {
-                    info!("It is complete proof");
-                    match self.verify_complete_proof(&proof, l2_last_height) {
-                        Ok(true) => {
-                            info!("Complete proof verified successfully");
-                        }
-                        Ok(false) => {
-                            warn!("Complete proof is expected to fail");
-                        }
-                        Err(err) => {
-                            error!("Batch proof verification failed: {err}");
-                        }
-                    }
-                }
-                DaDataLightClient::Aggregate(_txids, wtxids) => {
-                    info!("It is aggregate proof with {} chunks", wtxids.len());
-                    // Ensure that aggregate has all the needed chunks
-                    let mut used_chunk_count = 0;
-                    for wid in &wtxids {
-                        if unused_chunks.contains_key(wid) {
-                            used_chunk_count += 1;
-                            continue;
-                        }
-                        if !self.mmr_native.contains(*wid)? {
-                            warn!("Aggregate is unprovable due to missing chunks");
-                            continue 'proof_loop;
-                        }
-                    }
-
-                    info!(
-                        "Aggregate has all needed chunks, {} from current block, {} from previous blocks",
-                        used_chunk_count,
-                        wtxids.len() - used_chunk_count,
-                    );
-
-                    // Recollect the complete proof from chunks
-                    let mut complete_proof = vec![];
-                    // Used for re-adding chunks back in case of failure
-                    let mut used_chunk_ptrs = Vec::with_capacity(used_chunk_count);
-                    for wtxid in wtxids {
-                        if let Some(chunk) = unused_chunks.remove(&wtxid) {
-                            used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
-                            complete_proof.extend(chunk);
-                        } else {
-                            let (chunk, proof) = self
-                                .mmr_native
-                                .generate_proof(wtxid)?
-                                .expect("Chunk wtxid must exist");
-                            complete_proof.extend_from_slice(&chunk.body);
-                            mmr_hints.push((chunk, proof));
-                        }
-                    }
-
-                    info!("Aggregate proof reassembled from chunks");
-
-                    let reinsert_used_chunks = || {
-                        for (idx, size, wtxid) in used_chunk_ptrs {
-                            let chunk = complete_proof[idx..idx + size].to_vec();
-                            unused_chunks.insert(wtxid, chunk);
-                        }
-                    };
-
-                    let Ok(complete_proof) = self.da_service.decompress_chunks(&complete_proof)
-                    else {
-                        error!(
-                            "Failed to decompress complete chunks of aggregate {}",
-                            hex::encode(wtxid)
-                        );
-                        reinsert_used_chunks();
-                        continue;
-                    };
-
-                    match self.verify_complete_proof(&complete_proof, l2_last_height) {
-                        Ok(true) => {
-                            info!("Aggregate proof verified successfully");
-                        }
-                        Ok(false) => {
-                            warn!("Aggregate proof is expected to fail");
-                        }
-                        Err(err) => {
-                            error!("Invalid aggregate batch proof found: {err}");
-                            reinsert_used_chunks();
-                        }
-                    }
-                }
-                DaDataLightClient::Chunk(body) => {
-                    info!("It is chunk proof");
-                    // For now, this chunk is unused by any aggregate in the block.
-                    unused_chunks.insert(wtxid, body);
-                }
-                _ => {
-                    continue;
-                }
-            }
-        }
-
-        // Add unused chunks to MMR native.
-        // Up until this point, the proof has been generated by aggregates in the block,
-        // so it's okay to update the MMR tree now.
-        if !unused_chunks.is_empty() {
-            info!("Adding {} more chunks to mmr", unused_chunks.len());
-            for (wtxid, body) in unused_chunks.into_iter() {
-                self.mmr_native.append(MMRChunk::new(wtxid, body))?;
-            }
-        }
+        // TODO: implement new circuit witness extraction
 
         // This is not exactly right, but works for now because we have a single elf for
         // light client proof circuit.

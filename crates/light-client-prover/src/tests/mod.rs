@@ -5,16 +5,15 @@ use std::collections::VecDeque;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient, LatestDaState};
-use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRNative, MMRNodeHash};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::Network;
 use test_utils::{
-    create_mmr_hints, create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
+    create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
     create_random_state_diff, create_serialized_mock_proof,
 };
 
-use crate::circuit::old::{run_circuit, LightClientVerificationError};
+use crate::circuit::LightClientVerificationError;
 
 type Height = u64;
 const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
@@ -830,36 +829,6 @@ fn test_mmr_hints() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
-    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
-    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
-
-    let mut mmr_guest = MMRGuest::new();
-
-    let (mmr_chunk1, mmr_proof1) = mmr
-        .generate_proof([1; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk1.clone());
-
-    let (mmr_chunk2, mmr_proof2) = mmr
-        .generate_proof([2; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk2.clone());
-
-    let (mmr_chunk3, mmr_proof3) = mmr
-        .generate_proof([3; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk3.clone());
-
-    let mut mmr_hints = VecDeque::new();
-    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
-    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
-    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
-
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
@@ -870,7 +839,6 @@ fn test_mmr_hints() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
-        mmr_guest,
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
@@ -883,7 +851,6 @@ fn test_mmr_hints() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
-        mmr_hints,
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -944,21 +911,6 @@ fn test_malformed_mmr_proof_internal_index() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr_guest = MMRGuest::new();
-    let chunks = vec![
-        ([1; 32], chunk1.clone()),
-        ([2; 32], chunk2.clone()),
-        ([3; 32], chunk3.clone()),
-    ];
-
-    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
-    mmr_hints[0].1.internal_idx = 2;
-
-    // Malform the proofs
-    let internal_idx_proof1 = mmr_hints[0].1.internal_idx;
-    mmr_hints[0].1.internal_idx = mmr_hints[1].1.internal_idx;
-    mmr_hints[1].1.internal_idx = internal_idx_proof1;
-
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
@@ -969,7 +921,6 @@ fn test_malformed_mmr_proof_internal_index() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
-        mmr_guest,
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
@@ -982,7 +933,6 @@ fn test_malformed_mmr_proof_internal_index() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
-        mmr_hints,
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1040,18 +990,6 @@ fn test_malformed_mmr_proof_subroot_index() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr_guest = MMRGuest::new();
-    let chunks = vec![
-        ([1; 32], chunk1.clone()),
-        ([2; 32], chunk2.clone()),
-        ([3; 32], chunk3.clone()),
-    ];
-
-    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
-
-    // Malform the proofs
-    mmr_hints[0].1.subroot_idx = 2;
-
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
@@ -1062,7 +1000,6 @@ fn test_malformed_mmr_proof_subroot_index() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
-        mmr_guest,
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
@@ -1075,7 +1012,6 @@ fn test_malformed_mmr_proof_subroot_index() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
-        mmr_hints,
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1133,18 +1069,6 @@ fn test_malformed_mmr_chunk_body() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr_guest = MMRGuest::new();
-    let chunks = vec![
-        ([1; 32], chunk1.clone()),
-        ([2; 32], chunk2.clone()),
-        ([3; 32], chunk3.clone()),
-    ];
-
-    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
-
-    // Malform the chunk body
-    mmr_hints[0].0.body.extend_from_slice(&[1, 2, 3, 4, 5]);
-
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
@@ -1155,7 +1079,6 @@ fn test_malformed_mmr_chunk_body() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
-        mmr_guest,
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
@@ -1168,7 +1091,6 @@ fn test_malformed_mmr_chunk_body() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
-        mmr_hints,
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1225,18 +1147,6 @@ fn test_malformed_mmr_chunk_wtxid() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr_guest = MMRGuest::new();
-    let chunks = vec![
-        ([1; 32], chunk1.clone()),
-        ([2; 32], chunk2.clone()),
-        ([3; 32], chunk3.clone()),
-    ];
-
-    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
-
-    // Malform the chunk wtxid
-    mmr_hints[0].0.wtxid = [88; 32];
-
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
@@ -1247,7 +1157,6 @@ fn test_malformed_mmr_chunk_wtxid() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
-        mmr_guest,
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
@@ -1260,7 +1169,6 @@ fn test_malformed_mmr_chunk_wtxid() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
-        mmr_hints,
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1276,7 +1184,6 @@ fn test_malformed_mmr_chunk_wtxid() {
 
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
-    assert_eq!(output.mmr_guest.size, 3);
     assert!(output.unchained_batch_proofs_info.is_empty());
 }
 
@@ -1323,18 +1230,6 @@ fn test_malformed_mmr_inclusion_proof() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr_guest = MMRGuest::new();
-    let chunks = vec![
-        ([1; 32], chunk1.clone()),
-        ([2; 32], chunk2.clone()),
-        ([3; 32], chunk3.clone()),
-    ];
-
-    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
-
-    // Malform the inclusion proof
-    mmr_hints[0].1.inclusion_proof.push(MMRNodeHash::default());
-
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
@@ -1345,7 +1240,6 @@ fn test_malformed_mmr_inclusion_proof() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
-        mmr_guest,
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
@@ -1358,7 +1252,6 @@ fn test_malformed_mmr_inclusion_proof() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob4],
-        mmr_hints,
     };
 
     run_circuit::<_, MockZkGuest>(
@@ -1418,14 +1311,6 @@ fn test_malicious_aggregate_should_not_work() {
 
     blob2.full_data();
 
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
-    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
-
-    let (mmr_chunk1, mmr_proof1) = mmr.generate_proof([1; 32]).unwrap().unwrap();
-    let (mmr_chunk2, mmr_proof2) = mmr.generate_proof([2; 32]).unwrap().unwrap();
-    let mmr_hints = vec![(mmr_chunk1, mmr_proof1), (mmr_chunk2, mmr_proof2)];
-
     // First block has the two chunks
     let input = LightClientCircuitInput {
         previous_light_client_proof_journal: None,
@@ -1450,7 +1335,6 @@ fn test_malicious_aggregate_should_not_work() {
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
     assert!(output.unchained_batch_proofs_info.is_empty());
-    assert_eq!(output.mmr_guest.size, 2);
 
     let malicious_aggregate_da_data = DaDataLightClient::Aggregate(
         vec![blob1.wtxid().unwrap(), blob2.wtxid().unwrap()],
@@ -1477,7 +1361,6 @@ fn test_malicious_aggregate_should_not_work() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![malicious_blob],
-        mmr_hints: mmr_hints.clone().into(),
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1495,7 +1378,6 @@ fn test_malicious_aggregate_should_not_work() {
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
     assert!(output.unchained_batch_proofs_info.is_empty());
-    assert_eq!(output.mmr_guest.size, 2);
 
     let chunk3 = serialized_mock_proof[39700 * 2..].to_vec();
     let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
@@ -1541,7 +1423,6 @@ fn test_malicious_aggregate_should_not_work() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob3, blob4],
-        mmr_hints: mmr_hints.into(),
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1559,5 +1440,4 @@ fn test_malicious_aggregate_should_not_work() {
     assert_eq!(output.l2_state_root, [2; 32]);
     assert_eq!(output.last_l2_height, 101);
     assert!(output.unchained_batch_proofs_info.is_empty());
-    assert_eq!(output.mmr_guest.size, 2);
 }
