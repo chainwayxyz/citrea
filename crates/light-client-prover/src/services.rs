@@ -15,6 +15,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 
+use crate::circuit::primitives::InitialValueProvider;
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc;
 use crate::runner::CitreaLightClientProver;
@@ -44,6 +45,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + 'static,
+    Network: InitialValueProvider<Da::Spec>,
 {
     let rpc_context = rpc::create_rpc_context(ledger_db.clone());
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;

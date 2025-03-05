@@ -244,7 +244,7 @@ pub mod bitcoinda {
 }
 
 #[cfg(feature = "native")]
-trait InitialValueProvider<Das: DaSpec> {
+pub trait InitialValueProvider<Das: DaSpec> {
     fn get_l2_genesis_root(&self) -> [u8; 32];
 
     fn initial_batch_proof_method_ids(&self) -> Vec<(u64, [u32; 8])>;

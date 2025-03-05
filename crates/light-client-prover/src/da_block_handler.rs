@@ -31,6 +31,7 @@ use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
+use crate::circuit::primitives::InitialValueProvider;
 use crate::metrics::LIGHT_CLIENT_METRICS;
 
 pub enum StartVariant {
@@ -43,6 +44,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm + 'static,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
+    Network: InitialValueProvider<Da::Spec>,
 {
     network: Network,
     _prover_config: LightClientProverConfig,
@@ -65,6 +67,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
+    Network: InitialValueProvider<Da::Spec>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(

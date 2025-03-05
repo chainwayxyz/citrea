@@ -11,6 +11,7 @@ use citrea_common::{
 };
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::CitreaFullnode;
+use citrea_light_client_prover::circuit::primitives::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
@@ -317,7 +318,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         CitreaLightClientProver,
         LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
-    )> {
+    )>
+    where
+        Network: InitialValueProvider<Self::DaSpec>,
+    {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let current_l2_height = ledger_db
