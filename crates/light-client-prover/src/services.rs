@@ -7,7 +7,6 @@ use citrea_common::{LightClientProverConfig, RollupPublicKeys, RunnerConfig};
 use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
-use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
@@ -24,7 +23,6 @@ pub fn build_services<Vm, Da, DB>(
     network: Network,
     prover_config: LightClientProverConfig,
     runner_config: RunnerConfig,
-    rocksdb_config: &RocksdbConfig,
     storage_manager: ProverStorageManager,
     ledger_db: DB,
     da_service: Arc<Da>,

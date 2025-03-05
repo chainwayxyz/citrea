@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use borsh::BorshDeserialize;
@@ -28,7 +28,7 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 use crate::circuit::primitives::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
@@ -52,8 +52,9 @@ where
     storage_manager: ProverStorageManager,
     ledger_db: DB,
     da_service: Arc<Da>,
-    batch_prover_da_pub_key: Vec<u8>,
-    batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    // TODO: maybe remove these
+    _batch_prover_da_pub_key: Vec<u8>,
+    _batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
@@ -90,8 +91,8 @@ where
             storage_manager,
             ledger_db,
             da_service,
-            batch_prover_da_pub_key,
-            batch_proof_code_commitments,
+            _batch_prover_da_pub_key: batch_prover_da_pub_key,
+            _batch_proof_code_commitments: batch_proof_code_commitments,
             light_client_proof_code_commitments,
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
@@ -171,7 +172,7 @@ where
             .set_l1_height_of_l1_hash(l1_hash, l1_height)
             .expect("Setting l1 height of l1 hash in ledger db");
 
-        let (mut da_data, inclusion_proof, completeness_proof) = self
+        let (da_data, inclusion_proof, completeness_proof) = self
             .da_service
             .extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToLightClientProver);
 
@@ -181,8 +182,6 @@ where
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
         {
             Some(data) => {
-                let proof = data.proof;
-
                 let db_output = data.light_client_proof_output;
                 let output = LightClientCircuitOutput::from(db_output);
 
@@ -277,7 +276,7 @@ where
     /// - Ok(true) -> proof is successfully parsed, not a duplicate, and verified
     /// - Ok(false) -> proof is successfully parsed, not a duplicate, but verification failed
     /// - Err(_) -> proof is either unparseable or a duplicate
-    fn verify_complete_proof(
+    fn _verify_complete_proof(
         &self,
         proof: &Vec<u8>,
         light_client_l2_height: u64,
@@ -311,7 +310,7 @@ where
 
         let current_spec = fork_from_block_number(batch_proof_last_l2_height).spec_id;
         let batch_proof_method_id = self
-            .batch_proof_code_commitments
+            ._batch_proof_code_commitments
             .get(&current_spec)
             .expect("Batch proof code commitment not found");
 
@@ -323,7 +322,7 @@ where
         }
     }
 
-    async fn extract_batch_proofs(
+    async fn _extract_batch_proofs(
         &self,
         da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
         da_slot_hash: [u8; 32], // passing this as an argument is not clever
@@ -337,7 +336,7 @@ where
                         batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data))
                     }
                     _ => {
-                        if tx.sender().as_ref() == self.batch_prover_da_pub_key.as_slice() {
+                        if tx.sender().as_ref() == self._batch_prover_da_pub_key.as_slice() {
                             batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data));
                         }
                     }

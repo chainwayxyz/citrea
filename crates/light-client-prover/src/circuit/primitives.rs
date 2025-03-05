@@ -2,7 +2,9 @@
 use bitcoin_da::spec::BitcoinSpec;
 #[cfg(feature = "native")]
 use sov_mock_da::MockDaSpec;
+#[cfg(feature = "native")]
 use sov_modules_api::DaSpec;
+#[cfg(feature = "native")]
 use sov_rollup_interface::Network;
 
 const fn decode_to_u32_array(hex: &str) -> [u32; 8] {

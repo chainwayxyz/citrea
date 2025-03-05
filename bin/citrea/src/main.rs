@@ -318,7 +318,6 @@ where
                     network,
                     light_client_prover_config,
                     rollup_config.clone(),
-                    &rocksdb_config,
                     da_service,
                     ledger_db,
                     storage_manager,
