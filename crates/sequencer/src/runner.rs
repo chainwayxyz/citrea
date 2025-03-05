@@ -11,11 +11,12 @@ use backoff::ExponentialBackoffBuilder;
 use citrea_common::backup::BackupManager;
 use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
-use citrea_evm::system_events::create_system_transactions;
+use citrea_evm::system_events::{create_system_transactions, SystemEvent};
 use citrea_evm::{
-    get_last_l1_height_and_hash_in_light_client, get_last_l1_height_in_light_client,
-    populate_system_events, AccountInfo, CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS,
-    SYSTEM_SIGNER,
+    create_initial_system_events, get_last_l1_height_and_hash_in_light_client,
+    get_last_l1_height_in_light_client, populate_deposit_system_events,
+    populate_set_block_info_event, AccountInfo, CallMessage, Evm, RlpEvmTransaction,
+    MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
@@ -176,49 +177,32 @@ where
                 soft_confirmation_info.current_spec(),
             )?;
 
-            let evm = citrea_evm::Evm::<DefaultContext>::default();
-            // Fill with system transactions
-            let mut all_txs = vec![];
+            if let Err(err) = self.stf.begin_soft_confirmation(
+                pub_key,
+                &mut working_set_to_discard,
+                &soft_confirmation_info,
+            ) {
+                warn!(
+                    "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                    err
+                );
+                bail!(
+                    "DryRun: Failed to apply begin soft confirmation hook: {:?}",
+                    err
+                )
+            }
 
-            for l1_block in da_blocks.into_iter() {
-                if let Err(err) = self.stf.begin_soft_confirmation(
-                    pub_key,
-                    &mut working_set_to_discard,
-                    &soft_confirmation_info,
-                ) {
-                    warn!(
-                        "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
-                        err
-                    );
-                    bail!(
-                        "DryRun: Failed to apply begin soft confirmation hook: {:?}",
-                        err
-                    )
-                }
-                let da_header = l1_block.header();
-                let coinbase_depth = l1_block.coinbase_txid_merkle_proof_height();
-                let system_transactions = self.produce_system_transactions(
+            let evm = citrea_evm::Evm::<DefaultContext>::default();
+            // Initially fill with system transactions if any
+            let (mut all_txs, mut working_set_to_discard) = self
+                .produce_and_run_system_transactions(
                     &soft_confirmation_info,
                     &evm,
-                    &mut working_set_to_discard,
-                    coinbase_depth,
+                    working_set_to_discard,
                     deposit_data,
-                    da_header,
-                );
-
-                // Initially process system txs if any
-                // No need to check spec as they are only populated after fork2
-                for sys_tx in system_transactions {
-                    let (sys_tx_rlp, working_set) = self.process_sys_tx(
-                        &soft_confirmation_info,
-                        sys_tx,
-                        working_set_to_discard,
-                        &mut nonce,
-                    )?;
-                    working_set_to_discard = working_set.checkpoint().to_revertable();
-                    all_txs.push(sys_tx_rlp);
-                }
-            }
+                    da_blocks,
+                    &mut nonce,
+                )?;
 
             // Normally, transactions.mark_invalid() calls would give us the same
             // functionality as invalid_senders, however,
@@ -1121,97 +1105,149 @@ where
         Ok((signed_blob, signed_tx))
     }
 
-    fn produce_system_transactions(
-        &self,
+    fn produce_and_run_system_transactions(
+        &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         evm: &Evm<DefaultContext>,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
-        coinbase_depth: u64,
+        mut working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
         deposit_data: &[Vec<u8>],
-        da_block_header: &<Da::Spec as DaSpec>::BlockHeader,
-    ) -> Vec<TransactionSignedEcRecovered> {
-        // Read last l1 hash from bitcoin light client contract
-        let mut l1_hash_in_contract = get_last_l1_height_and_hash_in_light_client(
-            evm,
-            soft_confirmation_info.current_spec(),
-            working_set,
-        )
-        .1
-        .map(Into::into);
+        da_blocks: Vec<Da::FilteredBlock>,
+        nonce: &mut u64,
+    ) -> anyhow::Result<(
+        Vec<RlpEvmTransaction>,
+        WorkingSet<<DefaultContext as Spec>::Storage>,
+    )> {
+        let mut all_txs = vec![];
 
-        if soft_confirmation_info.l2_height() == 1 {
-            l1_hash_in_contract = None;
+        for (index, l1_block) in da_blocks.into_iter().enumerate() {
+            // First l1 block of first l2 block
+            if soft_confirmation_info.l2_height() == 1 && index == 0 {
+                let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
+                    .expect("should deserialize");
+
+                let initialize_events = create_initial_system_events(
+                    l1_block.header().hash().into(),
+                    l1_block.header().txs_commitment().into(),
+                    l1_block.header().coinbase_txid_merkle_proof_height(),
+                    l1_block.header().height(),
+                    bridge_init_param.as_slice(),
+                );
+                // Initialize contracts
+                working_set_to_discard = self.process_sys_txs(
+                    soft_confirmation_info,
+                    working_set_to_discard,
+                    nonce,
+                    evm,
+                    initialize_events,
+                    &mut all_txs,
+                )?;
+                continue;
+            }
+
+            let da_block_header = l1_block.header();
+            let coinbase_depth = da_block_header.coinbase_txid_merkle_proof_height();
+            // Read last l1 hash from bitcoin light client contract
+            let l1_hash_in_contract = get_last_l1_height_and_hash_in_light_client(
+                evm,
+                soft_confirmation_info.current_spec(),
+                &mut working_set_to_discard,
+            )
+            .1
+            .expect("L1 hash must be set at this point")
+            .into();
+
+            let system_events = populate_set_block_info_event(
+                da_block_header.hash().into(),
+                da_block_header.txs_commitment().into(),
+                coinbase_depth,
+                l1_hash_in_contract,
+            );
+
+            working_set_to_discard = self.process_sys_txs(
+                soft_confirmation_info,
+                working_set_to_discard,
+                nonce,
+                evm,
+                system_events,
+                &mut all_txs,
+            )?;
         }
-        let bridge_init_param =
-            hex::decode(self.config.bridge_initialize_params.clone()).expect("should deserialize");
-        let system_events = populate_system_events(
-            deposit_data,
-            da_block_header.hash().into(),
-            da_block_header.txs_commitment().into(),
-            coinbase_depth,
-            da_block_header.height(),
-            l1_hash_in_contract,
-            bridge_init_param.as_slice(),
-        );
+
+        let deposit_events = populate_deposit_system_events(deposit_data);
+
+        working_set_to_discard = self.process_sys_txs(
+            soft_confirmation_info,
+            working_set_to_discard,
+            nonce,
+            evm,
+            deposit_events,
+            &mut all_txs,
+        )?;
+        Ok((all_txs, working_set_to_discard))
+    }
+
+    fn process_sys_txs(
+        &mut self,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        mut working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
+        nonce: &mut u64,
+        evm: &Evm<DefaultContext>,
+        system_events: Vec<SystemEvent>,
+        all_txs: &mut Vec<RlpEvmTransaction>,
+    ) -> anyhow::Result<WorkingSet<<DefaultContext as Spec>::Storage>> {
         let system_signer = evm
             .account_info(
                 &SYSTEM_SIGNER,
                 soft_confirmation_info.current_spec(),
-                working_set,
+                &mut working_set_to_discard,
             )
             .unwrap_or(AccountInfo {
                 balance: U256::ZERO,
                 nonce: 0,
                 code_hash: None,
             });
-        let cfg = evm.cfg.get(working_set).unwrap();
+
+        let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
-        create_system_transactions(system_events, system_signer.nonce, chain_id)
-    }
+        let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
+        for sys_tx in sys_txs {
+            let sys_tx = sys_tx.into_signed();
 
-    fn process_sys_tx(
-        &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
-        sys_tx: TransactionSignedEcRecovered,
-        working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
-        nonce: &mut u64,
-    ) -> anyhow::Result<(
-        RlpEvmTransaction,
-        WorkingSet<<DefaultContext as Spec>::Storage>,
-    )> {
-        let sys_tx = sys_tx.into_signed();
+            // Cannot do into_ecrecovered here because we don't have a valid signature
+            let sys_tx_ec_recovered =
+                TransactionSignedEcRecovered::from_signed_transaction(sys_tx, SYSTEM_SIGNER);
 
-        // Cannot do into_ecrecovered here because we don't have a valid signature
-        let sys_tx_ec_recovered =
-            TransactionSignedEcRecovered::from_signed_transaction(sys_tx, SYSTEM_SIGNER);
+            let mut buf = vec![];
+            sys_tx_ec_recovered.encode_2718(&mut buf);
+            let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
-        let mut buf = vec![];
-        sys_tx_ec_recovered.encode_2718(&mut buf);
-        let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
+            let call_txs = CallMessage {
+                txs: vec![sys_tx_rlp.clone()],
+            };
+            let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
+                citrea_evm::Evm<DefaultContext>,
+            >>::encode_call(call_txs);
 
-        let call_txs = CallMessage {
-            txs: vec![sys_tx_rlp.clone()],
-        };
-        let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
-            citrea_evm::Evm<DefaultContext>,
-        >>::encode_call(call_txs);
+            let signed_tx =
+                self.sign_tx(raw_message, soft_confirmation_info.current_spec(), *nonce)?;
+            *nonce += 1;
 
-        let signed_tx = self.sign_tx(raw_message, soft_confirmation_info.current_spec(), *nonce)?;
-        *nonce += 1;
+            let txs = vec![signed_tx];
 
-        let txs = vec![signed_tx];
+            let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
-        let mut working_set = working_set_to_discard.checkpoint().to_revertable();
-
-        if let Err(e) =
-            self.stf
-                .apply_soft_confirmation_txs(soft_confirmation_info, &txs, &mut working_set)
-        {
-            return Err(anyhow!("Failed to apply system transaction: {:?}", e));
+            if let Err(e) =
+                self.stf
+                    .apply_soft_confirmation_txs(soft_confirmation_info, &txs, &mut working_set)
+            {
+                return Err(anyhow!("Failed to apply system transaction: {:?}", e));
+            }
+            working_set_to_discard = working_set.checkpoint().to_revertable();
+            all_txs.push(sys_tx_rlp);
         }
 
-        Ok((sys_tx_rlp, working_set))
+        Ok(working_set_to_discard)
     }
 }
 

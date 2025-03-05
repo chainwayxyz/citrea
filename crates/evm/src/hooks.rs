@@ -396,39 +396,48 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 }
 
-/// TODO: https://github.com/chainwayxyz/citrea/issues/2013
-/// Populates system events based on the current soft confirmation info.
-pub fn populate_system_events<'a>(
-    deposit_data: &[Vec<u8>],
+/// Initializes system contracts
+pub fn create_initial_system_events<'a>(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
     current_da_height: u64,
-    last_l1_hash_of_evm: Option<B256>,
     bridge_initialize_params: &'a [u8],
 ) -> Vec<SystemEvent<'a>> {
     let mut system_events = vec![];
+    // That's the first L2 block in the first seen L1 block.
+    system_events.push(SystemEvent::BitcoinLightClientInitialize(current_da_height));
+    system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
+        current_slot_hash,
+        current_da_txs_commitment,
+        coinbase_depth,
+    ));
+    system_events.push(SystemEvent::BridgeInitialize(bridge_initialize_params));
+    system_events
+}
 
-    if let Some(last_l1_hash) = last_l1_hash_of_evm {
-        if last_l1_hash != current_slot_hash {
-            // That's a new L1 block
-            system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
-                current_slot_hash,
-                current_da_txs_commitment,
-                coinbase_depth,
-            ));
-        }
-    } else {
-        // That's the first L2 block in the first seen L1 block.
-        system_events.push(SystemEvent::BitcoinLightClientInitialize(current_da_height));
-        system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
+/// If new l1 block arrives we set it in light client contract
+pub fn populate_set_block_info_event<'a>(
+    current_slot_hash: [u8; 32],
+    current_da_txs_commitment: [u8; 32],
+    coinbase_depth: u64,
+    last_l1_hash_of_evm: B256,
+) -> Vec<SystemEvent<'a>> {
+    let mut system_events = vec![];
+    if last_l1_hash_of_evm != current_slot_hash {
+        let event = SystemEvent::BitcoinLightClientSetBlockInfo(
             current_slot_hash,
             current_da_txs_commitment,
             coinbase_depth,
-        ));
-        system_events.push(SystemEvent::BridgeInitialize(bridge_initialize_params));
+        );
+        system_events.push(event);
     }
+    system_events
+}
 
+/// Populates deposit system events.
+pub fn populate_deposit_system_events<'a>(deposit_data: &[Vec<u8>]) -> Vec<SystemEvent<'a>> {
+    let mut system_events = vec![];
     deposit_data.iter().for_each(|params| {
         system_events.push(SystemEvent::BridgeDeposit(params.clone()));
     });
