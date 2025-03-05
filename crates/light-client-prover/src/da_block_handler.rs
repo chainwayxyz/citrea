@@ -341,7 +341,7 @@ where
             da_block_header: l1_block.header().clone(),
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
-            mmr_hints: mmr_hints.into(),
+            witness: todo!(),
         };
 
         let proof = self.prove(light_client_elf, circuit_input).await?;

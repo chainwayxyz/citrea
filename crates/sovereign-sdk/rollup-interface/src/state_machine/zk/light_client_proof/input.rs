@@ -1,9 +1,7 @@
-use std::collections::VecDeque;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::da::DaSpec;
-use crate::mmr::{MMRChunk, MMRInclusionProof};
+use crate::witness::Witness;
 
 /// The input of light client proof
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -21,6 +19,6 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Light client proof output
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
-    /// Hints for the guest MMR tree.
-    pub mmr_hints: VecDeque<(MMRChunk, MMRInclusionProof)>,
+    /// Witness for the light client state
+    pub witness: Witness,
 }

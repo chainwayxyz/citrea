@@ -82,19 +82,13 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let (mut last_state_root, mut last_l2_height, mut mmr_guest) =
+    let (mut last_state_root, mut last_l2_height) =
         previous_light_client_proof_output.as_ref().map_or_else(
             || {
                 // if no previous proof, we start from genesis state root
                 (l2_genesis_root, 0, MMRGuest::new())
             },
-            |prev_journal| {
-                (
-                    prev_journal.state_root,
-                    prev_journal.last_l2_height,
-                    prev_journal.mmr_guest.clone(),
-                )
-            },
+            |prev_journal| (prev_journal.l2_state_root, prev_journal.last_l2_height),
         );
 
     // If we have a previous light client proof, check they can be chained
@@ -113,7 +107,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
 
     let mut in_memory_chunks: BTreeMap<Wtxid, Vec<u8>> = Default::default();
-    let mut mmr_hints = input.mmr_hints;
 
     // Parse the batch proof da data
     'blob_loop: for blob in da_txs {
@@ -275,13 +268,13 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
 
     Ok(LightClientCircuitOutput {
-        state_root: last_state_root,
+        l2_state_root: last_state_root,
         light_client_proof_method_id: input.light_client_proof_method_id,
         latest_da_state: new_da_state,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
         batch_proof_method_ids,
-        mmr_guest,
+        lcp_state_root: todo!(),
     })
 }
 

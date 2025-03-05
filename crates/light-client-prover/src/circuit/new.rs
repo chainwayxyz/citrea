@@ -139,7 +139,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     // if no previous proof, we start from genesis state root
                     (l2_genesis_root, 0)
                 },
-                |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
+                |prev_journal| (prev_journal.l2_state_root, prev_journal.last_l2_height),
             );
 
         // If we have a previous light client proof, check they can be chained
@@ -380,13 +380,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         );
 
         Ok(LightClientCircuitOutput {
-            state_root: result.lcp_state_root,
+            l2_state_root: result.lcp_state_root,
             light_client_proof_method_id: input.light_client_proof_method_id,
             latest_da_state: new_da_state,
             unchained_batch_proofs_info: result.unchained_batch_proofs_info,
             last_l2_height: result.last_l2_height,
             batch_proof_method_ids: result.batch_proof_method_ids,
-            mmr_guest: todo!("will be removed"),
+            lcp_state_root: result.lcp_state_root,
         })
     }
 }

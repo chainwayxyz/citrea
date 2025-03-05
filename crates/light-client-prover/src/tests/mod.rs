@@ -36,7 +36,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
         da_data: vec![],
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -55,7 +54,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
     .unwrap();
 
     // Check that the state transition actually happened
-    assert_eq!(output_1.state_root, [3; 32]);
+    assert_eq!(output_1.l2_state_root, [3; 32]);
     assert!(output_1.unchained_batch_proofs_info.is_empty());
     assert_eq!(output_1.last_l2_height, 3);
 
@@ -74,7 +73,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_3, blob_4],
-        mmr_hints: Default::default(),
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -89,7 +87,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
     .unwrap();
 
     // Check that the state transition actually happened
-    assert_eq!(output_2.state_root, [5; 32]);
+    assert_eq!(output_2.l2_state_root, [5; 32]);
     assert!(output_2.unchained_batch_proofs_info.is_empty());
     assert_eq!(output_2.last_l2_height, 5);
 }
@@ -111,7 +109,6 @@ fn test_wrong_order_da_blocks_should_still_work() {
         da_data: vec![],
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_2, blob_1],
-        mmr_hints: Default::default(),
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -130,7 +127,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
     .unwrap();
 
     // Check that the state transition actually happened
-    assert_eq!(output_1.state_root, [3; 32]);
+    assert_eq!(output_1.l2_state_root, [3; 32]);
     assert!(output_1.unchained_batch_proofs_info.is_empty());
     assert_eq!(output_1.last_l2_height, 3);
 }
@@ -152,7 +149,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_data: vec![],
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_2, blob_1],
-        mmr_hints: Default::default(),
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -171,7 +167,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     .unwrap();
 
     // Check that the state transition has not happened because we are missing 1->2
-    assert_eq!(output_1.state_root, [1; 32]);
+    assert_eq!(output_1.l2_state_root, [1; 32]);
     // There would normally be 2 outputs here but since the order of the da data is => 3-4 and then 2-3 this is chained to one output => 2-4
     assert_eq!(output_1.unchained_batch_proofs_info.len(), 1);
     // Check to make sure
@@ -201,7 +197,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_data: vec![],
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1],
-        mmr_hints: Default::default(),
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -217,7 +212,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     // Check that the state transition actually happened from 1-4 now
 
-    assert_eq!(output_2.state_root, [4; 32]);
+    assert_eq!(output_2.l2_state_root, [4; 32]);
     assert!(output_2.unchained_batch_proofs_info.is_empty());
     assert_eq!(output_2.last_l2_height, 4);
 }
@@ -239,7 +234,6 @@ fn test_header_chain_proof_height_and_hash() {
         da_data: vec![],
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -258,7 +252,7 @@ fn test_header_chain_proof_height_and_hash() {
     .unwrap();
 
     // Check that the state transition actually happened
-    assert_eq!(output_1.state_root, [3; 32]);
+    assert_eq!(output_1.l2_state_root, [3; 32]);
     assert!(output_1.unchained_batch_proofs_info.is_empty());
     assert_eq!(output_1.last_l2_height, 3);
 
@@ -277,7 +271,6 @@ fn test_header_chain_proof_height_and_hash() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_3, blob_4],
-        mmr_hints: Default::default(),
     };
 
     // Header chain verification must fail because the l1 block 3 was given before l1 block 2
@@ -315,7 +308,6 @@ fn test_unverifiable_batch_proofs() {
         da_data: vec![],
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -335,7 +327,7 @@ fn test_unverifiable_batch_proofs() {
 
     // Check that the state transition actually happened but only for verified batch proof
     // and assert the unverified is ignored, so it is not even in the unchained outputs
-    assert_eq!(output_1.state_root, [2; 32]);
+    assert_eq!(output_1.l2_state_root, [2; 32]);
     assert!(output_1.unchained_batch_proofs_info.is_empty());
     assert_eq!(output_1.last_l2_height, 2);
     assert_eq!(output_1.unchained_batch_proofs_info.len(), 0);
@@ -358,7 +350,6 @@ fn test_unverifiable_prev_light_client_proof() {
         da_data: vec![],
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -378,7 +369,7 @@ fn test_unverifiable_prev_light_client_proof() {
 
     // Check that the state transition actually happened but only for verified batch proof
     // and assert the unverified is ignored, so it is not even in the unchained outputs
-    assert_eq!(output_1.state_root, [2; 32]);
+    assert_eq!(output_1.l2_state_root, [2; 32]);
     assert!(output_1.unchained_batch_proofs_info.is_empty());
     assert_eq!(output_1.last_l2_height, 2);
     assert_eq!(output_1.unchained_batch_proofs_info.len(), 0);
@@ -394,7 +385,6 @@ fn test_unverifiable_prev_light_client_proof() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![],
-        mmr_hints: Default::default(),
     };
 
     let res = run_circuit::<_, MockZkGuest>(
@@ -433,7 +423,6 @@ fn test_new_method_id_txs() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let output_1 = run_circuit::<_, MockZkGuest>(
@@ -465,7 +454,6 @@ fn test_new_method_id_txs() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_2],
-        mmr_hints: Default::default(),
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -499,7 +487,6 @@ fn test_new_method_id_txs() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let output_3 = run_circuit::<_, MockZkGuest>(
@@ -543,7 +530,6 @@ fn test_expect_to_fail_on_correct_proof() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let _ = run_circuit::<_, MockZkGuest>(
@@ -580,7 +566,6 @@ fn test_expected_to_fail_proof_not_hinted() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob_1, blob_2],
-        mmr_hints: Default::default(),
     };
 
     let _ = run_circuit::<_, MockZkGuest>(
@@ -682,7 +667,6 @@ fn test_light_client_circuit_verify_chunks() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob1, blob2, blob3, blob4],
-        mmr_hints: Default::default(),
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -696,7 +680,7 @@ fn test_light_client_circuit_verify_chunks() {
     )
     .unwrap();
 
-    assert_eq!(output.state_root, [2; 32]);
+    assert_eq!(output.l2_state_root, [2; 32]);
 }
 
 #[test]
@@ -787,7 +771,6 @@ fn test_missing_chunk() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob1, blob3, blob4],
-        mmr_hints: Default::default(),
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -801,7 +784,7 @@ fn test_missing_chunk() {
     )
     .unwrap();
 
-    assert_eq!(output.state_root, l2_genesis_state_root);
+    assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
 }
 
@@ -878,7 +861,7 @@ fn test_mmr_hints() {
     mmr_hints.push_back((mmr_chunk3, mmr_proof3));
 
     let lcp_out = LightClientCircuitOutput {
-        state_root: l2_genesis_state_root,
+        l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
         latest_da_state: LatestDaState {
             block_hash: block_header_1.prev_hash.0,
@@ -914,7 +897,7 @@ fn test_mmr_hints() {
     )
     .unwrap();
 
-    assert_eq!(output.state_root, [2; 32]);
+    assert_eq!(output.l2_state_root, [2; 32]);
     assert_eq!(output.last_l2_height, 101);
 }
 
@@ -977,7 +960,7 @@ fn test_malformed_mmr_proof_internal_index() {
     mmr_hints[1].1.internal_idx = internal_idx_proof1;
 
     let lcp_out = LightClientCircuitOutput {
-        state_root: l2_genesis_state_root,
+        l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
         latest_da_state: LatestDaState {
             block_hash: block_header_1.prev_hash.0,
@@ -1070,7 +1053,7 @@ fn test_malformed_mmr_proof_subroot_index() {
     mmr_hints[0].1.subroot_idx = 2;
 
     let lcp_out = LightClientCircuitOutput {
-        state_root: l2_genesis_state_root,
+        l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
         latest_da_state: LatestDaState {
             block_hash: block_header_1.prev_hash.0,
@@ -1163,7 +1146,7 @@ fn test_malformed_mmr_chunk_body() {
     mmr_hints[0].0.body.extend_from_slice(&[1, 2, 3, 4, 5]);
 
     let lcp_out = LightClientCircuitOutput {
-        state_root: l2_genesis_state_root,
+        l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
         latest_da_state: LatestDaState {
             block_hash: block_header_1.prev_hash.0,
@@ -1255,7 +1238,7 @@ fn test_malformed_mmr_chunk_wtxid() {
     mmr_hints[0].0.wtxid = [88; 32];
 
     let lcp_out = LightClientCircuitOutput {
-        state_root: l2_genesis_state_root,
+        l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
         latest_da_state: LatestDaState {
             block_hash: block_header_1.prev_hash.0,
@@ -1291,7 +1274,7 @@ fn test_malformed_mmr_chunk_wtxid() {
     )
     .unwrap();
 
-    assert_eq!(output.state_root, l2_genesis_state_root);
+    assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
     assert_eq!(output.mmr_guest.size, 3);
     assert!(output.unchained_batch_proofs_info.is_empty());
@@ -1353,7 +1336,7 @@ fn test_malformed_mmr_inclusion_proof() {
     mmr_hints[0].1.inclusion_proof.push(MMRNodeHash::default());
 
     let lcp_out = LightClientCircuitOutput {
-        state_root: l2_genesis_state_root,
+        l2_state_root: l2_genesis_state_root,
         light_client_proof_method_id,
         latest_da_state: LatestDaState {
             block_hash: block_header_1.prev_hash.0,
@@ -1451,7 +1434,6 @@ fn test_malicious_aggregate_should_not_work() {
         da_data: Vec::new(),
         inclusion_proof: [1u8; 32],
         completeness_proof: vec![blob1.clone(), blob2.clone()],
-        mmr_hints: Default::default(),
     };
 
     let output = run_circuit::<_, MockZkGuest>(
@@ -1465,7 +1447,7 @@ fn test_malicious_aggregate_should_not_work() {
     )
     .unwrap();
 
-    assert_eq!(output.state_root, l2_genesis_state_root);
+    assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
     assert!(output.unchained_batch_proofs_info.is_empty());
     assert_eq!(output.mmr_guest.size, 2);
@@ -1510,7 +1492,7 @@ fn test_malicious_aggregate_should_not_work() {
     .unwrap();
 
     // The malicious did not work no state updates or panics
-    assert_eq!(output.state_root, l2_genesis_state_root);
+    assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
     assert!(output.unchained_batch_proofs_info.is_empty());
     assert_eq!(output.mmr_guest.size, 2);
@@ -1574,7 +1556,7 @@ fn test_malicious_aggregate_should_not_work() {
     .unwrap();
 
     // When last chunk is sent with the correct aggregate we can see the state update
-    assert_eq!(output.state_root, [2; 32]);
+    assert_eq!(output.l2_state_root, [2; 32]);
     assert_eq!(output.last_l2_height, 101);
     assert!(output.unchained_batch_proofs_info.is_empty());
     assert_eq!(output.mmr_guest.size, 2);

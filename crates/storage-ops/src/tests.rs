@@ -420,7 +420,7 @@ fn prepare_slots_data(ledger_db: &DB) {
                         unchained_batch_proofs_info: vec![],
                         last_l2_height: da_slot_height,
                         batch_proof_method_ids: vec![],
-                        mmr_guest: MMRGuest::new(),
+                        lcp_state_root: [0; 32],
                     },
                 },
             )
