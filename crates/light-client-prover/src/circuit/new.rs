@@ -20,7 +20,7 @@ use super::accessors::BlockHashAccessor;
 use super::old::LightClientVerificationError;
 use super::InitialBatchProofMethodIds;
 use crate::circuit::accessors::ChunkAccessor;
-use crate::utils::recursive_match_state_roots;
+use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
 type CircuitError = &'static str;
 
@@ -274,6 +274,21 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             }
         }
 
+        // Do recursive matching for previous state root
+        recursive_match_state_roots(
+            &mut initial_to_final,
+            &BatchProofInfo::new(last_state_root, last_state_root, last_l2_height),
+        );
+
+        // Now only thing left is the state update if exists and others are unchained
+        if let Some((final_root, last_l2)) = initial_to_final.remove(&last_state_root) {
+            last_l2_height = last_l2;
+            last_state_root = final_root;
+        }
+
+        // Collect unchained outputs
+        let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
+
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
 
         // TODO: compute_state_update cretes state diff
@@ -286,11 +301,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         storage.commit(&jmt_state_update, &vec![], &ReadWriteLog::default());
 
         RunL1BlockResult {
-            l2_state_root: todo!(),
+            l2_state_root: last_state_root,
             lcp_state_root: lcp_state_root_transition.final_root,
-            unchained_batch_proofs_info: todo!(),
-            last_l2_height: todo!(),
-            batch_proof_method_ids: todo!(),
+            unchained_batch_proofs_info: unchained_outputs,
+            last_l2_height: last_l2_height,
+            batch_proof_method_ids: batch_proof_method_ids,
             witness,
         }
     }
