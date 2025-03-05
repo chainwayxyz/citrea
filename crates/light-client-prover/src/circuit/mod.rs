@@ -43,11 +43,17 @@ struct RunL1BlockResult {
     witness: Witness,
 }
 
-struct LightClientProofCircuit<S: Storage, DS: DaSpec, Z: Zkvm> {
+pub struct LightClientProofCircuit<S: Storage, DS: DaSpec, Z: Zkvm> {
     phantom: core::marker::PhantomData<(S, DS, Z)>,
 }
 
 impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
+    pub fn new() -> Self {
+        Self {
+            phantom: core::marker::PhantomData,
+        }
+    }
+
     fn process_complete_proof(
         &self,
         proof: &[u8],
@@ -308,6 +314,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             .compute_state_update(&read_write_log, &mut witness)
             .expect("jellyfish merkle tree update must succeed");
 
+        // TODO: assert initial root here
+
         storage.commit(&jmt_state_update, &vec![], &ReadWriteLog::default());
 
         RunL1BlockResult {
@@ -321,7 +329,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     }
 
     // will only called by the circuit
-    fn run_circuit<DaV>(
+    pub fn run_circuit<DaV>(
         &self,
         da_verifier: DaV,
         input: LightClientCircuitInput<DaV::Spec>,
@@ -331,7 +339,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         method_id_upgrade_authority_da_public_key: &[u8],
         network: Network,
         storage: S,
-        witness: Witness,
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
@@ -379,7 +386,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         // then we can call run_l1_block to run the logic of the circuit
         let result = self.run_l1_block(
             storage,
-            witness,
+            input.witness,
             da_txs,
             input.da_block_header,
             previous_light_client_proof_output,

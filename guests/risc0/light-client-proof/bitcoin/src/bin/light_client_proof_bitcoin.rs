@@ -1,13 +1,14 @@
 #![no_main]
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_light_client_prover::circuit::old::run_circuit;
 use citrea_light_client_prover::circuit::primitives::bitcoinda;
+use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
+use sov_state::ZkStorage;
 
 risc0_zkvm::guest::entry!(main);
 
@@ -66,6 +67,8 @@ pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
 };
 
 pub fn main() {
+    let storage = ZkStorage::new();
+
     let guest = Risc0Guest::new();
 
     let da_verifier = BitcoinVerifier::new(RollupParams {
@@ -75,16 +78,20 @@ pub fn main() {
 
     let input = guest.read_from_host();
 
-    let output = run_circuit::<BitcoinVerifier, Risc0Guest>(
-        da_verifier,
-        input,
-        L2_GENESIS_ROOT,
-        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &BATCH_PROVER_DA_PUBLIC_KEY,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
-        NETWORK,
-    )
-    .unwrap();
+    let lcp = LightClientProofCircuit::<ZkStorage, BitcoinSpec, Risc0Guest>::new();
+
+    let output = lcp
+        .run_circuit(
+            da_verifier,
+            input,
+            L2_GENESIS_ROOT,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &BATCH_PROVER_DA_PUBLIC_KEY,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+            NETWORK,
+            storage,
+        )
+        .unwrap();
 
     guest.commit(&output);
 }
