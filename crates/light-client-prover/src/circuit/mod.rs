@@ -34,13 +34,14 @@ pub enum LightClientVerificationError<DaV: DaVerifier> {
     InvalidPreviousLightClientProof,
 }
 
-struct RunL1BlockResult {
+pub struct RunL1BlockResult<S: Storage> {
     l2_state_root: [u8; 32],
     lcp_state_root: [u8; 32],
     unchained_batch_proofs_info: Vec<BatchProofInfo>,
     last_l2_height: u64,
     batch_proof_method_ids: Vec<(u64, [u32; 8])>,
-    witness: Witness,
+    pub witness: Witness,
+    pub change_set: S,
 }
 
 pub struct LightClientProofCircuit<S: Storage, DS: DaSpec, Z: Zkvm> {
@@ -136,7 +137,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     }
 
     // will be called by the circuit and native
-    fn run_l1_block(
+    pub fn run_l1_block(
         &self,
         storage: S,
         witness: Witness,
@@ -147,7 +148,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_key: &[u8],
-    ) -> RunL1BlockResult {
+    ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
 
@@ -335,6 +336,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             last_l2_height,
             batch_proof_method_ids,
             witness,
+            change_set: storage,
         }
     }
 

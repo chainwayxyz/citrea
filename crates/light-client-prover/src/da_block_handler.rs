@@ -14,7 +14,7 @@ use sov_db::schema::types::SlotNumber;
 use sov_modules_api::{
     BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, Zkvm,
 };
-use sov_prover_storage_manager::ProverStorageManager;
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::mmr::Wtxid;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -31,6 +31,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::circuit::primitives::InitialValueProvider;
+use crate::circuit::LightClientProofCircuit;
 use crate::metrics::LIGHT_CLIENT_METRICS;
 
 pub enum StartVariant {
@@ -58,6 +59,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     backup_manager: Arc<BackupManager>,
+    circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
 
 impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
@@ -95,6 +97,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
+            circuit: LightClientProofCircuit::new(),
         }
     }
 
@@ -173,7 +176,7 @@ where
             .extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToLightClientProver);
 
         let previous_l1_height = l1_height - 1;
-        let (light_client_proof_journal, l2_last_height) = match self
+        let (light_client_proof_journal, l2_last_height, light_client_proof_output) = match self
             .ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
         {
@@ -182,10 +185,15 @@ where
 
                 let db_output = data.light_client_proof_output;
                 let output = LightClientCircuitOutput::from(db_output);
+
                 // TODO: instead of serializing the output
                 // we should just store and push the serialized proof as outputted from the circuit
                 // that way modifications are less error prone
-                (Some(borsh::to_vec(&output)?), output.last_l2_height)
+                (
+                    Some(borsh::to_vec(&output)?),
+                    output.last_l2_height,
+                    Some(output),
+                )
             }
             None => {
                 // first time proving a light client proof
@@ -193,18 +201,26 @@ where
                     "Creating initial light client proof on L1 block #{}",
                     l1_height
                 );
-                (None, 0)
+                (None, 0, None)
             }
         };
 
-        let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
-        tracing::info!(
-            "Block {} has {} batch proofs",
-            l1_height,
-            batch_proofs.len()
+        let storage = self.storage_manager.create_storage_for_next_l2_height();
+
+        // TODO: might need to iterate over da_data and call .full_data() on each
+        let result = self.circuit.run_l1_block(
+            storage,
+            Default::default(),
+            da_data.clone(),
+            l1_block.header().clone(),
+            light_client_proof_output,
+            self.network.get_l2_genesis_root(),
+            self.network.initial_batch_proof_method_ids(),
+            &self.network.batch_prover_da_public_key(),
+            &self.network.method_id_upgrade_authority_da_public_key(),
         );
 
-        // TODO: implement new circuit witness extraction
+        self.storage_manager.finalize_storage(result.change_set);
 
         // This is not exactly right, but works for now because we have a single elf for
         // light client proof circuit.
@@ -226,7 +242,7 @@ where
             da_block_header: l1_block.header().clone(),
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
-            witness: todo!(),
+            witness: result.witness,
         };
 
         let proof = self.prove(light_client_elf, circuit_input).await?;
