@@ -121,7 +121,6 @@ impl TestCase for LightClientProvingTest {
         da.generate(FINALITY_DEPTH).await?;
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
-        println!("Waiting for light client prover to process batch proofs...");
         // Wait for light client prover to process batch proofs.
         light_client_prover
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
