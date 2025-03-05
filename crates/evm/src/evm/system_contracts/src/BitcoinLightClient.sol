@@ -38,7 +38,7 @@ contract BitcoinLightClient is IBitcoinLightClient {
         blockNumber = _blockNumber;
     }
 
-    /// @notice Kept for backwards compatibility
+    /// @notice Kept for backwards compatibility. Don't call after fork2!
     /// @notice Sets the block hash and witness root for a given block
     /// @notice Can only be called after the initial block number is set
     /// @dev Block number is incremented by the contract as no block info should be overwritten or skipped

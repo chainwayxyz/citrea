@@ -22,4 +22,8 @@ impl SlotData for BitcoinBlock {
     fn header(&self) -> &Self::BlockHeader {
         &self.header
     }
+
+    fn coinbase_txid_merkle_proof_height(&self) -> u64 {
+        f64::log2(self.txdata.len() as f64).ceil() as u64
+    }
 }
