@@ -33,6 +33,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         prev_block_hash: [u8; 32],
         l1_height: u64,
         txs_commitment: [u8; 32],
+        coinbase_depth: u8,
         l2_height: u64,
     ) -> Result<bool, ShortHeaderProofProviderError> {
         if let Some(shp_serialized) = self
@@ -53,7 +54,8 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                 let return_cond = txs_commitment == l1_update_info.tx_commitment
                     && block_hash == l1_update_info.header_hash
                     && prev_hash_cond
-                    && l1_height == l1_update_info.block_height;
+                    && l1_height == l1_update_info.block_height
+                    && coinbase_depth == l1_update_info.coinbase_txid_merkle_proof_height;
 
                 if return_cond {
                     self.queried_and_verified_hashes

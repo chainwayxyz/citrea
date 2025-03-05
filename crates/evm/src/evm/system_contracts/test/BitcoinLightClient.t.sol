@@ -40,7 +40,7 @@ contract BitcoinLightClientTest is Test {
 
     function testSetBlockInfo() public {
         bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
-        bitcoinLightClient.setBlockInfo(mockBlockHash, mockWitnessRoot);
+        bitcoinLightClient.setBlockInfo(mockBlockHash, mockWitnessRoot, 1);
         assertEq(bitcoinLightClient.getBlockHash(INITIAL_BLOCK_NUMBER), mockBlockHash);
         assertEq(bitcoinLightClient.getWitnessRootByHash(mockBlockHash), mockWitnessRoot);
         assertEq(bitcoinLightClient.getWitnessRootByNumber(INITIAL_BLOCK_NUMBER), mockWitnessRoot);
@@ -56,7 +56,7 @@ contract BitcoinLightClientTest is Test {
         bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
         vm.startPrank(address(0x1));
         vm.expectRevert("caller is not the system caller");
-        bitcoinLightClient.setBlockInfo(mockBlockHash, mockWitnessRoot);
+        bitcoinLightClient.setBlockInfo(mockBlockHash, mockWitnessRoot, 1);
     }
 
     function testNonSystemCannotInitializeBlockNumber() public {
@@ -68,7 +68,7 @@ contract BitcoinLightClientTest is Test {
 
     function testCannotSetInfoWithoutInitialize() public {
         vm.expectRevert("Not initialized");
-        bitcoinLightClient.setBlockInfo(mockBlockHash, mockWitnessRoot);
+        bitcoinLightClient.setBlockInfo(mockBlockHash, mockWitnessRoot, 1);
     }
 
     function testBlockInfoAvailableAfterManyWrites() public {
@@ -76,7 +76,7 @@ contract BitcoinLightClientTest is Test {
         for (uint256 i = 0; i < 100; i++) {
             bytes32 blockHash = keccak256(abi.encodePacked(i));
             bytes32 root = keccak256(abi.encodePacked(blockHash));
-            bitcoinLightClient.setBlockInfo(blockHash, root);
+            bitcoinLightClient.setBlockInfo(blockHash, root, 1);
             assertEq(bitcoinLightClient.getBlockHash(i + INITIAL_BLOCK_NUMBER), blockHash);
             assertEq(bitcoinLightClient.getWitnessRootByHash(blockHash), root);
             assertEq(bitcoinLightClient.getWitnessRootByNumber(i + INITIAL_BLOCK_NUMBER), root);
@@ -98,13 +98,44 @@ contract BitcoinLightClientTest is Test {
         // wtxId 3: 85770DFEB29679FDB24E7CA87CA7D162962F6247269282F155F99E0061E31DE5 (little endian)
         // wtx root: DBEE9A868A8CAA2A1DDF683AF1642A88DFB7AC7CE3ECB5D043586811A41FDBF2 (little endian)
         bytes32 root = hex"DBEE9A868A8CAA2A1DDF683AF1642A88DFB7AC7CE3ECB5D043586811A41FDBF2";
-        bitcoinLightClient.setBlockInfo(mockBlockHash, root);
+        bitcoinLightClient.setBlockInfo(mockBlockHash, root, 2);
         bytes32[] memory proof = new bytes32[](2);
         proof[0] = hex"0000000000000000000000000000000000000000000000000000000000000000";
         proof[1] = hex"6B1DAB5721B7B8D68B2C7F795D689998A35EFED7E5C99E12E6C8D5C587A1628D";
         bytes32 wtxId = hex"A28E549DC50610430BF7E224EFFD50DB0662356780C934AF0F1A9EB346D50087";
-        assert(bitcoinLightClient.verifyInclusion(mockBlockHash, wtxId, abi.encodePacked(proof), 1));
-        assert(bitcoinLightClient.verifyInclusion(INITIAL_BLOCK_NUMBER, wtxId, abi.encodePacked(proof), 1));
+        assertTrue(bitcoinLightClient.verifyInclusion(mockBlockHash, wtxId, abi.encodePacked(proof), 1));
+        assertTrue(bitcoinLightClient.verifyInclusion(INITIAL_BLOCK_NUMBER, wtxId, abi.encodePacked(proof), 1));
+    }
+
+    function testCannotVerifyInclusionWithWrongCoinbaseDepth() public {
+        bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
+        bytes32 root = hex"DBEE9A868A8CAA2A1DDF683AF1642A88DFB7AC7CE3ECB5D043586811A41FDBF2";
+        bitcoinLightClient.setBlockInfo(mockBlockHash, root, 1);
+        bytes32[] memory proof = new bytes32[](2);
+        proof[0] = hex"0000000000000000000000000000000000000000000000000000000000000000";
+        proof[1] = hex"6B1DAB5721B7B8D68B2C7F795D689998A35EFED7E5C99E12E6C8D5C587A1628D";
+        bytes32 wtxId = hex"A28E549DC50610430BF7E224EFFD50DB0662356780C934AF0F1A9EB346D50087";
+        vm.expectRevert("Invalid proof length");
+        bitcoinLightClient.verifyInclusion(mockBlockHash, wtxId, abi.encodePacked(proof), 0);
+    }
+
+    function testVerifyInclusionWithTxId() public {
+        bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
+        // Bitcoin Block 553724
+        // txId 0: 9403084422407EC27FA81F0342F088A71D54C29B570B7962C704009DD2DC4C2D (coinbase)
+        // txId 1: 862F2F0633BF99B45426C1FD504D31784E2EBBFD412C207A0BCFA50F6CB867D3 (little endian)
+        // txId 2: 76d11f7e4a480dfb3168537299cba66ff32c53dc3f5c16223eeaec1e1f1c6ce6 (little endian)
+        // txId 3: E66C1C1F1EECEA3E22165C3FDC532CF36FA6CB9972536831FB0D484A7E1FD176 (little endian)
+        // tx root: 07A37D467322DC8409FBAAE49D1E4D418DBDD740590F6B77F14350C6F4145B0E (little endian)
+        bytes32 root = hex"07A37D467322DC8409FBAAE49D1E4D418DBDD740590F6B77F14350C6F4145B0E";
+        bytes32 blockHash = hex"6C737DC40B2B0FFA0F60F02A65072FFA81DFA67EBD4928000000000000000000";
+        bitcoinLightClient.setBlockInfo(blockHash, root, 2);
+        bytes memory header = hex"000000200ed724966f56fb37f91a984ad254e9f824bb766ea9670500000000000000000007a37d467322dc8409fbaae49d1e4d418dbdd740590f6b77f14350c6f4145b0e7008135c7cd931177831ae19";
+        bytes32[] memory proof = new bytes32[](2);
+        proof[0] = hex"9403084422407EC27FA81F0342F088A71D54C29B570B7962C704009DD2DC4C2D";
+        proof[1] = hex"B26C9ACDB850215E3BDC2888A24F8783BE1AB416E94C5CC49F296F5A57A7BB3B";
+        bytes32 txId = hex"862F2F0633BF99B45426C1FD504D31784E2EBBFD412C207A0BCFA50F6CB867D3";
+        assertTrue(bitcoinLightClient.verifyInclusionByTxId(INITIAL_BLOCK_NUMBER, txId, header, abi.encodePacked(proof), 1));
     }
 
     function testUpgrade() public {

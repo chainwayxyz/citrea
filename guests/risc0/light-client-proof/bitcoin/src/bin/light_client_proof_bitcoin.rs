@@ -25,7 +25,7 @@ const L2_GENESIS_ROOT: [u8; 32] = {
         Network::Devnet => "7bc4a868439b637b57fcc55bf6e119e51996d6a4127a39f1393c8c1e29d37365",
         Network::Nightly | Network::TestNetworkWithForks => match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "2e5345a517a1fb3326ef8784830772585ab8a2e3fd2e4e2a1b92a01aacb273fb",
+            None => "f35c8208450753a08ea3e1496df9c29bfa1b1fdd1df2980bcac1a878e7b46b9d",
         },
     };
 

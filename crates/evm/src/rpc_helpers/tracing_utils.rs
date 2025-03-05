@@ -10,9 +10,13 @@ use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
 use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
-use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
+use revm_inspectors::tracing::js::JsInspector;
+use revm_inspectors::tracing::{
+    FourByteInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
+};
 
 use crate::db::DBError;
+use crate::evm::db::immutable::EvmDbRef;
 use crate::evm::db::EvmDb;
 use crate::handler::{
     citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
@@ -89,10 +93,40 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     Err(EthApiError::Unsupported("FlatCallTracer"))
                 }
             },
-            GethDebugTracerType::JsTracer(_code) => {
-                // This also requires DatabaseRef trait
-                // Implement after readonly state is implemented
-                Err(EthApiError::Unsupported("JsTracer"))
+            GethDebugTracerType::JsTracer(code) => {
+                let config = tracer_config.into_json();
+                let transaction_context = TransactionContext {
+                    block_hash: None,
+                    tx_hash: Some(tx_hash),
+                    tx_index: None,
+                };
+                let inspector =
+                    JsInspector::with_transaction_context(code, config, transaction_context)
+                        .map_err(|e| EthApiError::InternalJsTracerError(e.to_string()))?;
+                let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
+
+                let mut db_ref = EvmDbRef::new(db);
+                let result_and_state = js_inspect_citrea(
+                    &mut db_ref,
+                    config_env.clone(),
+                    block_env.clone(),
+                    tx_env.clone(),
+                    tx_hash,
+                    &mut citrea_inspector,
+                )?;
+                let state = result_and_state.state.clone();
+
+                let env = revm::primitives::Env {
+                    cfg: config_env.cfg_env,
+                    block: block_env,
+                    tx: tx_env,
+                };
+
+                let json_value = citrea_inspector
+                    .inspector
+                    .json_result(result_and_state, &env, &db_ref)
+                    .map_err(|e| EthApiError::InternalJsTracerError(e.to_string()))?;
+                Ok((GethTrace::JS(json_value), state))
             }
         };
     }
@@ -137,6 +171,34 @@ where
     I: CitreaExternalExt,
 {
     let citrea_spec = db.citrea_spec;
+    let mut evm = revm::Evm::builder()
+        .with_db(db)
+        .with_external_context(inspector)
+        .with_cfg_env_with_handler_cfg(config_env)
+        .with_block_env(block_env)
+        .with_tx_env(tx_env)
+        .append_handler_register_box(citrea_handle_register(citrea_spec))
+        .append_handler_register(inspector_handle_register)
+        .build();
+    evm.context.external.set_current_tx_hash(tx_hash);
+
+    evm.transact()
+}
+
+fn js_inspect_citrea<'a, 'b, 'c, C, I>(
+    db: &'c mut EvmDbRef<'a, 'b, C>,
+    config_env: CfgEnvWithHandlerCfg,
+    block_env: BlockEnv,
+    tx_env: TxEnv,
+    tx_hash: TxHash,
+    inspector: I,
+) -> Result<ResultAndState, EVMError<DBError>>
+where
+    C: sov_modules_api::Context,
+    I: Inspector<&'c mut EvmDbRef<'a, 'b, C>>,
+    I: CitreaExternalExt,
+{
+    let citrea_spec = db.citrea_spec();
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_external_context(inspector)

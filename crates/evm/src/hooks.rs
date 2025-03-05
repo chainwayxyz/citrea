@@ -83,17 +83,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut system_events = vec![];
         // populate system events if active citrea spec is below fork2
         if current_spec < CitreaSpecId::Fork2 {
-            system_events = populate_system_events(
-                soft_confirmation_info.deposit_data().as_slice(),
-                soft_confirmation_info
-                    .da_slot_hash()
-                    .expect("DA slot hash must exist for pre fork2 soft confirmation"),
-                soft_confirmation_info
-                    .da_slot_txs_commitment()
-                    .expect("DA slot txs commitment must exist for pre fork2 soft confirmation"),
-                soft_confirmation_info
-                    .da_slot_height()
-                    .expect("DA slot height must exist for pre fork2 soft confirmation"),
+            system_events = populate_system_events_pre_fork2(
+                soft_confirmation_info,
                 self.last_l1_hash.get(working_set),
                 PRE_FORK2_BRIDGE_INITIALIZE_PARAMS,
             )
@@ -411,6 +402,7 @@ pub fn populate_system_events<'a>(
     deposit_data: &[Vec<u8>],
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
+    coinbase_depth: u64,
     current_da_height: u64,
     last_l1_hash_of_evm: Option<B256>,
     bridge_initialize_params: &'a [u8],
@@ -423,6 +415,7 @@ pub fn populate_system_events<'a>(
             system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
                 current_slot_hash,
                 current_da_txs_commitment,
+                coinbase_depth,
             ));
         }
     } else {
@@ -431,6 +424,7 @@ pub fn populate_system_events<'a>(
         system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
             current_slot_hash,
             current_da_txs_commitment,
+            coinbase_depth,
         ));
         system_events.push(SystemEvent::BridgeInitialize(bridge_initialize_params));
     }
@@ -438,5 +432,49 @@ pub fn populate_system_events<'a>(
     deposit_data.iter().for_each(|params| {
         system_events.push(SystemEvent::BridgeDeposit(params.clone()));
     });
+    system_events
+}
+
+/// Populates system events based on the current soft confirmation info.
+pub fn populate_system_events_pre_fork2<'a>(
+    soft_confirmation_info: &HookSoftConfirmationInfo,
+    last_l1_hash_of_evm: Option<B256>,
+    bridge_initialize_params: &'a [u8],
+) -> Vec<SystemEvent<'a>> {
+    let mut system_events = vec![];
+    let da_slot_hash = soft_confirmation_info
+        .da_slot_hash()
+        .expect("Pre fork2 l2 block should have da data");
+    let da_slot_txs_commitment = soft_confirmation_info
+        .da_slot_txs_commitment()
+        .expect("Pre fork2 l2 block should have da data");
+    let da_slot_height = soft_confirmation_info
+        .da_slot_height()
+        .expect("Pre fork2 l2 block should have da data");
+
+    if let Some(last_l1_hash) = last_l1_hash_of_evm {
+        if last_l1_hash != da_slot_hash {
+            // That's a new L1 block
+            system_events.push(SystemEvent::BitcoinLightClientSetBlockInfoPreFork2(
+                da_slot_hash,
+                da_slot_txs_commitment,
+            ));
+        }
+    } else {
+        // That's the first L2 block in the first seen L1 block.
+        system_events.push(SystemEvent::BitcoinLightClientInitialize(da_slot_height));
+        system_events.push(SystemEvent::BitcoinLightClientSetBlockInfoPreFork2(
+            da_slot_hash,
+            da_slot_txs_commitment,
+        ));
+        system_events.push(SystemEvent::BridgeInitialize(bridge_initialize_params));
+    }
+
+    soft_confirmation_info
+        .deposit_data()
+        .iter()
+        .for_each(|params| {
+            system_events.push(SystemEvent::BridgeDeposit(params.clone()));
+        });
     system_events
 }

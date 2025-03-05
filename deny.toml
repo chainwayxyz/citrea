@@ -41,7 +41,8 @@ deny = [{ name = "native-tls" }, { name = "openssl" }]
 
 [advisories]
 ignore = [
-  "RUSTSEC-2024-0344", # curve25519-dalek 4.1.2
+  "RUSTSEC-2024-0379", # fast-float@0.2.0 (comes from revm_inspectors)
+  "RUSTSEC-2025-0003", # fast-float@0.2.0 (comes from revm_inspectors)
   "RUSTSEC-2024-0388", # Unmaintained derivative crate
   "RUSTSEC-2024-0370", # Unmaintained proc-macro-error crate
   "RUSTSEC-2024-0384", # Unmaintained instant crate

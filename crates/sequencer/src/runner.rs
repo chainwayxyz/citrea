@@ -180,7 +180,7 @@ where
             // Fill with system transactions
             let mut all_txs = vec![];
 
-            for l1_block in da_blocks {
+            for l1_block in da_blocks.into_iter() {
                 if let Err(err) = self.stf.begin_soft_confirmation(
                     pub_key,
                     &mut working_set_to_discard,
@@ -196,10 +196,12 @@ where
                     )
                 }
                 let da_header = l1_block.header();
+                let coinbase_depth = l1_block.coinbase_txid_merkle_proof_height();
                 let system_transactions = self.produce_system_transactions(
                     &soft_confirmation_info,
                     &evm,
                     &mut working_set_to_discard,
+                    coinbase_depth,
                     deposit_data,
                     da_header,
                 );
@@ -304,6 +306,7 @@ where
                                             sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => panic!("System tx after user tx"),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxParseError => panic!("Sequencer produced incorrectly formatted system tx"),
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2 => panic!("System tx not allowed after fork2"),
                                                                                     },
                                     }
                 };
@@ -323,7 +326,7 @@ where
         })
     }
 
-    fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) -> anyhow::Result<()> {
+    fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) {
         for da_block in da_blocks {
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
                 Da::block_to_short_header_proof(da_block.clone());
@@ -335,7 +338,6 @@ where
                 )
                 .expect("Should save short header proof to ledger db");
         }
-        Ok(())
     }
 
     async fn produce_l2_block(
@@ -384,7 +386,7 @@ where
 
         // TODO: after L2Block refactor PR, we'll need to change native provider
         // Save short header proof to ledger db for Native Short Header Proof Provider Service
-        self.save_short_header_proofs(da_blocks.clone())?;
+        self.save_short_header_proofs(da_blocks.clone());
 
         let timestamp = chrono::Local::now().timestamp() as u64;
 
@@ -1124,6 +1126,7 @@ where
         soft_confirmation_info: &HookSoftConfirmationInfo,
         evm: &Evm<DefaultContext>,
         working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
+        coinbase_depth: u64,
         deposit_data: &[Vec<u8>],
         da_block_header: &<Da::Spec as DaSpec>::BlockHeader,
     ) -> Vec<TransactionSignedEcRecovered> {
@@ -1145,6 +1148,7 @@ where
             deposit_data,
             da_block_header.hash().into(),
             da_block_header.txs_commitment().into(),
+            coinbase_depth,
             da_block_header.height(),
             l1_hash_in_contract,
             bridge_init_param.as_slice(),

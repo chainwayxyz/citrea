@@ -252,6 +252,10 @@ impl SlotData for MockBlock {
     fn header(&self) -> &Self::BlockHeader {
         &self.header
     }
+
+    fn coinbase_txid_merkle_proof_height(&self) -> u64 {
+        1
+    }
 }
 
 impl MockBlock {

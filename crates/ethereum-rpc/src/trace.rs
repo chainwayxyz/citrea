@@ -120,9 +120,12 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     working_set: &mut WorkingSet<C::Storage>,
     opts: Option<GethDebugTracingOptions>,
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
-    // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
-    if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-        let traces = evm.trace_block_transactions_by_number(
+    // If tracer option is not specified, or it is JsTracer, then do not check cache or insert cache, just perform the operation
+    let skip_cache = opts.as_ref().map_or(true, |o| {
+        matches!(o.tracer, None | Some(GethDebugTracerType::JsTracer(_)))
+    });
+    if skip_cache {
+        let mut traces = evm.trace_block_transactions_by_number(
             block_number,
             opts,
             trace_idx,
@@ -130,7 +133,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             fork_from_block_number,
         )?;
         return match trace_idx {
-            Some(idx) => Ok(vec![traces[idx].clone()]),
+            Some(idx) => Ok(vec![traces.remove(idx)]),
             None => Ok(traces),
         };
     }
@@ -151,7 +154,8 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     }
 
     let cache_options = create_trace_cache_opts();
-    let traces = evm.trace_block_transactions_by_number(
+
+    let mut traces = evm.trace_block_transactions_by_number(
         block_number,
         Some(cache_options),
         None,
@@ -166,7 +170,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
 
     // Convert the traces to the requested tracer and config
     let traces = match trace_idx {
-        Some(idx) => vec![traces[idx].clone()],
+        Some(idx) => vec![traces.remove(idx)],
         None => traces,
     };
     let traces = get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
@@ -264,9 +268,9 @@ fn get_traces_with_requested_tracer_and_config(
             }
         }
         GethDebugTracerType::JsTracer(_code) => {
-            // This also requires DatabaseRef trait
-            // Implement after readonly state is implemented
-            Err(EthApiError::Unsupported("JsTracer"))
+            unimplemented!(
+                "Converting frames into js traces not implemented, and should be handled in evm"
+            )
         }
     }
 }
