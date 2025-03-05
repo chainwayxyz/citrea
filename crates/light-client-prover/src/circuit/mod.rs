@@ -60,6 +60,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_proof_method_ids: &InitialBatchProofMethodIds,
         last_l2_height: u64,
         initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<(), CircuitError> {
         let Ok(journal) = Z::extract_raw_output(proof) else {
             return Err("Failed to extract output from proof");
@@ -72,6 +73,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             batch_proof_output_final_state_root,
             batch_proof_output_last_l2_height,
         ) = if let Ok(output) = Z::deserialize_output::<BatchProofCircuitOutputV3>(&journal) {
+            if !BlockHashAccessor::<S>::exists(
+                output.last_l1_hash_on_bitcoin_light_client_contract,
+                working_set,
+            ) {
+                return Err("Batch proof with unknown header cahin");
+            }
+
             (
                 output.initial_state_root,
                 output.final_state_root,
@@ -113,7 +121,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         // TODO: this needs serialized proof
         // if index is not in the expected to fail hints, then it should pass
-        Z::verify(proof, &batch_proof_method_id.into()).expect("Proof hinted to pass failed");
+        Z::verify(proof, &batch_proof_method_id.into()).map_err(|_| "Failed to verify proof")?;
 
         recursive_match_state_roots(
             initial_to_final,
@@ -149,7 +157,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         // Mapping from initial state root to final state root and last L2 height
         let mut initial_to_final = BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-        let (mut last_state_root, mut last_l2_height) =
+        let (mut last_l2_state_root, mut last_l2_height) =
             previous_light_client_proof_output.as_ref().map_or_else(
                 || {
                     // if no previous proof, we start from genesis state root
@@ -211,6 +219,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &batch_proof_method_ids,
                         last_l2_height,
                         &mut initial_to_final,
+                        &mut working_set,
                     ) {
                         Ok(()) => {}
                         Err(e) => println!("Error processing complete proof: {e}"),
@@ -257,6 +266,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &batch_proof_method_ids,
                         last_l2_height,
                         &mut initial_to_final,
+                        &mut working_set,
                     ) {
                         Ok(()) => {}
                         // serialization or duplicate proof error
@@ -293,13 +303,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         // Do recursive matching for previous state root
         recursive_match_state_roots(
             &mut initial_to_final,
-            &BatchProofInfo::new(last_state_root, last_state_root, last_l2_height),
+            &BatchProofInfo::new(last_l2_state_root, last_l2_state_root, last_l2_height),
         );
 
         // Now only thing left is the state update if exists and others are unchained
-        if let Some((final_root, last_l2)) = initial_to_final.remove(&last_state_root) {
+        if let Some((final_root, last_l2)) = initial_to_final.remove(&last_l2_state_root) {
             last_l2_height = last_l2;
-            last_state_root = final_root;
+            last_l2_state_root = final_root;
         }
 
         // Collect unchained outputs
@@ -319,11 +329,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         storage.commit(&jmt_state_update, &vec![], &ReadWriteLog::default());
 
         RunL1BlockResult {
-            l2_state_root: last_state_root,
+            l2_state_root: last_l2_state_root,
             lcp_state_root: lcp_state_root_transition.final_root,
             unchained_batch_proofs_info: unchained_outputs,
-            last_l2_height: last_l2_height,
-            batch_proof_method_ids: batch_proof_method_ids,
+            last_l2_height,
+            batch_proof_method_ids,
             witness,
         }
     }
