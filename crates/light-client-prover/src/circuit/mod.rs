@@ -409,7 +409,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         );
 
         Ok(LightClientCircuitOutput {
-            l2_state_root: result.lcp_state_root,
+            l2_state_root: result.l2_state_root,
             light_client_proof_method_id: input.light_client_proof_method_id,
             latest_da_state: new_da_state,
             unchained_batch_proofs_info: result.unchained_batch_proofs_info,
