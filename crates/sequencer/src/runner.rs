@@ -43,7 +43,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, VerifableShortHeaderProof};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
@@ -161,7 +161,6 @@ where
         pub_key: &[u8],
         prestate: ProverStorage,
         soft_confirmation_info: HookSoftConfirmationInfo,
-        coinbase_depths: Vec<u64>,
         deposit_data: &[Vec<u8>],
         da_blocks: Vec<Da::FilteredBlock>,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
@@ -181,7 +180,7 @@ where
             // Fill with system transactions
             let mut all_txs = vec![];
 
-            for (l1_block, coinbase_depth) in da_blocks.into_iter().zip(coinbase_depths) {
+            for l1_block in da_blocks.into_iter() {
                 if let Err(err) = self.stf.begin_soft_confirmation(
                     pub_key,
                     &mut working_set_to_discard,
@@ -197,6 +196,7 @@ where
                     )
                 }
                 let da_header = l1_block.header();
+                let coinbase_depth = l1_block.coinbase_txid_merkle_proof_height();
                 let system_transactions = self.produce_system_transactions(
                     &soft_confirmation_info,
                     &evm,
@@ -326,20 +326,10 @@ where
         })
     }
 
-    fn save_short_header_proofs(
-        &self,
-        da_blocks: Vec<Da::FilteredBlock>,
-    ) -> anyhow::Result<Vec<u64>> {
-        let mut coinbase_depths = vec![];
+    fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) {
         for da_block in da_blocks {
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
                 Da::block_to_short_header_proof(da_block.clone());
-            let coinbase_depth = short_header_proof
-                .verify()
-                .unwrap()
-                .coinbase_txid_merkle_proof_height
-                .into();
-            coinbase_depths.push(coinbase_depth);
             self.ledger_db
                 .put_short_header_proof_by_l1_hash(
                     &da_block.hash(),
@@ -348,7 +338,6 @@ where
                 )
                 .expect("Should save short header proof to ledger db");
         }
-        Ok(coinbase_depths)
     }
 
     async fn produce_l2_block(
@@ -397,7 +386,7 @@ where
 
         // TODO: after L2Block refactor PR, we'll need to change native provider
         // Save short header proof to ledger db for Native Short Header Proof Provider Service
-        let coinbase_depths = self.save_short_header_proofs(da_blocks.clone())?;
+        self.save_short_header_proofs(da_blocks.clone());
 
         let timestamp = chrono::Local::now().timestamp() as u64;
 
@@ -436,7 +425,6 @@ where
                 &pub_key,
                 prestate.clone(),
                 soft_confirmation_info.clone(),
-                coinbase_depths,
                 &deposit_data,
                 da_blocks.clone(),
             )
