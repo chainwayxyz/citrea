@@ -78,5 +78,7 @@ pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, down_to_block:
         error!("Could not delete state data: {:?}", e);
     }
 
+    let _ = state_db.flush();
+
     info!("Rolled back {} records from state DB", deletions);
 }

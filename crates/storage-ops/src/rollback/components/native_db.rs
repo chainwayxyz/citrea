@@ -34,5 +34,7 @@ pub(crate) fn rollback_native_db(native_db: Arc<sov_schema_db::DB>, down_to_bloc
         return;
     }
 
+    let _ = native_db.flush();
+
     debug!("Rolled back {} native DB records", counter);
 }

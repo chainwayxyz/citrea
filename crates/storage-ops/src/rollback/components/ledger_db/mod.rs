@@ -43,4 +43,6 @@ pub(crate) fn rollback_ledger_db(
             log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1,));
         }
     }
+
+    let _ = ledger_db.flush();
 }
