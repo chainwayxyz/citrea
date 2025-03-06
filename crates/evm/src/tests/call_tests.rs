@@ -135,10 +135,10 @@ fn call_multiple_test() {
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
-                    success: true, cumulative_gas_used: 50977,
+                    success: true, cumulative_gas_used: 50759,
                     logs: vec![]
                 },
-                gas_used: 50977,
+                gas_used: 50759,
                 log_index_start: 0,
                 l1_diff_size: 53
             },
@@ -146,7 +146,7 @@ fn call_multiple_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 132370,
+                    cumulative_gas_used: 131385,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000001"),
@@ -157,7 +157,7 @@ fn call_multiple_test() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             },
@@ -165,7 +165,7 @@ fn call_multiple_test() {
                 receipt: reth_primitives::Receipt{
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 301520,
+                    cumulative_gas_used: 300497,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000002"),
@@ -183,7 +183,7 @@ fn call_multiple_test() {
                         }
                     ]
                 },
-                gas_used: 169150,
+                gas_used: 169112,
                 log_index_start: 1,
                 l1_diff_size: 154
             },
@@ -191,7 +191,7 @@ fn call_multiple_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 81393,
+                    cumulative_gas_used: 80626,
                     logs: vec![Log {
                         address: address!("3100000000000000000000000000000000000001"),
                         data: LogData::new(
@@ -200,14 +200,14 @@ fn call_multiple_test() {
                         ).unwrap()
                     }]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 214336, logs: vec![] }, gas_used: 132943, log_index_start: 1, l1_diff_size: 52 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 258066, logs: vec![] }, gas_used: 43730, log_index_start: 1, l1_diff_size: 53 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 284696, logs: vec![] }, gas_used: 26630, log_index_start: 1, l1_diff_size: 53 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 311326, logs: vec![] },
+            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 213569, logs: vec![] }, gas_used: 132943, log_index_start: 1, l1_diff_size: 52 },
+            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 257299, logs: vec![] }, gas_used: 43730, log_index_start: 1, l1_diff_size: 53 },
+            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 283929, logs: vec![] }, gas_used: 26630, log_index_start: 1, l1_diff_size: 53 },
+            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 310559, logs: vec![] },
             gas_used: 26630, log_index_start: 1, l1_diff_size: 53 }
         ]
     );
@@ -279,10 +279,10 @@ fn call_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50977,
+                    cumulative_gas_used: 50759,
                     logs: vec![]
                 },
-                gas_used: 50977,
+                gas_used: 50759,
                 log_index_start: 0,
                 l1_diff_size: 53
             },
@@ -290,7 +290,7 @@ fn call_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 132370,
+                    cumulative_gas_used: 131385,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000001"),
@@ -301,7 +301,7 @@ fn call_test() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             },
@@ -309,7 +309,7 @@ fn call_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 301520,
+                    cumulative_gas_used: 300497,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000002"),
@@ -327,7 +327,7 @@ fn call_test() {
                         }
                     ]
                 },
-                gas_used: 169150,
+                gas_used: 169112,
                 log_index_start: 1,
                 l1_diff_size: 154
             },
@@ -335,7 +335,7 @@ fn call_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 81393,
+                    cumulative_gas_used: 80626,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000001"),
@@ -346,7 +346,7 @@ fn call_test() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             },
@@ -354,7 +354,7 @@ fn call_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 214336,
+                    cumulative_gas_used: 213569,
                     logs: vec![]
                 },
                 gas_used: 132943,
@@ -365,7 +365,7 @@ fn call_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 258066,
+                    cumulative_gas_used: 257299,
                     logs: vec![]
                 },
                 gas_used: 43730,
@@ -438,10 +438,10 @@ fn failed_transaction_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50977,
+                    cumulative_gas_used: 50759,
                     logs: vec![]
                 },
-                gas_used: 50977,
+                gas_used: 50759,
                 log_index_start: 0,
                 l1_diff_size: 53
             },
@@ -449,7 +449,7 @@ fn failed_transaction_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 132370,
+                    cumulative_gas_used: 131385,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000001"),
@@ -460,7 +460,7 @@ fn failed_transaction_test() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             },
@@ -468,7 +468,7 @@ fn failed_transaction_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 301520,
+                    cumulative_gas_used: 300497,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000002"),
@@ -486,7 +486,7 @@ fn failed_transaction_test() {
                         }
                     ]
                 },
-                gas_used: 169150,
+                gas_used: 169112,
                 log_index_start: 1,
                 l1_diff_size: 154
             },
@@ -494,7 +494,7 @@ fn failed_transaction_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 81393,
+                    cumulative_gas_used: 80626,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000001"),
@@ -505,7 +505,7 @@ fn failed_transaction_test() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             }
@@ -1240,10 +1240,10 @@ fn test_l1_fee_success() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 50977,
+                        cumulative_gas_used: 50759,
                         logs: vec![]
                     },
-                    gas_used: 50977,
+                    gas_used: 50759,
                     log_index_start: 0,
                     l1_diff_size: 53
                 },
@@ -1251,7 +1251,7 @@ fn test_l1_fee_success() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 132370,
+                        cumulative_gas_used: 131385,
                         logs: vec![
                             Log {
                                 address: address!("3100000000000000000000000000000000000001"),
@@ -1264,7 +1264,7 @@ fn test_l1_fee_success() {
                             }
                         ]
                     },
-                    gas_used: 81393,
+                    gas_used: 80626,
                     log_index_start: 0,
                     l1_diff_size: 94
                 },
@@ -1272,7 +1272,7 @@ fn test_l1_fee_success() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 301520,
+                        cumulative_gas_used: 300497,
                         logs: vec![
                             Log {
                                 address: address!("3100000000000000000000000000000000000002"),
@@ -1294,7 +1294,7 @@ fn test_l1_fee_success() {
                             }
                         ]
                     },
-                    gas_used: 169150,
+                    gas_used: 169112,
                     log_index_start: 1,
                     l1_diff_size: 154
                 },
@@ -1302,7 +1302,7 @@ fn test_l1_fee_success() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 81393,
+                        cumulative_gas_used: 80626,
                         logs: vec![
                             Log {
                                 address: address!("3100000000000000000000000000000000000001"),
@@ -1315,7 +1315,7 @@ fn test_l1_fee_success() {
                             }
                         ]
                     },
-                    gas_used: 81393,
+                    gas_used: 80626,
                     log_index_start: 0,
                     l1_diff_size: 94
                 },
@@ -1323,7 +1323,7 @@ fn test_l1_fee_success() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 195628,
+                        cumulative_gas_used: 194861,
                         logs: vec![]
                     },
                     gas_used: 114235,
@@ -1419,10 +1419,10 @@ fn test_l1_fee_not_enough_funds() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 50977,
+                        cumulative_gas_used: 50759,
                         logs: vec![]
                     },
-                    gas_used: 50977,
+                    gas_used: 50759,
                     log_index_start: 0,
                     l1_diff_size: 53
                 },
@@ -1430,7 +1430,7 @@ fn test_l1_fee_not_enough_funds() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 132370,
+                        cumulative_gas_used: 131385,
                         logs: vec![
                             Log {
                                 address: address!("3100000000000000000000000000000000000001"),
@@ -1443,7 +1443,7 @@ fn test_l1_fee_not_enough_funds() {
                             }
                         ]
                     },
-                    gas_used: 81393,
+                    gas_used: 80626,
                     log_index_start: 0,
                     l1_diff_size: 94
                 },
@@ -1451,7 +1451,7 @@ fn test_l1_fee_not_enough_funds() {
                     receipt: reth_primitives::Receipt {
                         tx_type: reth_primitives::TxType::Eip1559,
                         success: true,
-                        cumulative_gas_used: 301520,
+                        cumulative_gas_used: 300497,
                         logs: vec![
                             Log {
                                 address: address!("3100000000000000000000000000000000000002"),
@@ -1473,7 +1473,7 @@ fn test_l1_fee_not_enough_funds() {
                             }
                         ]
                     },
-                    gas_used: 169150,
+                    gas_used: 169112,
                     log_index_start: 1,
                     l1_diff_size: 154
                 }
@@ -1566,10 +1566,10 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50977,
+                    cumulative_gas_used: 50759,
                     logs: vec![]
                 },
-                gas_used: 50977,
+                gas_used: 50759,
                 log_index_start: 0,
                 l1_diff_size: 53
             },
@@ -1577,7 +1577,7 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 132370,
+                    cumulative_gas_used: 131385,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000001"),
@@ -1588,7 +1588,7 @@ fn test_l1_fee_halt() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             },
@@ -1596,7 +1596,7 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 301520,
+                    cumulative_gas_used: 300497,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000002"),
@@ -1614,7 +1614,7 @@ fn test_l1_fee_halt() {
                         }
                     ]
                 },
-                gas_used: 169150,
+                gas_used: 169112,
                 log_index_start: 1,
                 l1_diff_size: 154
             },
@@ -1622,7 +1622,7 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 81393,
+                    cumulative_gas_used: 80626,
                     logs: vec![
                         Log {
                             address: address!("3100000000000000000000000000000000000001"),
@@ -1633,7 +1633,7 @@ fn test_l1_fee_halt() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94
             },
@@ -1641,7 +1641,7 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 188340,
+                    cumulative_gas_used: 187573,
                     logs: vec![]
                 },
                 gas_used: 106947,
@@ -1652,7 +1652,7 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: false,
-                    cumulative_gas_used: 1188340,
+                    cumulative_gas_used: 1187573,
                     logs: vec![]
                 },
                 gas_used: 1000000,

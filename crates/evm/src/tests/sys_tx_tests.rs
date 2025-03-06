@@ -47,10 +47,10 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50977,
+                    cumulative_gas_used: 50759,
                     logs: vec![]
                 },
-                gas_used: 50977,
+                gas_used: 50759,
                 log_index_start: 0,
                 l1_diff_size: 53,
             },
@@ -58,7 +58,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 132370,
+                    cumulative_gas_used: 131385,
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
@@ -69,7 +69,7 @@ fn test_sys_bitcoin_light_client() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94,
             },
@@ -77,7 +77,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 301520,
+                    cumulative_gas_used: 300497,
                     logs: vec![
                         Log {
                             address: BridgeWrapper::address(),
@@ -95,7 +95,7 @@ fn test_sys_bitcoin_light_client() {
                         }
                     ]
                 },
-                gas_used: 169150,
+                gas_used: 169112,
                 log_index_start: 1,
                 l1_diff_size: 154,
             }
@@ -216,7 +216,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 81393,
+                    cumulative_gas_used: 80626,
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
@@ -227,7 +227,7 @@ fn test_sys_bitcoin_light_client() {
                         }
                     ]
                 },
-                gas_used: 81393,
+                gas_used: 80626,
                 log_index_start: 0,
                 l1_diff_size: 94,
             },
@@ -235,7 +235,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 195628,
+                    cumulative_gas_used: 194861,
                     logs: vec![]
                 },
                 gas_used: 114235,
@@ -378,16 +378,16 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         );
 
         let sys_tx_gas_usage = pending_cumulative_gas_used;
-        assert_eq!(sys_tx_gas_usage, 81393);
+        assert_eq!(sys_tx_gas_usage, 80626);
 
         let mut rlp_transactions = Vec::new();
 
         // Check: Given now we also push bridge contract, is the following calculation correct?
 
-        // the amount of gas left is 30_000_000 - 81393 = 29_918_607
+        // the amount of gas left is 30_000_000 - (80626 + 21770) = 29_978_230
         // send barely enough gas to reach the limit
         // one publish event message is 26388 gas
-        // 29918607 / 26388 = 1133.7
+        // 29978230 / 26388 = 1133.8
         // so there cannot be more than 1133 messages
         for i in 0..11350 {
             rlp_transactions.push(publish_event_message(
@@ -408,7 +408,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             )
             .unwrap_err(),
             SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
-                cumulative_gas: 29978997,
+                cumulative_gas: 29978230,
                 tx_gas_used: 26388,
                 block_gas_limit: 30000000
             }
@@ -454,16 +454,16 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         );
 
         let sys_tx_gas_usage = pending_cumulative_gas_used;
-        assert_eq!(sys_tx_gas_usage, 81393);
+        assert_eq!(sys_tx_gas_usage, 80626);
 
         let mut rlp_transactions = Vec::new();
 
         // Check: Given now we also push bridge contract, is the following calculation correct?
 
-        // the amount of gas left is 30_000_000 - 80620 = 29_919_380
+        // the amount of gas left is 30_000_000 - 80626 = 29_919_374
         // send barely enough gas to reach the limit
         // one publish event message is 26388 gas
-        // 29919380 / 26388 = 1133.82
+        // 29919374 / 26388 = 1133.82
         // so there cannot be more than 1133 messages
         for i in 0..1133 {
             rlp_transactions.push(publish_event_message(
