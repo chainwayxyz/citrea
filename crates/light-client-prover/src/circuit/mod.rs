@@ -322,6 +322,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
 
         // TODO: compute_state_update cretes state diff
+        // https://github.com/chainwayxyz/citrea/issues/2046
         // which we don't need in this circuit
         // maybe create new function or pass argument for state diff building
         let (lcp_state_root_transition, jmt_state_update, _) = storage
