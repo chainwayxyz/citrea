@@ -159,7 +159,7 @@ alloy-eips = { version = "0.4.2", default-features = false }
 alloy-consensus = { version = "0.4.2", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.4.2", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "3594fc2c42776c0df85917657142e8e77729989e" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "9b8eb81dd09964ab4b4bdc87c52d1c7b873161a0" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }
