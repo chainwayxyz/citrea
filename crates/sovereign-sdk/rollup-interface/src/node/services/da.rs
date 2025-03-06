@@ -155,7 +155,4 @@ pub trait SlotData:
     fn hash(&self) -> [u8; 32];
     /// The header of the DA layer block.
     fn header(&self) -> &Self::BlockHeader;
-
-    /// Coinbase txid merkle proof height in the block.
-    fn coinbase_txid_merkle_proof_height(&self) -> u64;
 }

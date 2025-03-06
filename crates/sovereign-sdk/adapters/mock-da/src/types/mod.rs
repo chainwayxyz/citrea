@@ -149,6 +149,10 @@ impl BlockHeaderTrait for MockBlockHeader {
     fn bits(&self) -> u32 {
         self.bits
     }
+
+    fn coinbase_txid_merkle_proof_height(&self) -> u64 {
+        1
+    }
 }
 
 /// The configuration for mock da
@@ -251,10 +255,6 @@ impl SlotData for MockBlock {
 
     fn header(&self) -> &Self::BlockHeader {
         &self.header
-    }
-
-    fn coinbase_txid_merkle_proof_height(&self) -> u64 {
-        1
     }
 }
 
