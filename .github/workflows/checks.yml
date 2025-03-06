@@ -215,8 +215,6 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-      - name: Prune docker
-        run: docker system prune -a -f
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
