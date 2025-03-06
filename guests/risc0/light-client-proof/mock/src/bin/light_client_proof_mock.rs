@@ -10,7 +10,7 @@ risc0_zkvm::guest::entry!(main);
 const NETWORK: Network = Network::Nightly;
 
 const L2_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-    b"f35c8208450753a08ea3e1496df9c29bfa1b1fdd1df2980bcac1a878e7b46b9d",
+    b"f3a1164976f5f1d4c74779c58fea93e212a7fdea1745a7d3ef028d6bca834425",
 ) {
     Ok(root) => root,
     Err(_) => panic!("Can't happen"),
