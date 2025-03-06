@@ -14,6 +14,7 @@ use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput
 use sov_rollup_interface::zk::light_client_proof::output::{
     BatchProofInfo, LightClientCircuitOutput,
 };
+use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
@@ -354,25 +355,29 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
+        Z: ZkvmGuest,
     {
         // from input, parse previous light client proof output
-        let previous_light_client_proof_output = if let Some(journal) =
-            input.previous_light_client_proof_journal
-        {
-            let prev_output = Z::verify_and_deserialize_output::<LightClientCircuitOutput>(
-                &journal,
-                &input.light_client_proof_method_id.into(),
-            )
-            .map_err(|_| LightClientVerificationError::<DaV>::InvalidPreviousLightClientProof)?;
-            // Ensure method IDs match
-            assert_eq!(
-                input.light_client_proof_method_id,
-                prev_output.light_client_proof_method_id,
-            );
-            Some(prev_output)
-        } else {
-            None
-        };
+        let previous_light_client_proof_output =
+            if let Some(journal) = input.previous_light_client_proof_journal {
+                // previous LCP is verified with the assumption API
+                // this would panic if the prev LCP cant be verified
+                Z::verify_with_assumptions(&journal, &input.light_client_proof_method_id.into());
+
+                let prev_output: LightClientCircuitOutput = Z::deserialize_output(&journal)
+                    .map_err(|_| {
+                        LightClientVerificationError::<DaV>::InvalidPreviousLightClientProof
+                    })?;
+
+                // Ensure method IDs match
+                assert_eq!(
+                    input.light_client_proof_method_id,
+                    prev_output.light_client_proof_method_id,
+                );
+                Some(prev_output)
+            } else {
+                None
+            };
 
         // make header chain verification and insert block hash to JMT
         let new_da_state = da_verifier
