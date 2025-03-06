@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use alloy_primitives::U64;
 use async_trait::async_trait;
+use bitcoin::hashes::Hash;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
@@ -877,6 +878,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let genesis_state_root = lcp_output.l2_state_root;
 
         let fork2_height: u64 = method_ids[2].height.to();
+        let l1_hash = da.get_block_hash(finalized_height).await?;
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
@@ -885,6 +887,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             method_ids[2].method_id.into(),
             None,
             false,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -900,6 +903,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             method_ids[2].method_id.into(),
             None,
             false,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -915,6 +919,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             method_ids[2].method_id.into(),
             None,
             true,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
@@ -929,6 +934,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             method_ids[2].method_id.into(),
             None,
             false,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -945,6 +951,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             random_method_id,
             None,
             false,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
@@ -1096,6 +1103,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // But the compressed size will go down to 100kb
         let state_diff_100kb = create_random_state_diff(100);
 
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
         // Create a 100kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 3 chunk and 1 aggregate transactions because 100kb/40kb = 3 chunks
         let verifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
@@ -1104,6 +1113,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             method_ids[2].method_id.into(),
             Some(state_diff_100kb.clone()),
             false,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
 
         let _ = bitcoin_da_service
@@ -1150,6 +1160,9 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // After the block n+2 is processed we should see the state root updated
         let state_diff_130kb = create_random_state_diff(130);
 
+        let finalized_height = da.get_finalized_height(None).await?;
+        let l1_hash = da.get_block_hash(finalized_height - 3).await?;
+
         let verifiable_130kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
             [2u8; 32],
@@ -1157,6 +1170,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             method_ids[2].method_id.into(),
             Some(state_diff_130kb),
             false,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
 
         let _ = bitcoin_da_service
@@ -1264,6 +1278,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             random_method_id,
             Some(state_diff_100kb),
             false,
+            l1_hash.as_raw_hash().to_byte_array(),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_100kb_batch_proof), 1)
@@ -1360,6 +1375,7 @@ fn create_serialized_fake_receipt_batch_proof(
     method_id: [u32; 8],
     state_diff: Option<CumulativeStateDiff>,
     malformed_journal: bool,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> Vec<u8> {
     let batch_proof_output = BatchProofCircuitOutputV3 {
         initial_state_root,
@@ -1368,7 +1384,7 @@ fn create_serialized_fake_receipt_batch_proof(
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
         sequencer_commitment_merkle_roots: vec![],
-        last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
+        last_l1_hash_on_bitcoin_light_client_contract,
     };
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 
