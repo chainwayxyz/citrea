@@ -38,14 +38,12 @@ pub(crate) fn create_mock_batch_proof(
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
 
-    let serialized_journal = match is_valid {
-        true => borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap(),
-        false => borsh::to_vec(&MockJournal::Unverifiable(bp_serialized.clone())).unwrap(),
-    };
+    let serialized_journal =
+        borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap();
 
     let mock_proof = MockProof {
         program_id: batch_proof_method_id.clone(),
-        is_valid: true,
+        is_valid,
         log: serialized_journal.clone(),
     };
 
@@ -68,7 +66,7 @@ pub(crate) fn create_serialized_mock_proof(
     state_diff: Option<CumulativeStateDiff>,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> Vec<u8> {
-    let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
+    let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
     let bp = BatchProofCircuitOutputV3 {
         initial_state_root,
@@ -82,14 +80,12 @@ pub(crate) fn create_serialized_mock_proof(
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
 
-    let serialized_journal = match is_valid {
-        true => borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap(),
-        false => borsh::to_vec(&MockJournal::Unverifiable(bp_serialized.clone())).unwrap(),
-    };
+    let serialized_journal =
+        borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap();
 
     let mock_proof = MockProof {
         program_id: batch_proof_method_id.clone(),
-        is_valid: true,
+        is_valid,
         log: serialized_journal.clone(),
     };
 

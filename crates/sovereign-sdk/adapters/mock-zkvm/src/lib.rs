@@ -284,12 +284,12 @@ impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
         self.output.write().unwrap().extend_from_slice(&buf);
     }
 
-    fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment) {
+    fn verify_with_assumptions(journal: &[u8], _code_commitment: &Self::CodeCommitment) {
         // panics on unverifiable
         let mock_journal = MockJournal::try_from_slice(journal).unwrap();
         match mock_journal {
             MockJournal::Verifiable(_) => {}
-            MockJournal::Unverifiable(_) => panic!("Unverifiable journal"),
+            MockJournal::Unverifiable(_) => panic!("Assumption proof verification failed!"),
         }
     }
 }

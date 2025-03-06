@@ -251,7 +251,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         }
                     }
 
-                    println!("Aggregate has all needed chunks!",);
+                    println!("Aggregate has all needed chunks!");
 
                     let complete_proof: Vec<_> = chunks.into_iter().flatten().collect();
 
@@ -323,6 +323,22 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         let (lcp_state_root_transition, jmt_state_update, _) = storage
             .compute_state_update(&read_write_log, &mut witness)
             .expect("jellyfish merkle tree update must succeed");
+
+        if let Some(output) = previous_light_client_proof_output {
+            assert_eq!(
+                lcp_state_root_transition.init_root, output.lcp_state_root,
+                "Witness prev root is wrong!"
+            );
+        } else {
+            // if running for the first time
+            assert_eq!(
+                lcp_state_root_transition.init_root,
+                const_hex::decode_to_array(
+                    "5350415253455f4d45524b4c455f504c414345484f4c4445525f484153485f5f"
+                )
+                .unwrap()
+            );
+        }
 
         // TODO: assert initial root here
         // TODO: also if prev out is none, the prev root must be some specific root.
