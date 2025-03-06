@@ -32,6 +32,11 @@ impl ZkvmGuest for Risc0Guest {
         let mut journal = env::journal();
         journal.write_slice(&buf);
     }
+
+    fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment) {
+        env::verify(code_commitment.0, journal)
+            .expect("Assumption API verify error should be infallible")
+    }
 }
 
 impl Zkvm for Risc0Guest {

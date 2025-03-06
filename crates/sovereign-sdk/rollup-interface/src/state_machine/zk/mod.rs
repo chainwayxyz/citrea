@@ -100,6 +100,9 @@ pub trait ZkvmGuest: Zkvm + Send + Sync {
     fn read_from_host<T: BorshDeserialize>(&self) -> T;
     /// Add a public output to the zkVM proof
     fn commit<T: BorshSerialize>(&self, item: &T);
+    /// Verify the ZK proof using assumption APIs
+    /// Panics when a proof can't be verified
+    fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment);
 }
 
 /// A trait expressing that two items of a type are (potentially fuzzy) matches.

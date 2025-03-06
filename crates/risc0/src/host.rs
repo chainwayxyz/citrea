@@ -4,7 +4,8 @@ use metrics::histogram;
 use risc0_zkp::verify::VerificationError;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, default_prover, ExecutorEnvBuilder, ProveInfo, ProverOpts, VerifierContext,
+    compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProveInfo, ProverOpts,
+    VerifierContext,
 };
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};

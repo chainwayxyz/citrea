@@ -7,7 +7,7 @@ use std::sync::{mpsc, Arc, Mutex, RwLock};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{Matches, Proof};
+use sov_rollup_interface::zk::{Matches, Proof, Zkvm};
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -278,6 +278,11 @@ impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
         let buf = borsh::to_vec(item).expect("Serialization to vec is infallible");
         // Mutate the `output` field using `borrow_mut`
         self.output.write().unwrap().extend_from_slice(&buf);
+    }
+
+    fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment) {
+        <Self as Zkvm>::verify(journal, code_commitment)
+            .expect("Assumption API verify error should be infallible")
     }
 }
 
