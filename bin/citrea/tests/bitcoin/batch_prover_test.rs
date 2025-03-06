@@ -108,8 +108,8 @@ impl TestCase for BasicProverTest {
         }
     }
 
-    fn scan_l1_start_height() -> u64 {
-        170
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -199,8 +199,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         }
     }
 
-    fn scan_l1_start_height() -> u64 {
-        170
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {

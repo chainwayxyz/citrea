@@ -49,7 +49,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
             coinbase: *BENEFICIARY,
             timestamp: U256::from(54),
             prevrandao: Some(*DA_ROOT_HASH),
-            basefee: U256::from(767823584),
+            basefee: U256::from(767816124),
             gas_limit: U256::from(config.block_gas_limit),
             difficulty: U256::ZERO,
             blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0))
@@ -102,7 +102,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: alloy_consensus::Header {
                 parent_hash: B256::from(hex!(
-                    "6e084da8d9087cc237ce9f3ab855d2e0a8e9ad1d0e9f58ded50d99e2cc7f5916"
+                    "39cec9341ee832fe21283f58d5d5926ec6675f61dae28f50390d21975c95b4dc"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -112,7 +112,7 @@ fn end_soft_confirmation_hook_sets_head() {
                     "31f0a536f543dd3068c2e90c7770606680c223504a62d354994f3cc19c1d5c5b"
                 )),
                 receipts_root: B256::from(hex!(
-                    "bf4e42572a119db8415fa21d8609e133b09713bede8ff66e15813ef4930f14c8"
+                    "25093003aaaf2c9180d0473290c26c98e6f5669ec0751c19240c0eb536f0d1b8"
                 )),
                 withdrawals_root: None,
                 logs_bloom: Bloom::new(hex!("00000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000010000000000000000000000000000000000000000000000000000004000000000000000000000000040000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
@@ -123,7 +123,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 timestamp: 54,
                 mix_hash: *DA_ROOT_HASH,
                 nonce: 0u64.into(),
-                base_fee_per_gas: Some(767823584),
+                base_fee_per_gas: Some(767816124),
                 extra_data: Bytes::default(),
                 blob_gas_used: Some(0),
                 excess_blob_gas: Some(0),
@@ -325,7 +325,7 @@ fn finalize_hook_creates_final_block() {
             "31f0a536f543dd3068c2e90c7770606680c223504a62d354994f3cc19c1d5c5b"
         )),
         receipts_root: B256::from(hex!(
-            "bf4e42572a119db8415fa21d8609e133b09713bede8ff66e15813ef4930f14c8"
+            "25093003aaaf2c9180d0473290c26c98e6f5669ec0751c19240c0eb536f0d1b8"
         )),
         withdrawals_root: None,
         logs_bloom: Bloom::new(hex!("00000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000010000000000000000000000000000000000000000000000000000004000000000000000000000000040000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
@@ -338,7 +338,7 @@ fn finalize_hook_creates_final_block() {
             "0505050505050505050505050505050505050505050505050505050505050505"
         )),
         nonce: B64::ZERO,
-        base_fee_per_gas: Some(767823584),
+        base_fee_per_gas: Some(767816124),
         extra_data: Bytes::default(),
         blob_gas_used: Some(0),
         excess_blob_gas: Some(0),

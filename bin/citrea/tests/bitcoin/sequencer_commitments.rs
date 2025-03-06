@@ -141,8 +141,8 @@ impl TestCase for LedgerGetCommitmentsTest {
         }
     }
 
-    fn scan_l1_start_height() -> u64 {
-        146
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(146)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {

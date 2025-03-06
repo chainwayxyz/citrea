@@ -401,6 +401,9 @@ pub trait BlockHeaderTrait:
 
     /// The bits of the block
     fn bits(&self) -> u32;
+
+    /// Coinbase txid merkle proof height in the block.
+    fn coinbase_txid_merkle_proof_height(&self) -> u64;
 }
 
 #[derive(
