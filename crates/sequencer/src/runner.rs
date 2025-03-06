@@ -368,7 +368,7 @@ where
     /// Post fork2 block production
     async fn produce_l2_block_post_fork2(
         &mut self,
-        mut da_blocks: Vec<Da::FilteredBlock>,
+        da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         l2_height: u64,
         last_used_l1_height: &mut u64,
@@ -417,7 +417,7 @@ where
                 prestate.clone(),
                 soft_confirmation_info.clone(),
                 &deposit_data,
-                da_blocks.clone(),
+                da_blocks,
             )
             .await?;
 
@@ -1117,7 +1117,7 @@ where
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         evm: &Evm<DefaultContext>,
-        mut working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
+        working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
         deposit_data: &[Vec<u8>],
         da_blocks: Vec<Da::FilteredBlock>,
         nonce: &mut u64,
@@ -1125,7 +1125,7 @@ where
         Vec<RlpEvmTransaction>,
         WorkingSet<<DefaultContext as Spec>::Storage>,
     )> {
-        let mut all_txs = vec![];
+        let mut system_events = vec![];
 
         for (index, l1_block) in da_blocks.into_iter().enumerate() {
             // First l1 block of first l2 block
@@ -1138,50 +1138,35 @@ where
                     l1_block.header().txs_commitment().into(),
                     l1_block.header().coinbase_txid_merkle_proof_height(),
                     l1_block.header().height(),
-                    bridge_init_param.as_slice(),
+                    bridge_init_param,
                 );
                 // Initialize contracts
-                working_set_to_discard = self.process_sys_txs(
-                    soft_confirmation_info,
-                    working_set_to_discard,
-                    nonce,
-                    evm,
-                    initialize_events,
-                    &mut all_txs,
-                )?;
+                system_events.extend(initialize_events);
                 continue;
             }
 
             let da_block_header = l1_block.header();
             let coinbase_depth = da_block_header.coinbase_txid_merkle_proof_height();
 
-            let system_events = populate_set_block_info_event(
+            let set_block_info_event = populate_set_block_info_event(
                 da_block_header.hash().into(),
                 da_block_header.txs_commitment().into(),
                 coinbase_depth,
             );
-
-            working_set_to_discard = self.process_sys_txs(
-                soft_confirmation_info,
-                working_set_to_discard,
-                nonce,
-                evm,
-                system_events,
-                &mut all_txs,
-            )?;
+            system_events.push(set_block_info_event);
         }
 
         let deposit_events = populate_deposit_system_events(deposit_data);
 
-        working_set_to_discard = self.process_sys_txs(
+        system_events.extend(deposit_events);
+
+        self.process_sys_txs(
             soft_confirmation_info,
             working_set_to_discard,
             nonce,
             evm,
-            deposit_events,
-            &mut all_txs,
-        )?;
-        Ok((all_txs, working_set_to_discard))
+            system_events,
+        )
     }
 
     fn process_sys_txs(
@@ -1191,8 +1176,11 @@ where
         nonce: &mut u64,
         evm: &Evm<DefaultContext>,
         system_events: Vec<SystemEvent>,
-        all_txs: &mut Vec<RlpEvmTransaction>,
-    ) -> anyhow::Result<WorkingSet<<DefaultContext as Spec>::Storage>> {
+    ) -> anyhow::Result<(
+        Vec<RlpEvmTransaction>,
+        WorkingSet<<DefaultContext as Spec>::Storage>,
+    )> {
+        let mut all_txs = vec![];
         let system_signer = evm
             .account_info(
                 &SYSTEM_SIGNER,
@@ -1245,7 +1233,7 @@ where
             all_txs.push(sys_tx_rlp);
         }
 
-        Ok(working_set_to_discard)
+        Ok((all_txs, working_set_to_discard))
     }
 }
 

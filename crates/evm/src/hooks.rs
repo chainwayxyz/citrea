@@ -86,7 +86,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             system_events = populate_system_events_pre_fork2(
                 soft_confirmation_info,
                 self.last_l1_hash.get(working_set),
-                PRE_FORK2_BRIDGE_INITIALIZE_PARAMS,
+                PRE_FORK2_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             )
         }
 
@@ -402,8 +402,8 @@ pub fn create_initial_system_events(
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
     current_da_height: u64,
-    bridge_initialize_params: &[u8],
-) -> Vec<SystemEvent<'_>> {
+    bridge_initialize_params: Vec<u8>,
+) -> Vec<SystemEvent> {
     let system_events = vec![
         SystemEvent::BitcoinLightClientInitialize(current_da_height),
         SystemEvent::BitcoinLightClientSetBlockInfo(
@@ -417,20 +417,20 @@ pub fn create_initial_system_events(
 }
 
 /// If new l1 block arrives we set it in light client contract
-pub fn populate_set_block_info_event<'a>(
+pub fn populate_set_block_info_event(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
-) -> Vec<SystemEvent<'a>> {
-    vec![SystemEvent::BitcoinLightClientSetBlockInfo(
+) -> SystemEvent {
+    SystemEvent::BitcoinLightClientSetBlockInfo(
         current_slot_hash,
         current_da_txs_commitment,
         coinbase_depth,
-    )]
+    )
 }
 
 /// Populates deposit system events.
-pub fn populate_deposit_system_events<'a>(deposit_data: &[Vec<u8>]) -> Vec<SystemEvent<'a>> {
+pub fn populate_deposit_system_events(deposit_data: &[Vec<u8>]) -> Vec<SystemEvent> {
     let mut system_events = vec![];
     deposit_data.iter().for_each(|params| {
         system_events.push(SystemEvent::BridgeDeposit(params.clone()));
@@ -439,11 +439,11 @@ pub fn populate_deposit_system_events<'a>(deposit_data: &[Vec<u8>]) -> Vec<Syste
 }
 
 /// Populates system events based on the current soft confirmation info.
-pub fn populate_system_events_pre_fork2<'a>(
+pub fn populate_system_events_pre_fork2(
     soft_confirmation_info: &HookSoftConfirmationInfo,
     last_l1_hash_of_evm: Option<B256>,
-    bridge_initialize_params: &'a [u8],
-) -> Vec<SystemEvent<'a>> {
+    bridge_initialize_params: Vec<u8>,
+) -> Vec<SystemEvent> {
     let mut system_events = vec![];
     let da_slot_hash = soft_confirmation_info
         .da_slot_hash()
