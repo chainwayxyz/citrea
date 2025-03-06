@@ -203,10 +203,22 @@ impl NativeCircuitRunner {
             .clone()
             .map(|j| MockZkvm::deserialize_output(&j).unwrap());
 
+        let da_verifier = MockDaVerifier {};
+
+        /// Hack for mock da and mockzkvm usage
+        let da_txs = da_verifier
+            .verify_transactions(
+                &input.da_block_header,
+                input.inclusion_proof.clone(),
+                input.completeness_proof.clone(),
+                DaNamespace::ToLightClientProver,
+            )
+            .unwrap();
+
         let res = self.circuit.run_l1_block(
             prover_storage,
             Default::default(),
-            input.da_data.clone(),
+            da_txs,
             input.da_block_header.clone(),
             prev_lcp_output,
             l2_genesis_state_root,
@@ -216,7 +228,7 @@ impl NativeCircuitRunner {
         );
 
         self.prover_storage_manager.finalize_storage(res.change_set);
-
+        println!("Witness: {:?}", res.witness);
         input.witness = res.witness;
 
         input

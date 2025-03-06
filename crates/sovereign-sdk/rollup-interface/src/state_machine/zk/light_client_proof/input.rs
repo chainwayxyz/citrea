@@ -6,6 +6,8 @@ use crate::witness::Witness;
 /// The input of light client proof
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct LightClientCircuitInput<Da: DaSpec> {
+    // TODO: should be removed. It's not used in the circuit
+    // we already switched to ecxtracting the data from DA proofs
     /// The `crate::da::DaData` that are being processed as blobs.
     pub da_data: Vec<Da::BlobTransaction>,
     /// The inclusion proof for all DA data.
