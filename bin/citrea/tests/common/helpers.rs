@@ -242,22 +242,21 @@ pub async fn start_rollup(
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
-        let (mut prover, l1_block_handler, rpc_module) =
-            CitreaRollupBlueprint::create_batch_prover(
-                &mock_demo_rollup,
-                rollup_prover_config,
-                genesis_config,
-                rollup_config.clone(),
-                da_service,
-                ledger_db.clone(),
-                storage_manager,
-                soft_confirmation_channel.0,
-                rpc_module,
-                backup_manager,
-            )
-            .instrument(span.clone())
-            .await
-            .unwrap();
+        let (prover, l1_block_handler, rpc_module) = CitreaRollupBlueprint::create_batch_prover(
+            &mock_demo_rollup,
+            rollup_prover_config,
+            genesis_config,
+            rollup_config.clone(),
+            da_service,
+            ledger_db.clone(),
+            storage_manager,
+            soft_confirmation_channel.0,
+            rpc_module,
+            backup_manager,
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
 
         start_rpc_server(
             rollup_config.rpc.clone(),
@@ -337,7 +336,7 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (mut rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
+        let (rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),

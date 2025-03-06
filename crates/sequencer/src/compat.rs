@@ -164,7 +164,8 @@ where
                                             sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => panic!("System tx after user tx"),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxParseError => panic!("Sequencer produced incorrectly formatted system tx"),
-                                                                                    },
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2 => panic!("Evm System Tx Not Allowed After Fork2"),
+                                        },
                                     }
                         };
 
@@ -191,7 +192,8 @@ where
         da_block: Da::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: &L2BlockMode,
-    ) -> anyhow::Result<(u64, u64, StateDiff)> {
+        last_used_l1_height: &mut u64,
+    ) -> anyhow::Result<(u64, StateDiff)> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
         let da_height = da_block.header().height();
@@ -384,6 +386,8 @@ where
 
         self.maintain_mempool(l1_fee_failed_txs)?;
 
-        Ok((l2_height, da_block_height, state_diff))
+        *last_used_l1_height = da_block_height;
+
+        Ok((l2_height, state_diff))
     }
 }

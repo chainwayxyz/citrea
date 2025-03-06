@@ -4,7 +4,7 @@ use std::sync::Arc;
 use alloy_sol_types::SolCall;
 use anyhow::{anyhow, Context as _};
 use borsh::BorshDeserialize;
-use citrea_evm::system_contracts::BitcoinLightClientContract;
+use citrea_evm::system_contracts::PostFork2SetBlockInfoCall;
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
 use citrea_primitives::EMPTY_TX_ROOT;
 use reth_primitives::TransactionSignedEcRecovered;
@@ -122,7 +122,7 @@ async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOp
 ) -> anyhow::Result<()> {
     let function_selector: [u8; 4] = tx.input()[0..4].try_into()?;
 
-    if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+    if function_selector == PostFork2SetBlockInfoCall::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36].try_into()?;
         // Check if shp exists for this l1 block hash
         if ledger_db

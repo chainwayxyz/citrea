@@ -261,7 +261,7 @@ where
             });
         }
         NodeType::BatchProver(batch_prover_config) => {
-            let (mut prover, l1_block_handler, rpc_module) =
+            let (prover, l1_block_handler, rpc_module) =
                 CitreaRollupBlueprint::create_batch_prover(
                     &rollup_blueprint,
                     batch_prover_config,
@@ -345,7 +345,7 @@ where
             });
         }
         _ => {
-            let (mut full_node, l1_block_handler, pruner_service) =
+            let (full_node, l1_block_handler, pruner_service) =
                 CitreaRollupBlueprint::create_full_node(
                     &rollup_blueprint,
                     genesis_config,

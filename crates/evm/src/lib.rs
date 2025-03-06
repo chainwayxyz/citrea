@@ -11,7 +11,9 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
-pub use hooks::populate_system_events;
+pub use hooks::{
+    create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
+};
 #[cfg(feature = "native")]
 use primitive_types::DoNotUseSealedBlock;
 #[cfg(feature = "native")]
