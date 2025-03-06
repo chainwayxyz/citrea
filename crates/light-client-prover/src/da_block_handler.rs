@@ -225,10 +225,9 @@ where
             &self.network.method_id_upgrade_authority_da_public_key(),
         );
 
-        assert_eq!(
-            assumptions.len(),
-            1,
-            "Should only have one assumption receipt!"
+        assert!(
+            assumptions.len() == 0 || assumptions.len() == 1,
+            "Assumptions should be either 0 or 1"
         );
 
         // This is not exactly right, but works for now because we have a single elf for
