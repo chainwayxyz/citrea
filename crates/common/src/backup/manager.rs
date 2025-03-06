@@ -29,10 +29,6 @@ impl BackupConfig {
             NativeDB::DB_PATH_SUFFIX.to_string(),
         ];
 
-        // if node_kind == "light-client-prover" {
-        //     backup_dirs.push(MmrDB::DB_PATH_SUFFIX.to_string());
-        // }
-
         Self { backup_dirs }
     }
 }
