@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
+use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::witness::Witness;
@@ -176,7 +177,7 @@ pub struct NativeCircuitRunner {
 }
 
 impl NativeCircuitRunner {
-    pub fn new(db_path: &Path) -> Self {
+    pub fn new(db_path: PathBuf) -> Self {
         let prover_storage_manager = ProverStorageManager::new(Config {
             path: db_path,
             db_max_open_files: None,
@@ -204,16 +205,24 @@ impl NativeCircuitRunner {
             .prover_storage_manager
             .create_storage_for_next_l2_height();
 
-        self.circuit.run_l1_block(
+        let prev_lcp_output = input
+            .previous_light_client_proof_journal
+            .map(|j| MockZkvm::deserialize_output(&j).unwrap());
+
+        let res = self.circuit.run_l1_block(
             prover_storage,
             Default::default(),
             input.da_data,
             input.da_block_header,
-            input.previous_light_client_proof_journal, // TODO: parse first
+            prev_lcp_output,
             l2_genesis_state_root,
             inital_batch_proof_method_ids,
             batch_prover_da_pub_key,
             method_id_upgrade_authority,
-        )
+        );
+
+        self.prover_storage_manager.finalize_storage(res.change_set);
+
+        res.witness
     }
 }
