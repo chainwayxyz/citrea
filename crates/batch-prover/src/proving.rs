@@ -290,7 +290,13 @@ where
             _ => borsh::to_vec(&input.into_v3_parts())?,
         };
 
-        let rx = prover_service.start_proving(ProofData { input, elf }).await;
+        let rx = prover_service
+            .start_proving(ProofData {
+                input,
+                assumptions: vec![],
+                elf,
+            })
+            .await;
 
         proof_rxs.push(rx);
     }

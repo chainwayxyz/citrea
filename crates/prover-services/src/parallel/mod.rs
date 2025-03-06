@@ -101,11 +101,18 @@ where
     pub async fn start_proving(&self, data: ProofData) -> oneshot::Receiver<Proof> {
         self.reserve_proof_slot().await;
 
-        let ProofData { input, elf } = data;
+        let ProofData {
+            input,
+            assumptions,
+            elf,
+        } = data;
 
         let mut vm = self.vm.clone();
 
         vm.add_hint(input);
+        for assumption in assumptions {
+            vm.add_assumption(assumption);
+        }
 
         let ongoing_proof_count = self.ongoing_proof_count.clone();
         let proof_mode = self.proof_mode;

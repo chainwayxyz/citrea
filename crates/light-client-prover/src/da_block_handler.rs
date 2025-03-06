@@ -176,12 +176,18 @@ where
             .da_service
             .extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToLightClientProver);
 
+        let mut assumptions = vec![];
+
         let previous_l1_height = l1_height - 1;
         let (light_client_proof_journal, l2_last_height, light_client_proof_output) = match self
             .ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
         {
             Some(data) => {
+                // LCPs are succinct receipts, we can make use of the assumption API
+                let proof = data.proof;
+                assumptions.push(proof);
+
                 let db_output = data.light_client_proof_output;
                 let output = LightClientCircuitOutput::from(db_output);
 
@@ -221,6 +227,12 @@ where
 
         self.storage_manager.finalize_storage(result.change_set);
 
+        assert_eq!(
+            assumptions.len(),
+            1,
+            "Should only have one assumption receipt!"
+        );
+
         // This is not exactly right, but works for now because we have a single elf for
         // light client proof circuit.
         let current_fork = fork_from_block_number(l2_last_height);
@@ -244,7 +256,9 @@ where
             witness: result.witness,
         };
 
-        let proof = self.prove(light_client_elf, circuit_input).await?;
+        let proof = self
+            .prove(light_client_elf, circuit_input, assumptions)
+            .await?;
 
         let circuit_output = Vm::extract_output::<LightClientCircuitOutput>(&proof)
             .expect("Should deserialize valid proof");
@@ -356,10 +370,12 @@ where
         &self,
         light_client_elf: Vec<u8>,
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
+        assumptions: Vec<Vec<u8>>,
     ) -> Result<Proof, anyhow::Error> {
         let prover_service = self.prover_service.as_ref();
         let data = ProofData {
             input: borsh::to_vec(&circuit_input)?,
+            assumptions,
             elf: light_client_elf,
         };
 
