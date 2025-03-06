@@ -51,7 +51,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 # Citrea
 citrea-evm = { path = "../evm" }
 citrea-primitives = { path = "../primitives/" }
-citrea-stf = { path = "../citrea-stf" }
+citrea-stf = { path = "../citrea-stf", features = ["native"] }
 citrea-storage-ops = { path = "../storage-ops" }
 
 [dev-dependencies]
