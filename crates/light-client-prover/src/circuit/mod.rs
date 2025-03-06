@@ -79,7 +79,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 output.last_l1_hash_on_bitcoin_light_client_contract,
                 working_set,
             ) {
-                return Err("Batch proof with unknown header cahin");
+                return Err("Batch proof with unknown header chain");
             }
 
             (
