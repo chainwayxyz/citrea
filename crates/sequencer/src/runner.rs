@@ -325,7 +325,7 @@ where
 
     async fn produce_l2_block(
         &mut self,
-        da_blocks: Vec<Da::FilteredBlock>,
+        mut da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         l2_block_mode: &L2BlockMode,
         last_used_l1_height: &mut u64,
@@ -338,6 +338,11 @@ where
             + 1;
         self.fork_manager.register_block(l2_height)?;
         let result = if self.fork_manager.active_fork().spec_id >= SpecId::Fork2 {
+            if da_blocks.len() == 1 && da_blocks[0].header().height() == *last_used_l1_height {
+                // If we are producing regular blocks, not for missed da blocks, and if the last used L1 block is the same as the last finalized block
+                // then there is no need to pass da data to the sequencer
+                da_blocks.clear();
+            }
             self.produce_l2_block_post_fork2(da_blocks, l1_fee_rate, l2_height, last_used_l1_height)
                 .await
         } else {
@@ -369,11 +374,6 @@ where
         last_used_l1_height: &mut u64,
     ) -> anyhow::Result<(u64, StateDiff)> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
-        if da_blocks.len() == 1 && da_blocks[0].header().height() == *last_used_l1_height {
-            // If we are producing regular blocks, not for missed da blocks, and if the last used L1 block is the same as the last finalized block
-            // then there is no need to pass da data to the sequencer
-            da_blocks.clear();
-        }
 
         // TODO: after L2Block refactor PR, we'll need to change native provider
         // Save short header proof to ledger db for Native Short Header Proof Provider Service
