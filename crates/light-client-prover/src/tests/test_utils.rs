@@ -203,11 +203,11 @@ impl NativeCircuitRunner {
 
         let da_verifier = MockDaVerifier {};
 
-        /// Hack for mock da and mockzkvm usage
+        // Hack for mock da and mockzkvm usage
         let da_txs = da_verifier
             .verify_transactions(
                 &input.da_block_header,
-                input.inclusion_proof.clone(),
+                input.inclusion_proof,
                 input.completeness_proof.clone(),
                 DaNamespace::ToLightClientProver,
             )

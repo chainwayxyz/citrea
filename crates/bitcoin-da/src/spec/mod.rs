@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::compression::decompress_blob;
 use serde::{Deserialize, Serialize};
 use short_proof::BitcoinHeaderShortProof;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{DaSpec, DecompressError};
 
 use self::address::AddressWrapper;
 use self::blob::BlobWithSender;
@@ -48,7 +48,7 @@ impl DaSpec for BitcoinSpec {
 
     type ShortHeaderProof = BitcoinHeaderShortProof;
 
-    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, ()> {
-        borsh::from_slice(decompress_blob(complete_chunks).as_slice()).map_err(|_| ())
+    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError> {
+        borsh::from_slice(decompress_blob(complete_chunks).as_slice()).map_err(|_| DecompressError)
     }
 }

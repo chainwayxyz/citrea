@@ -225,8 +225,9 @@ where
             &self.network.method_id_upgrade_authority_da_public_key(),
         );
 
+        // TODO: allow is_empty to pass only on first time proving
         assert!(
-            assumptions.len() == 0 || assumptions.len() == 1,
+            assumptions.is_empty() || assumptions.len() == 1,
             "Assumptions should be either 0 or 1"
         );
 

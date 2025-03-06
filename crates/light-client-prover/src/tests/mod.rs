@@ -2,10 +2,8 @@ pub mod test_utils;
 
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
-use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient, LatestDaState};
-use sov_rollup_interface::zk::batch_proof::output;
+use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
-use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::Network;
 use sov_state::ZkStorage;
 use tempfile::tempdir;

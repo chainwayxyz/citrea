@@ -135,6 +135,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     // will be called by the circuit and native
     pub fn run_l1_block(
         &self,
@@ -356,6 +357,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     // will only called by the circuit
     pub fn run_circuit<DaV>(
         &self,
@@ -437,5 +439,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             batch_proof_method_ids: result.batch_proof_method_ids,
             lcp_state_root: result.lcp_state_root,
         })
+    }
+}
+
+impl<S: Storage, DS: DaSpec, Z: Zkvm> Default for LightClientProofCircuit<S, DS, Z> {
+    fn default() -> Self {
+        Self::new()
     }
 }
