@@ -225,8 +225,6 @@ where
             &self.network.method_id_upgrade_authority_da_public_key(),
         );
 
-        self.storage_manager.finalize_storage(result.change_set);
-
         assert_eq!(
             assumptions.len(),
             1,
@@ -275,6 +273,9 @@ where
             proof,
             stored_proof_output,
         )?;
+
+        // Only save after the proof is generated
+        self.storage_manager.finalize_storage(result.change_set);
 
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
