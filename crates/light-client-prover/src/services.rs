@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
-use citrea_common::{LightClientProverConfig, RollupPublicKeys, RunnerConfig};
+use citrea_common::{LightClientProverConfig, RunnerConfig};
 use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
@@ -27,8 +27,6 @@ pub fn build_services<Vm, Da, DB>(
     ledger_db: DB,
     da_service: Arc<Da>,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
-    public_keys: RollupPublicKeys,
-    batch_prover_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_prover_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_prover_elfs: HashMap<SpecId, Vec<u8>>,
     rpc_module: RpcModule<()>,
@@ -54,8 +52,6 @@ where
         storage_manager,
         ledger_db,
         da_service,
-        public_keys.prover_da_pub_key,
-        batch_prover_code_commitments,
         light_client_prover_code_commitments,
         light_client_prover_elfs,
         backup_manager,

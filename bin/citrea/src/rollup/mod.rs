@@ -343,7 +343,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .await,
         );
 
-        let batch_prover_code_commitments = self.get_batch_proof_code_commitments();
         let code_commitments = self.get_light_client_proof_code_commitments();
         let elfs = self.get_light_client_elfs();
 
@@ -355,8 +354,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db,
             da_service,
             prover_service,
-            rollup_config.public_keys,
-            batch_prover_code_commitments,
             code_commitments,
             elfs,
             rpc_module,

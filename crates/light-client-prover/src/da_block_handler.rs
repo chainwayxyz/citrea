@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
-use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
@@ -11,15 +10,11 @@ use prover_services::{ParallelProverService, ProofData};
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
-use sov_modules_api::{
-    BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, Zkvm,
-};
+use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
-use sov_rollup_interface::mmr::Wtxid;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
@@ -28,7 +23,7 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, warn};
+use tracing::error;
 
 use crate::circuit::primitives::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
@@ -52,9 +47,6 @@ where
     storage_manager: ProverStorageManager,
     ledger_db: DB,
     da_service: Arc<Da>,
-    // TODO: maybe remove these
-    _batch_prover_da_pub_key: Vec<u8>,
-    _batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
@@ -78,8 +70,6 @@ where
         storage_manager: ProverStorageManager,
         ledger_db: DB,
         da_service: Arc<Da>,
-        batch_prover_da_pub_key: Vec<u8>,
-        batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         backup_manager: Arc<BackupManager>,
@@ -91,8 +81,6 @@ where
             storage_manager,
             ledger_db,
             da_service,
-            _batch_prover_da_pub_key: batch_prover_da_pub_key,
-            _batch_proof_code_commitments: batch_proof_code_commitments,
             light_client_proof_code_commitments,
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
@@ -283,87 +271,6 @@ where
         LIGHT_CLIENT_METRICS.current_l1_block.set(l1_height as f64);
 
         Ok(())
-    }
-
-    /// Verifies complete proof. Returns:
-    ///
-    /// - Ok(true) -> proof is successfully parsed, not a duplicate, and verified
-    /// - Ok(false) -> proof is successfully parsed, not a duplicate, but verification failed
-    /// - Err(_) -> proof is either unparseable or a duplicate
-    fn _verify_complete_proof(
-        &self,
-        proof: &Vec<u8>,
-        light_client_l2_height: u64,
-    ) -> anyhow::Result<bool> {
-        let batch_proof_last_l2_height = match Vm::extract_output::<BatchProofCircuitOutputV3>(
-            proof,
-        ) {
-            Ok(output) => output.last_l2_height,
-            Err(e) => {
-                warn!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
-                match Vm::extract_output::<BatchProofCircuitOutputV2>(proof) {
-                    Ok(output) => output.last_l2_height,
-                    Err(e) => {
-                        warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                        if Vm::extract_output::<BatchProofCircuitOutputV1>(proof).is_err() {
-                            return Err(anyhow::anyhow!(
-                                "Failed to extract both pre-fork1 and fork1 output from proof"
-                            ));
-                        }
-                        0
-                    }
-                }
-            }
-        };
-
-        if batch_proof_last_l2_height <= light_client_l2_height && light_client_l2_height != 0 {
-            return Err(anyhow::anyhow!(
-                "Batch proof l2 height is less than latest light client proof l2 height"
-            ));
-        }
-
-        let current_spec = fork_from_block_number(batch_proof_last_l2_height).spec_id;
-        let batch_proof_method_id = self
-            ._batch_proof_code_commitments
-            .get(&current_spec)
-            .expect("Batch proof code commitment not found");
-
-        if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
-            warn!("Failed to verify batch proof: {:?}", e);
-            Ok(false)
-        } else {
-            Ok(true)
-        }
-    }
-
-    async fn _extract_batch_proofs(
-        &self,
-        da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
-        da_slot_hash: [u8; 32], // passing this as an argument is not clever
-    ) -> Vec<(Wtxid, DaDataLightClient)> {
-        let mut batch_proofs = Vec::new();
-
-        da_data.iter_mut().for_each(|tx| {
-            if let Ok(data) = DaDataLightClient::try_from_slice(tx.full_data()) {
-                match data {
-                    DaDataLightClient::Chunk(_) => {
-                        batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data))
-                    }
-                    _ => {
-                        if tx.sender().as_ref() == self._batch_prover_da_pub_key.as_slice() {
-                            batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data));
-                        }
-                    }
-                }
-            } else {
-                tracing::warn!(
-                    "Found broken DA data in block 0x{}",
-                    hex::encode(da_slot_hash)
-                );
-            }
-            // Check for commitment
-        });
-        batch_proofs
     }
 
     async fn prove(
