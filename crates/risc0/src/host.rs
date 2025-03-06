@@ -8,7 +8,7 @@ use risc0_zkvm::{
     VerifierContext,
 };
 use sov_db::ledger_db::LedgerDB;
-use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
 use tracing::{debug, info};
 
@@ -113,7 +113,12 @@ impl ZkvmHost for Risc0BonsaiHost {
 
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
-    fn run(&mut self, elf: Vec<u8>, with_proof: bool) -> Result<Proof, anyhow::Error> {
+    fn run(
+        &mut self,
+        elf: Vec<u8>,
+        with_proof: bool,
+        receipt_type: ReceiptType,
+    ) -> Result<Proof, anyhow::Error> {
         if !with_proof {
             if std::env::var("RISC0_PROVER") == Ok("bonsai".to_string()) {
                 panic!("Bonsai prover requires with_proof to be true");
@@ -151,8 +156,12 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         tracing::info!("Starting risc0 proving");
 
-        let ProveInfo { receipt, stats } =
-            prover.prove_with_opts(env, &elf, &ProverOpts::groth16())?;
+        let prover_opts = match receipt_type {
+            ReceiptType::Groth16 => ProverOpts::groth16(),
+            ReceiptType::Succinct => ProverOpts::succinct(),
+        };
+
+        let ProveInfo { receipt, stats } = prover.prove_with_opts(env, &elf, &prover_opts)?;
 
         histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
 
