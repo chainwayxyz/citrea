@@ -421,18 +421,12 @@ pub fn populate_set_block_info_event<'a>(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
-    last_l1_hash_of_evm: B256,
 ) -> Vec<SystemEvent<'a>> {
-    let mut system_events = vec![];
-    if last_l1_hash_of_evm != current_slot_hash {
-        let event = SystemEvent::BitcoinLightClientSetBlockInfo(
-            current_slot_hash,
-            current_da_txs_commitment,
-            coinbase_depth,
-        );
-        system_events.push(event);
-    }
-    system_events
+    vec![SystemEvent::BitcoinLightClientSetBlockInfo(
+        current_slot_hash,
+        current_da_txs_commitment,
+        coinbase_depth,
+    )]
 }
 
 /// Populates deposit system events.

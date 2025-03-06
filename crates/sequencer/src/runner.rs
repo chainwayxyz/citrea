@@ -13,10 +13,9 @@ use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::system_events::{create_system_transactions, SystemEvent};
 use citrea_evm::{
-    create_initial_system_events, get_last_l1_height_and_hash_in_light_client,
-    get_last_l1_height_in_light_client, populate_deposit_system_events,
-    populate_set_block_info_event, AccountInfo, CallMessage, Evm, RlpEvmTransaction,
-    MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
+    create_initial_system_events, get_last_l1_height_in_light_client,
+    populate_deposit_system_events, populate_set_block_info_event, AccountInfo, CallMessage, Evm,
+    RlpEvmTransaction, MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
@@ -329,7 +328,8 @@ where
         da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         l2_block_mode: &L2BlockMode,
-    ) -> anyhow::Result<(u64, u64, StateDiff)> {
+        last_used_l1_height: &mut u64,
+    ) -> anyhow::Result<(u64, StateDiff)> {
         let start: Instant = Instant::now();
         let l2_height = self
             .ledger_db
@@ -338,13 +338,14 @@ where
             + 1;
         self.fork_manager.register_block(l2_height)?;
         let result = if self.fork_manager.active_fork().spec_id >= SpecId::Fork2 {
-            self.produce_l2_block_post_fork2(da_blocks, l1_fee_rate, l2_height)
+            self.produce_l2_block_post_fork2(da_blocks, l1_fee_rate, l2_height, last_used_l1_height)
                 .await
         } else {
             self.produce_l2_block_pre_fork2(
                 da_blocks.first().expect("Should have 1 da block").clone(),
                 l1_fee_rate,
                 l2_block_mode,
+                last_used_l1_height,
             )
             .await
         };
@@ -362,11 +363,17 @@ where
     /// Post fork2 block production
     async fn produce_l2_block_post_fork2(
         &mut self,
-        da_blocks: Vec<Da::FilteredBlock>,
+        mut da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         l2_height: u64,
-    ) -> anyhow::Result<(u64, u64, StateDiff)> {
+        last_used_l1_height: &mut u64,
+    ) -> anyhow::Result<(u64, StateDiff)> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
+        if da_blocks.len() == 1 && da_blocks[0].header().height() == *last_used_l1_height {
+            // If we are producing regular blocks, not for missed da blocks, and if the last used L1 block is the same as the last finalized block
+            // then there is no need to pass da data to the sequencer
+            da_blocks.clear();
+        }
 
         // TODO: after L2Block refactor PR, we'll need to change native provider
         // Save short header proof to ledger db for Native Short Header Proof Provider Service
@@ -398,7 +405,7 @@ where
 
         let evm_txs = self.get_best_transactions()?;
 
-        let last_da_block = da_blocks.last().expect("Should have at least 1 da block");
+        let last_da_block_height = da_blocks.last().map(|b| b.header().height());
 
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
@@ -512,7 +519,12 @@ where
 
         self.maintain_mempool(l1_fee_failed_txs)?;
 
-        Ok((l2_height, last_da_block.header().height(), state_diff))
+        // Update last used l1 height if this is a new da block
+        if let Some(l1_height) = last_da_block_height {
+            *last_used_l1_height = l1_height;
+        }
+
+        Ok((l2_height, state_diff))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -629,16 +641,9 @@ where
         let mut last_used_l1_height =
             match get_last_l1_height_in_light_client(&evm, spec_id, &mut working_set) {
                 Some(l1_height) => l1_height.to(),
-                None => last_finalized_height,
+                // Set to 1 less so that we do not skip processing the first l1 block
+                None => last_finalized_height - 1,
             };
-
-        // self.ledger_db.get_head_soft_confirmation() {
-        //     Ok(Some((_, sb))) => sb.da_slot_height,
-        //     Ok(None) => last_finalized_height, // starting for the first time
-        //     Err(e) => {
-        //         return Err(anyhow!("previous L1 height: {}", e));
-        //     }
-        // };
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
@@ -698,7 +703,7 @@ where
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.recv(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
-                        if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
+                        if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
                             // we never want to continue if we have missed blocks
                             return Err(e);
@@ -706,9 +711,8 @@ where
                         missed_da_blocks_count = 0;
                     }
                     let _l2_lock = backup_manager.start_l2_processing().await;
-                    match self.produce_l2_block(vec![last_finalized_block.clone()],l1_fee_rate,&L2BlockMode::NotEmpty).await {
-                        Ok((l2_height, l1_block_number, state_diff)) => {
-                            last_used_l1_height = l1_block_number;
+                    match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &L2BlockMode::NotEmpty, &mut last_used_l1_height).await {
+                        Ok((l2_height, state_diff)) => {
 
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
@@ -729,7 +733,7 @@ where
                     let da_block = last_finalized_block.clone();
 
                     if missed_da_blocks_count > 0 {
-                        if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
+                        if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
                             // we never want to continue if we have missed blocks
                             return Err(e);
@@ -738,10 +742,8 @@ where
                     }
 
                     let _l2_lock = backup_manager.start_l2_processing().await;
-                    match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &L2BlockMode::NotEmpty).await {
-                        Ok((l2_height, l1_block_number, state_diff)) => {
-                            last_used_l1_height = l1_block_number;
-
+                    match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &L2BlockMode::NotEmpty, &mut last_used_l1_height).await {
+                        Ok((l2_height, state_diff)) => {
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
 
@@ -993,7 +995,7 @@ where
     pub async fn process_missed_da_blocks(
         &mut self,
         missed_da_blocks_count: u64,
-        last_used_l1_height: u64,
+        last_used_l1_height: &mut u64,
         l1_fee_rate: u128,
     ) -> anyhow::Result<()> {
         debug!("We have {} missed DA blocks", missed_da_blocks_count);
@@ -1014,7 +1016,7 @@ where
         let mut filtered_blocks = vec![];
 
         for i in 1..=missed_da_blocks_count {
-            let needed_da_block_height = last_used_l1_height + i;
+            let needed_da_block_height = *last_used_l1_height + i;
 
             // if we can't fetch da block and fail to produce a block the caller will return Err stopping
             // the sequencer. This is very problematic.
@@ -1044,6 +1046,7 @@ where
                     l1_fee_rate,
                     // l2 block mode is ignored for post fork2 block production
                     &L2BlockMode::Empty,
+                    last_used_l1_height,
                 )
                 .await?;
             }
@@ -1052,8 +1055,13 @@ where
 
         for da_block in filtered_blocks {
             debug!("Created an empty L2 for L1={}", da_block.header().height());
-            self.produce_l2_block(vec![da_block], l1_fee_rate, &L2BlockMode::Empty)
-                .await?;
+            self.produce_l2_block(
+                vec![da_block],
+                l1_fee_rate,
+                &L2BlockMode::Empty,
+                last_used_l1_height,
+            )
+            .await?;
         }
 
         Ok(())
@@ -1146,21 +1154,11 @@ where
 
             let da_block_header = l1_block.header();
             let coinbase_depth = da_block_header.coinbase_txid_merkle_proof_height();
-            // Read last l1 hash from bitcoin light client contract
-            let l1_hash_in_contract = get_last_l1_height_and_hash_in_light_client(
-                evm,
-                soft_confirmation_info.current_spec(),
-                &mut working_set_to_discard,
-            )
-            .1
-            .expect("L1 hash must be set at this point")
-            .into();
 
             let system_events = populate_set_block_info_event(
                 da_block_header.hash().into(),
                 da_block_header.txs_commitment().into(),
                 coinbase_depth,
-                l1_hash_in_contract,
             );
 
             working_set_to_discard = self.process_sys_txs(
