@@ -3,12 +3,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use rand::{thread_rng, Rng};
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
+use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
 use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
-use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BlobReaderTrait, DaDataLightClient, DaNamespace, DaVerifier,
+};
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
@@ -23,18 +25,14 @@ pub(crate) fn create_mock_batch_proof(
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2 {
+    let bp = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: BTreeMap::new(),
-        da_slot_hash: [5; 32],
-        sequencer_commitments_range: (0, 0),
-        sequencer_public_key: [9; 32].to_vec(),
-        sequencer_da_public_key: [9; 32].to_vec(),
         last_l2_height,
-        preproven_commitments: vec![],
+        sequencer_commitment_merkle_roots: vec![],
+        last_l1_hash_on_bitcoin_light_client_contract: [0u8; 32],
     };
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
@@ -70,18 +68,14 @@ pub(crate) fn create_serialized_mock_proof(
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2 {
+    let bp = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
-        da_slot_hash: [5; 32],
-        sequencer_commitments_range: (0, 0),
-        sequencer_public_key: [9; 32].to_vec(),
-        sequencer_da_public_key: [9; 32].to_vec(),
         last_l2_height,
-        preproven_commitments: vec![],
+        sequencer_commitment_merkle_roots: vec![],
+        last_l1_hash_on_bitcoin_light_client_contract: [0u8; 32],
     };
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
