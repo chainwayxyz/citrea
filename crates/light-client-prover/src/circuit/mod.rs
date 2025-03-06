@@ -327,6 +327,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             .expect("jellyfish merkle tree update must succeed");
 
         // TODO: assert initial root here
+        // TODO: also if prev out is none, the prev root must be some specific root.
 
         storage.commit(&jmt_state_update, &vec![], &ReadWriteLog::default());
 

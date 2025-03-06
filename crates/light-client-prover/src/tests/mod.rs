@@ -1,18 +1,19 @@
 pub mod test_utils;
 
-use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier};
+use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient, LatestDaState};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::Network;
+use sov_state::ZkStorage;
 use tempfile::tempdir;
 use test_utils::{
     create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
     create_random_state_diff, create_serialized_mock_proof, NativeCircuitRunner,
 };
 
-use crate::circuit::LightClientVerificationError;
+use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
 const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
@@ -20,7 +21,8 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])]
 #[test]
 fn test_light_client_circuit_valid_da_valid_data() {
     let db_dir = tempdir().unwrap();
-    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path());
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
 
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
@@ -30,29 +32,38 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: vec![],
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
     let method_id_upgrade_authority = [11u8; 32].to_vec();
 
-    let output_1 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: vec![],
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_1.l2_state_root, [3; 32]);
@@ -67,25 +78,34 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
     let mock_output_1_serialized = create_prev_lcp_serialized(output_1, true);
 
-    let input_2 = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(mock_output_1_serialized),
-        da_block_header: block_header_2,
-        da_data: vec![],
-        light_client_proof_method_id,
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_3, blob_4],
-    };
-
-    let output_2 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input_2,
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(mock_output_1_serialized),
+            da_block_header: block_header_2,
+            da_data: vec![],
+            light_client_proof_method_id,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_3, blob_4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input_2,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_2.l2_state_root, [5; 32]);
@@ -95,6 +115,10 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
 #[test]
 fn test_wrong_order_da_blocks_should_still_work() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -103,29 +127,38 @@ fn test_wrong_order_da_blocks_should_still_work() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: vec![],
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_2, blob_1],
-    };
-
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
     let method_id_upgrade_authority = [11u8; 32].to_vec();
 
-    let output_1 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: vec![],
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_2, blob_1],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_1.l2_state_root, [3; 32]);
@@ -135,6 +168,10 @@ fn test_wrong_order_da_blocks_should_still_work() {
 
 #[test]
 fn create_unchainable_outputs_then_chain_them_on_next_block() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -143,29 +180,38 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     let blob_1 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
     let blob_2 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: vec![],
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_2, blob_1],
-    };
-
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
     let method_id_upgrade_authority = [11u8; 32].to_vec();
 
-    let output_1 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: vec![],
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_2, blob_1],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition has not happened because we are missing 1->2
     assert_eq!(output_1.l2_state_root, [1; 32]);
@@ -191,25 +237,34 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     let mock_output_1_ser = create_prev_lcp_serialized(output_1, true);
 
-    let input_2 = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(mock_output_1_ser),
-        light_client_proof_method_id,
-        da_block_header: block_header_2,
-        da_data: vec![],
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1],
-    };
-
-    let output_2 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input_2,
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(mock_output_1_ser),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            da_data: vec![],
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input_2,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition actually happened from 1-4 now
 
@@ -220,6 +275,10 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
 #[test]
 fn test_header_chain_proof_height_and_hash() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -228,29 +287,38 @@ fn test_header_chain_proof_height_and_hash() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: vec![],
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
     let method_id_upgrade_authority = [11u8; 32].to_vec();
 
-    let output_1 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: vec![],
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_1.l2_state_root, [3; 32]);
@@ -265,17 +333,24 @@ fn test_header_chain_proof_height_and_hash() {
 
     let prev_lcp_out = create_prev_lcp_serialized(output_1, true);
 
-    let input_2 = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        da_block_header: block_header_2,
-        da_data: vec![],
-        light_client_proof_method_id,
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_3, blob_4],
-    };
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            da_block_header: block_header_2,
+            da_data: vec![],
+            light_client_proof_method_id,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_3, blob_4],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
+    );
 
     // Header chain verification must fail because the l1 block 3 was given before l1 block 2
-    let res = run_circuit::<_, MockZkGuest>(
+    let res = zk_circuit_runner.run_circuit(
         da_verifier,
         input_2,
         l2_genesis_state_root,
@@ -283,6 +358,7 @@ fn test_header_chain_proof_height_and_hash() {
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
         Network::Nightly,
+        ZkStorage::new(),
     );
     assert!(matches!(
         res,
@@ -294,6 +370,10 @@ fn test_header_chain_proof_height_and_hash() {
 
 #[test]
 fn test_unverifiable_batch_proofs() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -302,29 +382,38 @@ fn test_unverifiable_batch_proofs() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: vec![],
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
     let method_id_upgrade_authority = [11u8; 32].to_vec();
 
-    let output_1 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: vec![],
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition actually happened but only for verified batch proof
     // and assert the unverified is ignored, so it is not even in the unchained outputs
@@ -336,6 +425,10 @@ fn test_unverifiable_batch_proofs() {
 
 #[test]
 fn test_unverifiable_prev_light_client_proof() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -344,29 +437,38 @@ fn test_unverifiable_prev_light_client_proof() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: vec![],
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
     let method_id_upgrade_authority = [11u8; 32].to_vec();
 
-    let output_1 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: vec![],
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // Check that the state transition actually happened but only for verified batch proof
     // and assert the unverified is ignored, so it is not even in the unchained outputs
@@ -379,16 +481,23 @@ fn test_unverifiable_prev_light_client_proof() {
 
     let prev_lcp_out = create_prev_lcp_serialized(output_1, false);
 
-    let input_2 = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        da_block_header: block_header_2,
-        da_data: vec![],
-        light_client_proof_method_id,
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![],
-    };
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            da_block_header: block_header_2,
+            da_data: vec![],
+            light_client_proof_method_id,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
+    );
 
-    let res = run_circuit::<_, MockZkGuest>(
+    let res = zk_circuit_runner.run_circuit(
         da_verifier,
         input_2,
         l2_genesis_state_root,
@@ -396,6 +505,7 @@ fn test_unverifiable_prev_light_client_proof() {
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
         Network::Nightly,
+        ZkStorage::new(),
     );
     assert!(matches!(
         res,
@@ -405,6 +515,10 @@ fn test_unverifiable_prev_light_client_proof() {
 
 #[test]
 fn test_new_method_id_txs() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -417,25 +531,34 @@ fn test_new_method_id_txs() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
-    let output_1 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     assert_eq!(output_1.batch_proof_method_ids.len(), 2);
     assert_eq!(
@@ -448,25 +571,34 @@ fn test_new_method_id_txs() {
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_1, true)),
-        light_client_proof_method_id,
-        da_block_header: block_header_2,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_2],
-    };
-
-    let output_2 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // didn't change
     assert_eq!(output_2.batch_proof_method_ids.len(), 2);
@@ -481,25 +613,34 @@ fn test_new_method_id_txs() {
 
     let block_header_3 = MockBlockHeader::from_height(3);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_2, true)),
-        light_client_proof_method_id,
-        da_block_header: block_header_3,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
-    let output_3 = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_2, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_3,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output_3 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // didn't change
     assert_eq!(output_3.batch_proof_method_ids.len(), 2);
@@ -512,6 +653,10 @@ fn test_new_method_id_txs() {
 #[test]
 #[should_panic = "Proof hinted to fail passed"]
 fn test_expect_to_fail_on_correct_proof() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -524,30 +669,43 @@ fn test_expect_to_fail_on_correct_proof() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
-    let _ = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let _ = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 }
 
 #[test]
 #[should_panic = "Proof hinted to pass failed"]
 fn test_expected_to_fail_proof_not_hinted() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -560,29 +718,42 @@ fn test_expected_to_fail_proof_not_hinted() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob_1, blob_2],
-    };
-
-    let _ = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let _ = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 }
 
 #[test]
 fn test_light_client_circuit_verify_chunks() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -661,31 +832,45 @@ fn test_light_client_circuit_verify_chunks() {
     blob4.full_data();
 
     let block_header_1 = MockBlockHeader::from_height(1);
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob1, blob2, blob3, blob4],
-    };
 
-    let output = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob1, blob2, blob3, blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     assert_eq!(output.l2_state_root, [2; 32]);
 }
 
 #[test]
 fn test_missing_chunk() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -764,26 +949,36 @@ fn test_missing_chunk() {
     blob4.full_data();
 
     let block_header_1 = MockBlockHeader::from_height(1);
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        // Blob2 is not present
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob1, blob3, blob4],
-    };
 
-    let output = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            // Blob2 is not present
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob1, blob3, blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
@@ -791,6 +986,10 @@ fn test_missing_chunk() {
 
 #[test]
 fn test_mmr_hints() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -841,30 +1040,40 @@ fn test_mmr_hints() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        lcp_state_root: [0; 32],
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        // Only aggregate is present others are in mmr hints
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob4],
-    };
-
-    let output = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            // Only aggregate is present others are in mmr hints
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     assert_eq!(output.l2_state_root, [2; 32]);
     assert_eq!(output.last_l2_height, 101);
@@ -873,6 +1082,10 @@ fn test_mmr_hints() {
 #[test]
 #[should_panic = "Failed to verify MMR proof for hint"]
 fn test_malformed_mmr_proof_internal_index() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -923,35 +1136,49 @@ fn test_malformed_mmr_proof_internal_index() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        lcp_state_root: [0; 32],
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        // Only aggregate is present others are in mmr hints
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob4],
-    };
-
-    run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            // Only aggregate is present others are in mmr hints
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 }
 
 #[test]
 #[should_panic = "Failed to verify MMR proof for hint"]
 fn test_malformed_mmr_proof_subroot_index() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -1002,35 +1229,49 @@ fn test_malformed_mmr_proof_subroot_index() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        lcp_state_root: [0; 32],
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        // Only aggregate is present others are in mmr hints
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob4],
-    };
-
-    run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            // Only aggregate is present others are in mmr hints
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 }
 
 #[test]
 #[should_panic = "Failed to verify MMR proof for hint"]
 fn test_malformed_mmr_chunk_body() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -1081,34 +1322,48 @@ fn test_malformed_mmr_chunk_body() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        lcp_state_root: [0; 32],
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        // Only aggregate is present others are in mmr hints
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob4],
-    };
-
-    run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            // Only aggregate is present others are in mmr hints
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 }
 
 #[test]
 fn test_malformed_mmr_chunk_wtxid() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -1159,30 +1414,40 @@ fn test_malformed_mmr_chunk_wtxid() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        lcp_state_root: [0; 32],
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        // Only aggregate is present others are in mmr hints
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob4],
-    };
-
-    let output = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            // Only aggregate is present others are in mmr hints
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
@@ -1192,6 +1457,10 @@ fn test_malformed_mmr_chunk_wtxid() {
 #[test]
 #[should_panic = "Failed to verify MMR proof for hint"]
 fn test_malformed_mmr_inclusion_proof() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -1242,34 +1511,48 @@ fn test_malformed_mmr_inclusion_proof() {
         unchained_batch_proofs_info: vec![],
         last_l2_height: 0,
         batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        lcp_state_root: [0; 32],
     };
 
     let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(prev_lcp_out),
-        light_client_proof_method_id,
-        da_block_header: block_header_1,
-        // Only aggregate is present others are in mmr hints
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob4],
-    };
-
-    run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(prev_lcp_out),
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            // Only aggregate is present others are in mmr hints
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 }
 
 #[test]
 fn test_malicious_aggregate_should_not_work() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
@@ -1314,25 +1597,34 @@ fn test_malicious_aggregate_should_not_work() {
     blob2.full_data();
 
     // First block has the two chunks
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: None,
-        light_client_proof_method_id,
-        da_block_header: block_header_1.clone(),
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob1.clone(), blob2.clone()],
-    };
-
-    let output = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1.clone(),
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob1.clone(), blob2.clone()],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
@@ -1356,25 +1648,34 @@ fn test_malicious_aggregate_should_not_work() {
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
-        light_client_proof_method_id,
-        da_block_header: block_header_2,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![malicious_blob],
-    };
-
-    let output = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![malicious_blob],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // The malicious did not work no state updates or panics
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
@@ -1418,25 +1719,35 @@ fn test_malicious_aggregate_should_not_work() {
     blob4.full_data();
 
     let block_header_3 = MockBlockHeader::from_height(3);
-    let input = LightClientCircuitInput {
-        previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
-        light_client_proof_method_id,
-        da_block_header: block_header_3,
-        da_data: Vec::new(),
-        inclusion_proof: [1u8; 32],
-        completeness_proof: vec![blob3, blob4],
-    };
 
-    let output = run_circuit::<_, MockZkGuest>(
-        da_verifier.clone(),
-        input,
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_3,
+            da_data: Vec::new(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob3, blob4],
+            witness: Default::default(),
+        },
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &batch_prover_da_pub_key.clone(),
+        &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-    )
-    .unwrap();
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+            Network::Nightly,
+            ZkStorage::new(),
+        )
+        .unwrap();
 
     // When last chunk is sent with the correct aggregate we can see the state update
     assert_eq!(output.l2_state_root, [2; 32]);

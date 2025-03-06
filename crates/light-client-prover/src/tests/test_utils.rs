@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use rand::{thread_rng, Rng};
@@ -8,7 +8,6 @@ use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
 use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
-use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -191,29 +190,30 @@ impl NativeCircuitRunner {
         }
     }
 
-    /// Run the circuit with the given input returning the witness
+    /// Run the circuit with the given input and return the input with its witness filled
     /// that will be used to run the circuit in ZK context
     pub fn run(
         &self,
-        input: LightClientCircuitInput<MockDaSpec>,
+        mut input: LightClientCircuitInput<MockDaSpec>,
         l2_genesis_state_root: [u8; 32],
         inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         method_id_upgrade_authority: &[u8],
-    ) -> Witness {
+    ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
             .prover_storage_manager
             .create_storage_for_next_l2_height();
 
         let prev_lcp_output = input
             .previous_light_client_proof_journal
+            .clone()
             .map(|j| MockZkvm::deserialize_output(&j).unwrap());
 
         let res = self.circuit.run_l1_block(
             prover_storage,
             Default::default(),
-            input.da_data,
-            input.da_block_header,
+            input.da_data.clone(),
+            input.da_block_header.clone(),
             prev_lcp_output,
             l2_genesis_state_root,
             inital_batch_proof_method_ids,
@@ -223,6 +223,8 @@ impl NativeCircuitRunner {
 
         self.prover_storage_manager.finalize_storage(res.change_set);
 
-        res.witness
+        input.witness = res.witness;
+
+        input
     }
 }
