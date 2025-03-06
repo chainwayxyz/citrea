@@ -114,14 +114,12 @@ mod tests {
 
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
 
-        // assert_eq!(witness.len(), 2);
-
         let (_, state_update, _) = prover_storage
             .compute_state_update(&read_write_log, &mut witness)
             .expect("should not fail");
 
         // sanity check
-        // why 6?
+        // why 5?
         // 1 exists value for [2; 32] (None)
         // 1 non-existence proof for [2; 32] -> commit
         // 1 initial root -> commit
@@ -163,8 +161,6 @@ mod tests {
         assert!(ChunkAccessor::<ProverStorage>::get([2; 32], &mut working_set).is_none());
 
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
-
-        // assert_eq!(witness.len(), 2);
 
         let (_, state_update, _) = prover_storage
             .compute_state_update(&read_write_log, &mut witness)

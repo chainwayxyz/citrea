@@ -256,7 +256,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
                     let complete_proof: Vec<_> = chunks.into_iter().flatten().collect();
 
-                    // TODO: figure out how to do this.
                     let Ok(complete_proof) = DS::decompress_chunks(&complete_proof) else {
                         println!("Failed to decompress and deserialize completed chunks");
                         continue;
@@ -270,7 +269,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &mut working_set,
                     ) {
                         Ok(()) => {}
-                        // serialization or duplicate proof error
+                        // proof resulting from chunk concatanation is not valid
+                        // either due to ZK proof being invalid
+                        // a deserialization error
+                        // or the resulting output was ZK-valid but included an L1 hash
+                        // that was not know to the prover
                         Err(e) => {
                             println!("Error processing aggregated proof: {e}");
                         }
@@ -326,12 +329,15 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             .expect("jellyfish merkle tree update must succeed");
 
         if let Some(output) = previous_light_client_proof_output {
+            // If we had a previous light client proof, make sure the prev_root used in the JMT update proof
+            // was the same as the previous light client proof's
             assert_eq!(
                 lcp_state_root_transition.init_root, output.lcp_state_root,
                 "Witness prev root is wrong!"
             );
         } else {
-            // if running for the first time
+            // if running for the first time, we are going to be initializing the JMT
+            // so the genesis root must this constant
             assert_eq!(
                 lcp_state_root_transition.init_root,
                 const_hex::decode_to_array(
@@ -340,9 +346,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 .unwrap()
             );
         }
-
-        // TODO: assert initial root here
-        // TODO: also if prev out is none, the prev root must be some specific root.
 
         storage.commit(&jmt_state_update, &vec![], &ReadWriteLog::default());
 
