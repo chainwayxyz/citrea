@@ -117,7 +117,21 @@ pub mod bitcoinda {
     pub const NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
-            None => &[(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
+            None => &[
+                (
+                    0,
+                    decode_to_u32_array(
+                        "382a4e434d1b4b0912604a9de8876e75ff7603680c90107d78f6f71784ef1922",
+                    ),
+                ),
+                (
+                    100,
+                    decode_to_u32_array(
+                        "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
+                    ),
+                ),
+                (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+            ],
         }
     };
 
