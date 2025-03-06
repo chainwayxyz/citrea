@@ -229,6 +229,8 @@ jobs:
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
+      - name: Prune docker
+        run: docker system prune -a -f
       - name: Run coverage
         run: make coverage-ci
         env:
