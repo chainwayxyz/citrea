@@ -245,7 +245,6 @@ where
             .clone();
 
         let circuit_input = LightClientCircuitInput {
-            da_data,
             inclusion_proof,
             completeness_proof,
             da_block_header: l1_block.header().clone(),

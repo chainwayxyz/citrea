@@ -46,7 +46,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -87,7 +86,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
         LightClientCircuitInput {
             previous_light_client_proof_journal: Some(mock_output_1_serialized),
             da_block_header: block_header_2,
-            da_data: vec![],
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_3, blob_4],
@@ -141,7 +139,6 @@ fn test_wrong_order_da_blocks_should_still_work() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_2, blob_1],
             witness: Default::default(),
@@ -194,7 +191,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_2, blob_1],
             witness: Default::default(),
@@ -247,7 +243,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             previous_light_client_proof_journal: Some(mock_output_1_ser),
             light_client_proof_method_id,
             da_block_header: block_header_2,
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1],
             witness: Default::default(),
@@ -301,7 +296,6 @@ fn test_header_chain_proof_height_and_hash() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -342,7 +336,6 @@ fn test_header_chain_proof_height_and_hash() {
         LightClientCircuitInput {
             previous_light_client_proof_journal: Some(prev_lcp_out),
             da_block_header: block_header_2,
-            da_data: vec![],
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_3, blob_4],
@@ -396,7 +389,6 @@ fn test_unverifiable_batch_proofs() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -452,7 +444,6 @@ fn test_unverifiable_prev_light_client_proof() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -491,7 +482,6 @@ fn test_unverifiable_prev_light_client_proof() {
         LightClientCircuitInput {
             previous_light_client_proof_journal: Some(prev_lcp_out),
             da_block_header: block_header_2,
-            da_data: vec![],
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![],
@@ -540,7 +530,6 @@ fn test_new_method_id_txs() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -580,7 +569,6 @@ fn test_new_method_id_txs() {
             previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_1, true)),
             light_client_proof_method_id,
             da_block_header: block_header_2,
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_2],
             witness: Default::default(),
@@ -622,7 +610,6 @@ fn test_new_method_id_txs() {
             previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_2, true)),
             light_client_proof_method_id,
             da_block_header: block_header_3,
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -677,7 +664,6 @@ fn test_unverifiable_batch_proof_is_ignored() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -796,7 +782,6 @@ fn test_light_client_circuit_verify_chunks() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob1, blob2, blob3, blob4],
             witness: Default::default(),
@@ -915,7 +900,6 @@ fn test_missing_chunk() {
             light_client_proof_method_id,
             da_block_header: block_header_1,
             // Blob2 is not present
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob1, blob3, blob4],
             witness: Default::default(),
@@ -999,7 +983,6 @@ fn test_malicious_aggregate_should_not_work() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob1.clone(), blob2.clone()],
             witness: Default::default(),
@@ -1050,7 +1033,6 @@ fn test_malicious_aggregate_should_not_work() {
             previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
             light_client_proof_method_id,
             da_block_header: block_header_2,
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![malicious_blob],
             witness: Default::default(),
@@ -1122,7 +1104,6 @@ fn test_malicious_aggregate_should_not_work() {
             previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
             light_client_proof_method_id,
             da_block_header: block_header_3,
-            da_data: Vec::new(),
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob3, blob4],
             witness: Default::default(),
@@ -1165,7 +1146,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
 
     let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
     let incorrect_hash = {
-        let mut copy = block_header_1.hash.0.clone();
+        let mut copy = block_header_1.hash.0;
 
         copy[0] = copy[0].wrapping_add(1);
         copy
@@ -1181,7 +1162,6 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
-            da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
             witness: Default::default(),
@@ -1211,7 +1191,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
     assert_eq!(output_1.last_l2_height, 2);
 
     let incorrect_hash = {
-        let mut copy = block_header_1.hash.0.clone();
+        let mut copy = block_header_1.hash.0;
 
         copy[0] = copy[0].wrapping_add(1);
         copy
@@ -1228,7 +1208,6 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         LightClientCircuitInput {
             previous_light_client_proof_journal: Some(mock_output_1_serialized),
             da_block_header: block_header_2,
-            da_data: vec![],
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_3, blob_4],
