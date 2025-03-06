@@ -22,8 +22,9 @@ pub(crate) fn create_mock_batch_proof(
     final_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> MockBlob {
-    let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
+    let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
     let bp = BatchProofCircuitOutputV3 {
         initial_state_root,
@@ -32,7 +33,7 @@ pub(crate) fn create_mock_batch_proof(
         state_diff: BTreeMap::new(),
         last_l2_height,
         sequencer_commitment_merkle_roots: vec![],
-        last_l1_hash_on_bitcoin_light_client_contract: [0u8; 32],
+        last_l1_hash_on_bitcoin_light_client_contract,
     };
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
@@ -65,6 +66,7 @@ pub(crate) fn create_serialized_mock_proof(
     last_l2_height: u64,
     is_valid: bool,
     state_diff: Option<CumulativeStateDiff>,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
@@ -75,7 +77,7 @@ pub(crate) fn create_serialized_mock_proof(
         state_diff: state_diff.unwrap_or_default(),
         last_l2_height,
         sequencer_commitment_merkle_roots: vec![],
-        last_l1_hash_on_bitcoin_light_client_contract: [0u8; 32],
+        last_l1_hash_on_bitcoin_light_client_contract,
     };
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
@@ -228,7 +230,7 @@ impl NativeCircuitRunner {
         );
 
         self.prover_storage_manager.finalize_storage(res.change_set);
-        println!("Witness: {:?}", res.witness);
+
         input.witness = res.witness;
 
         input

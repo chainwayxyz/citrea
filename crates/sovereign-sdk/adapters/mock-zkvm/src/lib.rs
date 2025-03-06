@@ -285,8 +285,12 @@ impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
     }
 
     fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment) {
-        <Self as Zkvm>::verify(journal, code_commitment)
-            .expect("Assumption API verify error should be infallible")
+        // panics on unverifiable
+        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
+        match mock_journal {
+            MockJournal::Verifiable(_) => {}
+            MockJournal::Unverifiable(_) => panic!("Unverifiable journal"),
+        }
     }
 }
 

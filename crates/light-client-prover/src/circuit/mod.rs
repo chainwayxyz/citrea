@@ -121,8 +121,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         println!("Using batch proof method id {:?}", batch_proof_method_id);
 
-        // TODO: this needs serialized proof
-        // if index is not in the expected to fail hints, then it should pass
         Z::verify(proof, &batch_proof_method_id.into()).map_err(|_| "Failed to verify proof")?;
 
         recursive_match_state_roots(

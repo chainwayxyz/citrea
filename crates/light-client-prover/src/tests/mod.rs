@@ -18,6 +18,11 @@ use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 type Height = u64;
 const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
 
+/// In the below tests, mock batch proofs are constructed with their last_l1_hash_on_bitcoin_light_client_contract field
+/// having the same value with the L1 block these proofs are "found" on.
+///
+/// This is just to make testing easier as this is impossible on Bitcoin even if you are mining the block.
+
 #[test]
 fn test_light_client_circuit_valid_da_valid_data() {
     let db_dir = tempdir().unwrap();
@@ -27,10 +32,10 @@ fn test_light_client_circuit_valid_da_valid_data() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true, block_header_1.hash.0);
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
@@ -40,7 +45,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         LightClientCircuitInput {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
-            da_block_header: block_header_1,
+            da_block_header: block_header_1.clone(),
             da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
@@ -71,8 +76,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
     assert_eq!(output_1.last_l2_height, 3);
 
     // Now get more proofs to see the previous light client part is also working correctly
-    let blob_3 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true);
-    let blob_4 = create_mock_batch_proof([4u8; 32], [5u8; 32], 5, true);
+    let blob_3 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true, block_header_1.hash.0);
+    let blob_4 = create_mock_batch_proof([4u8; 32], [5u8; 32], 5, true, block_header_1.hash.0);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -122,10 +127,10 @@ fn test_wrong_order_da_blocks_should_still_work() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true, block_header_1.hash.0);
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
@@ -177,8 +182,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let blob_1 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
-    let blob_2 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true);
+    let blob_1 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true, block_header_1.hash.0);
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
@@ -188,7 +193,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         LightClientCircuitInput {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
-            da_block_header: block_header_1,
+            da_block_header: block_header_1.clone(),
             da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_2, blob_1],
@@ -231,7 +236,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     );
 
     // On the next l1 block, give 1-2 transition
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -282,10 +287,10 @@ fn test_header_chain_proof_height_and_hash() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true, block_header_1.hash.0);
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
@@ -295,7 +300,7 @@ fn test_header_chain_proof_height_and_hash() {
         LightClientCircuitInput {
             previous_light_client_proof_journal: None,
             light_client_proof_method_id,
-            da_block_header: block_header_1,
+            da_block_header: block_header_1.clone(),
             da_data: vec![],
             inclusion_proof: [1u8; 32],
             completeness_proof: vec![blob_1, blob_2],
@@ -326,8 +331,8 @@ fn test_header_chain_proof_height_and_hash() {
     assert_eq!(output_1.last_l2_height, 3);
 
     // Now give l1 block with height 3
-    let blob_3 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true);
-    let blob_4 = create_mock_batch_proof([4u8; 32], [5u8; 32], 5, true);
+    let blob_3 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true, block_header_1.hash.0);
+    let blob_4 = create_mock_batch_proof([4u8; 32], [5u8; 32], 5, true, block_header_1.hash.0);
 
     let block_header_2 = MockBlockHeader::from_height(3);
 
@@ -377,10 +382,10 @@ fn test_unverifiable_batch_proofs() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, false);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, false, block_header_1.hash.0);
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
@@ -432,10 +437,10 @@ fn test_unverifiable_prev_light_client_proof() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, false);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, false, block_header_1.hash.0);
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
@@ -526,10 +531,10 @@ fn test_new_method_id_txs() {
     let batch_prover_da_pub_key = [9; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -664,10 +669,10 @@ fn test_expect_to_fail_on_correct_proof() {
     let batch_prover_da_pub_key = [9; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, true);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, true, block_header_1.hash.0);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -713,10 +718,10 @@ fn test_expected_to_fail_proof_not_hinted() {
     let batch_prover_da_pub_key = [9; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
-    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, false);
-
     let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true, block_header_1.hash.0);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, false, block_header_1.hash.0);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -763,12 +768,15 @@ fn test_light_client_circuit_verify_chunks() {
 
     let state_diff = create_random_state_diff(100);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..39700].to_vec();
@@ -830,8 +838,6 @@ fn test_light_client_circuit_verify_chunks() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -880,12 +886,15 @@ fn test_missing_chunk() {
 
     let state_diff = create_random_state_diff(100);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..39700].to_vec();
@@ -947,8 +956,6 @@ fn test_missing_chunk() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -999,12 +1006,15 @@ fn test_mmr_hints() {
 
     let state_diff = create_random_state_diff(1);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..397].to_vec();
@@ -1027,8 +1037,6 @@ fn test_mmr_hints() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
@@ -1095,12 +1103,15 @@ fn test_malformed_mmr_proof_internal_index() {
 
     let state_diff = create_random_state_diff(1);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..397].to_vec();
@@ -1123,8 +1134,6 @@ fn test_malformed_mmr_proof_internal_index() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
@@ -1188,12 +1197,15 @@ fn test_malformed_mmr_proof_subroot_index() {
 
     let state_diff = create_random_state_diff(1);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..397].to_vec();
@@ -1216,8 +1228,6 @@ fn test_malformed_mmr_proof_subroot_index() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
@@ -1281,12 +1291,15 @@ fn test_malformed_mmr_chunk_body() {
 
     let state_diff = create_random_state_diff(1);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..397].to_vec();
@@ -1309,8 +1322,6 @@ fn test_malformed_mmr_chunk_body() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
@@ -1373,12 +1384,15 @@ fn test_malformed_mmr_chunk_wtxid() {
 
     let state_diff = create_random_state_diff(1);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..397].to_vec();
@@ -1401,8 +1415,6 @@ fn test_malformed_mmr_chunk_wtxid() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
@@ -1470,12 +1482,15 @@ fn test_malformed_mmr_inclusion_proof() {
 
     let state_diff = create_random_state_diff(1);
 
+    let block_header_1 = MockBlockHeader::from_height(1);
+
     let serialized_mock_proof = create_serialized_mock_proof(
         l2_genesis_state_root,
         [2u8; 32],
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..397].to_vec();
@@ -1498,8 +1513,6 @@ fn test_malformed_mmr_inclusion_proof() {
         Some([4; 32]),
     );
     blob4.full_data();
-
-    let block_header_1 = MockBlockHeader::from_height(1);
 
     let lcp_out = LightClientCircuitOutput {
         l2_state_root: l2_genesis_state_root,
@@ -1569,6 +1582,7 @@ fn test_malicious_aggregate_should_not_work() {
         101,
         true,
         Some(state_diff),
+        block_header_1.hash.0,
     );
 
     let chunk1 = serialized_mock_proof[0..39700].to_vec();
