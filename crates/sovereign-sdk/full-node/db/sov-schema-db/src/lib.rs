@@ -253,6 +253,13 @@ impl DB {
         Ok(())
     }
 
+    /// Delete range based on a seek key.
+    pub fn delete_range_raw<S: Schema>(&self, from: Vec<u8>, to: Vec<u8>) -> anyhow::Result<()> {
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        self.inner.delete_range_cf(cf_handle, from, to)?;
+        Ok(())
+    }
+
     /// Returns a [`SchemaIterator`] on a certain schema with the provided read options and direction.
     pub fn iter_with_direction<S: Schema>(
         &self,
