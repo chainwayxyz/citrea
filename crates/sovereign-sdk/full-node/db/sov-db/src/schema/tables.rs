@@ -478,7 +478,7 @@ define_table_with_seek_key_codec!(
 
 impl KeyEncoder<JmtNodes> for NodeKey {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        // 8 bytes for version, 4 each for the num_nibbles and bytes.len() fields, plus 1 byte per byte of nibllepath
+        // 8 bytes for version, 4 each for the num_nibbles and bytes.len() fields, plus 1 byte per byte of nibblepath
         let mut output =
             Vec::with_capacity(8 + 4 + 4 + ((self.nibble_path().num_nibbles() + 1) / 2));
         let version = self.version().to_be_bytes();
@@ -530,6 +530,12 @@ impl<T: AsRef<[u8]> + core::fmt::Debug> KeyEncoder<JmtValues> for (T, Version) {
         out.write_u64::<BigEndian>(self.1)
             .expect("serialization to vec is infallible");
         Ok(out)
+    }
+}
+
+impl SeekKeyEncoder<JmtNodes> for NodeKey {
+    fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        self.encode_key()
     }
 }
 
