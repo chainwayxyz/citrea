@@ -151,7 +151,7 @@ impl TestCase for LightClientProvingTest {
         assert_eq!(
             light_client_proof
                 .light_client_proof_output
-                .state_root
+                .l2_state_root
                 .to_vec(),
             batch_proof[0].proof_output.final_state_root
         );
@@ -296,7 +296,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_eq!(
             light_client_proof
                 .light_client_proof_output
-                .state_root
+                .l2_state_root
                 .to_vec(),
             batch_proofs[(n_commitments - 1) as usize]
                 .proof_output
@@ -330,8 +330,8 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         // Since there are no batch proofs the state root should be the same as the last one
         let light_client_proof2 = lcp2.unwrap();
         assert_eq!(
-            light_client_proof2.light_client_proof_output.state_root,
-            light_client_proof.light_client_proof_output.state_root
+            light_client_proof2.light_client_proof_output.l2_state_root,
+            light_client_proof.light_client_proof_output.l2_state_root
         );
 
         // The last processed l2 height should also be the same because there are no new batch proofs
@@ -421,7 +421,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_eq!(
             light_client_proof3
                 .light_client_proof_output
-                .state_root
+                .l2_state_root
                 .to_vec(),
             batch_proofs[0].proof_output.final_state_root
         );
@@ -432,8 +432,8 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         );
 
         assert_ne!(
-            light_client_proof3.light_client_proof_output.state_root,
-            light_client_proof.light_client_proof_output.state_root
+            light_client_proof3.light_client_proof_output.l2_state_root,
+            light_client_proof.light_client_proof_output.l2_state_root
         );
 
         assert!(light_client_proof3
@@ -874,7 +874,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
         // Get initial method ids and genesis state root
         let method_ids = lcp_output.batch_proof_method_ids;
-        let genesis_state_root = lcp_output.state_root;
+        let genesis_state_root = lcp_output.l2_state_root;
 
         let fork2_height: u64 = method_ids[2].height.to();
 
@@ -975,7 +975,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
         // The unverifiable batch proof and malformed journal batch proof should not have updated the state root or the last l2 height
-        assert_eq!(lcp_output.state_root, [3u8; 32]);
+        assert_eq!(lcp_output.l2_state_root, [3u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 3));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
@@ -1088,7 +1088,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // Get initial method ids and genesis state root
         let method_ids = lcp_output.batch_proof_method_ids;
-        let genesis_state_root = lcp_output.state_root;
+        let genesis_state_root = lcp_output.l2_state_root;
 
         let fork2_height: u64 = method_ids[2].height.to();
 
@@ -1138,7 +1138,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
         // The batch proof should have updated the state root and the last l2 height
-        assert_eq!(lcp_output.state_root, [1u8; 32]);
+        assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
@@ -1223,7 +1223,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let lcp_output = lcp_first_chunks.unwrap().light_client_proof_output;
 
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
-        assert_eq!(lcp_output.state_root, [1u8; 32]);
+        assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
@@ -1236,7 +1236,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let lcp_output = lcp_last_chunks.unwrap().light_client_proof_output;
 
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
-        assert_eq!(lcp_output.state_root, [1u8; 32]);
+        assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
@@ -1250,7 +1250,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let lcp_output = lcp_aggregate.unwrap().light_client_proof_output;
 
         // The batch proof should have updated the state root and the last l2 height
-        assert_eq!(lcp_output.state_root, [2u8; 32]);
+        assert_eq!(lcp_output.l2_state_root, [2u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 2));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
@@ -1296,7 +1296,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // The batch proof should NOT have updated the state root and the last l2 height
         // Because it is not verified
-        assert_eq!(lcp_output.state_root, [2u8; 32]);
+        assert_eq!(lcp_output.l2_state_root, [2u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 2));
         // Also should not leave unchained outputs
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());

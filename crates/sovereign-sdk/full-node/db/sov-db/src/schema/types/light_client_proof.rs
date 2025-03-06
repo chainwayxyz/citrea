@@ -34,7 +34,7 @@ pub struct StoredLatestDaState {
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredLightClientProofOutput {
     /// State root of the node after the light client proof
-    pub state_root: [u8; 32],
+    pub l2_state_root: [u8; 32],
     /// LCP JMT state root
     pub lcp_state_root: [u8; 32],
     /// The method id of the light client proof
@@ -54,7 +54,7 @@ pub struct StoredLightClientProofOutput {
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
     fn from(value: StoredLightClientProofOutput) -> Self {
         Self {
-            state_root: value.state_root,
+            l2_state_root: value.l2_state_root,
             light_client_proof_method_id: value.light_client_proof_method_id.into(),
             latest_da_state: LatestDaStateRpcResponse {
                 block_hash: value.latest_da_state.block_hash,
@@ -94,7 +94,7 @@ impl From<LightClientCircuitOutput> for StoredLightClientProofOutput {
     fn from(circuit_output: LightClientCircuitOutput) -> Self {
         let latest_da_state = circuit_output.latest_da_state;
         StoredLightClientProofOutput {
-            state_root: circuit_output.l2_state_root,
+            l2_state_root: circuit_output.l2_state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
             latest_da_state: StoredLatestDaState {
                 block_hash: latest_da_state.block_hash,
@@ -116,7 +116,7 @@ impl From<StoredLightClientProofOutput> for LightClientCircuitOutput {
     fn from(db_output: StoredLightClientProofOutput) -> Self {
         let latest_da_state = db_output.latest_da_state;
         LightClientCircuitOutput {
-            l2_state_root: db_output.state_root,
+            l2_state_root: db_output.l2_state_root,
             light_client_proof_method_id: db_output.light_client_proof_method_id,
             latest_da_state: LatestDaState {
                 block_hash: latest_da_state.block_hash,

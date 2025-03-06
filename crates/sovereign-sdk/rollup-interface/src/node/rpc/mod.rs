@@ -230,7 +230,7 @@ impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
 pub struct LightClientProofOutputRpcResponse {
     /// State root of the node after the light client proof
     #[serde(with = "utils::rpc_hex")]
-    pub state_root: [u8; 32],
+    pub l2_state_root: [u8; 32],
     /// LCP JMT state root
     #[serde(with = "utils::rpc_hex")]
     pub lcp_state_root: [u8; 32],

@@ -406,7 +406,7 @@ fn prepare_slots_data(ledger_db: &DB) {
                 &StoredLightClientProof {
                     proof: vec![1; 32],
                     light_client_proof_output: StoredLightClientProofOutput {
-                        state_root: [0u8; 32],
+                        l2_state_root: [0u8; 32],
                         light_client_proof_method_id: [1u32; 8],
                         latest_da_state: StoredLatestDaState {
                             block_hash: [0; 32],
