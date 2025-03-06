@@ -9,13 +9,13 @@ pub struct BlockHashAccessor<S: Storage> {
 }
 
 impl<S: Storage> BlockHashAccessor<S> {
-    const PREFIX: u8 = 98u8; // lowercase b
+    const PREFIX: u8 = b'b';
 
     pub fn exists(hash: [u8; 32], working_set: &mut WorkingSet<S>) -> bool {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key[0..1].copy_from_slice(&[Self::PREFIX]);
+        key[0] = Self::PREFIX;
         key[1..].copy_from_slice(&hash);
 
         let p = Prefix::from_slice(&key);
@@ -29,7 +29,7 @@ impl<S: Storage> BlockHashAccessor<S> {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key[0..1].copy_from_slice(&[Self::PREFIX]);
+        key[0] = Self::PREFIX;
         key[1..].copy_from_slice(&hash);
 
         let p = Prefix::from_slice(&key);
@@ -46,13 +46,13 @@ pub struct ChunkAccessor<S: Storage> {
 }
 
 impl<S: Storage> ChunkAccessor<S> {
-    const PREFIX: u8 = 99u8; // lowercase c
+    const PREFIX: u8 = b'c';
 
     pub fn get(wtxid: [u8; 32], working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key[0..1].copy_from_slice(&[Self::PREFIX]);
+        key[0] = Self::PREFIX;
         key[1..].copy_from_slice(&wtxid);
 
         let p = Prefix::from_slice(&key);
@@ -68,7 +68,7 @@ impl<S: Storage> ChunkAccessor<S> {
         // use `StateKey::singleton` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
-        key[0..1].copy_from_slice(&[Self::PREFIX]);
+        key[0] = Self::PREFIX;
         key[1..].copy_from_slice(&wtxid);
 
         let p = Prefix::from_slice(&key);
