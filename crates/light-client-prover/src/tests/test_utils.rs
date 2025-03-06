@@ -1,13 +1,19 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::Arc;
 
 use rand::{thread_rng, Rng};
-use sov_mock_da::{MockAddress, MockBlob};
-use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
+use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
+use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
+use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
+use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
+
+use crate::circuit::LightClientProofCircuit;
 
 pub(crate) fn create_mock_batch_proof(
     initial_state_root: [u8; 32],
@@ -161,4 +167,53 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
     }
 
     map
+}
+
+/// MockDA MockZkvm native context circuit runner implementation
+pub struct NativeCircuitRunner {
+    circuit: LightClientProofCircuit<ProverStorage, MockDaSpec, MockZkvm>,
+    prover_storage_manager: ProverStorageManager,
+}
+
+impl NativeCircuitRunner {
+    pub fn new(db_path: &Path) -> Self {
+        let prover_storage_manager = ProverStorageManager::new(Config {
+            path: db_path,
+            db_max_open_files: None,
+        })
+        .unwrap();
+        let circuit = LightClientProofCircuit::new();
+
+        Self {
+            circuit,
+            prover_storage_manager,
+        }
+    }
+
+    /// Run the circuit with the given input returning the witness
+    /// that will be used to run the circuit in ZK context
+    pub fn run(
+        &self,
+        input: LightClientCircuitInput<MockDaSpec>,
+        l2_genesis_state_root: [u8; 32],
+        inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+        batch_prover_da_pub_key: &[u8],
+        method_id_upgrade_authority: &[u8],
+    ) -> Witness {
+        let prover_storage = self
+            .prover_storage_manager
+            .create_storage_for_next_l2_height();
+
+        self.circuit.run_l1_block(
+            prover_storage,
+            Default::default(),
+            input.da_data,
+            input.da_block_header,
+            input.previous_light_client_proof_journal, // TODO: parse first
+            l2_genesis_state_root,
+            inital_batch_proof_method_ids,
+            batch_prover_da_pub_key,
+            method_id_upgrade_authority,
+        )
+    }
 }

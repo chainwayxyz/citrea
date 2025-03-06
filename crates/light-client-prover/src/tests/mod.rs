@@ -1,16 +1,15 @@
 pub mod test_utils;
 
-use std::collections::VecDeque;
-
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient, LatestDaState};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::Network;
+use tempfile::tempdir;
 use test_utils::{
     create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
-    create_random_state_diff, create_serialized_mock_proof,
+    create_random_state_diff, create_serialized_mock_proof, NativeCircuitRunner,
 };
 
 use crate::circuit::LightClientVerificationError;
@@ -20,6 +19,9 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])]
 
 #[test]
 fn test_light_client_circuit_valid_da_valid_data() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path());
+
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
