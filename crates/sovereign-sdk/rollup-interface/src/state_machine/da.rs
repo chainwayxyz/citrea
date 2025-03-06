@@ -164,7 +164,8 @@ pub trait DaSpec:
         + BorshDeserialize
         + BorshSerialize
         + Send
-        + Sync;
+        + Sync
+        + Debug;
 
     /// Decompress chunks to complete
     fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError>;
@@ -406,6 +407,9 @@ pub trait BlockHeaderTrait:
 
     /// The bits of the block
     fn bits(&self) -> u32;
+
+    /// Coinbase txid merkle proof height in the block.
+    fn coinbase_txid_merkle_proof_height(&self) -> u64;
 }
 
 #[derive(

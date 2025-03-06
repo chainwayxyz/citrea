@@ -40,6 +40,9 @@ pub struct RunnerConfig {
     pub sync_blocks_count: u64,
     /// Configurations for pruning
     pub pruning_config: Option<PruningConfig>,
+    /// After fork2 nodes will not have da data in soft confirmations
+    /// So providing the l1 start height from config makes sense
+    pub scan_l1_start_height: u64,
 }
 
 impl FromEnv for RunnerConfig {
@@ -52,6 +55,7 @@ impl FromEnv for RunnerConfig {
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_sync_blocks_count),
             pruning_config: PruningConfig::from_env().ok(),
+            scan_l1_start_height: std::env::var("SCAN_L1_START_HEIGHT")?.parse()?,
         })
     }
 }
@@ -519,6 +523,7 @@ mod tests {
             [runner]
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
+            scan_l1_start_height = 1
 
             [telemetry]
             bind_host = "0.0.0.0"
@@ -536,6 +541,7 @@ mod tests {
                 include_tx_body: true,
                 sync_blocks_count: 10,
                 pruning_config: None,
+                scan_l1_start_height: 1,
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
@@ -728,6 +734,7 @@ mod tests {
         std::env::set_var("INCLUDE_TX_BODY", "true");
         std::env::set_var("SEQUENCER_CLIENT_URL", "http://0.0.0.0:12346");
         std::env::set_var("PRUNING_DISTANCE", "1000");
+        std::env::set_var("SCAN_L1_START_HEIGHT", "1");
 
         std::env::set_var("TELEMETRY_BIND_HOST", "0.0.0.0");
         std::env::set_var("TELEMETRY_BIND_PORT", "8082");
@@ -756,6 +763,7 @@ mod tests {
                 include_tx_body: true,
                 sync_blocks_count: default_sync_blocks_count(),
                 pruning_config: Some(PruningConfig { distance: 1000 }),
+                scan_l1_start_height: 1,
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),

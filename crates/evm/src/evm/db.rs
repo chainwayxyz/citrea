@@ -153,6 +153,74 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 }
 
 #[cfg(feature = "native")]
+pub mod immutable {
+    use std::cell::RefCell;
+
+    use alloy_primitives::{Address, B256, U256};
+    use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode};
+    use revm::{Database, DatabaseRef};
+    use sov_modules_api::SpecId;
+
+    use super::{DBError, EvmDb};
+
+    pub(crate) struct EvmDbRef<'a, 'b, C: sov_modules_api::Context> {
+        pub(crate) evm_db: RefCell<&'b mut EvmDb<'a, C>>,
+    }
+
+    impl<'a, 'b, C: sov_modules_api::Context> EvmDbRef<'a, 'b, C> {
+        pub(crate) fn new(evm_db: &'b mut EvmDb<'a, C>) -> Self {
+            Self {
+                evm_db: std::cell::RefCell::new(evm_db),
+            }
+        }
+
+        pub(crate) fn citrea_spec(&self) -> SpecId {
+            self.evm_db.borrow().citrea_spec
+        }
+    }
+
+    impl<'a, 'b, C: sov_modules_api::Context> Database for EvmDbRef<'a, 'b, C> {
+        type Error = DBError;
+
+        fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+            self.basic_ref(address)
+        }
+
+        fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+            self.code_by_hash_ref(code_hash)
+        }
+
+        fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
+            self.storage_ref(address, index)
+        }
+
+        fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+            self.block_hash_ref(number)
+        }
+    }
+
+    impl<'a, 'b, C: sov_modules_api::Context> revm::DatabaseRef for EvmDbRef<'a, 'b, C> {
+        type Error = DBError;
+
+        fn basic_ref(&self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+            self.evm_db.borrow_mut().basic(address)
+        }
+
+        fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+            self.evm_db.borrow_mut().code_by_hash(code_hash)
+        }
+
+        fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
+            self.evm_db.borrow_mut().storage(address, index)
+        }
+
+        fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
+            self.evm_db.borrow_mut().block_hash(number)
+        }
+    }
+}
+
+#[cfg(feature = "native")]
 impl From<DBError> for reth_rpc_eth_types::error::EthApiError {
     fn from(_value: DBError) -> Self {
         reth_rpc_eth_types::error::EthApiError::InternalEthError

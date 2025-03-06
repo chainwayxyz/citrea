@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
+use citrea_common::l2::L2SyncWorker;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
@@ -17,7 +18,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 
 pub mod da_block_handler;
 pub mod db_migrations;
@@ -25,16 +26,16 @@ mod metrics;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn build_services<Da, DB, Vm>(
+pub fn build_services<DA, DB, Vm>(
     runner_config: RunnerConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
         DefaultContext,
-        <Da as DaService>::Spec,
-        CitreaRuntime<DefaultContext, <Da as DaService>::Spec>,
+        <DA as DaService>::Spec,
+        CitreaRuntime<DefaultContext, <DA as DaService>::Spec>,
     >,
     public_keys: RollupPublicKeys,
-    da_service: Arc<Da>,
+    da_service: Arc<DA>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
@@ -42,12 +43,12 @@ pub fn build_services<Da, DB, Vm>(
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    CitreaFullnode<Da, DB>,
-    L1BlockHandler<Vm, Da, DB>,
+    CitreaFullnode<DA, DB>,
+    L1BlockHandler<Vm, DA, DB>,
     Option<PrunerService>,
 )>
 where
-    Da: DaService<Error = anyhow::Error>,
+    DA: DaService<Error = anyhow::Error>,
     DB: NodeLedgerOps + Send + Sync + Clone + 'static,
     Vm: ZkvmHost + Zkvm,
 {
@@ -63,7 +64,9 @@ where
         PrunerService::new(pruner, last_pruned_block, soft_confirmation_tx.subscribe())
     });
 
-    let runner = CitreaFullnode::new(
+    let include_tx_bodies = runner_config.include_tx_body;
+    let (l2_signal_tx, l2_signal_rx) = mpsc::channel(1);
+    let l2_sync_worker = L2SyncWorker::new(
         runner_config,
         init_params,
         native_stf,
@@ -74,7 +77,11 @@ where
         fork_manager,
         soft_confirmation_tx,
         backup_manager.clone(),
+        l2_signal_tx,
+        include_tx_bodies,
     )?;
+
+    let runner = CitreaFullnode::<DA, DB>::new(ledger_db.clone(), l2_sync_worker, l2_signal_rx)?;
 
     let l1_block_handler = L1BlockHandler::new(
         ledger_db,

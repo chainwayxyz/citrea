@@ -11,7 +11,7 @@ use sov_rollup_interface::da::VerifableShortHeaderProof;
 use super::{ShortHeaderProofProvider, ShortHeaderProofProviderError};
 
 pub struct NativeShortHeaderProofProviderService<Da: DaSpec> {
-    pub queried_and_verified_hashes: Arc<Mutex<HashMap<u64, [u8; 32]>>>,
+    pub queried_and_verified_hashes: Arc<Mutex<HashMap<u64, Vec<[u8; 32]>>>>,
     pub ledger_db: LedgerDB,
     pub _phantom: PhantomData<Da>,
 }
@@ -33,6 +33,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         prev_block_hash: [u8; 32],
         l1_height: u64,
         txs_commitment: [u8; 32],
+        coinbase_depth: u8,
         l2_height: u64,
     ) -> Result<bool, ShortHeaderProofProviderError> {
         if let Some(shp_serialized) = self
@@ -53,13 +54,16 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                 let return_cond = txs_commitment == l1_update_info.tx_commitment
                     && block_hash == l1_update_info.header_hash
                     && prev_hash_cond
-                    && l1_height == l1_update_info.block_height;
+                    && l1_height == l1_update_info.block_height
+                    && coinbase_depth == l1_update_info.coinbase_txid_merkle_proof_height;
 
                 if return_cond {
                     self.queried_and_verified_hashes
                         .lock()
                         .expect("Should lock queried and verified hashes")
-                        .insert(l2_height, block_hash);
+                        .entry(l2_height)
+                        .and_modify(|f| f.push(block_hash))
+                        .or_insert(vec![block_hash]);
                 }
 
                 return Ok(return_cond);
@@ -78,7 +82,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         let mut hashes = Vec::new();
         for l2_height in l2_range {
             if let Some(hash) = queried_and_verified_hashes.get(&l2_height) {
-                hashes.push(*hash);
+                hashes.extend(hash.clone());
             }
         }
         hashes

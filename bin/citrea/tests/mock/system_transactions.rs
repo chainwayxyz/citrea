@@ -89,7 +89,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
             assert_eq!(set_tx.to.unwrap(), system_contract_address);
             assert_eq!(
                 set_tx.input[0..4],
-                *hex::decode("0e27bc11").unwrap().as_slice()
+                *hex::decode("d5ba11fa").unwrap().as_slice()
             );
         } else {
             let block_transactions = block.transactions.as_transactions().unwrap();
@@ -99,7 +99,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
 
             assert_eq!(tx.from, system_signer_address);
             assert_eq!(tx.to.unwrap(), system_contract_address);
-            assert_eq!(tx.input[0..4], *hex::decode("0e27bc11").unwrap().as_slice());
+            assert_eq!(tx.input[0..4], *hex::decode("d5ba11fa").unwrap().as_slice());
         }
     }
 
