@@ -41,6 +41,7 @@ pub async fn wait_for_zkproofs(
     full_node: &FullNode,
     height: u64,
     timeout: Option<Duration>,
+    count: usize,
 ) -> Result<Vec<VerifiedBatchProofResponse>> {
     let start = Instant::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(240));
@@ -56,7 +57,11 @@ pub async fn wait_for_zkproofs(
             .get_verified_batch_proofs_by_slot_height(U64::from(height))
             .await?
         {
-            Some(proofs) => return Ok(proofs),
+            Some(proofs) => {
+                if proofs.len() >= count {
+                    return Ok(proofs);
+                }
+            }
             None => sleep(Duration::from_millis(500)).await,
         }
     }
@@ -103,6 +108,10 @@ impl TestCase for BasicProverTest {
         }
     }
 
+    fn scan_l1_start_height() -> u64 {
+        170
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -134,6 +143,7 @@ impl TestCase for BasicProverTest {
             full_node,
             finalized_height + FINALITY_DEPTH,
             Some(Duration::from_secs(120)),
+            1,
         )
         .await
         .unwrap();
@@ -187,6 +197,10 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             min_soft_confirmations_per_commitment: 1,
             ..Default::default()
         }
+    }
+
+    fn scan_l1_start_height() -> u64 {
+        170
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -270,7 +284,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-        let _proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None)
+        let _proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 1)
             .await
             .unwrap();
 
@@ -341,10 +355,14 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         // Wait for the full node to see all process verify and store all batch proofs
         full_node.wait_for_l1_height(finalized_height, None).await?;
-        let _proofs =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(600)))
-                .await
-                .unwrap();
+        let _proofs = wait_for_zkproofs(
+            full_node,
+            finalized_height,
+            Some(Duration::from_secs(600)),
+            1,
+        )
+        .await
+        .unwrap();
 
         // TODO: this test will need refactor
         // assert_eq!(
@@ -444,10 +462,14 @@ impl TestCase for LocalProvingTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
-        let proofs =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
-                .await
-                .unwrap();
+        let proofs = wait_for_zkproofs(
+            full_node,
+            finalized_height,
+            Some(Duration::from_secs(7200)),
+            1,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(proofs.len(), 1);
 
@@ -486,7 +508,7 @@ impl TestCase for ParallelProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 106,
+            min_soft_confirmations_per_commitment: 98,
             mempool_conf: SequencerMempoolConfig {
                 max_account_slots: 1000,
                 ..Default::default()
@@ -512,8 +534,8 @@ impl TestCase for ParallelProvingTest {
 
         // Invoke 2 sequencer commitments
         for _ in 0..min_soft_confirmations_per_commitment * 2 {
-            // 7 txs in each block
-            for _ in 0..7 {
+            // 6 txs in each block
+            for _ in 0..6 {
                 let _ = seq_test_client
                     .send_eth(Address::random(), None, None, None, 100)
                     .await
@@ -533,27 +555,27 @@ impl TestCase for ParallelProvingTest {
 
         // Wait until batch prover processes the commitments
         batch_prover
-            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(1800)))
+            .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(2, None).await?;
+        // Wait for batch proof txs to hit mempool
+        da.wait_mempool_len(4, Some(Duration::from_secs(420)))
+            .await?;
 
-        // Write 2 batch proofs to a finalized DA block
+        // Write 2 batch proofs (4 txs) to a finalized DA block
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Retrieve proofs from fullnode
-        let proofs = wait_for_zkproofs(full_node, finalized_height, None)
+        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 2)
             .await
             .unwrap();
-        dbg!(proofs.len());
+        assert_eq!(proofs.len(), 2);
 
         Ok(())
     }
 }
 
-#[ignore]
 #[tokio::test]
 async fn parallel_proving_test() -> Result<()> {
     TestCaseRunner::new(ParallelProvingTest)
@@ -730,7 +752,7 @@ impl TestCase for ForkElfSwitchingTest {
         full_node
             .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
             .await?;
-        let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None)
+        let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 3)
             .await
             .unwrap();
 
@@ -810,7 +832,7 @@ impl TestCase for L1HashOutputTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 50,
+            min_soft_confirmations_per_commitment: 12,
             ..Default::default()
         }
     }
@@ -832,7 +854,7 @@ impl TestCase for L1HashOutputTest {
 
         sequencer.client.wait_for_l2_block(1, None).await?;
 
-        da.generate(100).await?;
+        da.generate(100).await?; // This will produce ceil(100 - 1 / MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK) l2 blocks post fork2 which is 10
 
         tokio::time::sleep(Duration::from_secs(10)).await;
         sequencer.client.send_publish_batch_request().await?;
@@ -861,13 +883,13 @@ impl TestCase for L1HashOutputTest {
         assert_eq!(hash_from_rpc.as_raw_hash().to_byte_array(), l1_hash);
 
         // part 2
-        for _ in 0..110 {
+        for _ in 0..26 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         da.wait_mempool_len(6, None).await?;
 
-        for _ in 0..51 {
+        for _ in 0..13 {
             sequencer.client.send_publish_batch_request().await?;
         }
 

@@ -141,6 +141,10 @@ impl TestCase for LedgerGetCommitmentsTest {
         }
     }
 
+    fn scan_l1_start_height() -> u64 {
+        146
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");

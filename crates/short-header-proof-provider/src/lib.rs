@@ -27,6 +27,7 @@ pub trait ShortHeaderProofProvider: Send + Sync {
         prev_l1_hash: [u8; 32],
         l1_height: u64,
         txs_commitment: [u8; 32],
+        coinbase_depth: u8,
         l2_height: u64, // needed on the native implementation to track queries to the provider
     ) -> Result<bool, ShortHeaderProofProviderError>;
 

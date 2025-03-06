@@ -29,7 +29,9 @@ use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_state::Witness;
 use tokio::sync::Mutex;
+use tracing::level_filters::LevelFilter;
 use tracing::{debug, info};
+use tracing_subscriber::layer::SubscriberExt;
 
 use crate::da_block_handler::break_sequencer_commitments_into_groups;
 use crate::errors::L1ProcessingError;
@@ -303,23 +305,30 @@ where
 
     tokio::spawn(async move {
         // Wait for all proofs to be completed
-        let proofs = futures::future::try_join_all(proof_rxs)
-            .await
-            .expect("Proving channel should never be closed");
+        while !proof_rxs.is_empty() {
+            let (proof, _, remaining_rxs) = futures::future::select_all(proof_rxs).await;
 
-        let txs_and_proofs = prover_service
-            .submit_proofs(proofs)
-            .await
-            .expect("Failed to submit proofs");
+            proof_rxs = remaining_rxs;
+            let proof = proof.expect("Proof channel should never close");
 
-        extract_and_store_proof::<DB, Da, Vm>(
-            ledger,
-            txs_and_proofs,
-            code_commitments_by_spec,
-            l1_height,
-        )
-        .await
-        .expect("Extract and store proof should not fail");
+            match prover_service.submit_proof(proof.clone()).await {
+                Ok(tx_id) => {
+                    extract_and_store_proof::<_, Da, Vm>(
+                        &ledger,
+                        tx_id,
+                        proof,
+                        &code_commitments_by_spec,
+                        l1_height,
+                    )
+                    .await
+                    .expect("Extract and store proof should not fail");
+                }
+                Err(e) => {
+                    tracing::error!("Failed to submit proof to DA: {e}");
+                    continue;
+                }
+            }
+        }
     });
 
     Ok(())
@@ -364,9 +373,13 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
             vec![];
         for soft_confirmation in soft_confirmations_in_commitment {
-            if da_block_headers_to_push.is_empty()
-                || da_block_headers_to_push.last().unwrap().height()
-                    != soft_confirmation.da_slot_height
+            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
+
+            // No need to push l1 data if we are post fork2
+            if spec_id < SpecId::Fork2
+                && (da_block_headers_to_push.is_empty()
+                    || da_block_headers_to_push.last().unwrap().height()
+                        != soft_confirmation.da_slot_height)
             {
                 let filtered_block = get_da_block_at_height(
                     da_service,
@@ -464,12 +477,20 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
         for l2_block in l2_blocks_in_commitment {
             let l2_height = l2_block.l2_height();
-            let l1_block = get_da_block_at_height(
-                da_service,
-                l2_block.da_slot_height(),
-                l1_block_cache.clone(),
-            )
-            .await?;
+            let spec_id = fork_from_block_number(l2_height).spec_id;
+
+            let l1_block = if spec_id < SpecId::Fork2 {
+                Some(
+                    get_da_block_at_height(
+                        da_service,
+                        l2_block.da_slot_height(),
+                        l1_block_cache.clone(),
+                    )
+                    .await?,
+                )
+            } else {
+                None
+            };
 
             let pre_state = storage_manager.create_storage_for_l2_height(l2_height);
             let current_spec = fork_from_block_number(l2_height).spec_id;
@@ -480,18 +501,38 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
                 sequencer_pub_key
             };
 
-            let soft_confirmation_result = stf.apply_soft_confirmation(
-                current_spec,
-                sequencer_public_key,
-                &init_state_root,
-                pre_state,
-                cumulative_state_log.take(),
-                cumulative_offchain_log.take(),
-                Default::default(),
-                Default::default(),
-                l1_block.header(),
-                l2_block,
-            )?;
+            let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
+            let soft_confirmation_result =
+                tracing::subscriber::with_default(silent_subscriber, || {
+                    if current_spec >= SpecId::Fork2 {
+                        stf.apply_soft_confirmation(
+                            current_spec,
+                            sequencer_public_key,
+                            &init_state_root,
+                            pre_state,
+                            cumulative_state_log.take(),
+                            cumulative_offchain_log.take(),
+                            Default::default(),
+                            Default::default(),
+                            l2_block,
+                        )
+                    } else {
+                        stf.apply_soft_confirmation_pre_fork2(
+                            current_spec,
+                            sequencer_public_key,
+                            &init_state_root,
+                            pre_state,
+                            cumulative_state_log.take(),
+                            cumulative_offchain_log.take(),
+                            Default::default(),
+                            Default::default(),
+                            l1_block
+                                .expect("Pre fork2 l2 block should have l1 data")
+                                .header(),
+                            l2_block,
+                        )
+                    }
+                })?;
 
             assert_eq!(
                 l2_block.state_root(),
@@ -604,9 +645,10 @@ pub(crate) fn state_transition_already_proven<Da: DaService>(
 }
 
 pub(crate) async fn extract_and_store_proof<DB, Da, Vm>(
-    ledger_db: DB,
-    txs_and_proofs: Vec<(<Da as DaService>::TransactionId, Proof)>,
-    code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    ledger_db: &DB,
+    tx_id: <Da as DaService>::TransactionId,
+    proof: Proof,
+    code_commitments_by_spec: &HashMap<SpecId, Vm::CodeCommitment>,
     l1_height: u64,
 ) -> Result<(), anyhow::Error>
 where
@@ -614,52 +656,51 @@ where
     DB: BatchProverLedgerOps,
     Vm: ZkvmHost + Zkvm,
 {
-    for (tx_id, proof) in txs_and_proofs {
-        let tx_id_u8 = tx_id.into();
+    let tx_id_u8 = tx_id.into();
 
-        // l1_height => (tx_id, proof, circuit_output)
-        // save proof along with tx id to db, should be queryable by slot number or slot hash
-        let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
-            BatchProofCircuitOutputV3,
-        >(&proof)
-        {
-            Ok(output) => (SpecId::Fork2, StoredBatchProofOutput::V3(output)),
-            Err(e) => {
-                info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
-                match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
-                    Ok(output) => (SpecId::Kumquat, StoredBatchProofOutput::V2(output)),
-                    Err(e) => {
-                        info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
-                        let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
-                            .expect("Should be able to extract either pre or post fork 1 output");
+    // l1_height => (tx_id, proof, circuit_output)
+    // save proof along with tx id to db, should be queryable by slot number or slot hash
+    let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
+        BatchProofCircuitOutputV3,
+    >(&proof)
+    {
+        Ok(output) => (SpecId::Fork2, StoredBatchProofOutput::V3(output)),
+        Err(e) => {
+            info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
+            match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
+                Ok(output) => (SpecId::Kumquat, StoredBatchProofOutput::V2(output)),
+                Err(e) => {
+                    info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
+                    let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
+                        .expect("Should be able to extract either pre or post fork 1 output");
 
-                        // If we got output of pre fork 1 that means we are in genesis
-                        (SpecId::Genesis, StoredBatchProofOutput::V1(output))
-                    }
+                    // If we got output of pre fork 1 that means we are in genesis
+                    (SpecId::Genesis, StoredBatchProofOutput::V1(output))
                 }
             }
-        };
-
-        let code_commitment = code_commitments_by_spec
-            .get(&last_active_spec_id)
-            .expect("Proof public input must contain valid spec id");
-
-        info!("Verifying proof with image ID: {:?}", code_commitment);
-
-        Vm::verify(proof.as_slice(), code_commitment)
-            .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
-
-        debug!("circuit output: {:?}", batch_proof_output);
-
-        if let Err(e) = ledger_db.insert_batch_proof_data_by_l1_height(
-            l1_height,
-            tx_id_u8,
-            proof,
-            batch_proof_output,
-        ) {
-            panic!("Failed to put proof data in the ledger db: {}", e);
         }
+    };
+
+    let code_commitment = code_commitments_by_spec
+        .get(&last_active_spec_id)
+        .expect("Proof public input must contain valid spec id");
+
+    info!("Verifying proof with image ID: {:?}", code_commitment);
+
+    Vm::verify(proof.as_slice(), code_commitment)
+        .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+
+    debug!("circuit output: {:?}", batch_proof_output);
+
+    if let Err(e) = ledger_db.insert_batch_proof_data_by_l1_height(
+        l1_height,
+        tx_id_u8,
+        proof,
+        batch_proof_output,
+    ) {
+        panic!("Failed to put proof data in the ledger db: {}", e);
     }
+
     Ok(())
 }
 

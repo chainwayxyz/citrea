@@ -121,12 +121,12 @@ impl TestCase for LightClientProvingTest {
         da.generate(FINALITY_DEPTH).await?;
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
-
         // Wait for light client prover to process batch proofs.
         light_client_prover
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await
             .unwrap();
+        println!("sdjhfgasdjhfgasdjhf2");
 
         // Expect light client prover to have generated light client proof
         let lcp = light_client_prover
@@ -138,10 +138,14 @@ impl TestCase for LightClientProvingTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
         // Wait for full node to see zkproofs
-        let batch_proof =
-            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
-                .await
-                .unwrap();
+        let batch_proof = wait_for_zkproofs(
+            full_node,
+            finalized_height,
+            Some(Duration::from_secs(7200)),
+            1,
+        )
+        .await
+        .unwrap();
 
         let light_client_proof = lcp.unwrap();
         assert_eq!(
@@ -271,7 +275,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 2).await?;
         assert_eq!(batch_proofs.len(), 2);
 
         // Wait for light client prover to process batch proofs.
@@ -396,7 +400,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 1).await?;
         assert_eq!(batch_proofs.len(), 1);
 
         // Wait for light client prover to process batch proofs.

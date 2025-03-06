@@ -67,7 +67,7 @@ enum Commands {
         sequencer_commitment_l2_height: u64,
     },
     /// Backup DBs
-    Backup {
+    RestoreBackup {
         /// The node kind
         #[arg(long)]
         node_kind: NodeKind,
@@ -77,6 +77,9 @@ enum Commands {
         /// The backup path
         #[arg(long)]
         backup_path: PathBuf,
+        /// The backup ID
+        #[arg(long)]
+        backup_id: u32,
     },
 }
 
@@ -112,12 +115,14 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
         }
-        Commands::Backup {
+        Commands::RestoreBackup {
             db_path,
             backup_path,
             node_kind,
+            backup_id,
         } => {
-            commands::restore_backup(node_kind.to_string(), db_path, backup_path).await?;
+            commands::restore_backup(node_kind.to_string(), db_path, backup_path, backup_id)
+                .await?;
         }
     }
 

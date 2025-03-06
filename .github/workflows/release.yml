@@ -34,12 +34,17 @@ jobs:
         run: |
           cargo build --release
 
-
-      - name: Upload linux-amd64 Binary
+      - name: Upload citrea linux-amd64 Binary
         uses: actions/upload-artifact@v4
         with:
           name: citrea-${{ github.ref_name }}-linux-amd64
           path: target/release/citrea
+
+      - name: Upload citrea-cli linux-amd64 Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrea-cli-${{ github.ref_name }}-linux-amd64
+          path: target/release/citrea-cli 
 
   osx_arm64_binary_extraction:
     runs-on: self-hosted-citrea-osx-arm64
@@ -64,11 +69,17 @@ jobs:
           source $HOME/.cargo/env
           cargo build --release
 
-      - name: Upload osx-arm64 Binary
+      - name: Upload citrea osx-arm64 Binary
         uses: actions/upload-artifact@v4
         with:
           name: citrea-${{ github.ref_name }}-osx-arm64
           path: target/release/citrea
+
+      - name: Upload citrea-cli osx-arm64 Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrea-cli-${{ github.ref_name }}-osx-arm64
+          path: target/release/citrea-cli
 
   release:
     needs: [ linux_amd64_binary_extraction, osx_arm64_binary_extraction ]
@@ -169,4 +180,3 @@ jobs:
           
           docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
           docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }}
-

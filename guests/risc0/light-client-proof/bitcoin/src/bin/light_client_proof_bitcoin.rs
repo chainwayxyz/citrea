@@ -21,11 +21,11 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
 const L2_GENESIS_ROOT: [u8; 32] = {
     let hex_root = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "72d15344b072a72f63f18b3a00be3741fb3aada4aa0a5e0f35d760b6abf51749",
+        Network::Testnet => "b7a7fdf56aa1725049704457596db552f2e975e37b2a786cfabedf987c2e7e08",
         Network::Devnet => "7bc4a868439b637b57fcc55bf6e119e51996d6a4127a39f1393c8c1e29d37365",
         Network::Nightly | Network::TestNetworkWithForks => match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "2e5345a517a1fb3326ef8784830772585ab8a2e3fd2e4e2a1b92a01aacb273fb",
+            None => "f35c8208450753a08ea3e1496df9c29bfa1b1fdd1df2980bcac1a878e7b46b9d",
         },
     };
 

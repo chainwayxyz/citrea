@@ -37,6 +37,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
         prev_block_hash: [u8; 32],
         l1_height: u64,
         txs_commitment: [u8; 32],
+        coinbase_depth: u8,
         _l2_height: u64,
     ) -> Result<bool, ShortHeaderProofProviderError> {
         let shp = self
@@ -54,16 +55,14 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             .expect("Should deserialize short header proof");
 
         if let Ok(l1_update_info) = shp.verify() {
-            let prev_hash_cond = if prev_block_hash == [0; 32] {
-                true
-            } else {
-                prev_block_hash == l1_update_info.prev_header_hash
-            };
+            let prev_hash_cond =
+                prev_block_hash == [0; 32] || prev_block_hash == l1_update_info.prev_header_hash;
 
             let return_cond = txs_commitment == l1_update_info.tx_commitment
                 && block_hash == l1_update_info.header_hash
                 && prev_hash_cond
-                && l1_height == l1_update_info.block_height;
+                && l1_height == l1_update_info.block_height
+                && coinbase_depth == l1_update_info.coinbase_txid_merkle_proof_height;
 
             if return_cond {
                 *self.last_queried_and_verified_hash.borrow_mut() = Some(block_hash);

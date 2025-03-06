@@ -65,7 +65,7 @@ use crate::REVEAL_OUTPUT_AMOUNT;
 #[cfg(feature = "testing")]
 pub const FINALITY_DEPTH: u64 = 5; // blocks
 #[cfg(not(feature = "testing"))]
-pub const FINALITY_DEPTH: u64 = 30; // blocks
+pub const FINALITY_DEPTH: u64 = 100; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
 /// Runtime configuration for the DA service

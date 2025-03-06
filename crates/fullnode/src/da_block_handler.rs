@@ -14,7 +14,7 @@ use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
-use sov_modules_api::Zkvm;
+use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -112,6 +112,15 @@ where
         let Some(l1_block) = pending_l1_blocks.front() else {
             return;
         };
+
+        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+            Da::block_to_short_header_proof(l1_block.clone());
+        self.ledger_db
+            .put_short_header_proof_by_l1_hash(
+                &l1_block.header().hash().into(),
+                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            )
+            .expect("Should save short header proof to ledger db");
 
         let l1_height = l1_block.header().height();
         info!("Processing L1 block at height: {}", l1_height);

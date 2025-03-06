@@ -8,5 +8,6 @@ RUN apt-get update && \
 WORKDIR /app
 
 COPY citrea /app/citrea
+COPY r0vm /usr/local/bin
 
 ENTRYPOINT ["./citrea"]
