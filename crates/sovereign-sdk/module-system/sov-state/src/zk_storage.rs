@@ -79,7 +79,6 @@ impl Storage for ZkStorage {
                     let key_bytes = key.key.clone();
                     let value_bytes = value.as_ref().map(|v| v.value.clone());
 
-                    // Seems like we can get rid of the extra clone here
                     diff.push((key_bytes, value_bytes.clone()));
 
                     (key_hash, value_bytes)
@@ -91,11 +90,7 @@ impl Storage for ZkStorage {
                 .map(|(key, value)| {
                     let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-                    let key_bytes = key.key.clone();
                     let value_bytes = value.as_ref().map(|v| v.value.clone());
-
-                    // Seems like we can get rid of the extra clone here
-                    diff.push((key_bytes, value_bytes.clone()));
 
                     (key_hash, value_bytes)
                 })
