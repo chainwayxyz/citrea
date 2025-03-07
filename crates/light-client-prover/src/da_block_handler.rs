@@ -164,39 +164,35 @@ where
             .da_service
             .extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToLightClientProver);
 
-        let mut assumptions = vec![];
-
         let previous_l1_height = l1_height - 1;
-        let (light_client_proof_journal, l2_last_height, light_client_proof_output) = match self
-            .ledger_db
-            .get_light_client_proof_data_by_l1_height(previous_l1_height)?
-        {
-            Some(data) => {
-                // LCPs are succinct receipts, we can make use of the assumption API
-                let proof = data.proof;
-                assumptions.push(proof);
+        let (assumption, light_client_proof_journal, l2_last_height, light_client_proof_output) =
+            match self
+                .ledger_db
+                .get_light_client_proof_data_by_l1_height(previous_l1_height)?
+            {
+                Some(data) => {
+                    let db_output = data.light_client_proof_output;
+                    let output = LightClientCircuitOutput::from(db_output);
 
-                let db_output = data.light_client_proof_output;
-                let output = LightClientCircuitOutput::from(db_output);
-
-                // TODO: instead of serializing the output
-                // we should just store and push the serialized proof as outputted from the circuit
-                // that way modifications are less error prone
-                (
-                    Some(borsh::to_vec(&output)?),
-                    output.last_l2_height,
-                    Some(output),
-                )
-            }
-            None => {
-                // first time proving a light client proof
-                tracing::warn!(
-                    "Creating initial light client proof on L1 block #{}",
-                    l1_height
-                );
-                (None, 0, None)
-            }
-        };
+                    // TODO: instead of serializing the output
+                    // we should just store and push the serialized proof as outputted from the circuit
+                    // that way modifications are less error prone
+                    (
+                        Some(data.proof),
+                        Some(borsh::to_vec(&output)?),
+                        output.last_l2_height,
+                        Some(output),
+                    )
+                }
+                None => {
+                    // first time proving a light client proof
+                    tracing::warn!(
+                        "Creating initial light client proof on L1 block #{}",
+                        l1_height
+                    );
+                    (None, None, 0, None)
+                }
+            };
 
         let storage = self.storage_manager.create_storage_for_next_l2_height();
 
@@ -211,12 +207,6 @@ where
             self.network.initial_batch_proof_method_ids(),
             &self.network.batch_prover_da_public_key(),
             &self.network.method_id_upgrade_authority_da_public_key(),
-        );
-
-        // TODO: allow is_empty to pass only on first time proving
-        assert!(
-            assumptions.is_empty() || assumptions.len() == 1,
-            "Assumptions should be either 0 or 1"
         );
 
         // This is not exactly right, but works for now because we have a single elf for
@@ -242,7 +232,13 @@ where
         };
 
         let proof = self
-            .prove(light_client_elf, circuit_input, assumptions)
+            .prove(
+                light_client_elf,
+                circuit_input,
+                // light client proofs are succinct, we can make use of assumption APIs
+                // if assumption is None, pass empty vector
+                assumption.map(|a| vec![a]).unwrap_or_default(),
+            )
             .await?;
 
         let circuit_output = Vm::extract_output::<LightClientCircuitOutput>(&proof)
