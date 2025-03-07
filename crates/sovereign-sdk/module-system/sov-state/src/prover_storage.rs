@@ -192,7 +192,6 @@ impl Storage for ProverStorage {
             Box::new(state_log.iter_ordered_writes().map(|(key, value)| {
                 let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-                let key_bytes = key.key.clone();
                 let value_bytes = value.as_ref().map(|v| v.value.clone());
 
                 key_preimages.push((key_hash, key.clone()));
