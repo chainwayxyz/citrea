@@ -48,6 +48,8 @@ pub struct ChunkAccessor<S: Storage> {
 impl<S: Storage> ChunkAccessor<S> {
     const PREFIX: u8 = b'c';
 
+    /// Rerturns body of the chunk if it exists
+    /// None if it doesn't
     pub fn get(wtxid: [u8; 32], working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
@@ -62,8 +64,7 @@ impl<S: Storage> ChunkAccessor<S> {
         working_set.get(&key).map(|v| v.value().to_vec())
     }
 
-    /// Rerturns body of the chunk if it exists
-    /// None if it doesn't
+    /// Insert a new chunk to the LCP state
     pub fn insert(wtxid: [u8; 32], body: Vec<u8>, working_set: &mut WorkingSet<S>) {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
@@ -125,7 +126,7 @@ mod tests {
         // 1 initial root -> commit
         // 1 update proof -> commit
         // 1 final root
-        assert_eq!(witness.len(), 5);
+        assert_eq!(witness.remaining(), 5);
 
         prover_storage.commit(&state_update, &vec![], &Default::default());
 

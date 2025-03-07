@@ -44,13 +44,8 @@ impl Witness {
     }
 
     /// Number of hints left
-    pub fn len(&self) -> usize {
+    pub fn remaining(&self) -> usize {
         self.hints.len()
-    }
-
-    /// Is empty
-    pub fn is_empty(&self) -> bool {
-        self.hints.is_empty()
     }
 }
 
