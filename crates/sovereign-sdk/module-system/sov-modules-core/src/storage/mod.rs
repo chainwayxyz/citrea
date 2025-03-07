@@ -210,6 +210,7 @@ pub trait Storage: Clone {
         &self,
         state_log: &ReadWriteLog,
         witness: &mut Witness,
+        accumulate_diff: bool,
     ) -> Result<
         (
             StateRootTransition,
@@ -236,7 +237,7 @@ pub trait Storage: Clone {
         offchain_log: &ReadWriteLog,
     ) -> Result<StorageRootHash, anyhow::Error> {
         let (state_root_transition, node_batch, _) =
-            self.compute_state_update(state_log, witness)?;
+            self.compute_state_update(state_log, witness, true)?;
         self.commit(&node_batch, accessory_writes, offchain_log);
 
         Ok(state_root_transition.final_root)

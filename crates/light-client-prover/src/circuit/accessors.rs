@@ -20,7 +20,7 @@ impl<S: Storage> BlockHashAccessor<S> {
 
         let p = Prefix::from_slice(&key);
 
-        let key = StorageKey::singleton(&p);
+        let key = StorageKey::singleton_owned(p);
 
         working_set.get(&key).is_some()
     }
@@ -57,7 +57,7 @@ impl<S: Storage> ChunkAccessor<S> {
 
         let p = Prefix::from_slice(&key);
 
-        let key = StorageKey::singleton(&p);
+        let key = StorageKey::singleton_owned(p);
 
         working_set.get(&key).map(|v| v.value().to_vec())
     }
@@ -115,7 +115,7 @@ mod tests {
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
 
         let (_, state_update, _) = prover_storage
-            .compute_state_update(&read_write_log, &mut witness)
+            .compute_state_update(&read_write_log, &mut witness, false)
             .expect("should not fail");
 
         // sanity check
@@ -163,7 +163,7 @@ mod tests {
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
 
         let (_, state_update, _) = prover_storage
-            .compute_state_update(&read_write_log, &mut witness)
+            .compute_state_update(&read_write_log, &mut witness, false)
             .expect("should not fail");
 
         prover_storage.commit(&state_update, &vec![], &Default::default());

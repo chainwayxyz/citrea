@@ -9,7 +9,7 @@ use crate::zk::StorageRootHash;
 pub struct LightClientCircuitOutput {
     /// State root of the node after the light client proof
     pub l2_state_root: StorageRootHash,
-    /// Ligth client proof JMT state root
+    /// Light client proof JMT state root
     pub lcp_state_root: StorageRootHash,
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
