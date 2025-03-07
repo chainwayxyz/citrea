@@ -368,12 +368,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         &self,
         da_verifier: DaV,
         input: LightClientCircuitInput<DaV::Spec>,
+        storage: S,
+        network: Network,
         l2_genesis_root: [u8; 32],
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_key: &[u8],
-        network: Network,
-        storage: S,
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
@@ -401,7 +401,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 None
             };
 
-        // make header chain verification and insert block hash to JMT
         let new_da_state = da_verifier
             .verify_header_chain(
                 previous_light_client_proof_output

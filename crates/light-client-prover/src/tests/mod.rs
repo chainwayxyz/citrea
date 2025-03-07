@@ -60,12 +60,12 @@ fn test_light_client_circuit_valid_da_valid_data() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -101,12 +101,12 @@ fn test_light_client_circuit_valid_da_valid_data() {
         .run_circuit(
             da_verifier.clone(),
             input_2,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -153,12 +153,12 @@ fn test_wrong_order_da_blocks_should_still_work() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -205,12 +205,12 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -257,12 +257,12 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         .run_circuit(
             da_verifier.clone(),
             input_2,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -310,12 +310,12 @@ fn test_header_chain_proof_height_and_hash() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -351,12 +351,12 @@ fn test_header_chain_proof_height_and_hash() {
     let res = zk_circuit_runner.run_circuit(
         da_verifier,
         input_2,
+        ZkStorage::new(),
+        Network::Nightly,
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &method_id_upgrade_authority,
-        Network::Nightly,
-        ZkStorage::new(),
     );
     assert!(matches!(
         res,
@@ -403,12 +403,12 @@ fn test_unverifiable_batch_proofs() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -458,12 +458,12 @@ fn test_unverifiable_prev_light_client_proof() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -497,12 +497,12 @@ fn test_unverifiable_prev_light_client_proof() {
         .run_circuit(
             da_verifier,
             input_2,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 }
@@ -544,12 +544,12 @@ fn test_new_method_id_txs() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -583,12 +583,12 @@ fn test_new_method_id_txs() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -624,12 +624,12 @@ fn test_new_method_id_txs() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -678,12 +678,12 @@ fn test_unverifiable_batch_proof_is_ignored() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -796,12 +796,12 @@ fn test_light_client_circuit_verify_chunks() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -914,12 +914,12 @@ fn test_missing_chunk() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -997,12 +997,12 @@ fn test_malicious_aggregate_should_not_work() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -1047,12 +1047,12 @@ fn test_malicious_aggregate_should_not_work() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -1118,12 +1118,12 @@ fn test_malicious_aggregate_should_not_work() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -1176,12 +1176,12 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         .run_circuit(
             da_verifier.clone(),
             input,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
@@ -1223,12 +1223,12 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         .run_circuit(
             da_verifier.clone(),
             input_2,
+            ZkStorage::new(),
+            Network::Nightly,
             l2_genesis_state_root,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &method_id_upgrade_authority,
-            Network::Nightly,
-            ZkStorage::new(),
         )
         .unwrap();
 
