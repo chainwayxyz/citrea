@@ -253,6 +253,9 @@ where
             circuit_output
         );
 
+        // Only save after the proof is generated
+        self.storage_manager.finalize_storage(result.change_set);
+
         let stored_proof_output = StoredLightClientProofOutput::from(circuit_output);
 
         self.ledger_db.insert_light_client_proof_data_by_l1_height(
@@ -260,9 +263,6 @@ where
             proof,
             stored_proof_output,
         )?;
-
-        // Only save after the proof is generated
-        self.storage_manager.finalize_storage(result.change_set);
 
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
