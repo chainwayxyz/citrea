@@ -267,12 +267,7 @@ impl MonitoringService {
             let reveal_wtxid = tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
-            // Assumes that no wallet can hold both batch_proof_transaction and light_client_transaction utxos
-            if reveal_hash.starts_with(REVEAL_TX_PREFIX) && parse_relevant_transaction(&tx).is_ok()
-            {
-                txids.push(tx.input[0].previous_output.txid);
-                txids.push(txid);
-            }
+            // Assumes that no wallet can hold both txs utxos
             if reveal_hash.starts_with(REVEAL_TX_PREFIX) && parse_relevant_transaction(&tx).is_ok()
             {
                 txids.push(tx.input[0].previous_output.txid);

@@ -69,7 +69,7 @@ impl TxListWithReveal for DaTxs {
         match self {
             Self::Complete { commit, reveal } => {
                 path.push(format!(
-                    "complete_light_client_inscription_with_reveal_id_{}.txs",
+                    "complete_inscription_with_reveal_id_{}.txs",
                     reveal.id
                 ));
                 let file = File::create(path)?;
@@ -86,7 +86,7 @@ impl TxListWithReveal for DaTxs {
                 reveal,
             } => {
                 path.push(format!(
-                    "chunked_light_client_inscription_with_reveal_id_{}.txs",
+                    "chunked_inscription_with_reveal_id_{}.txs",
                     reveal.id
                 ));
                 let file = File::create(path)?;
@@ -102,7 +102,7 @@ impl TxListWithReveal for DaTxs {
             }
             Self::BatchProofMethodId { commit, reveal } => {
                 path.push(format!(
-                    "batch_proof_method_id_light_client_inscription_with_reveal_id_{}.txs",
+                    "batch_proof_method_id_inscription_with_reveal_id_{}.txs",
                     reveal.id
                 ));
                 let file = File::create(path)?;
@@ -114,7 +114,7 @@ impl TxListWithReveal for DaTxs {
             }
             Self::SequencerCommitment { commit, reveal } => {
                 path.push(format!(
-                    "sequencer_commitment_light_client_inscription_with_reveal_id_{}.txs",
+                    "sequencer_commitment_inscription_with_reveal_id_{}.txs",
                     reveal.id
                 ));
                 let file = File::create(path)?;
