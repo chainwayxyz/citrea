@@ -17,7 +17,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
-use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::Mutex;
@@ -286,7 +286,7 @@ where
             elf: light_client_elf,
         };
 
-        let proof = prover_service.prove(data).await;
+        let proof = prover_service.prove(data, ReceiptType::Succinct).await;
         Ok(proof)
     }
 }

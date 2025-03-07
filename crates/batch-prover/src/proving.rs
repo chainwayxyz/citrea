@@ -26,7 +26,7 @@ use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
-use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_state::Witness;
 use tokio::sync::Mutex;
 use tracing::level_filters::LevelFilter;
@@ -291,11 +291,14 @@ where
         };
 
         let rx = prover_service
-            .start_proving(ProofData {
-                input,
-                assumptions: vec![],
-                elf,
-            })
+            .start_proving(
+                ProofData {
+                    input,
+                    assumptions: vec![],
+                    elf,
+                },
+                ReceiptType::Groth16,
+            )
             .await;
 
         proof_rxs.push(rx);
