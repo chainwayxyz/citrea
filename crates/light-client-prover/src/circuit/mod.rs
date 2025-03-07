@@ -18,13 +18,14 @@ use sov_rollup_interface::zk::light_client_proof::output::{
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
-use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
+use crate::circuit::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
 mod accessors;
 /// Initial values that are used to initialize the light client proof circuit.
 pub mod initial_values;
+pub(crate) mod utils;
 
 // L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
