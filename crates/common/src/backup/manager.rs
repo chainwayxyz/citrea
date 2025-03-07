@@ -85,7 +85,7 @@ impl BackupManager {
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
-        let config = config.unwrap_or_else(|| BackupConfig::new());
+        let config = config.unwrap_or_else(BackupConfig::new);
 
         Self {
             node_kind,
