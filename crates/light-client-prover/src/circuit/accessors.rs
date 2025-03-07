@@ -12,7 +12,7 @@ impl<S: Storage> BlockHashAccessor<S> {
     const PREFIX: u8 = b'b';
 
     pub fn exists(hash: [u8; 32], working_set: &mut WorkingSet<S>) -> bool {
-        // use `StateKey::singleton` as a hack to create no serialization key
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
         key[0] = Self::PREFIX;
@@ -26,7 +26,7 @@ impl<S: Storage> BlockHashAccessor<S> {
     }
 
     pub fn insert(hash: [u8; 32], working_set: &mut WorkingSet<S>) {
-        // use `StateKey::singleton` as a hack to create no serialization key
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
         key[0] = Self::PREFIX;
@@ -49,7 +49,7 @@ impl<S: Storage> ChunkAccessor<S> {
     const PREFIX: u8 = b'c';
 
     pub fn get(wtxid: [u8; 32], working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
-        // use `StateKey::singleton` as a hack to create no serialization key
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
         key[0] = Self::PREFIX;
@@ -65,7 +65,7 @@ impl<S: Storage> ChunkAccessor<S> {
     /// Rerturns body of the chunk if it exists
     /// None if it doesn't
     pub fn insert(wtxid: [u8; 32], body: Vec<u8>, working_set: &mut WorkingSet<S>) {
-        // use `StateKey::singleton` as a hack to create no serialization key
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
         key[0] = Self::PREFIX;

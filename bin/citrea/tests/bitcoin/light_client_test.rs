@@ -1161,6 +1161,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let state_diff_130kb = create_random_state_diff(130);
 
         let finalized_height = da.get_finalized_height(None).await?;
+        // finalized_height - 3 does not serve any purpose beyond just trying a different number
+        // it could be finalized_height or finalized_height - x (x any number)
         let l1_hash = da.get_block_hash(finalized_height - 3).await?;
 
         let verifiable_130kb_batch_proof = create_serialized_fake_receipt_batch_proof(
