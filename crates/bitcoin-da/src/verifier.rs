@@ -4,10 +4,7 @@ use itertools::Itertools;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
 use sov_rollup_interface::Network;
 
-use crate::helpers::parsers::{
-    parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
-    ParsedLightClientTransaction, VerifyParsed,
-};
+use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{calculate_double_sha256, calculate_txid, calculate_wtxid, merkle_tree};
 use crate::network_constants::{
     INITIAL_MAINNET_STATE, INITIAL_SIGNET_STATE, INITIAL_TESTNET4_STATE, MAINNET_CONSTANTS,
@@ -99,9 +96,48 @@ impl DaVerifier for BitcoinVerifier {
             }
 
             // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_batch_proof_transaction(tx) {
+            if let Ok(parsed_tx) = parse_relevant_transaction(tx) {
                 match parsed_tx {
-                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                    ParsedTransaction::Complete(complete) => {
+                        if let Some(hash) = complete.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                decompress_blob(&complete.body),
+                                complete.public_key,
+                                hash,
+                                Some(*wtxid),
+                            ))
+                        }
+                    }
+                    ParsedTransaction::Aggregate(aggregate) => {
+                        if let Some(hash) = aggregate.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                aggregate.body,
+                                aggregate.public_key,
+                                hash,
+                                Some(*wtxid),
+                            ))
+                        }
+                    }
+                    ParsedTransaction::Chunk(chunk) => {
+                        blobs.push(BlobWithSender::new(
+                            chunk.body,
+                            // chunk sender and hash irrelevant
+                            vec![],
+                            [0; 32],
+                            Some(*wtxid),
+                        ));
+                    }
+                    ParsedTransaction::BatchProverMethodId(method_id) => {
+                        if let Some(hash) = method_id.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                method_id.body,
+                                method_id.public_key,
+                                hash,
+                                Some(*wtxid),
+                            ))
+                        }
+                    }
+                    ParsedTransaction::SequencerCommitment(seq_comm) => {
                         if let Some(hash) = seq_comm.get_sig_verified_hash() {
                             blobs.push(BlobWithSender::new(
                                 seq_comm.body,
@@ -112,51 +148,6 @@ impl DaVerifier for BitcoinVerifier {
                         }
                     }
                 }
-                continue;
-            }
-            if let Ok(parsed_tx) = parse_light_client_transaction(tx) {
-                match parsed_tx {
-                    ParsedLightClientTransaction::Complete(complete) => {
-                        if let Some(hash) = complete.get_sig_verified_hash() {
-                            blobs.push(BlobWithSender::new(
-                                decompress_blob(&complete.body),
-                                complete.public_key,
-                                hash,
-                                Some(*wtxid),
-                            ))
-                        }
-                    }
-                    ParsedLightClientTransaction::Aggregate(aggregate) => {
-                        if let Some(hash) = aggregate.get_sig_verified_hash() {
-                            blobs.push(BlobWithSender::new(
-                                aggregate.body,
-                                aggregate.public_key,
-                                hash,
-                                Some(*wtxid),
-                            ))
-                        }
-                    }
-                    ParsedLightClientTransaction::Chunk(chunk) => {
-                        blobs.push(BlobWithSender::new(
-                            chunk.body,
-                            // chunk sender and hash irrelevant
-                            vec![],
-                            [0; 32],
-                            Some(*wtxid),
-                        ));
-                    }
-                    ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
-                        if let Some(hash) = method_id.get_sig_verified_hash() {
-                            blobs.push(BlobWithSender::new(
-                                method_id.body,
-                                method_id.public_key,
-                                hash,
-                                Some(*wtxid),
-                            ))
-                        }
-                    }
-                }
-                continue;
             }
         }
 

@@ -55,7 +55,7 @@ pub enum DaTxRequest {
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaDataLightClient {
+pub enum DataOnDa {
     /// A zk proof and state diff
     Complete(Proof),
     /// A list of tx ids
@@ -64,9 +64,11 @@ pub enum DaDataLightClient {
     Chunk(Vec<u8>),
     /// A new batch proof method_id
     BatchProofMethodId(BatchProofMethodId),
+    /// Sequencer commitment
+    SequencerCommitment(SequencerCommitment),
 }
 
-impl DaDataLightClient {
+impl DataOnDa {
     /// Implement parsing of ::Complete variant according to possible changes
     ///  of format on DA.
     pub fn borsh_parse_complete(body: &[u8]) -> borsh::io::Result<Self> {
@@ -88,7 +90,7 @@ impl DaDataLightClient {
         } else {
             let prefork1_data = PreFork1DaDataLightClient::try_from_slice(body)?;
             if let PreFork1DaDataLightClient::Complete(PreFork1Proof::Full(full)) = prefork1_data {
-                Ok(DaDataLightClient::Complete(full))
+                Ok(DataOnDa::Complete(full))
             } else {
                 use borsh::io::{Error, ErrorKind};
                 Err(Error::new(
@@ -98,15 +100,6 @@ impl DaDataLightClient {
             }
         }
     }
-}
-
-/// Data written to DA and read from DA must be the borsh serialization of this enum
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaDataBatchProof {
-    /// A commitment from the sequencer
-    SequencerCommitment(SequencerCommitment),
-    // /// Or a forced transaction
-    // ForcedTransaction(ForcedTransaction),
 }
 
 /// A specification for the types used by a DA layer.

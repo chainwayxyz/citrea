@@ -20,7 +20,7 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
-use crate::helpers::parsers::{parse_batch_proof_transaction, parse_light_client_transaction};
+use crate::helpers::parsers::parse_relevant_transaction;
 use crate::service::FINALITY_DEPTH;
 use crate::spec::utxo::UTXO;
 
@@ -268,14 +268,12 @@ impl MonitoringService {
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
             // Assumes that no wallet can hold both batch_proof_transaction and light_client_transaction utxos
-            if reveal_hash.starts_with(REVEAL_TX_PREFIX)
-                && parse_batch_proof_transaction(&tx).is_ok()
+            if reveal_hash.starts_with(REVEAL_TX_PREFIX) && parse_relevant_transaction(&tx).is_ok()
             {
                 txids.push(tx.input[0].previous_output.txid);
                 txids.push(txid);
             }
-            if reveal_hash.starts_with(REVEAL_TX_PREFIX)
-                && parse_light_client_transaction(&tx).is_ok()
+            if reveal_hash.starts_with(REVEAL_TX_PREFIX) && parse_relevant_transaction(&tx).is_ok()
             {
                 txids.push(tx.input[0].previous_output.txid);
                 txids.push(txid);

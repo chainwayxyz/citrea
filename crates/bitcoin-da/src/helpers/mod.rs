@@ -1,3 +1,5 @@
+use core::num::NonZero;
+
 use bitcoin::consensus::Encodable;
 use bitcoin::Transaction;
 use sha2::{Digest, Sha256};
@@ -7,74 +9,51 @@ pub mod builders;
 pub mod merkle_tree;
 pub mod parsers;
 
-/// Type represents a typed enum for LightClient kind
-enum TransactionKindLightClient {
+/// Type represents a typed enum for transaction kind
+#[repr(u16)]
+enum TransactionKind {
     /// This type of transaction includes full body (< 400kb)
-    Complete, // = 0,
+    Complete = 0,
     /// This type of transaction includes txids of chunks (>= 400kb)
-    Chunked, // = 1,
+    Chunked = 1,
     /// This type of transaction includes chunk parts of body (>= 400kb)
-    ChunkedPart, // = 2,
+    ChunkedPart = 2,
     /// This type of transaction includes a new batch proof method_id
-    BatchProofMethodId, // = 3,
-    Unknown(u16),
-}
-
-impl TransactionKindLightClient {
-    #[cfg(feature = "native")]
-    fn to_bytes(&self) -> Vec<u8> {
-        match self {
-            TransactionKindLightClient::Complete => 0u16.to_le_bytes().to_vec(),
-            TransactionKindLightClient::Chunked => 1u16.to_le_bytes().to_vec(),
-            TransactionKindLightClient::ChunkedPart => 2u16.to_le_bytes().to_vec(),
-            TransactionKindLightClient::BatchProofMethodId => 3u16.to_le_bytes().to_vec(),
-            TransactionKindLightClient::Unknown(n) => n.to_le_bytes().to_vec(),
-        }
-    }
-    fn from_bytes(bytes: &[u8]) -> Option<TransactionKindLightClient> {
-        if bytes.len() != 2 {
-            return None;
-        }
-        let mut kind_bytes = [0; 2];
-        kind_bytes.copy_from_slice(bytes);
-        match u16::from_le_bytes(kind_bytes) {
-            0 => Some(TransactionKindLightClient::Complete),
-            1 => Some(TransactionKindLightClient::Chunked),
-            2 => Some(TransactionKindLightClient::ChunkedPart),
-            3 => Some(TransactionKindLightClient::BatchProofMethodId),
-            n => Some(TransactionKindLightClient::Unknown(n)),
-        }
-    }
-}
-
-/// Type represents a typed enum for BatchProof kind
-enum TransactionKindBatchProof {
+    BatchProofMethodId = 3,
     /// SequencerCommitment
-    SequencerCommitment, // = 4
+    SequencerCommitment = 4,
     // /// ForcedTransaction
     // ForcedTransaction, // = ?,
-    Unknown(u16),
+    Unknown(NonZero<u16>),
 }
 
-impl TransactionKindBatchProof {
+impl TransactionKind {
     #[cfg(feature = "native")]
     fn to_bytes(&self) -> Vec<u8> {
         match self {
-            TransactionKindBatchProof::SequencerCommitment => 4u16.to_le_bytes().to_vec(),
-            // TransactionKindBatchProof::ForcedTransaction => 1u16.to_le_bytes(),
-            TransactionKindBatchProof::Unknown(n) => n.to_le_bytes().to_vec(),
+            TransactionKind::Complete => 0u16.to_le_bytes().to_vec(),
+            TransactionKind::Chunked => 1u16.to_le_bytes().to_vec(),
+            TransactionKind::ChunkedPart => 2u16.to_le_bytes().to_vec(),
+            TransactionKind::BatchProofMethodId => 3u16.to_le_bytes().to_vec(),
+            TransactionKind::SequencerCommitment => 4u16.to_le_bytes().to_vec(),
+            TransactionKind::Unknown(n) => n.get().to_le_bytes().to_vec(),
         }
     }
-    fn from_bytes(bytes: &[u8]) -> Option<TransactionKindBatchProof> {
+    fn from_bytes(bytes: &[u8]) -> Option<TransactionKind> {
         if bytes.len() != 2 {
             return None;
         }
         let mut kind_bytes = [0; 2];
         kind_bytes.copy_from_slice(bytes);
         match u16::from_le_bytes(kind_bytes) {
-            4 => Some(TransactionKindBatchProof::SequencerCommitment),
-            // ? => TransactionKindBatchProof::ForcedTransaction,
-            n => Some(TransactionKindBatchProof::Unknown(n)),
+            0 => Some(TransactionKind::Complete),
+            1 => Some(TransactionKind::Chunked),
+            2 => Some(TransactionKind::ChunkedPart),
+            3 => Some(TransactionKind::BatchProofMethodId),
+            4 => Some(TransactionKind::SequencerCommitment),
+            n => Some(TransactionKind::Unknown(
+                NonZero::new(n).expect("Is not zero"),
+            )),
         }
     }
 }

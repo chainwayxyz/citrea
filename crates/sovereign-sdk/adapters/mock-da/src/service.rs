@@ -9,8 +9,7 @@ use borsh::BorshDeserialize;
 use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaSpec, DaTxRequest,
-    SequencerCommitment, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SlotData, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
@@ -258,7 +257,7 @@ impl MockDaService {
         for b in block.blobs.clone() {
             let clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
-            if DaDataBatchProof::try_from_slice(full_data).is_ok() {
+            if DataOnDa::try_from_slice(full_data).is_ok() {
                 res.push(b)
             }
         }
@@ -421,8 +420,8 @@ impl DaService for MockDaService {
     ) -> anyhow::Result<Vec<Proof>> {
         let mut res = vec![];
         for b in block.blobs.clone() {
-            if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
-                if let DaDataLightClient::Complete(proof) = r {
+            if let Ok(r) = DataOnDa::try_from_slice(b.full_data()) {
+                if let DataOnDa::Complete(proof) = r {
                     res.push(proof);
                 } else {
                     panic!("Unexpected proof Aggregate/Chunk in MockDa");
@@ -439,8 +438,9 @@ impl DaService for MockDaService {
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let mut res = vec![];
         for b in block.blobs.clone() {
-            if let Ok(r) = DaDataBatchProof::try_from_slice(b.full_data()) {
-                let DaDataBatchProof::SequencerCommitment(seq_com) = r;
+            if let Ok(DataOnDa::SequencerCommitment(seq_com)) =
+                DataOnDa::try_from_slice(b.full_data())
+            {
                 res.push(seq_com);
             }
         }
@@ -459,13 +459,8 @@ impl DaService for MockDaService {
         for b in block.blobs.clone() {
             let clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
-            if DaDataBatchProof::try_from_slice(full_data).is_ok() {
+            if DataOnDa::try_from_slice(full_data).is_ok() {
                 txs.push(b);
-                continue;
-            }
-            if DaDataLightClient::try_from_slice(full_data).is_ok() {
-                txs.push(b);
-                continue;
             }
         }
         (txs.clone(), [0u8; 32], txs)
@@ -479,7 +474,7 @@ impl DaService for MockDaService {
         let blob = match tx_request {
             DaTxRequest::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
-                let req = DaDataLightClient::Complete(proof);
+                let req = DataOnDa::Complete(proof);
                 borsh::to_vec(&req).unwrap()
             }
             DaTxRequest::SequencerCommitment(seq_comm) => {
@@ -665,8 +660,8 @@ mod tests {
             assert_eq!(1, block.blobs.len());
             let blob = &mut block.blobs[0];
             let retrieved_data = blob.full_data().to_vec();
-            let retrieved_data = DaDataLightClient::try_from_slice(&retrieved_data).unwrap();
-            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+            let retrieved_data = DataOnDa::try_from_slice(&retrieved_data).unwrap();
+            let DataOnDa::Complete(retrieved_proof) = retrieved_data else {
                 panic!("unexpected type");
             };
             assert_eq!(proof, retrieved_proof);
@@ -735,8 +730,8 @@ mod tests {
 
             let proof = blob;
             let retrieved_data = fetched_block.blobs[0].full_data();
-            let retrieved_data = DaDataLightClient::try_from_slice(retrieved_data).unwrap();
-            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+            let retrieved_data = DataOnDa::try_from_slice(retrieved_data).unwrap();
+            let DataOnDa::Complete(retrieved_proof) = retrieved_data else {
                 panic!("unexpected type");
             };
             assert_eq!(proof, retrieved_proof);

@@ -15,7 +15,7 @@ use sov_db::schema::types::SlotNumber;
 use sov_modules_api::{
     BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, Zkvm,
 };
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient};
+use sov_rollup_interface::da::{BlockHeaderTrait, DataOnDa};
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -209,7 +209,7 @@ where
         'proof_loop: for (wtxid, batch_proof) in batch_proofs {
             info!("Batch proof wtxid={}", hex::encode(wtxid));
             match batch_proof {
-                DaDataLightClient::Complete(proof) => {
+                DataOnDa::Complete(proof) => {
                     info!("It is complete proof");
                     match self.verify_complete_proof(&proof, l2_last_height) {
                         Ok(true) => {
@@ -227,7 +227,7 @@ where
                         }
                     }
                 }
-                DaDataLightClient::Aggregate(_txids, wtxids) => {
+                DataOnDa::Aggregate(_txids, wtxids) => {
                     info!("It is aggregate proof with {} chunks", wtxids.len());
                     // Ensure that aggregate has all the needed chunks
                     let mut used_chunk_count = 0;
@@ -302,7 +302,7 @@ where
                         }
                     }
                 }
-                DaDataLightClient::Chunk(body) => {
+                DataOnDa::Chunk(body) => {
                     info!("It is chunk proof");
                     // For now, this chunk is unused by any aggregate in the block.
                     unused_chunks.insert(wtxid, body);
@@ -433,13 +433,13 @@ where
         &self,
         da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
         da_slot_hash: [u8; 32], // passing this as an argument is not clever
-    ) -> Vec<(Wtxid, DaDataLightClient)> {
+    ) -> Vec<(Wtxid, DataOnDa)> {
         let mut batch_proofs = Vec::new();
 
         da_data.iter_mut().for_each(|tx| {
-            if let Ok(data) = DaDataLightClient::try_from_slice(tx.full_data()) {
+            if let Ok(data) = DataOnDa::try_from_slice(tx.full_data()) {
                 match data {
-                    DaDataLightClient::Chunk(_) => {
+                    DataOnDa::Chunk(_) => {
                         batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data))
                     }
                     _ => {
