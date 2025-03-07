@@ -136,15 +136,18 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         #[cfg(feature = "testing")]
         {
-            if self.network == Network::TestNetworkWithForks {
-                env.env_var("ALL_FORKS", "1");
-                env.env_var("RISC0_DEV_MODE", "1");
-            }
-
             // if we are testing, set guest env var to enable dev mode
             // so that it verifies fake receipts
-            if self.network == Network::Nightly {
-                env.env_var("RISC0_DEV_MODE", "1");
+            env.env_var("RISC0_DEV_MODE", "1");
+
+            match self.network {
+                Network::Nightly => {}
+                Network::TestNetworkWithForks => {
+                    env.env_var("ALL_FORKS", "1");
+                }
+                _ => {
+                    panic!("Invalid network in testing feature!")
+                }
             }
         }
 
