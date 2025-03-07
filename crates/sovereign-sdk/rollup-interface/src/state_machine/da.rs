@@ -171,7 +171,7 @@ pub trait DaSpec:
     fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError>;
 }
 
-/// Can't compress error
+/// Decompression error
 pub struct DecompressError;
 
 #[derive(Debug)]
