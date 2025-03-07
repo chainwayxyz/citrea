@@ -190,7 +190,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 o.batch_proof_method_ids.clone()
             });
 
-        for blob in da_txs {
+        'blob_loop: for blob in da_txs {
             let Ok(data) = DaDataLightClient::try_from_slice(blob.full_data()) else {
                 println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
                 continue;
@@ -249,7 +249,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                                     "Unknown chunk in aggregate proof, wtxid={:?} skipping",
                                     wtxid
                                 );
-                                continue;
+                                continue 'blob_loop;
                             }
                         }
                     }
