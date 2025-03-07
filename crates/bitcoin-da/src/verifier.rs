@@ -33,7 +33,6 @@ pub enum ValidationError {
     InvalidBlock,
     NonMatchingScript,
     InvalidSegWitCommitment,
-    NonRelevantTxInProof,
     ValidBlobNotFoundInBlobs,
     BlobWasTamperedWith,
     IncorrectSenderInBlob,

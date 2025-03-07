@@ -32,7 +32,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpe
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
-use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
@@ -617,10 +617,10 @@ fn extract_da_data(
         .extract_relevant_blobs(&block)
         .into_iter()
         .for_each(|tx| {
-            let data = DaTxRequest::try_from_slice(tx.full_data());
-            if let Ok(DaTxRequest::SequencerCommitment(seq_com)) = data {
+            let data = DataOnDa::try_from_slice(tx.full_data());
+            if let Ok(DataOnDa::SequencerCommitment(seq_com)) = data {
                 sequencer_commitments.push(seq_com);
-            } else if let Ok(DaTxRequest::ZKProof(proof)) = data {
+            } else if let Ok(DataOnDa::Complete(proof)) = data {
                 zk_proofs.push(proof);
             } else {
                 tracing::warn!(
