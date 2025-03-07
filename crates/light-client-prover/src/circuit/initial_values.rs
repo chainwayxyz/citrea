@@ -280,23 +280,22 @@ pub trait InitialValueProvider<Das: DaSpec> {
 #[cfg(feature = "native")]
 impl InitialValueProvider<MockDaSpec> for Network {
     fn get_l2_genesis_root(&self) -> [u8; 32] {
-        match self {
-            Network::Nightly => mockda::GENESIS_ROOT,
-            _ => {
-                panic!("Only nightly allowed on mock da!")
-            }
-        }
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
+        mockda::GENESIS_ROOT
     }
 
     fn initial_batch_proof_method_ids(&self) -> Vec<(u64, [u32; 8])> {
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::INITIAL_BATCH_PROOF_METHOD_IDS.to_vec()
     }
 
     fn batch_prover_da_public_key(&self) -> [u8; 33] {
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::BATCH_PROVER_DA_PUBLIC_KEY
     }
 
     fn method_id_upgrade_authority_da_public_key(&self) -> [u8; 33] {
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY
     }
 }
