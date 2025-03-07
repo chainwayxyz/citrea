@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use accessors::{BlockHashAccessor, ChunkAccessor};
 use borsh::BorshDeserialize;
+use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{
     BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, WorkingSet, Zkvm,
@@ -340,13 +341,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         } else {
             // if running for the first time, we are going to be initializing the JMT
             // so the genesis root must this constant
-            assert_eq!(
-                lcp_state_root_transition.init_root,
-                const_hex::decode_to_array(
-                    "5350415253455f4d45524b4c455f504c414345484f4c4445525f484153485f5f"
-                )
-                .unwrap()
-            );
+            assert_eq!(lcp_state_root_transition.init_root, LCP_JMT_GENESIS_ROOT);
         }
 
         storage.commit(&jmt_state_update, &vec![], &ReadWriteLog::default());
