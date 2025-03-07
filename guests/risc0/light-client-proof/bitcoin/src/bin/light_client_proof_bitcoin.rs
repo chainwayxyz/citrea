@@ -1,7 +1,7 @@
 #![no_main]
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_light_client_prover::circuit::primitives::bitcoinda;
+use citrea_light_client_prover::circuit::initial_values::bitcoinda;
 use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::guest::Risc0Guest;

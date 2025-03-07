@@ -25,7 +25,7 @@ use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use crate::circuit::primitives::InitialValueProvider;
+use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::metrics::LIGHT_CLIENT_METRICS;
 

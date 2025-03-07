@@ -19,9 +19,11 @@ use sov_rollup_interface::Network;
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
-// Until we transition to the new system completely, we name old/new
+/// Accessor (helpers) that are used inside the light client proof circuit.
+/// To access certain information that was saved to its state at one point.
 mod accessors;
-pub mod primitives;
+/// Initial values that are used to initialize the light client proof circuit.
+pub mod initial_values;
 
 // L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;

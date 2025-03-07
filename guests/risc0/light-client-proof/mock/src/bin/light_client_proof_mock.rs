@@ -1,5 +1,5 @@
 #![no_main]
-use citrea_light_client_prover::circuit::primitives::mockda::{
+use citrea_light_client_prover::circuit::initial_values::mockda::{
     BATCH_PROVER_DA_PUBLIC_KEY, GENESIS_ROOT, INITIAL_BATCH_PROOF_METHOD_IDS,
     METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
 };

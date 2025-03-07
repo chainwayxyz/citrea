@@ -13,7 +13,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 
-use crate::circuit::primitives::InitialValueProvider;
+use crate::circuit::initial_values::InitialValueProvider;
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc;
 use crate::runner::CitreaLightClientProver;
