@@ -155,8 +155,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
         Self::verify(serialized_proof, code_commitment)?;
-        let output = serialized_proof[33..].to_vec();
-        Ok(T::deserialize(&mut &*output)?)
+        Ok(T::deserialize(&mut &serialized_proof[33..])?)
     }
 }
 
@@ -269,8 +268,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
         Self::verify(serialized_proof, code_commitment)?;
-        let output = serialized_proof[33..].to_vec();
-        Ok(T::deserialize(&mut &*output)?)
+        Ok(T::deserialize(&mut &serialized_proof[33..])?)
     }
 }
 
