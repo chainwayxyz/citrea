@@ -274,13 +274,10 @@ pub trait InitialValueProvider<Das: DaSpec> {
 impl InitialValueProvider<MockDaSpec> for Network {
     fn get_l2_genesis_root(&self) -> [u8; 32] {
         match self {
-            Network::Mainnet
-            | Network::Testnet
-            | Network::Devnet
-            | Network::TestNetworkWithForks => {
+            Network::Nightly => mockda::GENESIS_ROOT,
+            _ => {
                 panic!("Only nightly allowed on mock da!")
             }
-            Network::Nightly => mockda::GENESIS_ROOT,
         }
     }
 
