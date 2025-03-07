@@ -28,22 +28,22 @@ use super::{
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
-pub(crate) enum RawLightClientData {
-    /// compress(borsh(DaDataLightClient::Complete(Proof)))
+pub(crate) enum RawTxData {
+    /// compress(borsh(DataOnDa::Complete(Proof)))
     Complete(Vec<u8>),
     /// let compressed = compress(borsh(Proof))
     /// let chunks = compressed.chunks(MAX_TXBODY_SIZE)
-    /// [borsh(DaDataLightClient::Chunk(chunk)) for chunk in chunks]
+    /// [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
     Chunks(Vec<Vec<u8>>),
-    /// borsh(DaDataLightClient::BatchProofMethodId(MethodId))
+    /// borsh(DataOnDa::BatchProofMethodId(MethodId))
     BatchProofMethodId(Vec<u8>),
-    /// borsh(DaDataLightClient::SequencerCommitment(SequencerCommitment))
+    /// borsh(DataOnDa::SequencerCommitment(SequencerCommitment))
     SequencerCommitment(Vec<u8>),
 }
 
-/// This is a list of light client tx we need to send to DA
+/// This is a list of txs we need to send to DA
 #[derive(Serialize)]
-pub(crate) enum LightClientTxs {
+pub(crate) enum DaTxs {
     Complete {
         commit: Transaction, // unsigned
         reveal: TxWithId,
@@ -64,7 +64,7 @@ pub(crate) enum LightClientTxs {
     },
 }
 
-impl TxListWithReveal for LightClientTxs {
+impl TxListWithReveal for DaTxs {
     fn write_to_file(&self, mut path: PathBuf) -> Result<(), anyhow::Error> {
         match self {
             Self::Complete { commit, reveal } => {
@@ -132,7 +132,7 @@ impl TxListWithReveal for LightClientTxs {
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_light_client_transactions(
-    data: RawLightClientData,
+    data: RawTxData,
     da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
@@ -141,9 +141,9 @@ pub fn create_light_client_transactions(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: Vec<u8>,
-) -> Result<LightClientTxs, anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     match data {
-        RawLightClientData::Complete(body) => create_inscription_type_0(
+        RawTxData::Complete(body) => create_inscription_type_0(
             body,
             &da_private_key,
             prev_utxo,
@@ -154,7 +154,7 @@ pub fn create_light_client_transactions(
             network,
             &reveal_tx_prefix,
         ),
-        RawLightClientData::Chunks(body) => create_inscription_type_1(
+        RawTxData::Chunks(body) => create_inscription_type_1(
             body,
             &da_private_key,
             prev_utxo,
@@ -165,7 +165,7 @@ pub fn create_light_client_transactions(
             network,
             &reveal_tx_prefix,
         ),
-        RawLightClientData::BatchProofMethodId(body) => create_inscription_type_3(
+        RawTxData::BatchProofMethodId(body) => create_inscription_type_3(
             body,
             &da_private_key,
             prev_utxo,
@@ -176,7 +176,7 @@ pub fn create_light_client_transactions(
             network,
             &reveal_tx_prefix,
         ),
-        RawLightClientData::SequencerCommitment(body) => create_inscription_type_4(
+        RawTxData::SequencerCommitment(body) => create_inscription_type_4(
             body,
             &da_private_key,
             prev_utxo,
@@ -203,7 +203,7 @@ pub fn create_inscription_type_0(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<LightClientTxs, anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -325,7 +325,7 @@ pub fn create_inscription_type_0(
                     commit_tx_address
                 );
 
-                return Ok(LightClientTxs::Complete {
+                return Ok(DaTxs::Complete {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
                         id: reveal_tx.compute_txid(),
@@ -364,7 +364,7 @@ pub fn create_inscription_type_1(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<LightClientTxs, anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -666,7 +666,7 @@ pub fn create_inscription_type_1(
                     commit_tx_address
                 );
 
-                return Ok(LightClientTxs::Chunked {
+                return Ok(DaTxs::Chunked {
                     commit_chunks,
                     reveal_chunks,
                     commit: unsigned_commit_tx,
@@ -705,7 +705,7 @@ pub fn create_inscription_type_3(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<LightClientTxs, anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -827,7 +827,7 @@ pub fn create_inscription_type_3(
                     commit_tx_address
                 );
 
-                return Ok(LightClientTxs::BatchProofMethodId {
+                return Ok(DaTxs::BatchProofMethodId {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
                         id: reveal_tx.compute_txid(),
@@ -866,7 +866,7 @@ pub fn create_inscription_type_4(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<LightClientTxs, anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     debug_assert!(
         body.len() < 520,
         "The body of a serialized sequencer commitment exceeds 520 bytes"
@@ -993,7 +993,7 @@ pub fn create_inscription_type_4(
                         .as_secs_f64(),
                 );
 
-                return Ok(LightClientTxs::SequencerCommitment {
+                return Ok(DaTxs::SequencerCommitment {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
                         id: reveal_tx.compute_txid(),

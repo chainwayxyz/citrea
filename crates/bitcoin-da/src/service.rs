@@ -34,9 +34,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::fee::{BumpFeeMethod, FeeService};
-use crate::helpers::builders::body_builders::{
-    create_light_client_transactions, LightClientTxs, RawLightClientData,
-};
+use crate::helpers::builders::body_builders::{create_light_client_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
@@ -361,10 +359,10 @@ impl BitcoinService {
                 inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
 
                 match inscription_txs {
-                    LightClientTxs::Complete { commit, reveal } => {
+                    DaTxs::Complete { commit, reveal } => {
                         self.send_complete_transaction(commit, reveal).await
                     }
-                    LightClientTxs::Chunked {
+                    DaTxs::Chunked {
                         commit_chunks,
                         reveal_chunks,
                         commit,
@@ -378,7 +376,7 @@ impl BitcoinService {
             }
             DaTxRequest::SequencerCommitment(comm) => {
                 let data = DataOnDa::SequencerCommitment(comm);
-                let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
+                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
 
                 let prefix = self.reveal_tx_prefix.clone();
                 // create inscribe transactions
@@ -386,7 +384,7 @@ impl BitcoinService {
                     // Since this is CPU bound work, we use spawn_blocking
                     // to release the tokio runtime execution
                     create_light_client_transactions(
-                        RawLightClientData::SequencerCommitment(blob),
+                        RawTxData::SequencerCommitment(blob),
                         da_private_key,
                         prev_utxo,
                         utxos,
@@ -403,7 +401,7 @@ impl BitcoinService {
                 inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
 
                 match inscription_txs {
-                    LightClientTxs::SequencerCommitment { commit, reveal } => {
+                    DaTxs::SequencerCommitment { commit, reveal } => {
                         self.send_complete_transaction(commit, reveal).await
                     }
                     _ => panic!("Tx must be SequencerCommitment"),
@@ -411,7 +409,7 @@ impl BitcoinService {
             }
             DaTxRequest::BatchProofMethodId(method_id) => {
                 let data = DataOnDa::BatchProofMethodId(method_id);
-                let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
+                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
 
                 let prefix = self.reveal_tx_prefix.clone();
 
@@ -420,7 +418,7 @@ impl BitcoinService {
                     // Since this is CPU bound work, we use spawn_blocking
                     // to release the tokio runtime execution
                     create_light_client_transactions(
-                        RawLightClientData::BatchProofMethodId(blob),
+                        RawTxData::BatchProofMethodId(blob),
                         da_private_key,
                         prev_utxo,
                         utxos,
@@ -437,7 +435,7 @@ impl BitcoinService {
                 inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
 
                 match inscription_txs {
-                    LightClientTxs::BatchProofMethodId { commit, reveal } => {
+                    DaTxs::BatchProofMethodId { commit, reveal } => {
                         self.send_complete_transaction(commit, reveal).await
                     }
                     _ => panic!("Tx must be BatchProofMethodId"),
@@ -931,7 +929,7 @@ impl DaService for BitcoinService {
     }
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
-    /// For example, this method might return all of the blob transactions in rollup's namespace for BatchProofs/LightClient,
+    /// For example, this method might return all of the blob transactions in rollup's namespace,
     /// together with a range proof against the root of the namespaced-merkle-tree, demonstrating that the entire
     /// rollup namespace has been covered.
     #[allow(clippy::type_complexity)]
@@ -1241,12 +1239,12 @@ impl From<TxidWrapper> for [u8; 32] {
 }
 
 /// This function splits Proof based on its size. It is either:
-/// 1: compress(borsh(DaDataLightClient::Complete(Proof)))
+/// 1: compress(borsh(DataOnDa::Complete(Proof)))
 /// 2:
 ///   let compressed = compress(borsh(Proof))
 ///   let chunks = compressed.chunks(MAX_TXBODY_SIZE)
-///   [borsh(DaDataLightClient::Chunk(chunk)) for chunk in chunks]
-fn split_proof(zk_proof: Proof) -> RawLightClientData {
+///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
+fn split_proof(zk_proof: Proof) -> RawTxData {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
     let original_compressed = compress_blob(&original_blob);
 
@@ -1254,7 +1252,7 @@ fn split_proof(zk_proof: Proof) -> RawLightClientData {
         let data = DataOnDa::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
         let blob = compress_blob(&blob);
-        RawLightClientData::Complete(blob)
+        RawTxData::Complete(blob)
     } else {
         let mut chunks = vec![];
         for chunk in original_compressed.chunks(MAX_TXBODY_SIZE) {
@@ -1263,7 +1261,7 @@ fn split_proof(zk_proof: Proof) -> RawLightClientData {
             chunks.push(blob)
         }
 
-        RawLightClientData::Chunks(chunks)
+        RawTxData::Chunks(chunks)
     }
 }
 

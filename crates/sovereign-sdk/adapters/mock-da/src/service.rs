@@ -420,12 +420,10 @@ impl DaService for MockDaService {
     ) -> anyhow::Result<Vec<Proof>> {
         let mut res = vec![];
         for b in block.blobs.clone() {
-            if let Ok(r) = DataOnDa::try_from_slice(b.full_data()) {
-                if let DataOnDa::Complete(proof) = r {
-                    res.push(proof);
-                } else {
-                    panic!("Unexpected proof Aggregate/Chunk in MockDa");
-                }
+            if let Ok(DataOnDa::Complete(proof)) = DataOnDa::try_from_slice(b.full_data()) {
+                res.push(proof);
+            } else {
+                // ignore
             }
         }
         Ok(res)
@@ -479,12 +477,12 @@ impl DaService for MockDaService {
             }
             DaTxRequest::SequencerCommitment(seq_comm) => {
                 tracing::debug!("Adding a sequencer commitment");
-                let req = DaTxRequest::SequencerCommitment(seq_comm);
+                let req = DataOnDa::SequencerCommitment(seq_comm);
                 borsh::to_vec(&req).unwrap()
             }
             DaTxRequest::BatchProofMethodId(method_id) => {
                 tracing::debug!("Adding a batch proof method id tx");
-                let req = DaTxRequest::BatchProofMethodId(method_id);
+                let req = DataOnDa::BatchProofMethodId(method_id);
                 borsh::to_vec(&req).unwrap()
             }
         };
