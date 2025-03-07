@@ -22,7 +22,7 @@ pub struct BackupConfig {
 }
 
 impl BackupConfig {
-    fn new(_node_kind: &str) -> Self {
+    fn new() -> Self {
         let backup_dirs = vec![
             LEDGER_DB_PATH_SUFFIX.to_string(),
             StateDB::DB_PATH_SUFFIX.to_string(),
@@ -85,7 +85,7 @@ impl BackupManager {
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
-        let config = config.unwrap_or_else(|| BackupConfig::new(&node_kind));
+        let config = config.unwrap_or_else(|| BackupConfig::new());
 
         Self {
             node_kind,
