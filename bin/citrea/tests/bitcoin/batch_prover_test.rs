@@ -801,7 +801,7 @@ impl TestCase for ForkElfSwitchingTest {
             .is_empty());
 
         assert_eq!(
-            lcp.light_client_proof_output.state_root.to_vec(),
+            lcp.light_client_proof_output.l2_state_root.to_vec(),
             proofs[2].proof_output.final_state_root
         );
 

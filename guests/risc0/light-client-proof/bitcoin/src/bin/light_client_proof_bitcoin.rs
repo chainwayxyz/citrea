@@ -1,12 +1,14 @@
 #![no_main]
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_light_client_prover::circuit::run_circuit;
+use citrea_light_client_prover::circuit::initial_values::bitcoinda;
+use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
+use sov_state::ZkStorage;
 
 risc0_zkvm::guest::entry!(main);
 
@@ -19,128 +21,54 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
 };
 
 const L2_GENESIS_ROOT: [u8; 32] = {
-    let hex_root = match NETWORK {
-        Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "b7a7fdf56aa1725049704457596db552f2e975e37b2a786cfabedf987c2e7e08",
-        Network::Devnet => "7bc4a868439b637b57fcc55bf6e119e51996d6a4127a39f1393c8c1e29d37365",
-        Network::Nightly | Network::TestNetworkWithForks => match option_env!("L2_GENESIS_ROOT") {
-            Some(hex_root) => hex_root,
-            None => "f3a1164976f5f1d4c74779c58fea93e212a7fdea1745a7d3ef028d6bca834425",
-        },
-    };
-
-    match const_hex::const_decode_to_array(hex_root.as_bytes()) {
-        Ok(root) => root,
-        Err(_) => panic!("L2_GENESIS_ROOT must be valid 32-byte hex string"),
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_GENESIS_ROOT,
+        Network::Testnet => bitcoinda::TESTNET_GENESIS_ROOT,
+        Network::Devnet => bitcoinda::DEVNET_GENESIS_ROOT,
+        Network::Nightly => bitcoinda::NIGHTLY_GENESIS_ROOT,
+        Network::TestNetworkWithForks => bitcoinda::TEST_NETWORK_WITH_FORKS_GENESIS_ROOT,
     }
 };
 
-const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
-    let bytes = const_hex::const_decode_to_array::<32>(hex.as_bytes());
-    match bytes {
-        Ok(decoded) => constmuck::cast(decoded),
-        Err(_) => panic!("Invalid hex input"), // Replace with compile-time valid fallback if needed
-    }
-}
-
 const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
     match NETWORK {
-        // TODO: Update
-        Network::Mainnet => &[(0, [0; 8])],
-        Network::Testnet => &[
-            (
-                0,
-                decode_to_u32_array(
-                    "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
-                ),
-            ),
-            (
-                5546000,
-                decode_to_u32_array(
-                    "670b7ef87e7fab2ff2d46f38f71be524d42cc0c62da41884d3d41928b8c967d1",
-                ),
-            ),
-        ],
-        Network::Devnet => &[
-            (
-                0,
-                decode_to_u32_array(
-                    "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
-                ),
-            ),
-            (
-                1921835,
-                decode_to_u32_array(
-                    "0ef8aaa707662dc591558890d6e98fe25070392b342f447532cc4325547ad1a8",
-                ),
-            ),
-        ],
-        Network::Nightly => match option_env!("BATCH_PROOF_METHOD_ID") {
-            Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
-            None => &[(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
-        },
-        Network::TestNetworkWithForks => match option_env!("BATCH_PROOF_METHOD_ID") {
-            Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
-            None => &[
-                (
-                    0,
-                    decode_to_u32_array(
-                        "382a4e434d1b4b0912604a9de8876e75ff7603680c90107d78f6f71784ef1922",
-                    ),
-                ),
-                (
-                    100,
-                    decode_to_u32_array(
-                        "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
-                    ),
-                ),
-                (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-            ],
-        },
+        Network::Mainnet => bitcoinda::MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+        Network::Testnet => bitcoinda::TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+        Network::Devnet => bitcoinda::DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+        Network::Nightly => bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS,
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS
+        }
     }
 };
 
 const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
-    let hex_pub_key = match NETWORK {
-        Network::Mainnet => "030000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
-        Network::Devnet => "03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
-        Network::Nightly | Network::TestNetworkWithForks => {
-            match option_env!("PROVER_DA_PUB_KEY") {
-                Some(hex_pub_key) => hex_pub_key,
-                None => "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
-            }
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::TESTNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::DEVNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY
         }
-    };
-
-    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
     }
 };
 
 pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
-    let hex_pub_key = match NETWORK {
-        Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
-        Network::Devnet => "0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
-        Network::Nightly | Network::TestNetworkWithForks => {
-            match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
-                Some(hex_pub_key) => hex_pub_key,
-                None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
-            }
-        }
-    };
-
-    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-        Ok(pub_key) => pub_key,
-        Err(_) => {
-            panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY
         }
     }
 };
 
 pub fn main() {
+    let storage = ZkStorage::new();
+
     let guest = Risc0Guest::new();
 
     let da_verifier = BitcoinVerifier::new(RollupParams {
@@ -150,16 +78,20 @@ pub fn main() {
 
     let input = guest.read_from_host();
 
-    let output = run_circuit::<BitcoinVerifier, Risc0Guest>(
-        da_verifier,
-        input,
-        L2_GENESIS_ROOT,
-        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-        &BATCH_PROVER_DA_PUBLIC_KEY,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
-        NETWORK,
-    )
-    .unwrap();
+    let lcp = LightClientProofCircuit::<ZkStorage, BitcoinSpec, Risc0Guest>::new();
+
+    let output = lcp
+        .run_circuit(
+            da_verifier,
+            input,
+            storage,
+            NETWORK,
+            L2_GENESIS_ROOT,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &BATCH_PROVER_DA_PUBLIC_KEY,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        )
+        .unwrap();
 
     guest.commit(&output);
 }

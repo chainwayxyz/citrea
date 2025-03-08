@@ -166,7 +166,13 @@ pub trait DaSpec:
         + Send
         + Sync
         + Debug;
+
+    /// Decompress chunks to complete
+    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError>;
 }
+
+/// Decompression error
+pub struct DecompressError;
 
 #[derive(Debug)]
 /// Information needed to update L1 light client system contract

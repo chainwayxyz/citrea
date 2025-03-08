@@ -2,8 +2,9 @@ use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, L1UpdateSystemTransactionInfo, LatestDaState,
-    ShortHeaderProofVerificationError, VerifableShortHeaderProof,
+    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, DecompressError,
+    L1UpdateSystemTransactionInfo, LatestDaState, ShortHeaderProofVerificationError,
+    VerifableShortHeaderProof,
 };
 use sov_rollup_interface::Network;
 
@@ -54,6 +55,10 @@ impl DaSpec for MockDaSpec {
     type CompletenessProof = Vec<MockBlob>;
     type ChainParams = ();
     type ShortHeaderProof = MockShortHeaderProof;
+
+    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError> {
+        Ok(complete_chunks.to_vec())
+    }
 }
 
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug)]

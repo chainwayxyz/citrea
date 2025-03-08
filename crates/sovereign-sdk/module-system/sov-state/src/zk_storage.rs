@@ -54,6 +54,7 @@ impl Storage for ZkStorage {
         &self,
         state_log: &ReadWriteLog,
         witness: &mut Witness,
+        accumulate_diff: bool,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 
@@ -69,20 +70,32 @@ impl Storage for ZkStorage {
         let mut diff = vec![];
 
         // Compute the jmt update from the write batch
-        let batch = state_log
-            .iter_ordered_writes()
-            .map(|(key, value)| {
-                let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
+        let batch = if accumulate_diff {
+            state_log
+                .iter_ordered_writes()
+                .map(|(key, value)| {
+                    let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-                let key_bytes = key.key.clone();
-                let value_bytes = value.as_ref().map(|v| v.value.clone());
+                    let key_bytes = key.key.clone();
+                    let value_bytes = value.as_ref().map(|v| v.value.clone());
 
-                // Seems like we can get rid of the extra clone here
-                diff.push((key_bytes, value_bytes.clone()));
+                    diff.push((key_bytes, value_bytes.clone()));
 
-                (key_hash, value_bytes)
-            })
-            .collect::<Vec<_>>();
+                    (key_hash, value_bytes)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            state_log
+                .iter_ordered_writes()
+                .map(|(key, value)| {
+                    let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
+
+                    let value_bytes = value.as_ref().map(|v| v.value.clone());
+
+                    (key_hash, value_bytes)
+                })
+                .collect::<Vec<_>>()
+        };
 
         let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> = witness.get_hint();
         let new_root: [u8; 32] = witness.get_hint();

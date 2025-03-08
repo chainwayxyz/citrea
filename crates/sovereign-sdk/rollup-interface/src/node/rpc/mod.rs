@@ -230,7 +230,10 @@ impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
 pub struct LightClientProofOutputRpcResponse {
     /// State root of the node after the light client proof
     #[serde(with = "utils::rpc_hex")]
-    pub state_root: [u8; 32],
+    pub l2_state_root: [u8; 32],
+    /// LCP JMT state root
+    #[serde(with = "utils::rpc_hex")]
+    pub lcp_state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
     #[serde(with = "utils::rpc_hex")]
@@ -243,10 +246,6 @@ pub struct LightClientProofOutputRpcResponse {
     pub last_l2_height: U64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<BatchProofMethodIdRpcResponse>,
-    /// A map from tx hash to chunk data.
-    /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
-    /// like 32 hashes and some u64
-    pub mmr_guest: MMRGuestRpcResponse,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

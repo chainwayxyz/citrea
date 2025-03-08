@@ -90,11 +90,16 @@ impl StorageKey {
         Self { key: full_key.data }
     }
 
-    /// Creates a new [`StorageKey`] that combines a prefix and a key.
+    /// Treats a prefix as the key itself.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
             key: prefix.data.clone(),
         }
+    }
+
+    /// Treats a prefix as the key itself.
+    pub fn singleton_owned(prefix: Prefix) -> Self {
+        Self { key: prefix.data }
     }
 }
 
@@ -122,6 +127,12 @@ impl From<Vec<u8>> for StorageValue {
         Self {
             value: RefCount::from(value),
         }
+    }
+}
+
+impl From<StorageValue> for RefCount<[u8]> {
+    fn from(value: StorageValue) -> Self {
+        value.value
     }
 }
 
@@ -205,6 +216,7 @@ pub trait Storage: Clone {
         &self,
         state_log: &ReadWriteLog,
         witness: &mut Witness,
+        accumulate_diff: bool,
     ) -> Result<
         (
             StateRootTransition,
@@ -231,7 +243,7 @@ pub trait Storage: Clone {
         offchain_log: &ReadWriteLog,
     ) -> Result<StorageRootHash, anyhow::Error> {
         let (state_root_transition, node_batch, _) =
-            self.compute_state_update(state_log, witness)?;
+            self.compute_state_update(state_log, witness, true)?;
         self.commit(&node_batch, accessory_writes, offchain_log);
 
         Ok(state_root_transition.final_root)

@@ -1,47 +1,49 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use rand::{thread_rng, Rng};
-use sov_mock_da::{MockAddress, MockBlob};
-use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
-use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
-use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRInclusionProof, MMRNative};
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
+use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
+use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
+use sov_modules_api::Zkvm;
+use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BlobReaderTrait, DaDataLightClient, DaNamespace, DaVerifier,
+};
+use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
+
+use crate::circuit::LightClientProofCircuit;
 
 pub(crate) fn create_mock_batch_proof(
     initial_state_root: [u8; 32],
     final_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> MockBlob {
-    let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
+    let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2 {
+    let bp = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: BTreeMap::new(),
-        da_slot_hash: [5; 32],
-        sequencer_commitments_range: (0, 0),
-        sequencer_public_key: [9; 32].to_vec(),
-        sequencer_da_public_key: [9; 32].to_vec(),
         last_l2_height,
-        preproven_commitments: vec![],
+        sequencer_commitment_merkle_roots: vec![],
+        last_l1_hash_on_bitcoin_light_client_contract,
     };
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
 
-    let serialized_journal = match is_valid {
-        true => borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap(),
-        false => borsh::to_vec(&MockJournal::Unverifiable(bp_serialized.clone())).unwrap(),
-    };
+    let serialized_journal =
+        borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap();
 
     let mock_proof = MockProof {
         program_id: batch_proof_method_id.clone(),
-        is_valid: true,
+        is_valid,
         log: serialized_journal.clone(),
     };
 
@@ -62,33 +64,28 @@ pub(crate) fn create_serialized_mock_proof(
     last_l2_height: u64,
     is_valid: bool,
     state_diff: Option<CumulativeStateDiff>,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> Vec<u8> {
-    let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
+    let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2 {
+    let bp = BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
-        da_slot_hash: [5; 32],
-        sequencer_commitments_range: (0, 0),
-        sequencer_public_key: [9; 32].to_vec(),
-        sequencer_da_public_key: [9; 32].to_vec(),
         last_l2_height,
-        preproven_commitments: vec![],
+        sequencer_commitment_merkle_roots: vec![],
+        last_l1_hash_on_bitcoin_light_client_contract,
     };
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
 
-    let serialized_journal = match is_valid {
-        true => borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap(),
-        false => borsh::to_vec(&MockJournal::Unverifiable(bp_serialized.clone())).unwrap(),
-    };
+    let serialized_journal =
+        borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap();
 
     let mock_proof = MockProof {
         program_id: batch_proof_method_id.clone(),
-        is_valid: true,
+        is_valid,
         log: serialized_journal.clone(),
     };
 
@@ -164,21 +161,74 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
     map
 }
 
-pub(crate) fn create_mmr_hints(
-    mmr_guest: &mut MMRGuest,
-    chunks: Vec<([u8; 32], Vec<u8>)>,
-) -> VecDeque<(MMRChunk, MMRInclusionProof)> {
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    for chunk in chunks.iter() {
-        mmr.append(MMRChunk::new(chunk.0, chunk.1.clone())).unwrap();
+/// MockDA MockZkvm native context circuit runner implementation
+pub struct NativeCircuitRunner {
+    circuit: LightClientProofCircuit<ProverStorage, MockDaSpec, MockZkvm>,
+    prover_storage_manager: ProverStorageManager,
+}
+
+impl NativeCircuitRunner {
+    pub fn new(db_path: PathBuf) -> Self {
+        let prover_storage_manager = ProverStorageManager::new(Config {
+            path: db_path,
+            db_max_open_files: None,
+        })
+        .unwrap();
+        let circuit = LightClientProofCircuit::new();
+
+        Self {
+            circuit,
+            prover_storage_manager,
+        }
     }
 
-    let mut mmr_hints = VecDeque::new();
-    for chunk in chunks.iter() {
-        let (chunk, proof) = mmr.generate_proof(chunk.0).unwrap().unwrap();
-        mmr_guest.append(chunk.clone());
-        mmr_hints.push_back((chunk, proof));
-    }
+    /// Run the circuit with the given input and return the input with its witness filled
+    /// that will be used to run the circuit in ZK context
+    pub fn run(
+        &self,
+        mut input: LightClientCircuitInput<MockDaSpec>,
+        l2_genesis_state_root: [u8; 32],
+        inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+        batch_prover_da_pub_key: &[u8],
+        method_id_upgrade_authority: &[u8],
+    ) -> LightClientCircuitInput<MockDaSpec> {
+        let prover_storage = self
+            .prover_storage_manager
+            .create_storage_for_next_l2_height();
 
-    mmr_hints
+        let prev_lcp_output = input
+            .previous_light_client_proof_journal
+            .clone()
+            .map(|j| MockZkvm::deserialize_output(&j).unwrap());
+
+        let da_verifier = MockDaVerifier {};
+
+        // Hack for mock da and mockzkvm usage
+        let da_txs = da_verifier
+            .verify_transactions(
+                &input.da_block_header,
+                input.inclusion_proof,
+                input.completeness_proof.clone(),
+                DaNamespace::ToLightClientProver,
+            )
+            .unwrap();
+
+        let res = self.circuit.run_l1_block(
+            prover_storage,
+            Default::default(),
+            da_txs,
+            input.da_block_header.clone(),
+            prev_lcp_output,
+            l2_genesis_state_root,
+            inital_batch_proof_method_ids,
+            batch_prover_da_pub_key,
+            method_id_upgrade_authority,
+        );
+
+        self.prover_storage_manager.finalize_storage(res.change_set);
+
+        input.witness = res.witness;
+
+        input
+    }
 }

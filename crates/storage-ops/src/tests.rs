@@ -16,7 +16,6 @@ use sov_db::schema::types::light_client_proof::{
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_db::state_db::StateDB;
-use sov_rollup_interface::mmr::MMRGuest;
 use sov_schema_db::DB;
 use sov_state::Storage;
 use tokio::sync::broadcast;
@@ -407,7 +406,7 @@ fn prepare_slots_data(ledger_db: &DB) {
                 &StoredLightClientProof {
                     proof: vec![1; 32],
                     light_client_proof_output: StoredLightClientProofOutput {
-                        state_root: [0u8; 32],
+                        l2_state_root: [0u8; 32],
                         light_client_proof_method_id: [1u32; 8],
                         latest_da_state: StoredLatestDaState {
                             block_hash: [0; 32],
@@ -420,7 +419,7 @@ fn prepare_slots_data(ledger_db: &DB) {
                         unchained_batch_proofs_info: vec![],
                         last_l2_height: da_slot_height,
                         batch_proof_method_ids: vec![],
-                        mmr_guest: MMRGuest::new(),
+                        lcp_state_root: [0; 32],
                     },
                 },
             )

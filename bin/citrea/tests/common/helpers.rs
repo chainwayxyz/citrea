@@ -299,11 +299,12 @@ pub async fn start_rollup(
         let (mut rollup, l1_block_handler, rpc_module) =
             CitreaRollupBlueprint::create_light_client_prover(
                 &mock_demo_rollup,
+                network.expect("should be some"),
                 light_client_prover_config,
                 rollup_config.clone(),
-                &rocksdb_config,
                 da_service,
                 ledger_db,
+                storage_manager,
                 rpc_module,
                 backup_manager,
             )

@@ -8,7 +8,7 @@ use risc0_zkvm::{
     VerifierContext,
 };
 use sov_db::ledger_db::LedgerDB;
-use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
 use tracing::{debug, info};
 
@@ -113,7 +113,12 @@ impl ZkvmHost for Risc0BonsaiHost {
 
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
-    fn run(&mut self, elf: Vec<u8>, with_proof: bool) -> Result<Proof, anyhow::Error> {
+    fn run(
+        &mut self,
+        elf: Vec<u8>,
+        with_proof: bool,
+        receipt_type: ReceiptType,
+    ) -> Result<Proof, anyhow::Error> {
         if !with_proof {
             if std::env::var("RISC0_PROVER") == Ok("bonsai".to_string()) {
                 panic!("Bonsai prover requires with_proof to be true");
@@ -131,8 +136,18 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         #[cfg(feature = "testing")]
         {
-            if self.network == Network::TestNetworkWithForks {
-                env.env_var("ALL_FORKS", "1");
+            // if we are testing, set guest env var to enable dev mode
+            // so that it verifies fake receipts
+            env.env_var("RISC0_DEV_MODE", "1");
+
+            match self.network {
+                Network::Nightly => {}
+                Network::TestNetworkWithForks => {
+                    env.env_var("ALL_FORKS", "1");
+                }
+                _ => {
+                    panic!("Invalid network in testing feature!")
+                }
             }
         }
 
@@ -151,8 +166,12 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         tracing::info!("Starting risc0 proving");
 
-        let ProveInfo { receipt, stats } =
-            prover.prove_with_opts(env, &elf, &ProverOpts::groth16())?;
+        let prover_opts = match receipt_type {
+            ReceiptType::Groth16 => ProverOpts::groth16(),
+            ReceiptType::Succinct => ProverOpts::succinct(),
+        };
+
+        let ProveInfo { receipt, stats } = prover.prove_with_opts(env, &elf, &prover_opts)?;
 
         histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
 
@@ -262,15 +281,6 @@ impl Zkvm for Risc0BonsaiHost {
         receipt.verify(code_commitment.clone())?;
 
         Ok(T::deserialize(&mut receipt.journal.as_ref())?)
-    }
-
-    fn verify_expected_to_fail(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<(), Self::Error> {
-        unimplemented!(
-            "Risc0 host can use verify function to show proof fails. This function is not needed."
-        )
     }
 }
 

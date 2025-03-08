@@ -32,6 +32,11 @@ impl ZkvmGuest for Risc0Guest {
         let mut journal = env::journal();
         journal.write_slice(&buf);
     }
+
+    fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment) {
+        env::verify(code_commitment.0, journal)
+            .expect("Assumption API verify error should be infallible")
+    }
 }
 
 impl Zkvm for Risc0Guest {
@@ -39,18 +44,12 @@ impl Zkvm for Risc0Guest {
 
     type Error = Risc0GuestError;
 
-    fn verify(journal: &[u8], code_commitment: &Self::CodeCommitment) -> Result<(), Self::Error> {
-        env::verify(code_commitment.0, journal)
-            .expect("Guest side verification error should be Infallible");
-        Ok(())
-    }
-
     /// Unlike other verify functions in this module, this function accepts the full proof.
     /// Returns Ok if proof passes and Err otherwise.
     /// The reason this function exists is that efficient proof verification inside the
     /// guest cannot have the proof fail. This uses host side API for proof verification
     /// so it can show a proof fails.
-    fn verify_expected_to_fail(
+    fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<(), Self::Error> {
@@ -74,12 +73,18 @@ impl Zkvm for Risc0Guest {
     }
 
     fn verify_and_deserialize_output<T: BorshDeserialize>(
-        journal: &[u8],
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
-        env::verify(code_commitment.0, journal)
-            .expect("Guest side verification error should be Infallible");
-        T::try_from_slice(journal).map_err(|_| Risc0GuestError::FailedToDeserialize)
+        let receipt = receipt_from_proof(serialized_proof)
+            .map_err(|_| Risc0GuestError::FailedToDeserialize)?;
+
+        #[allow(clippy::clone_on_copy)]
+        receipt
+            .verify(code_commitment.0)
+            .map_err(|_| Risc0GuestError::ProofVerificationFailed)?;
+
+        T::try_from_slice(&receipt.journal.bytes).map_err(|_| Risc0GuestError::FailedToDeserialize)
     }
 }
 

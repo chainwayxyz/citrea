@@ -139,6 +139,7 @@ impl Storage for ProverStorage {
         &self,
         state_log: &ReadWriteLog,
         witness: &mut Witness,
+        accumulate_diff: bool,
     ) -> Result<(StateRootTransition, Self::StateUpdate, StateDiff), anyhow::Error> {
         let version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
@@ -175,17 +176,29 @@ impl Storage for ProverStorage {
         let mut diff = vec![];
 
         // Compute the jmt update from the write batch
-        let batch = state_log.iter_ordered_writes().map(|(key, value)| {
-            let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
+        let batch: Box<dyn Iterator<Item = (KeyHash, Option<Vec<u8>>)>> = if accumulate_diff {
+            Box::new(state_log.iter_ordered_writes().map(|(key, value)| {
+                let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
-            let key_bytes = key.key.clone();
-            let value_bytes = value.as_ref().map(|v| v.value.clone());
+                let key_bytes = key.key.clone();
+                let value_bytes = value.as_ref().map(|v| v.value.clone());
 
-            diff.push((key_bytes, value_bytes.clone()));
-            key_preimages.push((key_hash, key.clone()));
+                diff.push((key_bytes, value_bytes.clone()));
+                key_preimages.push((key_hash, key.clone()));
 
-            (key_hash, value_bytes.map(|v| (*v).to_vec()))
-        });
+                (key_hash, value_bytes.map(|v| (*v).to_vec()))
+            }))
+        } else {
+            Box::new(state_log.iter_ordered_writes().map(|(key, value)| {
+                let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
+
+                let value_bytes = value.as_ref().map(|v| v.value.clone());
+
+                key_preimages.push((key_hash, key.clone()));
+
+                (key_hash, value_bytes.map(|v| (*v).to_vec()))
+            }))
+        };
 
         let next_version = version + 1;
 
