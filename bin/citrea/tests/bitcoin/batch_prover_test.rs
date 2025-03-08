@@ -809,7 +809,9 @@ impl TestCase for ForkElfSwitchingTest {
     }
 }
 
+// ignoring this test now as we won't be supporting backwards compatability for proofs.
 #[tokio::test]
+#[ignore]
 async fn test_fork_elf_switching() -> Result<()> {
     use_network_forks(Network::TestNetworkWithForks);
 
