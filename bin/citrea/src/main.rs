@@ -11,6 +11,7 @@ use citrea::{
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
+use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
@@ -106,6 +107,7 @@ where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <DefaultContext as Spec>::Storage: NativeStorage,
+    Network: InitialValueProvider<<S as RollupBlueprint>::DaSpec>,
 {
     let rollup_config: FullNodeConfig<DaC> = match rollup_config_path {
         Some(path) => from_toml_path(path)
@@ -314,11 +316,12 @@ where
             let (mut prover, l1_block_handler, rpc_module) =
                 CitreaRollupBlueprint::create_light_client_prover(
                     &rollup_blueprint,
+                    network,
                     light_client_prover_config,
                     rollup_config.clone(),
-                    &rocksdb_config,
                     da_service,
                     ledger_db,
+                    storage_manager,
                     rpc_module,
                     backup_manager,
                 )

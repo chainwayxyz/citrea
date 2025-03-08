@@ -4,6 +4,7 @@ use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use sov_schema_db::DB;
+pub use sov_state::config::Config;
 use sov_state::storage::NativeStorage;
 pub use sov_state::ProverStorage;
 

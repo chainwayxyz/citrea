@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
-use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
     BatchProofMethodIdRpcResponse, LatestDaStateRpcResponse, LightClientProofOutputRpcResponse,
     LightClientProofResponse,
@@ -35,7 +34,9 @@ pub struct StoredLatestDaState {
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredLightClientProofOutput {
     /// State root of the node after the light client proof
-    pub state_root: [u8; 32],
+    pub l2_state_root: [u8; 32],
+    /// LCP JMT state root
+    pub lcp_state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
     pub light_client_proof_method_id: [u32; 8],
@@ -48,14 +49,12 @@ pub struct StoredLightClientProofOutput {
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
-    /// A list of unprocessed chunks
-    pub mmr_guest: MMRGuest,
 }
 
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
     fn from(value: StoredLightClientProofOutput) -> Self {
         Self {
-            state_root: value.state_root,
+            l2_state_root: value.l2_state_root,
             light_client_proof_method_id: value.light_client_proof_method_id.into(),
             latest_da_state: LatestDaStateRpcResponse {
                 block_hash: value.latest_da_state.block_hash,
@@ -86,7 +85,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                     method_id: method_id.into(),
                 })
                 .collect(),
-            mmr_guest: value.mmr_guest.into(),
+            lcp_state_root: value.lcp_state_root,
         }
     }
 }
@@ -95,7 +94,7 @@ impl From<LightClientCircuitOutput> for StoredLightClientProofOutput {
     fn from(circuit_output: LightClientCircuitOutput) -> Self {
         let latest_da_state = circuit_output.latest_da_state;
         StoredLightClientProofOutput {
-            state_root: circuit_output.state_root,
+            l2_state_root: circuit_output.l2_state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
             latest_da_state: StoredLatestDaState {
                 block_hash: latest_da_state.block_hash,
@@ -108,7 +107,7 @@ impl From<LightClientCircuitOutput> for StoredLightClientProofOutput {
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
             batch_proof_method_ids: circuit_output.batch_proof_method_ids,
-            mmr_guest: circuit_output.mmr_guest,
+            lcp_state_root: circuit_output.lcp_state_root,
         }
     }
 }
@@ -117,7 +116,7 @@ impl From<StoredLightClientProofOutput> for LightClientCircuitOutput {
     fn from(db_output: StoredLightClientProofOutput) -> Self {
         let latest_da_state = db_output.latest_da_state;
         LightClientCircuitOutput {
-            state_root: db_output.state_root,
+            l2_state_root: db_output.l2_state_root,
             light_client_proof_method_id: db_output.light_client_proof_method_id,
             latest_da_state: LatestDaState {
                 block_hash: latest_da_state.block_hash,
@@ -130,7 +129,7 @@ impl From<StoredLightClientProofOutput> for LightClientCircuitOutput {
             unchained_batch_proofs_info: db_output.unchained_batch_proofs_info,
             last_l2_height: db_output.last_l2_height,
             batch_proof_method_ids: db_output.batch_proof_method_ids,
-            mmr_guest: db_output.mmr_guest,
+            lcp_state_root: db_output.lcp_state_root,
         }
     }
 }

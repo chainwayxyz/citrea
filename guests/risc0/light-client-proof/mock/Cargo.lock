@@ -546,7 +546,11 @@ name = "citrea-light-client-prover"
 version = "0.6.0"
 dependencies = [
  "borsh",
+ "citrea-risc0-batch-proof",
+ "const-hex",
+ "constmuck",
  "sov-modules-api",
+ "sov-modules-core",
  "sov-rollup-interface",
 ]
 
@@ -1187,8 +1191,6 @@ dependencies = [
  "citrea-primitives",
  "citrea-risc0-adapter",
  "citrea-risc0-batch-proof",
- "const-hex",
- "constmuck",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-mock-da",

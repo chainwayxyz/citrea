@@ -11,6 +11,7 @@ use citrea_common::{
 };
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::CitreaFullnode;
+use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
@@ -30,6 +31,7 @@ use sov_modules_stf_blueprint::{
 };
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
@@ -303,18 +305,22 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     async fn create_light_client_prover(
         &self,
+        network: Network,
         prover_config: LightClientProverConfig,
         rollup_config: FullNodeConfig<Self::DaConfig>,
-        rocksdb_config: &RocksdbConfig,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
+        storage_manager: ProverStorageManager,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaLightClientProver,
         LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
-    )> {
+    )>
+    where
+        Network: InitialValueProvider<Self::DaSpec>,
+    {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let current_l2_height = ledger_db
@@ -337,19 +343,17 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .await,
         );
 
-        let batch_prover_code_commitments = self.get_batch_proof_code_commitments();
         let code_commitments = self.get_light_client_proof_code_commitments();
         let elfs = self.get_light_client_elfs();
 
         citrea_light_client_prover::build_services(
+            network,
             prover_config,
             runner_config,
-            rocksdb_config,
+            storage_manager,
             ledger_db,
             da_service,
             prover_service,
-            rollup_config.public_keys,
-            batch_prover_code_commitments,
             code_commitments,
             elfs,
             rpc_module,

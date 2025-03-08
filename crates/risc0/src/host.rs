@@ -136,8 +136,18 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         #[cfg(feature = "testing")]
         {
-            if self.network == Network::TestNetworkWithForks {
-                env.env_var("ALL_FORKS", "1");
+            // if we are testing, set guest env var to enable dev mode
+            // so that it verifies fake receipts
+            env.env_var("RISC0_DEV_MODE", "1");
+
+            match self.network {
+                Network::Nightly => {}
+                Network::TestNetworkWithForks => {
+                    env.env_var("ALL_FORKS", "1");
+                }
+                _ => {
+                    panic!("Invalid network in testing feature!")
+                }
             }
         }
 
@@ -271,15 +281,6 @@ impl Zkvm for Risc0BonsaiHost {
         receipt.verify(code_commitment.clone())?;
 
         Ok(T::deserialize(&mut receipt.journal.as_ref())?)
-    }
-
-    fn verify_expected_to_fail(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<(), Self::Error> {
-        unimplemented!(
-            "Risc0 host can use verify function to show proof fails. This function is not needed."
-        )
     }
 }
 

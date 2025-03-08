@@ -800,7 +800,7 @@ impl TestCase for ForkElfSwitchingTest {
             .is_empty());
 
         assert_eq!(
-            lcp.light_client_proof_output.state_root.to_vec(),
+            lcp.light_client_proof_output.l2_state_root.to_vec(),
             proofs[2].proof_output.final_state_root
         );
 
@@ -808,7 +808,9 @@ impl TestCase for ForkElfSwitchingTest {
     }
 }
 
+// ignoring this test now as we won't be supporting backwards compatability for proofs.
 #[tokio::test]
+#[ignore]
 async fn test_fork_elf_switching() -> Result<()> {
     use_network_forks(Network::TestNetworkWithForks);
 

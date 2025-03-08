@@ -138,7 +138,8 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        Ok(serialized_proof[33..].to_vec())
+        let mock_proof = MockProof::decode(serialized_proof)?;
+        Ok(mock_proof.log)
     }
 
     fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
@@ -154,15 +155,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
         Self::verify(serialized_proof, code_commitment)?;
-        let output = serialized_proof[33..].to_vec();
-        Ok(T::deserialize(&mut &*output)?)
-    }
-
-    fn verify_expected_to_fail(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<(), Self::Error> {
-        unimplemented!("Function not designed for zkVM hosts");
+        Ok(T::deserialize(&mut &serialized_proof[33..])?)
     }
 }
 
@@ -244,12 +237,17 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
 
     type Error = anyhow::Error;
 
-    fn verify(journal: &[u8], _code_commitment: &Self::CodeCommitment) -> Result<(), Self::Error> {
-        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
-        match mock_journal {
-            MockJournal::Verifiable(_) => Ok(()),
-            MockJournal::Unverifiable(_) => Err(anyhow::anyhow!("Journal is unverifiable")),
-        }
+    fn verify(
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
+    ) -> Result<(), Self::Error> {
+        let proof = MockProof::decode(serialized_proof)?;
+        anyhow::ensure!(
+            proof.program_id.matches(code_commitment),
+            "Proof failed to verify against requested code commitment"
+        );
+        anyhow::ensure!(proof.is_valid, "Proof is not valid");
+        Ok(())
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -266,25 +264,11 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
     }
 
     fn verify_and_deserialize_output<T: BorshDeserialize>(
-        journal: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<T, Self::Error> {
-        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
-        match mock_journal {
-            MockJournal::Verifiable(journal) => Ok(T::try_from_slice(&journal)?),
-            MockJournal::Unverifiable(_) => Err(anyhow::anyhow!("Journal is unverifiable")),
-        }
-    }
-
-    /// For mock zk vm guest, there is no difference between a proof that is expected to fail
-    /// and a proof that is expected to pass.
-    fn verify_expected_to_fail(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<(), Self::Error> {
-        let journal = Self::extract_raw_output(serialized_proof)?;
-
-        Self::verify(journal.as_slice(), code_commitment)
+    ) -> Result<T, Self::Error> {
+        Self::verify(serialized_proof, code_commitment)?;
+        Ok(T::deserialize(&mut &serialized_proof[33..])?)
     }
 }
 
@@ -297,6 +281,15 @@ impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
         let buf = borsh::to_vec(item).expect("Serialization to vec is infallible");
         // Mutate the `output` field using `borrow_mut`
         self.output.write().unwrap().extend_from_slice(&buf);
+    }
+
+    fn verify_with_assumptions(journal: &[u8], _code_commitment: &Self::CodeCommitment) {
+        // panics on unverifiable
+        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
+        match mock_journal {
+            MockJournal::Verifiable(_) => {}
+            MockJournal::Unverifiable(_) => panic!("Assumption proof verification failed!"),
+        }
     }
 }
 

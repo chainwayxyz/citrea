@@ -90,15 +90,6 @@ pub trait Zkvm: Send + Sync {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<(), Self::Error>;
 
-    /// Meant for guest implementations.
-    /// zkVM systems like Risc0 only have efficient recursive verification if
-    /// the proof is expected to pass.
-    /// This method is to be implemented with regular verification APIs of the zkVM system.
-    fn verify_expected_to_fail(
-        serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<(), Self::Error>;
-
     /// Extracts the raw output without doing any verification.
     /// The raw output is usually called "journal" which is the serialized output of the zkVM program.
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error>;
@@ -122,6 +113,9 @@ pub trait ZkvmGuest: Zkvm + Send + Sync {
     fn read_from_host<T: BorshDeserialize>(&self) -> T;
     /// Add a public output to the zkVM proof
     fn commit<T: BorshSerialize>(&self, item: &T);
+    /// Verify the ZK proof using assumption APIs
+    /// Panics when a proof can't be verified
+    fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment);
 }
 
 /// A trait expressing that two items of a type are (potentially fuzzy) matches.

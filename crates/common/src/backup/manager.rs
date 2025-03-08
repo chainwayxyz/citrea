@@ -7,7 +7,6 @@ use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
-use sov_db::mmr_db::MmrDB;
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use tokio::sync::{Mutex, MutexGuard};
@@ -23,16 +22,12 @@ pub struct BackupConfig {
 }
 
 impl BackupConfig {
-    fn new(node_kind: &str) -> Self {
-        let mut backup_dirs = vec![
+    fn new() -> Self {
+        let backup_dirs = vec![
             LEDGER_DB_PATH_SUFFIX.to_string(),
             StateDB::DB_PATH_SUFFIX.to_string(),
             NativeDB::DB_PATH_SUFFIX.to_string(),
         ];
-
-        if node_kind == "light-client-prover" {
-            backup_dirs.push(MmrDB::DB_PATH_SUFFIX.to_string());
-        }
 
         Self { backup_dirs }
     }
@@ -90,7 +85,7 @@ impl BackupManager {
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
-        let config = config.unwrap_or_else(|| BackupConfig::new(&node_kind));
+        let config = config.unwrap_or_else(BackupConfig::new);
 
         Self {
             node_kind,

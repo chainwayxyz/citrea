@@ -357,7 +357,7 @@ jobs:
       - docker-setup
       - build-test
     name: nextest
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:

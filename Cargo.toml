@@ -67,6 +67,7 @@ bytes = { version = "1.10.0", default-features = false }
 chrono = { version = "0.4.39", default-features = false }
 clap = { version = "4.5.23", features = ["derive"] }
 const-hex = "1.14"
+constmuck = "1.1"
 crypto-bigint = "0.5.5"
 digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
 derive_more = { version = "1", default-features = false }
