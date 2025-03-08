@@ -82,7 +82,6 @@ impl<S: Storage> ChunkAccessor<S> {
     }
 }
 
-// TODO: write raw accessor tests with JMT and prover storage manager
 #[cfg(test)]
 mod tests {
     use sov_modules_api::WorkingSet;
