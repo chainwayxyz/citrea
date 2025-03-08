@@ -49,8 +49,7 @@ pub struct ChunkAccessor<S: Storage> {
 impl<S: Storage> ChunkAccessor<S> {
     const PREFIX: u8 = b'c';
 
-    /// Rerturns body of the chunk if it exists
-    /// None if it doesn't
+    /// Returns body of the chunk if it exists
     pub fn get(wtxid: [u8; 32], working_set: &mut WorkingSet<S>) -> Option<RefCount<[u8]>> {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
@@ -83,8 +82,7 @@ impl<S: Storage> ChunkAccessor<S> {
     }
 }
 
-// TODO: write raw accessor tests with JMT
-// and prover storage manager
+// TODO: write raw accessor tests with JMT and prover storage manager
 #[cfg(test)]
 mod tests {
     use sov_modules_api::WorkingSet;
