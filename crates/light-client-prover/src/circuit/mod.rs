@@ -240,12 +240,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         continue;
                     }
 
-                    let mut chunks = Vec::with_capacity(wtxids.len());
+                    let mut complete_proof = Vec::new();
 
                     // Ensure that aggregate has all the needed chunks.
                     for wtxid in &wtxids {
                         match ChunkAccessor::<S>::get(*wtxid, &mut working_set) {
-                            Some(body) => chunks.push(body),
+                            Some(body) => complete_proof.extend_from_slice(body.as_ref()),
                             None => {
                                 println!(
                                     "Unknown chunk in aggregate proof, wtxid={:?} skipping",
@@ -257,8 +257,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     }
 
                     println!("Aggregate has all needed chunks!");
-
-                    let complete_proof: Vec<_> = chunks.into_iter().flatten().collect();
 
                     let Ok(complete_proof) = DS::decompress_chunks(&complete_proof) else {
                         println!("Failed to decompress and deserialize completed chunks");

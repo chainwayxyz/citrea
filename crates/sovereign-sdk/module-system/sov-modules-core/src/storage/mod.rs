@@ -130,6 +130,12 @@ impl From<Vec<u8>> for StorageValue {
     }
 }
 
+impl From<StorageValue> for RefCount<[u8]> {
+    fn from(value: StorageValue) -> Self {
+        value.value
+    }
+}
+
 impl StorageValue {
     /// Create a new storage value by serializing the input with the given codec.
     pub fn new<V, VC>(value: &V, codec: &VC) -> Self

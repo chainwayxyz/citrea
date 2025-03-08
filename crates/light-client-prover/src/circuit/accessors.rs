@@ -3,6 +3,7 @@
 /// don't want the serialization overhead.
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_modules_core::{Prefix, Storage, StorageKey, StorageValue};
+use sov_rollup_interface::RefCount;
 
 pub struct BlockHashAccessor<S: Storage> {
     phantom: core::marker::PhantomData<S>,
@@ -50,7 +51,7 @@ impl<S: Storage> ChunkAccessor<S> {
 
     /// Rerturns body of the chunk if it exists
     /// None if it doesn't
-    pub fn get(wtxid: [u8; 32], working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
+    pub fn get(wtxid: [u8; 32], working_set: &mut WorkingSet<S>) -> Option<RefCount<[u8]>> {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
 
@@ -61,7 +62,7 @@ impl<S: Storage> ChunkAccessor<S> {
 
         let key = StorageKey::singleton_owned(p);
 
-        working_set.get(&key).map(|v| v.value().to_vec())
+        working_set.get(&key).map(|v| v.into())
     }
 
     /// Insert a new chunk to the LCP state
@@ -155,7 +156,9 @@ mod tests {
         ChunkAccessor::<ProverStorage>::insert([1; 32], vec![12; 150], &mut working_set);
 
         assert_eq!(
-            ChunkAccessor::<ProverStorage>::get([1; 32], &mut working_set).unwrap(),
+            ChunkAccessor::<ProverStorage>::get([1; 32], &mut working_set)
+                .unwrap()
+                .to_vec(),
             vec![12; 150]
         );
 
@@ -173,7 +176,9 @@ mod tests {
         let mut working_set = WorkingSet::new(prover_storage.clone());
 
         assert_eq!(
-            ChunkAccessor::<ProverStorage>::get([1; 32], &mut working_set).unwrap(),
+            ChunkAccessor::<ProverStorage>::get([1; 32], &mut working_set)
+                .unwrap()
+                .to_vec(),
             vec![12; 150]
         );
 
