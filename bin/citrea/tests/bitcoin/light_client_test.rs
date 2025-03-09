@@ -20,7 +20,7 @@ use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -533,8 +533,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             BitcoinService::new_with_wallet_check(
                 bitcoin_da_service_config,
                 RollupParams {
-                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -776,8 +775,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             BitcoinService::new_with_wallet_check(
                 bitcoin_da_service_config,
                 RollupParams {
-                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -998,8 +996,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             BitcoinService::new_with_wallet_check(
                 bitcoin_da_service_config,
                 RollupParams {
-                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
                 },
                 tx,
             )

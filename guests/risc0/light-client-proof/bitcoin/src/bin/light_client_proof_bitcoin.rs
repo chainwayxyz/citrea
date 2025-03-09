@@ -3,7 +3,7 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda;
 use citrea_light_client_prover::circuit::LightClientProofCircuit;
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
@@ -72,8 +72,7 @@ pub fn main() {
     let guest = Risc0Guest::new();
 
     let da_verifier = BitcoinVerifier::new(RollupParams {
-        to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-        to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+        reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
     });
 
     let input = guest.read_from_host();

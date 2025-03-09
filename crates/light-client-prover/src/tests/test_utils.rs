@@ -7,9 +7,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
 use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
-use sov_rollup_interface::da::{
-    BatchProofMethodId, BlobReaderTrait, DaDataLightClient, DaNamespace, DaVerifier,
-};
+use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa};
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -49,7 +47,7 @@ pub(crate) fn create_mock_batch_proof(
 
     let mock_serialized = mock_proof.encode_to_vec();
 
-    let da_data = DaDataLightClient::Complete(mock_serialized);
+    let da_data = DataOnDa::Complete(mock_serialized);
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
 
     let blob = MockBlob::new(da_data_ser, MockAddress::new([9u8; 32]), [0u8; 32], None);
@@ -108,7 +106,7 @@ pub(crate) fn create_new_method_id_tx(
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
 ) -> MockBlob {
-    let da_data = DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
         method_id: new_method_id,
         activation_l2_height: activation_height,
     });
@@ -209,7 +207,6 @@ impl NativeCircuitRunner {
                 &input.da_block_header,
                 input.inclusion_proof,
                 input.completeness_proof.clone(),
-                DaNamespace::ToLightClientProver,
             )
             .unwrap();
 

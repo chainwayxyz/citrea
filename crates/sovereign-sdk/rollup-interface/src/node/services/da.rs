@@ -9,7 +9,7 @@ use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaNamespace, DaSpec, DaTxRequest, DaVerifier, SequencerCommitment};
+use crate::da::{DaSpec, DaTxRequest, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
 
@@ -97,7 +97,6 @@ pub trait DaService: Send + Sync + 'static {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-        namespace: DaNamespace,
     ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,

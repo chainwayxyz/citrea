@@ -9,8 +9,7 @@ use borsh::BorshDeserialize;
 use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec,
-    DaTxRequest, SequencerCommitment, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SlotData, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
@@ -258,7 +257,7 @@ impl MockDaService {
         for b in block.blobs.clone() {
             let clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
-            if DaDataBatchProof::try_from_slice(full_data).is_ok() {
+            if DataOnDa::try_from_slice(full_data).is_ok() {
                 res.push(b)
             }
         }
@@ -421,12 +420,10 @@ impl DaService for MockDaService {
     ) -> anyhow::Result<Vec<Proof>> {
         let mut res = vec![];
         for b in block.blobs.clone() {
-            if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
-                if let DaDataLightClient::Complete(proof) = r {
-                    res.push(proof);
-                } else {
-                    panic!("Unexpected proof Aggregate/Chunk in MockDa");
-                }
+            if let Ok(DataOnDa::Complete(proof)) = DataOnDa::try_from_slice(b.full_data()) {
+                res.push(proof);
+            } else {
+                // ignore
             }
         }
         Ok(res)
@@ -439,8 +436,9 @@ impl DaService for MockDaService {
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let mut res = vec![];
         for b in block.blobs.clone() {
-            if let Ok(r) = DaDataBatchProof::try_from_slice(b.full_data()) {
-                let DaDataBatchProof::SequencerCommitment(seq_com) = r;
+            if let Ok(DataOnDa::SequencerCommitment(seq_com)) =
+                DataOnDa::try_from_slice(b.full_data())
+            {
                 res.push(seq_com);
             }
         }
@@ -450,7 +448,6 @@ impl DaService for MockDaService {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-        namespace: DaNamespace,
     ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
@@ -460,18 +457,9 @@ impl DaService for MockDaService {
         for b in block.blobs.clone() {
             let clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
-            match namespace {
-                DaNamespace::ToBatchProver => {
-                    if DaDataBatchProof::try_from_slice(full_data).is_ok() {
-                        txs.push(b)
-                    }
-                }
-                DaNamespace::ToLightClientProver => {
-                    if DaDataLightClient::try_from_slice(full_data).is_ok() {
-                        txs.push(b)
-                    }
-                }
-            };
+            if DataOnDa::try_from_slice(full_data).is_ok() {
+                txs.push(b);
+            }
         }
         (txs.clone(), [0u8; 32], txs)
     }
@@ -484,17 +472,17 @@ impl DaService for MockDaService {
         let blob = match tx_request {
             DaTxRequest::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
-                let req = DaDataLightClient::Complete(proof);
+                let req = DataOnDa::Complete(proof);
                 borsh::to_vec(&req).unwrap()
             }
             DaTxRequest::SequencerCommitment(seq_comm) => {
                 tracing::debug!("Adding a sequencer commitment");
-                let req = DaTxRequest::SequencerCommitment(seq_comm);
+                let req = DataOnDa::SequencerCommitment(seq_comm);
                 borsh::to_vec(&req).unwrap()
             }
             DaTxRequest::BatchProofMethodId(method_id) => {
                 tracing::debug!("Adding a batch proof method id tx");
-                let req = DaTxRequest::BatchProofMethodId(method_id);
+                let req = DataOnDa::BatchProofMethodId(method_id);
                 borsh::to_vec(&req).unwrap()
             }
         };
@@ -670,8 +658,8 @@ mod tests {
             assert_eq!(1, block.blobs.len());
             let blob = &mut block.blobs[0];
             let retrieved_data = blob.full_data().to_vec();
-            let retrieved_data = DaDataLightClient::try_from_slice(&retrieved_data).unwrap();
-            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+            let retrieved_data = DataOnDa::try_from_slice(&retrieved_data).unwrap();
+            let DataOnDa::Complete(retrieved_proof) = retrieved_data else {
                 panic!("unexpected type");
             };
             assert_eq!(proof, retrieved_proof);
@@ -740,8 +728,8 @@ mod tests {
 
             let proof = blob;
             let retrieved_data = fetched_block.blobs[0].full_data();
-            let retrieved_data = DaDataLightClient::try_from_slice(retrieved_data).unwrap();
-            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+            let retrieved_data = DataOnDa::try_from_slice(retrieved_data).unwrap();
+            let DataOnDa::Complete(retrieved_proof) = retrieved_data else {
                 panic!("unexpected type");
             };
             assert_eq!(proof, retrieved_proof);

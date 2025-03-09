@@ -1,4 +1,4 @@
-use core::num::NonZeroU16;
+use core::num::NonZero;
 
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
@@ -9,7 +9,7 @@ use sha2::Digest;
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
-pub enum ParsedLightClientTransaction {
+pub enum ParsedTransaction {
     /// Kind 0
     Complete(ParsedComplete),
     /// Kind 1
@@ -18,13 +18,9 @@ pub enum ParsedLightClientTransaction {
     Chunk(ParsedChunk),
     /// Kind 3
     BatchProverMethodId(ParsedBatchProverMethodId),
-}
-
-#[derive(Debug, Clone)]
-pub enum ParsedBatchProofTransaction {
-    /// Kind 0
+    /// Kind 4
     SequencerCommitment(ParsedSequencerCommitment),
-    // /// Kind 1
+    // /// Kind ?
     // ForcedTransaction(ForcedTransaction),
 }
 
@@ -147,7 +143,7 @@ pub enum ParserError {
     #[error("Invalid header length")]
     InvalidHeaderLength,
     #[error("Invalid header type {0}")]
-    InvalidHeaderType(NonZeroU16),
+    InvalidHeaderType(NonZero<u16>),
     #[error("No witness in tapscript")]
     NonTapscriptWitness,
     #[error("Unexpected end of script")]
@@ -164,26 +160,13 @@ impl From<ScriptError> for ParserError {
     }
 }
 
-pub fn parse_light_client_transaction(
-    tx: &Transaction,
-) -> Result<ParsedLightClientTransaction, ParserError> {
+pub fn parse_relevant_transaction(tx: &Transaction) -> Result<ParsedTransaction, ParserError> {
     let script = get_script(tx)?;
     let instructions = script.instructions().peekable();
     // Map all Instructions errors into ParserError::ScriptError
     let mut instructions = instructions.map(|r| r.map_err(ParserError::from));
 
-    parse_relevant_lightclient(&mut instructions)
-}
-
-pub fn parse_batch_proof_transaction(
-    tx: &Transaction,
-) -> Result<ParsedBatchProofTransaction, ParserError> {
-    let script = get_script(tx)?;
-    let instructions = script.instructions().peekable();
-    // Map all Instructions errors into ParserError::ScriptError
-    let mut instructions = instructions.map(|r| r.map_err(ParserError::from));
-
-    parse_relevant_batchproof(&mut instructions)
+    parse_transaction(&mut instructions)
 }
 
 // Returns the script from the first input of the transaction
@@ -194,10 +177,10 @@ fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {
         .ok_or(ParserError::NonTapscriptWitness)
 }
 
-fn parse_relevant_lightclient(
+fn parse_transaction(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-) -> Result<ParsedLightClientTransaction, ParserError> {
-    use super::TransactionKindLightClient;
+) -> Result<ParsedTransaction, ParserError> {
+    use super::TransactionKind;
 
     // PushBytes(XOnlyPublicKey)
     let _public_key = read_push_bytes(instructions)?;
@@ -207,51 +190,26 @@ fn parse_relevant_lightclient(
 
     // Parse header
     let kind_slice = read_push_bytes(instructions)?;
-    let Some(kind) = TransactionKindLightClient::from_bytes(kind_slice.as_bytes()) else {
+    let Some(kind) = TransactionKind::from_bytes(kind_slice.as_bytes()) else {
         return Err(ParserError::InvalidHeaderLength);
     };
 
     // Parse transaction body according to type
     match kind {
-        TransactionKindLightClient::Complete => light_client::parse_type_0_body(instructions)
-            .map(ParsedLightClientTransaction::Complete),
-        TransactionKindLightClient::Chunked => light_client::parse_type_1_body(instructions)
-            .map(ParsedLightClientTransaction::Aggregate),
-        TransactionKindLightClient::ChunkedPart => {
-            light_client::parse_type_2_body(instructions).map(ParsedLightClientTransaction::Chunk)
+        TransactionKind::Complete => {
+            body_parsers::parse_type_0_body(instructions).map(ParsedTransaction::Complete)
         }
-        TransactionKindLightClient::BatchProofMethodId => {
-            light_client::parse_type_3_body(instructions)
-                .map(ParsedLightClientTransaction::BatchProverMethodId)
+        TransactionKind::Chunked => {
+            body_parsers::parse_type_1_body(instructions).map(ParsedTransaction::Aggregate)
         }
-        TransactionKindLightClient::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
-    }
-}
-
-fn parse_relevant_batchproof(
-    instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-) -> Result<ParsedBatchProofTransaction, ParserError> {
-    use super::TransactionKindBatchProof;
-
-    // PushBytes(XOnlyPublicKey)
-    let _public_key = read_push_bytes(instructions)?;
-    if OP_CHECKSIGVERIFY != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-
-    // Parse header
-    let header_slice = read_push_bytes(instructions)?;
-    let Some(kind) = TransactionKindBatchProof::from_bytes(header_slice.as_bytes()) else {
-        return Err(ParserError::InvalidHeaderLength);
-    };
-
-    // Parse transaction body according to type
-    match kind {
-        TransactionKindBatchProof::SequencerCommitment => {
-            batch_proof::parse_type_0_body(instructions)
-                .map(ParsedBatchProofTransaction::SequencerCommitment)
+        TransactionKind::ChunkedPart => {
+            body_parsers::parse_type_2_body(instructions).map(ParsedTransaction::Chunk)
         }
-        TransactionKindBatchProof::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
+        TransactionKind::BatchProofMethodId => body_parsers::parse_type_3_body(instructions)
+            .map(ParsedTransaction::BatchProverMethodId),
+        TransactionKind::SequencerCommitment => body_parsers::parse_type_4_body(instructions)
+            .map(ParsedTransaction::SequencerCommitment),
+        TransactionKind::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
     }
 }
 
@@ -284,14 +242,14 @@ fn read_opcode(
     Ok(op)
 }
 
-mod light_client {
+mod body_parsers {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
 
     use super::{
         read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedBatchProverMethodId,
-        ParsedChunk, ParsedComplete, ParserError,
+        ParsedChunk, ParsedComplete, ParsedSequencerCommitment, ParserError,
     };
 
     // Parse transaction body of Type0
@@ -498,16 +456,9 @@ mod light_client {
             public_key,
         })
     }
-}
 
-mod batch_proof {
-    use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
-    use bitcoin::script::Instruction;
-
-    use super::{read_opcode, read_push_bytes, ParsedSequencerCommitment, ParserError};
-
-    // Parse transaction body of Type0
-    pub(super) fn parse_type_0_body(
+    // Parse transaction body of Type4
+    pub(super) fn parse_type_4_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedSequencerCommitment, ParserError> {
         let op_false = read_push_bytes(instructions)?;
@@ -573,17 +524,14 @@ mod tests {
     use bitcoin::script::{self, PushBytesBuf};
     use bitcoin::Transaction;
     use citrea_primitives::compression::decompress_blob;
-    use sov_rollup_interface::da::DaDataLightClient;
+    use sov_rollup_interface::da::DataOnDa;
 
-    use super::{
-        parse_light_client_transaction, parse_relevant_lightclient, ParsedLightClientTransaction,
-        ParserError,
-    };
-    use crate::helpers::TransactionKindLightClient;
+    use super::{parse_relevant_transaction, parse_transaction, ParsedTransaction, ParserError};
+    use crate::helpers::TransactionKind;
 
     #[test]
     fn correct() {
-        let kind = TransactionKindLightClient::Complete;
+        let kind = TransactionKind::Complete;
 
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
@@ -604,14 +552,14 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions);
+        let result = parse_transaction(&mut instructions);
 
         let result = result.inspect_err(|e| {
             dbg!(e);
         });
         assert!(result.is_ok());
 
-        let ParsedLightClientTransaction::Complete(result) = result.unwrap() else {
+        let ParsedTransaction::Complete(result) = result.unwrap() else {
             panic!("Unexpected tx kind");
         };
 
@@ -622,7 +570,7 @@ mod tests {
 
     #[test]
     fn only_checksig() {
-        let kind = TransactionKindLightClient::Complete;
+        let kind = TransactionKind::Complete;
 
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
@@ -635,7 +583,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions);
+        let result = parse_transaction(&mut instructions);
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedEndOfScript);
@@ -648,7 +596,7 @@ mod tests {
         let tx: Transaction =
             bitcoin::consensus::deserialize(&hex::decode(hex_tx).unwrap()).unwrap();
 
-        let result = parse_light_client_transaction(&tx);
+        let result = parse_relevant_transaction(&tx);
 
         assert!(result.is_err(), "Failed to error on non-parseable tx.");
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -661,18 +609,18 @@ mod tests {
         let tx: Transaction =
             bitcoin::consensus::deserialize(&hex::decode(hex_tx).unwrap()).unwrap();
 
-        let result = parse_light_client_transaction(&tx);
+        let result = parse_relevant_transaction(&tx);
         let parsed = result.unwrap();
-        let ParsedLightClientTransaction::Complete(complete) = parsed else {
+        let ParsedTransaction::Complete(complete) = parsed else {
             panic!("Tx is not of a Complete kind");
         };
         let body = decompress_blob(&complete.body);
-        let _ = DaDataLightClient::borsh_parse_complete(&body).unwrap();
+        let _ = DataOnDa::borsh_parse_complete(&body).unwrap();
     }
 
     #[test]
     fn complex_envelope() {
-        let kind = TransactionKindLightClient::Complete;
+        let kind = TransactionKind::Complete;
 
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
@@ -697,7 +645,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions);
+        let result = parse_transaction(&mut instructions);
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -705,7 +653,7 @@ mod tests {
 
     #[test]
     fn two_envelopes() {
-        let kind = TransactionKindLightClient::Complete;
+        let kind = TransactionKind::Complete;
 
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
@@ -733,7 +681,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions);
+        let result = parse_transaction(&mut instructions);
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -741,7 +689,7 @@ mod tests {
 
     #[test]
     fn big_push() {
-        let kind = TransactionKindLightClient::Complete;
+        let kind = TransactionKind::Complete;
 
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
@@ -766,11 +714,11 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions);
+        let result = parse_transaction(&mut instructions);
 
         assert!(result.is_ok());
 
-        let ParsedLightClientTransaction::Complete(result) = result.unwrap() else {
+        let ParsedTransaction::Complete(result) = result.unwrap() else {
             panic!("Unexpected tx kind");
         };
 

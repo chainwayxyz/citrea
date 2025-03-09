@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::pruning::components::prune_ledger;
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
-use crate::pruning::types::PruningNodeType;
+use crate::pruning::types::StorageNodeType;
 use crate::pruning::{Pruner, PrunerService, PruningConfig};
 
 #[tokio::test(flavor = "multi_thread")]
@@ -46,7 +46,7 @@ async fn test_pruning_simple_run() {
         );
         let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-        tokio::spawn(pruner_service.run(PruningNodeType::Sequencer, cancellation_token.clone()));
+        tokio::spawn(pruner_service.run(StorageNodeType::Sequencer, cancellation_token.clone()));
 
         sleep(Duration::from_secs(1));
 
@@ -180,7 +180,7 @@ pub fn test_pruning_ledger_db_soft_confirmations() {
         .unwrap()
         .is_some());
 
-    prune_ledger(PruningNodeType::Sequencer, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::Sequencer, ledger_db.clone(), 10);
 
     // Pruned
     assert!(ledger_db
@@ -332,7 +332,7 @@ pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
         .unwrap()
         .is_some());
 
-    prune_ledger(PruningNodeType::BatchProver, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::BatchProver, ledger_db.clone(), 10);
 
     // Pruned
     assert!(ledger_db
@@ -516,7 +516,7 @@ pub fn test_pruning_ledger_db_fullnode_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(PruningNodeType::FullNode, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::FullNode, ledger_db.clone(), 10);
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
@@ -607,7 +607,7 @@ pub fn test_pruning_ledger_db_light_client_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(PruningNodeType::LightClient, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::LightClient, ledger_db.clone(), 10);
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
@@ -698,7 +698,7 @@ pub fn test_pruning_ledger_db_batch_prover_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(PruningNodeType::BatchProver, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::BatchProver, ledger_db.clone(), 10);
 
     // SHOULD NOT CHANGE
     assert!(ledger_db

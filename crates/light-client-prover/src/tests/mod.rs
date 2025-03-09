@@ -2,7 +2,7 @@ pub mod test_utils;
 
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
-use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient};
+use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::BatchProofInfo;
 use sov_rollup_interface::Network;
@@ -718,7 +718,7 @@ fn test_light_client_circuit_verify_chunks() {
     );
 
     let chunk1 = serialized_mock_proof[0..39700].to_vec();
-    let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
+    let chunk1_da_data = DataOnDa::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
     let blob1 = MockBlob::new(
@@ -730,7 +730,7 @@ fn test_light_client_circuit_verify_chunks() {
     blob1.full_data();
 
     let chunk2 = serialized_mock_proof[39700..39700 * 2].to_vec();
-    let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
+    let chunk2_da_data = DataOnDa::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
     let blob2 = MockBlob::new(
@@ -743,7 +743,7 @@ fn test_light_client_circuit_verify_chunks() {
     blob2.full_data();
 
     let chunk3 = serialized_mock_proof[39700 * 2..].to_vec();
-    let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
+    let chunk3_da_data = DataOnDa::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
     let blob3 = MockBlob::new(
@@ -754,7 +754,7 @@ fn test_light_client_circuit_verify_chunks() {
     );
     blob3.full_data();
 
-    let aggregate_da_data = DaDataLightClient::Aggregate(
+    let aggregate_da_data = DataOnDa::Aggregate(
         vec![
             blob1.wtxid().unwrap(),
             blob2.wtxid().unwrap(),
@@ -835,7 +835,7 @@ fn test_missing_chunk() {
     );
 
     let chunk1 = serialized_mock_proof[0..39700].to_vec();
-    let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
+    let chunk1_da_data = DataOnDa::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
     let blob1 = MockBlob::new(
@@ -847,7 +847,7 @@ fn test_missing_chunk() {
     blob1.full_data();
 
     let chunk2 = serialized_mock_proof[39700..39700 * 2].to_vec();
-    let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
+    let chunk2_da_data = DataOnDa::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
     let blob2 = MockBlob::new(
@@ -860,7 +860,7 @@ fn test_missing_chunk() {
     blob2.full_data();
 
     let chunk3 = serialized_mock_proof[39700 * 2..].to_vec();
-    let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
+    let chunk3_da_data = DataOnDa::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
     let blob3 = MockBlob::new(
@@ -871,7 +871,7 @@ fn test_missing_chunk() {
     );
     blob3.full_data();
 
-    let aggregate_da_data = DaDataLightClient::Aggregate(
+    let aggregate_da_data = DataOnDa::Aggregate(
         vec![
             blob1.wtxid().unwrap(),
             blob2.wtxid().unwrap(),
@@ -953,7 +953,7 @@ fn test_malicious_aggregate_should_not_work() {
     );
 
     let chunk1 = serialized_mock_proof[0..39700].to_vec();
-    let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
+    let chunk1_da_data = DataOnDa::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
     let blob1 = MockBlob::new(
@@ -965,7 +965,7 @@ fn test_malicious_aggregate_should_not_work() {
     blob1.full_data();
 
     let chunk2 = serialized_mock_proof[39700..39700 * 2].to_vec();
-    let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
+    let chunk2_da_data = DataOnDa::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
     let blob2 = MockBlob::new(
@@ -1010,7 +1010,7 @@ fn test_malicious_aggregate_should_not_work() {
     assert_eq!(output.last_l2_height, 0);
     assert!(output.unchained_batch_proofs_info.is_empty());
 
-    let malicious_aggregate_da_data = DaDataLightClient::Aggregate(
+    let malicious_aggregate_da_data = DataOnDa::Aggregate(
         vec![blob1.wtxid().unwrap(), blob2.wtxid().unwrap()],
         vec![blob1.wtxid().unwrap(), blob2.wtxid().unwrap()],
     );
@@ -1062,7 +1062,7 @@ fn test_malicious_aggregate_should_not_work() {
     assert!(output.unchained_batch_proofs_info.is_empty());
 
     let chunk3 = serialized_mock_proof[39700 * 2..].to_vec();
-    let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
+    let chunk3_da_data = DataOnDa::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
     // Last chhunk
@@ -1074,7 +1074,7 @@ fn test_malicious_aggregate_should_not_work() {
     );
     blob3.full_data();
 
-    let aggregate_da_data = DaDataLightClient::Aggregate(
+    let aggregate_da_data = DataOnDa::Aggregate(
         vec![
             blob1.wtxid().unwrap(),
             blob2.wtxid().unwrap(),

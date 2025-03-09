@@ -1,20 +1,21 @@
-use sov_db::schema::tables::SoftConfirmationByNumber;
+use sov_db::schema::tables::{LastSequencerCommitmentSent, SoftConfirmationByNumber};
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::pruning::types::StorageNodeType;
 use crate::utils::delete_soft_confirmations_by_number;
 
-pub(crate) fn prune_soft_confirmations(
+pub(crate) fn rollback_soft_confirmations(
     node_type: StorageNodeType,
     ledger_db: &DB,
-    up_to_block: u64,
+    target_l2: u64,
+    last_sequencer_commitment_l2_height: u64,
 ) -> anyhow::Result<u64> {
     let mut soft_confirmations = ledger_db.iter_with_direction::<SoftConfirmationByNumber>(
         Default::default(),
-        ScanDirection::Forward,
+        ScanDirection::Backward,
     )?;
-    soft_confirmations.seek_to_first();
+    soft_confirmations.seek_to_last();
 
     let mut deleted = 0;
     for record in soft_confirmations {
@@ -24,7 +25,7 @@ pub(crate) fn prune_soft_confirmations(
 
         let soft_confirmation_number = record.key;
 
-        if soft_confirmation_number > SoftConfirmationNumber(up_to_block) {
+        if soft_confirmation_number <= SoftConfirmationNumber(target_l2) {
             break;
         }
 
@@ -36,6 +37,15 @@ pub(crate) fn prune_soft_confirmations(
         )?;
 
         deleted += 1;
+    }
+
+    if matches!(node_type, StorageNodeType::Sequencer)
+        || matches!(node_type, StorageNodeType::FullNode)
+    {
+        ledger_db.put::<LastSequencerCommitmentSent>(
+            &(),
+            &SoftConfirmationNumber(last_sequencer_commitment_l2_height),
+        )?;
     }
 
     Ok(deleted)

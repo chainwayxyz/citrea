@@ -1,13 +1,10 @@
 use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
 use sov_rollup_interface::Network;
 
-use crate::helpers::parsers::{
-    parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
-    ParsedLightClientTransaction, VerifyParsed,
-};
+use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{calculate_double_sha256, calculate_txid, calculate_wtxid, merkle_tree};
 use crate::network_constants::{
     INITIAL_MAINNET_STATE, INITIAL_SIGNET_STATE, INITIAL_TESTNET4_STATE, MAINNET_CONSTANTS,
@@ -28,8 +25,7 @@ const BLOCKS_PER_EPOCH: u64 = 2016;
 
 #[derive(Debug)]
 pub struct BitcoinVerifier {
-    to_batch_proof_prefix: Vec<u8>,
-    to_light_client_prefix: Vec<u8>,
+    reveal_tx_prefix: Vec<u8>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -37,7 +33,6 @@ pub enum ValidationError {
     InvalidBlock,
     NonMatchingScript,
     InvalidSegWitCommitment,
-    NonRelevantTxInProof,
     ValidBlobNotFoundInBlobs,
     BlobWasTamperedWith,
     IncorrectSenderInBlob,
@@ -64,8 +59,7 @@ impl DaVerifier for BitcoinVerifier {
 
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
-            to_batch_proof_prefix: params.to_batch_proof_prefix,
-            to_light_client_prefix: params.to_light_client_prefix,
+            reveal_tx_prefix: params.reveal_tx_prefix,
         }
     }
 
@@ -80,16 +74,12 @@ impl DaVerifier for BitcoinVerifier {
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-        namespace: DaNamespace,
     ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error> {
         if block_header.tx_count as usize != inclusion_proof.wtxids.len() {
             return Err(ValidationError::HeaderInclusionTxCountMismatch);
         }
 
-        let prefix = match namespace {
-            DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
-            DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
-        };
+        let prefix = self.reveal_tx_prefix.as_slice();
 
         // Optimistically assume all txs in the completeness proof are verifiable
         let mut blobs = Vec::with_capacity(completeness_proof.len());
@@ -105,65 +95,55 @@ impl DaVerifier for BitcoinVerifier {
             }
 
             // it must be parsed correctly
-            match namespace {
-                DaNamespace::ToBatchProver => {
-                    if let Ok(parsed_tx) = parse_batch_proof_transaction(tx) {
-                        match parsed_tx {
-                            ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                                if let Some(hash) = seq_comm.get_sig_verified_hash() {
-                                    blobs.push(BlobWithSender::new(
-                                        seq_comm.body,
-                                        seq_comm.public_key,
-                                        hash,
-                                        Some(*wtxid),
-                                    ));
-                                }
-                            }
+            if let Ok(parsed_tx) = parse_relevant_transaction(tx) {
+                match parsed_tx {
+                    ParsedTransaction::Complete(complete) => {
+                        if let Some(hash) = complete.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                decompress_blob(&complete.body),
+                                complete.public_key,
+                                hash,
+                                Some(*wtxid),
+                            ))
                         }
                     }
-                }
-                DaNamespace::ToLightClientProver => {
-                    if let Ok(parsed_tx) = parse_light_client_transaction(tx) {
-                        match parsed_tx {
-                            ParsedLightClientTransaction::Complete(complete) => {
-                                if let Some(hash) = complete.get_sig_verified_hash() {
-                                    blobs.push(BlobWithSender::new(
-                                        decompress_blob(&complete.body),
-                                        complete.public_key,
-                                        hash,
-                                        Some(*wtxid),
-                                    ))
-                                }
-                            }
-                            ParsedLightClientTransaction::Aggregate(aggregate) => {
-                                if let Some(hash) = aggregate.get_sig_verified_hash() {
-                                    blobs.push(BlobWithSender::new(
-                                        aggregate.body,
-                                        aggregate.public_key,
-                                        hash,
-                                        Some(*wtxid),
-                                    ))
-                                }
-                            }
-                            ParsedLightClientTransaction::Chunk(chunk) => {
-                                blobs.push(BlobWithSender::new(
-                                    chunk.body,
-                                    // chunk sender and hash irrelevant
-                                    vec![],
-                                    [0; 32],
-                                    Some(*wtxid),
-                                ));
-                            }
-                            ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
-                                if let Some(hash) = method_id.get_sig_verified_hash() {
-                                    blobs.push(BlobWithSender::new(
-                                        method_id.body,
-                                        method_id.public_key,
-                                        hash,
-                                        Some(*wtxid),
-                                    ))
-                                }
-                            }
+                    ParsedTransaction::Aggregate(aggregate) => {
+                        if let Some(hash) = aggregate.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                aggregate.body,
+                                aggregate.public_key,
+                                hash,
+                                Some(*wtxid),
+                            ))
+                        }
+                    }
+                    ParsedTransaction::Chunk(chunk) => {
+                        blobs.push(BlobWithSender::new(
+                            chunk.body,
+                            // chunk sender and hash irrelevant
+                            vec![],
+                            [0; 32],
+                            Some(*wtxid),
+                        ));
+                    }
+                    ParsedTransaction::BatchProverMethodId(method_id) => {
+                        if let Some(hash) = method_id.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                method_id.body,
+                                method_id.public_key,
+                                hash,
+                                Some(*wtxid),
+                            ))
+                        }
+                    }
+                    ParsedTransaction::SequencerCommitment(seq_comm) => {
+                        if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                seq_comm.body,
+                                seq_comm.public_key,
+                                hash,
+                                Some(*wtxid),
+                            ));
                         }
                     }
                 }
@@ -644,8 +624,7 @@ mod tests {
 
     fn get_verifier() -> BitcoinVerifier {
         BitcoinVerifier::new(RollupParams {
-            to_batch_proof_prefix: vec![],
-            to_light_client_prefix: vec![],
+            reveal_tx_prefix: vec![],
         })
     }
 

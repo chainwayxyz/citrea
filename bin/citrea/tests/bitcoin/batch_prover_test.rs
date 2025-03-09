@@ -22,7 +22,7 @@ use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_stf::runtime::DefaultContext;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_signature::K256PublicKey;
@@ -248,8 +248,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             BitcoinService::new_with_wallet_check(
                 bitcoin_da_service_config,
                 RollupParams {
-                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
                 },
                 tx,
             )

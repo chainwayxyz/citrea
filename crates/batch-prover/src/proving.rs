@@ -18,7 +18,7 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
@@ -85,7 +85,7 @@ where
     let l1_height = l1_block.header().height();
 
     let (da_data, inclusion_proof, completeness_proof) =
-        da_service.extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToBatchProver);
+        da_service.extract_relevant_blobs_with_proof(l1_block);
 
     let sequencer_commitments: Vec<SequencerCommitment> =
         extract_sequencer_commitments::<Da>(da_service.clone(), l1_block, &sequencer_da_pub_key);

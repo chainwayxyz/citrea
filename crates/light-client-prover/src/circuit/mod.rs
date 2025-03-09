@@ -8,7 +8,7 @@ use sov_modules_api::{
     BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, WorkingSet, Zkvm,
 };
 use sov_modules_core::{ReadWriteLog, Storage};
-use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{BatchProofMethodId, DaVerifier, DataOnDa};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -193,14 +193,14 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             });
 
         'blob_loop: for blob in da_txs {
-            let Ok(data) = DaDataLightClient::try_from_slice(blob.full_data()) else {
+            let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {
                 println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
                 continue;
             };
 
             match data {
                 // No need to check sender for chunk
-                DaDataLightClient::Chunk(chunk) => {
+                DataOnDa::Chunk(chunk) => {
                     println!("Found chunk");
 
                     ChunkAccessor::<S>::insert(
@@ -209,7 +209,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &mut working_set,
                     );
                 }
-                DaDataLightClient::Complete(proof) => {
+                DataOnDa::Complete(proof) => {
                     println!("Found complete proof");
                     if blob.sender().as_ref() != batch_prover_da_public_key {
                         println!(
@@ -230,7 +230,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         Err(e) => println!("Error processing complete proof: {e}"),
                     }
                 }
-                DaDataLightClient::Aggregate(_, wtxids) => {
+                DataOnDa::Aggregate(_, wtxids) => {
                     println!("Found aggregate proof");
                     if blob.sender().as_ref() != batch_prover_da_public_key {
                         println!(
@@ -281,7 +281,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         }
                     }
                 }
-                DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+                DataOnDa::BatchProofMethodId(BatchProofMethodId {
                     method_id,
                     activation_l2_height,
                 }) => {
@@ -302,6 +302,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     if activation_l2_height > last_activation_height {
                         batch_proof_method_ids.push((activation_l2_height, method_id));
                     }
+                }
+                DataOnDa::SequencerCommitment(_) => {
+                    println!("Found sequencer commitment");
+                    // TODO
                 }
             }
         }
@@ -411,7 +415,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 &input.da_block_header,
                 input.inclusion_proof,
                 input.completeness_proof,
-                DaNamespace::ToLightClientProver,
             )
             .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
 
