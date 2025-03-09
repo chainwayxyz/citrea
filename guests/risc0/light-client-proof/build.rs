@@ -78,16 +78,19 @@ fn main() {
         .get("light-client-proof-mock")
         .expect("light-client-proof-mock guest should be present");
 
-    let bitcoin_elf = format!("{:?}", bitcoin_guest.elf);
+    let bitcoin_elf_path = format!("{:?}", bitcoin_guest.path);
     let bitcoin_image_id = format!("{:?}", bitcoin_guest.image_id);
-    let mock_elf = format!("{:?}", mock_guest.elf);
+    let mock_elf_path = format!("{:?}", mock_guest.path);
     let mock_image_id = format!("{:?}", mock_guest.image_id);
 
     let elf = format!(
         r#"
-    pub const LIGHT_CLIENT_PROOF_BITCOIN_ELF: &[u8] = &{bitcoin_elf};
+    pub const LIGHT_CLIENT_PROOF_BITCOIN_ELF: &[u8] = include_bytes!({bitcoin_elf_path});
+    pub const LIGHT_CLIENT_PROOF_BITCOIN_PATH: &str = {bitcoin_elf_path};
     pub const LIGHT_CLIENT_PROOF_BITCOIN_ID: [u32; 8] = {bitcoin_image_id};
-    pub const LIGHT_CLIENT_PROOF_MOCK_ELF: &[u8] = &{mock_elf};
+
+    pub const LIGHT_CLIENT_PROOF_MOCK_ELF: &[u8] = include_bytes!({mock_elf_path});
+    pub const LIGHT_CLIENT_PROOF_MOCK_PATH: &str = {mock_elf_path};
     pub const LIGHT_CLIENT_PROOF_MOCK_ID: [u32; 8] = {mock_image_id};
     "#
     );
