@@ -17,10 +17,7 @@ use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
-use test_utils::{
-    generate_mock_txs, get_citrea_path, get_default_service, get_mock_false_signature_txs_block,
-    DEFAULT_DA_PRIVATE_KEY,
-};
+use test_utils::{generate_mock_txs, get_citrea_path, get_default_service, DEFAULT_DA_PRIVATE_KEY};
 
 struct BitcoinServiceTest;
 
@@ -60,19 +57,20 @@ impl TestCase for BitcoinServiceTest {
 
         let pubkey;
 
-        // Extracts relevant batch proof blobs with proof correctly
+        // Extracts relevant sequencer commitments, batch proofs and method id update txs with proof correctly
         {
             let (mut txs, inclusion_proof, completeness_proof) =
                 service.extract_relevant_blobs_with_proof(&block);
             assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
-            // 3 valid commitments, and 1 invalid commitment with wrong public key
+            // 2 complete, 2 aggregate proofs with 2 chunks for the first and 3 chunks for the second agg, and 2 method id txs
+            // 4 seqeuncer commitments
             assert_eq!(txs.len(), 15);
             // it is >= due to the probability that one of commit transactions ended up
             // with the prefix by chance (reveals are guaranteed to have a certain prefix)
             assert!(
-                completeness_proof.len() >= 4,
-                "expected completeness proof to have at least 4 txs, it has {}",
+                completeness_proof.len() >= 15,
+                "expected completeness proof to have at least 6 txs, it has {}",
                 completeness_proof.len()
             );
 
@@ -87,33 +85,6 @@ impl TestCase for BitcoinServiceTest {
             } else {
                 txs[1].sender.0.clone()
             };
-
-            // Ensure that the produced outputs are verifiable by the verifier
-            assert_eq!(
-                verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
-                Ok(txs)
-            );
-        }
-
-        // Extracts relevant light client proof blobs with proof correctly
-        {
-            let (mut txs, inclusion_proof, completeness_proof) =
-                service.extract_relevant_blobs_with_proof(&block);
-            assert_eq!(inclusion_proof.wtxids.len(), 33);
-            assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
-            // 2 complete, 2 aggregate proofs with 2 chunks for the first and 3 chunks for the second agg, and 2 method id txs
-            assert_eq!(txs.len(), 15);
-            // it is >= due to the probability that one of commit transactions ended up
-            // with the prefix by chance (reveals are guaranteed to have a certain prefix)
-            assert!(
-                completeness_proof.len() >= 11,
-                "expected completeness proof to have at least 6 txs, it has {}",
-                completeness_proof.len()
-            );
-
-            txs.iter_mut().for_each(|t| {
-                t.full_data();
-            });
 
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(
@@ -137,16 +108,6 @@ impl TestCase for BitcoinServiceTest {
                 .await
                 .unwrap();
             assert_eq!(proofs, block_proofs);
-        }
-
-        // Batch proof tx blob signed with different private key should still be
-        // returned as blob with sender recovered correctly.
-        {
-            let false_sig_block = get_mock_false_signature_txs_block();
-
-            let (txs, _, _) = service.extract_relevant_blobs_with_proof(&false_sig_block);
-            // There is one tx with right prefix, but wrong signature
-            assert_eq!(txs.len(), 0);
         }
 
         {

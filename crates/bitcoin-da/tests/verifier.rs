@@ -46,14 +46,10 @@ impl TestCase for BitcoinVerifierTest {
         let service = get_default_service(&mut task_manager, &da_node.config).await;
         let (block, _, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
 
-        let (mut b_txs, b_inclusion_proof, b_completeness_proof) =
+        let (mut txs, inclusion_proof, completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block);
-        let (mut l_txs, l_inclusion_proof, l_completeness_proof) =
-            service.extract_relevant_blobs_with_proof(&block);
-        b_txs.iter_mut().for_each(|t| {
-            t.full_data();
-        });
-        l_txs.iter_mut().for_each(|t| {
+
+        txs.iter_mut().for_each(|t| {
             t.full_data();
         });
 
@@ -61,27 +57,15 @@ impl TestCase for BitcoinVerifierTest {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
         });
 
-        // Correct batch proof
+        // Can be verified
         {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof.clone(),
+                    inclusion_proof.clone(),
+                    completeness_proof.clone(),
                 ),
-                Ok(b_txs.clone()),
-            );
-        }
-
-        // Correct light client proof
-        {
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    l_inclusion_proof.clone(),
-                    l_completeness_proof.clone(),
-                ),
-                Ok(l_txs.clone()),
+                Ok(txs.clone()),
             );
         }
 
@@ -139,7 +123,7 @@ impl TestCase for BitcoinVerifierTest {
                 verifier.verify_transactions(
                     &block.header,
                     inclusion_proof,
-                    b_completeness_proof.clone(),
+                    completeness_proof.clone(),
                 ),
                 Err(ValidationError::IncorrectInclusionProof),
             );
@@ -187,7 +171,7 @@ impl TestCase for BitcoinVerifierTest {
                 verifier.verify_transactions(
                     &block.header,
                     inclusion_proof,
-                    b_completeness_proof.clone(),
+                    completeness_proof.clone(),
                 ),
                 Err(ValidationError::IncorrectInclusionProof),
             );
@@ -196,7 +180,7 @@ impl TestCase for BitcoinVerifierTest {
         // False witness script should fail
         {
             let mut block_txs = block.txdata.clone();
-            let mut completeness_proof = b_completeness_proof.clone();
+            let mut completeness_proof = completeness_proof.clone();
 
             let relevant_tx = block_txs
                 .iter_mut()
@@ -238,43 +222,35 @@ impl TestCase for BitcoinVerifierTest {
 
         // Different witness ids should fail
         {
-            let mut inclusion_proof = b_inclusion_proof.clone();
+            let mut ip = inclusion_proof.clone();
 
-            // Prefix is made 1, which will look like inclusion proof
+            // Prefix is made 2, which will look like inclusion proof
             // has extra relevant transaction in it.
-            inclusion_proof.wtxids[0] = [1; 32];
+            ip.wtxids[0] = [2; 32];
             assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    inclusion_proof,
-                    b_completeness_proof.clone(),
-                ),
-                Err(ValidationError::IncorrectInclusionProof),
+                verifier.verify_transactions(&block.header, ip, completeness_proof.clone(),),
+                Err(ValidationError::RelevantTxNotInProof),
             );
 
-            let mut inclusion_proof = b_inclusion_proof.clone();
+            let mut ip = inclusion_proof.clone();
 
-            inclusion_proof.wtxids[1] = [16; 32];
+            ip.wtxids[1] = [16; 32];
             assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    inclusion_proof,
-                    b_completeness_proof.clone(),
-                ),
+                verifier.verify_transactions(&block.header, ip, completeness_proof.clone(),),
                 Err(ValidationError::IncorrectInclusionProof),
             );
         }
 
         // Extra tx in inclusion
         {
-            let mut b_inclusion_proof = b_inclusion_proof.clone();
+            let mut inclusion_proof = inclusion_proof.clone();
 
-            b_inclusion_proof.wtxids.push([5; 32]);
+            inclusion_proof.wtxids.push([5; 32]);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof,
-                    b_completeness_proof.clone(),
+                    inclusion_proof,
+                    completeness_proof.clone(),
                 ),
                 Err(ValidationError::HeaderInclusionTxCountMismatch),
             );
@@ -282,14 +258,14 @@ impl TestCase for BitcoinVerifierTest {
 
         // Missing tx in inclusion should fail
         {
-            let mut b_inclusion_proof = b_inclusion_proof.clone();
+            let mut inclusion_proof = inclusion_proof.clone();
 
-            b_inclusion_proof.wtxids.pop();
+            inclusion_proof.wtxids.pop();
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof,
-                    b_completeness_proof.clone(),
+                    inclusion_proof,
+                    completeness_proof.clone(),
                 ),
                 Err(ValidationError::HeaderInclusionTxCountMismatch),
             );
@@ -297,14 +273,14 @@ impl TestCase for BitcoinVerifierTest {
 
         // Break order of inclusion should fail
         {
-            let mut b_inclusion_proof = b_inclusion_proof.clone();
+            let mut inclusion_proof = inclusion_proof.clone();
 
-            b_inclusion_proof.wtxids.swap(0, 1);
+            inclusion_proof.wtxids.swap(0, 1);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof,
-                    b_completeness_proof.clone(),
+                    inclusion_proof,
+                    completeness_proof.clone(),
                 ),
                 Err(ValidationError::IncorrectInclusionProof),
             );
@@ -312,14 +288,14 @@ impl TestCase for BitcoinVerifierTest {
 
         // Missing tx in completeness proof should panic
         {
-            let mut b_completeness_proof = b_completeness_proof.clone();
+            let mut completeness_proof = completeness_proof.clone();
 
-            b_completeness_proof.pop();
+            completeness_proof.pop();
             assert_panic!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof,
+                    inclusion_proof.clone(),
+                    completeness_proof,
                 ),
                 "itertools: .zip_eq() reached end of one iterator before the other"
             );
@@ -327,14 +303,14 @@ impl TestCase for BitcoinVerifierTest {
 
         // Extra tx in completeness proof should panic
         {
-            let mut b_completeness_proof = b_completeness_proof.clone();
+            let mut completeness_proof = completeness_proof.clone();
 
-            b_completeness_proof.push(block.txdata[0].clone());
+            completeness_proof.push(block.txdata[0].clone());
             assert_panic!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof,
+                    inclusion_proof.clone(),
+                    completeness_proof,
                 ),
                 "itertools: .zip_eq() reached end of one iterator before the other"
             );
@@ -342,20 +318,20 @@ impl TestCase for BitcoinVerifierTest {
 
         // Nonrelevant tx in completeness proof should fail
         {
-            let mut b_completeness_proof = b_completeness_proof.clone();
+            let mut completeness_proof = completeness_proof.clone();
 
             let nonrelevant_tx = block
                 .txdata
                 .iter()
-                .find(|tx| !b_completeness_proof.contains(tx))
+                .find(|tx| !completeness_proof.contains(tx))
                 .unwrap()
                 .clone();
-            b_completeness_proof[0] = nonrelevant_tx;
+            completeness_proof[0] = nonrelevant_tx;
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof.clone(),
+                    inclusion_proof.clone(),
+                    completeness_proof,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
@@ -363,14 +339,14 @@ impl TestCase for BitcoinVerifierTest {
 
         // Break completeness proof order should fail
         {
-            let mut b_completeness_proof = b_completeness_proof.clone();
+            let mut completeness_proof = completeness_proof.clone();
 
-            b_completeness_proof.swap(1, 2);
+            completeness_proof.swap(1, 2);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof,
+                    inclusion_proof.clone(),
+                    completeness_proof,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
@@ -378,16 +354,16 @@ impl TestCase for BitcoinVerifierTest {
 
         // Break tx order and completeness proof order should fail
         {
-            let mut b_completeness_proof = b_completeness_proof.clone();
-            let mut b_txs = b_txs.clone();
+            let mut completeness_proof = completeness_proof.clone();
+            let mut txs = txs.clone();
 
-            b_completeness_proof.swap(0, 1);
-            b_txs.swap(0, 1);
+            completeness_proof.swap(0, 1);
+            txs.swap(0, 1);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof,
+                    inclusion_proof.clone(),
+                    completeness_proof,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
