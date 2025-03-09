@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::thread;
 
 use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
 
@@ -45,11 +46,57 @@ fn main() {
             println!("cargo:warning=SKIP_GUEST_BUILD contains invalid Unicode. Defaulting to performing guest build.");
         }
     }
-    let guest_pkg_to_options = get_guest_options();
-    embed_methods_with_options(guest_pkg_to_options);
+
+    let guests = ["batch-proof-bitcoin", "batch-proof-mock"];
+    let mut handles = vec![];
+    for guest in guests {
+        let handle = thread::spawn(move || {
+            let guest_pkg_to_options = get_guest_options(guest);
+            (
+                guest,
+                embed_methods_with_options(guest_pkg_to_options)
+                    .pop()
+                    .expect("At least one guest entry should be set"),
+            )
+        });
+        handles.push(handle);
+    }
+    let mut guest_entries = HashMap::new();
+    for handle in handles {
+        let (name, guest_entry) = handle.join().expect("Building guest should not fail");
+        guest_entries.insert(name, guest_entry);
+    }
+    let out_dir = std::env::var_os("OUT_DIR").unwrap();
+    let out_dir = std::path::Path::new(&out_dir);
+    let methods_path = out_dir.join("methods.rs");
+
+    let bitcoin_guest = guest_entries
+        .get("batch-proof-bitcoin")
+        .expect("batch-proof-bitcoin guest should be present");
+    let mock_guest = guest_entries
+        .get("batch-proof-mock")
+        .expect("batch-proof-mock guest should be present");
+
+    let bitcoin_elf = format!("{:?}", bitcoin_guest.elf);
+    let bitcoin_image_id = format!("{:?}", bitcoin_guest.image_id);
+    let mock_elf = format!("{:?}", mock_guest.elf);
+    let mock_image_id = format!("{:?}", mock_guest.image_id);
+
+    let elf = format!(
+        r#"
+    pub const BATCH_PROOF_BITCOIN_ELF: &[u8] = &{bitcoin_elf};
+    pub const BATCH_PROOF_BITCOIN_ID: [u32; 8] = {bitcoin_image_id};
+    pub const BATCH_PROOF_MOCK_ELF: &[u8] = &{mock_elf};
+    pub const BATCH_PROOF_MOCK_ID: [u32; 8] = {mock_image_id};
+    "#
+    );
+    println!("Writing to methods path: {:?}", methods_path);
+    std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
 }
 
-fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
+fn get_guest_options(
+    guest_to_build: &'static str,
+) -> HashMap<&'static str, risc0_build::GuestOptions> {
     let mut guest_pkg_to_options = HashMap::new();
 
     let mut features = Vec::new();
@@ -75,7 +122,6 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         use_docker,
     };
 
-    guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
-    guest_pkg_to_options.insert("batch-proof-mock", opts.clone());
+    guest_pkg_to_options.insert(guest_to_build, opts.clone());
     guest_pkg_to_options
 }
