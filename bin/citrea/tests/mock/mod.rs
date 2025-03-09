@@ -31,6 +31,7 @@ mod mempool;
 mod proving;
 mod pruning;
 mod reopen;
+mod rollback;
 mod sequencer_behaviour;
 mod sequencer_replacement;
 mod soft_confirmation_rule_enforcer;

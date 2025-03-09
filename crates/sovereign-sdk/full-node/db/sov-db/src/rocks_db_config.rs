@@ -83,6 +83,12 @@ impl<'a> RocksdbConfig<'a> {
         db_options.set_max_open_files(self.max_open_files);
         db_options.set_max_total_wal_size(self.max_total_wal_size);
         db_options.set_max_background_jobs(self.max_background_jobs);
+        // Added for the sake of rollback.
+        // This basically triggers an SST file as "need-compaction" when the provided parameters of consecutive
+        // deletions are encountered. This helpers optimize seek calls and make them faster after batch deletions
+        // caused by rollbacks.
+        db_options.set_compaction_style(rocksdb::DBCompactionStyle::Level);
+        db_options.add_compact_on_deletion_collector_factory(5000, 1000, 0.2);
         if !readonly {
             db_options.create_if_missing(true);
             db_options.create_missing_column_families(true);
