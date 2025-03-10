@@ -207,7 +207,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             state_root: KECCAK_EMPTY,
             transactions_root: EMPTY_TRANSACTIONS,
             receipts_root: EMPTY_RECEIPTS,
-            withdrawals_root: None,
             logs_bloom: Bloom::default(),
             difficulty: config.difficulty,
             number: 0,
@@ -219,13 +218,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             base_fee_per_gas: Some(config.starting_base_fee),
             extra_data: config.extra_data.clone(),
             // EIP-4844 related fields
-            // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
             requests_root: None,
+            withdrawals_root: None,
         };
 
         let block = Block {

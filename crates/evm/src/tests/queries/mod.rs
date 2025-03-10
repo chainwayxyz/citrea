@@ -52,8 +52,6 @@ fn init_evm(
             nonce: 0,
             storage: Default::default(),
         }],
-        // SHANGAI instead of LATEST
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         ..Default::default()
     };
     config_push_contracts(&mut config, None);
@@ -114,7 +112,7 @@ fn init_evm(
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
-        pre_state_root: [10u8; 32],
+        pre_state_root: [99u8; 32],
         current_spec: spec_id,
         sequencer_pub_key: vec![],
         l1_fee_rate,

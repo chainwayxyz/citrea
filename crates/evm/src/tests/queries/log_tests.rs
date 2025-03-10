@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use alloy_network::BlockResponse;
 use alloy_primitives::b256;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
@@ -8,7 +9,7 @@ use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateVecAccessor};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
@@ -43,11 +44,11 @@ fn logs_for_filter_test() {
         Err(EthApiError::HeaderNotFound(B256::from([1u8; 32]).into()).into())
     );
 
+    let block_hash = evm.latest_block_hashes.get(&2, &mut working_set).unwrap();
+
     let available_res = evm.eth_get_logs(
         Filter {
-            block_option: FilterBlockOption::AtBlockHash(b256!(
-                "9dd7277d6d484a4f92f03d301688820ec8d4d1805e7089fa45900278923f07a4"
-            )),
+            block_option: FilterBlockOption::AtBlockHash(block_hash),
             address: FilterSet::default(),
             topics: [
                 FilterSet::default(),
@@ -59,8 +60,22 @@ fn logs_for_filter_test() {
         &mut working_set,
     );
 
-    // TODO: Check this better.
-    assert_eq!(available_res.unwrap().len(), 9);
+    assert_eq!(available_res.unwrap().len(), 8);
+
+    // This does not really have anything to do with this test, but had us catch a bug before.
+    let first_block_block_hash = evm.latest_block_hashes.get(&1, &mut working_set).unwrap();
+    let b_rpc = evm
+        .get_block_by_hash(first_block_block_hash, None, &mut working_set)
+        .unwrap();
+
+    assert_eq!(b_rpc.unwrap().header().hash, first_block_block_hash);
+
+    let b = evm
+        .blocks_rlp
+        .get(1, &mut working_set.accessory_state())
+        .unwrap();
+
+    assert_eq!(b.header.hash(), first_block_block_hash);
 }
 
 #[test]
@@ -149,8 +164,8 @@ fn log_filter_test_at_block_hash() {
     };
 
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-    // should get all the logs including system txs
-    assert_eq!(rpc_logs.len(), 5);
+    // should get all the logs
+    assert_eq!(rpc_logs.len(), 4);
 
     // with address and without topics
     address.0.insert(contract_addr);
