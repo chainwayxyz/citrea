@@ -434,10 +434,10 @@ async fn test_ledger_get_head_l2_block() {
         .unwrap();
     assert_eq!(latest_block.header.number, 2);
     assert_eq!(
-        head_l2_block.state_root.as_slice(),
+        head_l2_block.header.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
-    assert_eq!(head_l2_block.height, 2);
+    assert_eq!(head_l2_block.header.height, 2);
 
     let head_l2_block_height = seq_test_client
         .ledger_get_head_l2_block_height()

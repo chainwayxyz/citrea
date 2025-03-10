@@ -11,7 +11,6 @@ use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
-use super::genesis_tests::GENESIS_DA_TXS_COMMITMENT;
 use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::tests::genesis_tests::BENEFICIARY;
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};

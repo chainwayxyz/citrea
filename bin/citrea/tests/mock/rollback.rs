@@ -577,7 +577,10 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
         .unwrap()
         .unwrap();
 
-    assert_eq!(seq_l2_block.state_root, full_node_l2_block.state_root);
+    assert_eq!(
+        seq_l2_block.header.state_root,
+        full_node_l2_block.header.state_root
+    );
 
     seq_task_manager.abort().await;
     full_node_task_manager.abort().await;

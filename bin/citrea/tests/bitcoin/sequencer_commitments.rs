@@ -328,7 +328,7 @@ impl SequencerSendCommitmentsToDaTest {
         let merkle_tree = MerkleTree::<Sha256>::from_leaves(
             l2_blocks
                 .iter()
-                .map(|x| x.hash)
+                .map(|x| x.header.hash)
                 .collect::<Vec<_>>()
                 .as_slice(),
         );

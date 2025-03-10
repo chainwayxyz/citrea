@@ -305,7 +305,10 @@ impl TestCase for L2BlocksDifferentBlocksTest {
                 .await?
                 .unwrap();
 
-            assert_eq!(seq_l2_block.state_root, full_l2_block.state_root);
+            assert_eq!(
+                seq_l2_block.header.state_root,
+                full_l2_block.header.state_root
+            );
         }
 
         // Generate new DA block
@@ -334,7 +337,10 @@ impl TestCase for L2BlocksDifferentBlocksTest {
                 .await?
                 .unwrap();
 
-            assert_eq!(seq_l2_block.state_root, full_l2_block.state_root);
+            assert_eq!(
+                seq_l2_block.header.state_root,
+                full_l2_block.header.state_root
+            );
         }
 
         Ok(())

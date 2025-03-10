@@ -249,9 +249,7 @@ where
             current_spec
         );
 
-        let input = match current_spec {
-            _ => borsh::to_vec(&input.into_v3_parts())?,
-        };
+        let input = borsh::to_vec(&input.into_v3_parts())?;
 
         let rx = prover_service
             .start_proving(

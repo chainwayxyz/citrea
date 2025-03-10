@@ -52,6 +52,7 @@ impl TestCase for FullNodeRestartTest {
             .get_head_l2_block()
             .await?
             .unwrap()
+            .header
             .state_root;
 
         full_node.restart(None, None).await?;
@@ -62,6 +63,7 @@ impl TestCase for FullNodeRestartTest {
             .get_head_l2_block()
             .await?
             .unwrap()
+            .header
             .state_root;
 
         // Verify state root persists across restarts

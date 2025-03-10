@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use alloy_network::BlockResponse;
-use alloy_primitives::b256;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::EthApiError;
