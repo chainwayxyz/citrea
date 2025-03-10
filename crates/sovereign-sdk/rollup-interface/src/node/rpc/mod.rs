@@ -117,14 +117,7 @@ where
             val.pub_key,
         );
 
-        let res = L2Block::new(
-            signed_header,
-            parsed_txs.into(),
-            val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
-            val.da_slot_height,
-            val.da_slot_hash,
-            val.da_slot_txs_commitment,
-        );
+        let res = L2Block::new(signed_header, parsed_txs.into());
         Ok(res)
     }
 }

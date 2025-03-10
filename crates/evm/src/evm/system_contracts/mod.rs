@@ -10,7 +10,7 @@ sol! {
     "./src/evm/system_contracts/out/BitcoinLightClient.sol/BitcoinLightClient.json"
 }
 
-pub type PreFork2SetBlockInfoCall = BitcoinLightClientContract::setBlockInfo_0Call;
+// TODO: rename after berat's PR
 pub type PostFork2SetBlockInfoCall = BitcoinLightClientContract::setBlockInfo_1Call;
 
 /// BitcoinLightClient wrapper.
@@ -28,18 +28,6 @@ impl BitcoinLightClient {
         let mut func_selector = Vec::with_capacity(4 + 32);
         func_selector.extend(BitcoinLightClientContract::initializeBlockNumberCall::SELECTOR);
         func_selector.extend_from_slice(&block_number.to_be_bytes::<32>());
-        func_selector.into()
-    }
-
-    // Kept for backwards compatibility
-    pub(crate) fn set_block_info_pre_fork2(
-        block_hash: [u8; 32],
-        txs_commitments: [u8; 32],
-    ) -> Bytes {
-        let mut func_selector = Vec::with_capacity(4 + 32 + 32);
-        func_selector.extend(PreFork2SetBlockInfoCall::SELECTOR);
-        func_selector.extend_from_slice(&block_hash);
-        func_selector.extend_from_slice(&txs_commitments);
         func_selector.into()
     }
 

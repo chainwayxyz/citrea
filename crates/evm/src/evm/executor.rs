@@ -15,7 +15,7 @@ use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
-use super::system_contracts::{PostFork2SetBlockInfoCall, PreFork2SetBlockInfoCall};
+use super::system_contracts::PostFork2SetBlockInfoCall;
 use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use crate::{Evm, EvmDb, SYSTEM_SIGNER};
 
@@ -191,9 +191,10 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
                 return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
             }
         }
-    } else if function_selector == PreFork2SetBlockInfoCall::SELECTOR {
-        return Err(SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2);
     }
+
+    // TODO: should we check for other system txs?
+
     Ok(())
 }
 

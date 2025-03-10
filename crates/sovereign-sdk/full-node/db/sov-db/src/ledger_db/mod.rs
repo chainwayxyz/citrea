@@ -206,21 +206,21 @@ impl SharedLedgerOps for LedgerDB {
         };
 
         let l2_height = l2_block.l2_height();
-        let da_slot_height = l2_block.da_slot_height;
+        let da_slot_height = 0;
 
         // Insert soft confirmation
         let soft_confirmation_to_store = StoredSoftConfirmation {
             da_slot_height,
             l2_height,
-            da_slot_hash: l2_block.da_slot_hash(),
-            da_slot_txs_commitment: l2_block.da_slot_txs_commitment(),
+            da_slot_hash: [0; 32],
+            da_slot_txs_commitment: [0; 32],
             hash: l2_block.hash(),
             prev_hash: l2_block.prev_hash(),
             txs,
             state_root: l2_block.state_root(),
             soft_confirmation_signature: l2_block.signature().to_vec(),
             pub_key: l2_block.pub_key().to_vec(),
-            deposit_data: l2_block.deposit_data().to_vec(),
+            deposit_data: vec![],
             l1_fee_rate: l2_block.l1_fee_rate(),
             timestamp: l2_block.timestamp(),
             tx_merkle_root: l2_block.tx_merkle_root(),

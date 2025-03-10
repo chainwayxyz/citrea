@@ -50,54 +50,6 @@ impl L2Header {
         hasher.update(self.timestamp.to_be_bytes());
         hasher.finalize()
     }
-
-    /// Hash L2Block in a Genesis compatible way
-    pub fn hash_v1<D: Digest>(
-        &self,
-        da_slot_height: u64,
-        da_slot_hash: [u8; 32],
-        da_slot_txs_commitment: [u8; 32],
-        blobs: Vec<Vec<u8>>,
-        deposit_data: Vec<Vec<u8>>,
-    ) -> borsh::io::Result<(Output<D>, Vec<u8>)> {
-        let mut vec = Vec::new();
-
-        BorshSerialize::serialize(&self.l2_height, &mut vec)?;
-        BorshSerialize::serialize(&da_slot_height, &mut vec)?;
-        BorshSerialize::serialize(&da_slot_hash, &mut vec)?;
-        BorshSerialize::serialize(&da_slot_txs_commitment, &mut vec)?;
-        BorshSerialize::serialize(&blobs, &mut vec)?;
-        BorshSerialize::serialize(&deposit_data.to_vec(), &mut vec)?;
-        BorshSerialize::serialize(&self.l1_fee_rate, &mut vec)?;
-        BorshSerialize::serialize(&self.timestamp, &mut vec)?;
-
-        Ok((D::digest(vec.as_slice()), vec))
-    }
-
-    /// Hash L2Block in a Kumquat compatible way
-    pub fn hash_v2<D: Digest>(
-        &self,
-        da_slot_height: u64,
-        da_slot_hash: [u8; 32],
-        da_slot_txs_commitment: [u8; 32],
-        blobs: Vec<Vec<u8>>,
-        deposit_data: Vec<Vec<u8>>,
-    ) -> Output<D> {
-        let mut hasher = D::new();
-        hasher.update(self.l2_height.to_be_bytes());
-        hasher.update(da_slot_height.to_be_bytes());
-        hasher.update(da_slot_hash);
-        hasher.update(da_slot_txs_commitment);
-        for tx in blobs {
-            hasher.update(tx);
-        }
-        for deposit in deposit_data {
-            hasher.update(deposit);
-        }
-        hasher.update(self.l1_fee_rate.to_be_bytes());
-        hasher.update(self.timestamp.to_be_bytes());
-        hasher.finalize()
-    }
 }
 
 /// Signed L2 header
@@ -134,38 +86,12 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     pub header: SignedL2Header,
     /// Txs of signed batch
     pub txs: Cow<'txs, [Tx]>,
-    /// Deposit data
-    /// TODO remove before mainnet
-    pub deposit_data: Vec<Vec<u8>>,
-    /// L1 height
-    /// TODO remove before mainnet
-    pub da_slot_height: u64,
-    /// L1 hash
-    /// TODO remove before mainnet
-    pub da_slot_hash: [u8; 32],
-    /// L1 txs commitment
-    /// TODO remove before mainnet
-    pub da_slot_txs_commitment: [u8; 32],
 }
 
 impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     /// New L2Block from headers and txs
-    pub fn new(
-        header: SignedL2Header,
-        txs: Cow<'txs, [Tx]>,
-        deposit_data: Vec<Vec<u8>>,
-        da_slot_height: u64,
-        da_slot_hash: [u8; 32],
-        da_slot_txs_commitment: [u8; 32],
-    ) -> Self {
-        Self {
-            header,
-            txs,
-            deposit_data,
-            da_slot_hash,
-            da_slot_height,
-            da_slot_txs_commitment,
-        }
+    pub fn new(header: SignedL2Header, txs: Cow<'txs, [Tx]>) -> Self {
+        Self { header, txs }
     }
 
     /// L2 block height
@@ -183,29 +109,9 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
         self.header.inner.prev_hash
     }
 
-    /// DA block this soft confirmation was given for
-    pub fn da_slot_height(&self) -> u64 {
-        self.da_slot_height
-    }
-
-    /// DA block to build on
-    pub fn da_slot_hash(&self) -> [u8; 32] {
-        self.da_slot_hash
-    }
-
-    /// DA block transactions commitment
-    pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
-        self.da_slot_txs_commitment
-    }
-
     /// Public key of signer
     pub fn sequencer_pub_key(&self) -> &[u8] {
         self.header.pub_key.as_ref()
-    }
-
-    /// Deposit data
-    pub fn deposit_data(&self) -> &[Vec<u8>] {
-        self.deposit_data.as_slice()
     }
 
     /// Signature of the sequencer
@@ -235,47 +141,5 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     /// state root
     pub fn state_root(&self) -> [u8; 32] {
         self.header.inner.state_root
-    }
-
-    /// Borsh serialize all txs as blobs
-    /// Required for backward compatiblity
-    pub fn compute_blobs(&self) -> Vec<Vec<u8>> {
-        self.txs
-            .iter()
-            .map(|tx| borsh::to_vec(tx).unwrap())
-            .collect()
-    }
-
-    /// Serialized L2Block in a Genesis compatible way
-    pub fn serialize_v1<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        BorshSerialize::serialize(&self.l2_height(), writer)?;
-        BorshSerialize::serialize(&self.hash(), writer)?;
-        BorshSerialize::serialize(&self.prev_hash(), writer)?;
-        BorshSerialize::serialize(&self.da_slot_height(), writer)?;
-        BorshSerialize::serialize(&self.da_slot_hash(), writer)?;
-        BorshSerialize::serialize(&self.da_slot_txs_commitment(), writer)?;
-        BorshSerialize::serialize(&self.l1_fee_rate(), writer)?;
-        BorshSerialize::serialize(&self.compute_blobs(), writer)?;
-        BorshSerialize::serialize(&self.signature().to_vec(), writer)?;
-        BorshSerialize::serialize(&self.deposit_data().to_vec(), writer)?;
-        BorshSerialize::serialize(&self.pub_key().to_vec(), writer)?;
-        BorshSerialize::serialize(&self.timestamp(), writer)
-    }
-
-    /// Serialized L2Block in a Kumquat compatible way
-    pub fn serialize_v2<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        BorshSerialize::serialize(&self.l2_height(), writer)?;
-        BorshSerialize::serialize(&self.hash(), writer)?;
-        BorshSerialize::serialize(&self.prev_hash(), writer)?;
-        BorshSerialize::serialize(&self.da_slot_height(), writer)?;
-        BorshSerialize::serialize(&self.da_slot_hash(), writer)?;
-        BorshSerialize::serialize(&self.da_slot_txs_commitment(), writer)?;
-        BorshSerialize::serialize(&self.l1_fee_rate(), writer)?;
-        BorshSerialize::serialize(&self.compute_blobs(), writer)?;
-        BorshSerialize::serialize(&self.txs, writer)?;
-        BorshSerialize::serialize(&self.signature().to_vec(), writer)?;
-        BorshSerialize::serialize(&self.deposit_data().to_vec(), writer)?;
-        BorshSerialize::serialize(&self.pub_key().to_vec(), writer)?;
-        BorshSerialize::serialize(&self.timestamp(), writer)
     }
 }

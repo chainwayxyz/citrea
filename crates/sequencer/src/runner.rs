@@ -97,13 +97,6 @@ where
     backup_manager: Arc<BackupManager>,
 }
 
-// Used only for pre fork2 block production
-pub(crate) enum L2BlockMode {
-    // Creates a block for each missed L1 block because system transactions are handled in the stf pre fork2
-    Empty,
-    NotEmpty,
-}
-
 impl<Da, DB> CitreaSequencer<Da, DB>
 where
     Da: DaService,
@@ -322,7 +315,6 @@ where
         &mut self,
         mut da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
-        l2_block_mode: &L2BlockMode,
         last_used_l1_height: &mut u64,
     ) -> anyhow::Result<(u64, StateDiff)> {
         let start: Instant = Instant::now();
@@ -477,14 +469,7 @@ where
 
         let signed_header = self.sign_soft_confirmation_header(header)?;
         // TODO: cleanup l2 block structure once we decide how to pull data from the running sequencer in the existing form
-        let l2_block = L2Block::new(
-            signed_header,
-            txs.into(),
-            deposit_data,
-            0,
-            [0u8; 32],
-            [0u8; 32],
-        );
+        let l2_block = L2Block::new(signed_header, txs.into());
 
         info!(
             "Saving block #{}, Tx count: #{}",
@@ -689,7 +674,7 @@ where
                         missed_da_blocks_count = 0;
                     }
                     let _l2_lock = backup_manager.start_l2_processing().await;
-                    match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &L2BlockMode::NotEmpty, &mut last_used_l1_height).await {
+                    match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
                         Ok((l2_height, state_diff)) => {
 
                             // Only errors when there are no receivers
@@ -720,7 +705,7 @@ where
                     }
 
                     let _l2_lock = backup_manager.start_l2_processing().await;
-                    match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &L2BlockMode::NotEmpty, &mut last_used_l1_height).await {
+                    match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
                         Ok((l2_height, state_diff)) => {
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
@@ -881,14 +866,6 @@ where
             .with_multiplier(1.5)
             .build();
 
-        let next_height = self
-            .ledger_db
-            .get_head_soft_confirmation_height()?
-            .unwrap_or_default()
-            + 1;
-
-        let spec_id = fork_from_block_number(next_height).spec_id;
-
         let mut filtered_blocks = vec![];
 
         for i in 1..=missed_da_blocks_count {
@@ -912,29 +889,14 @@ where
             filtered_blocks.push(da_block);
         }
 
-        if spec_id >= SpecId::Fork2 {
-            // In order to not exceed the gas limit, we need to chunk the filtered blocks
-            for chunk_of_filtered_blocks in
-                filtered_blocks.chunks(MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK as usize)
-            {
-                self.produce_l2_block(
-                    chunk_of_filtered_blocks.to_vec(),
-                    l1_fee_rate,
-                    // l2 block mode is ignored for post fork2 block production
-                    &L2BlockMode::Empty,
-                    last_used_l1_height,
-                )
-                .await?;
-            }
-            return Ok(());
-        }
-
-        for da_block in filtered_blocks {
-            debug!("Created an empty L2 for L1={}", da_block.header().height());
+        // In order to not exceed the gas limit, we need to chunk the filtered blocks
+        for chunk_of_filtered_blocks in
+            filtered_blocks.chunks(MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK as usize)
+        {
             self.produce_l2_block(
-                vec![da_block],
+                chunk_of_filtered_blocks.to_vec(),
                 l1_fee_rate,
-                &L2BlockMode::Empty,
+                // l2 block mode is ignored for post fork2 block production
                 last_used_l1_height,
             )
             .await?;
