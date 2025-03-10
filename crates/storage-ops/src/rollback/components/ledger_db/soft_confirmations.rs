@@ -1,5 +1,6 @@
 use sov_db::schema::tables::{LastSequencerCommitmentSent, SoftConfirmationByNumber};
 use sov_db::schema::types::SoftConfirmationNumber;
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::pruning::types::StorageNodeType;
@@ -9,6 +10,7 @@ pub(crate) fn rollback_soft_confirmations(
     node_type: StorageNodeType,
     ledger_db: &DB,
     target_l2: u64,
+    last_sequencer_commitment_index: u32,
     last_sequencer_commitment_l2_height: u64,
 ) -> anyhow::Result<u64> {
     let mut soft_confirmations = ledger_db.iter_with_direction::<SoftConfirmationByNumber>(
@@ -39,15 +41,19 @@ pub(crate) fn rollback_soft_confirmations(
         deleted += 1;
     }
 
-    // TODO rollback LastSequencerCommitmentSent
-    // if matches!(node_type, StorageNodeType::Sequencer)
-    //     || matches!(node_type, StorageNodeType::FullNode)
-    // {
-    //     ledger_db.put::<LastSequencerCommitmentSent>(
-    //         &(),
-    //         &SoftConfirmationNumber(last_sequencer_commitment_l2_height),
-    //     )?;
-    // }
+    if matches!(node_type, StorageNodeType::Sequencer)
+        || matches!(node_type, StorageNodeType::FullNode)
+    {
+        ledger_db.put::<LastSequencerCommitmentSent>(
+            &(),
+            &SequencerCommitment {
+                merkle_root: [0; 32],
+                index: last_sequencer_commitment_index,
+                l2_start_block_number: 0,
+                l2_end_block_number: last_sequencer_commitment_l2_height,
+            },
+        )?;
+    }
 
     Ok(deleted)
 }

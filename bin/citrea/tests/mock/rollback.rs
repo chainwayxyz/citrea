@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::net::SocketAddr;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
@@ -169,6 +171,7 @@ async fn rollback_node(
     new_path: &Path,
     rollback_l2_height: u64,
     rollback_l1_height: u64,
+    commitment_index: u32,
     commitment_l2_height: u64,
 ) -> anyhow::Result<()> {
     copy_db_dir_recursive(old_path, new_path).unwrap();
@@ -182,6 +185,7 @@ async fn rollback_node(
             50,
             rollback_l2_height,
             rollback_l1_height,
+            commitment_index,
             commitment_l2_height,
         )
         .await
@@ -315,6 +319,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
     // We have 8 L1 blocks by now and we want to rollback
     // the last one.
     let rollback_l1_height = 6;
+    let rollback_index = 1;
     let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
     rollback_node(
         StorageNodeType::Sequencer,
@@ -323,6 +328,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
         &new_sequencer_db_dir,
         rollback_l2_height,
         rollback_l1_height,
+        rollback_index,
         rollback_l2_height,
     )
     .await
@@ -407,6 +413,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     // We have 8 L1 blocks by now and we want to rollback
     // the last one.
     let rollback_l1_height = 6;
+    let rollback_index = 1;
 
     let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
     rollback_node(
@@ -416,6 +423,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
         &new_sequencer_db_dir,
         rollback_l2_height,
         rollback_l1_height,
+        rollback_index,
         rollback_l2_height,
     )
     .await
@@ -432,6 +440,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
         &new_full_node_db_dir,
         rollback_l2_height,
         rollback_l1_height,
+        rollback_index,
         rollback_l2_height,
     )
     .await
@@ -529,6 +538,7 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
     // We have 8 L1 blocks by now and we want to rollback
     // the last one.
     let rollback_l1_height = 6;
+    let rollback_index = 1;
 
     let new_full_node_db_dir = storage_dir.path().join("full-node2").to_path_buf();
     rollback_node(
@@ -538,6 +548,7 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
         &new_full_node_db_dir,
         rollback_l2_height,
         rollback_l1_height,
+        rollback_index,
         rollback_l2_height,
     )
     .await
@@ -692,6 +703,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     let rollback_l2_height = 30;
     // We have 9 L1 blocks by now and we want to rollback.
     let rollback_l1_height = 9;
+    let rollback_index = 1;
 
     let new_full_node_db_dir = storage_dir.path().join("full-node3").to_path_buf();
     copy_db_dir_recursive(
@@ -717,6 +729,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         &new_sequencer_db_dir,
         rollback_l2_height,
         rollback_l1_height,
+        rollback_index,
         rollback_l2_height,
     )
     .await
@@ -729,6 +742,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         &new_full_node_db_dir,
         rollback_l2_height,
         rollback_l1_height,
+        rollback_index,
         rollback_l2_height,
     )
     .await
@@ -741,6 +755,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         &new_batch_prover_db_dir,
         rollback_l2_height,
         rollback_l1_height,
+        rollback_index,
         rollback_l2_height,
     )
     .await

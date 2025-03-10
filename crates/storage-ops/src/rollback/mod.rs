@@ -39,6 +39,7 @@ impl Rollback {
         _current_l2_height: u64,
         l2_target: u64,
         l1_target: u64,
+        last_sequencer_commitment_index: u32,
         last_sequencer_commitment_l2_height: u64,
     ) -> anyhow::Result<()> {
         info!("Rolling back until L2 {}, L1 {}", l2_target, l1_target);
@@ -53,6 +54,7 @@ impl Rollback {
                 ledger_db,
                 l2_target,
                 l1_target,
+                last_sequencer_commitment_index,
                 last_sequencer_commitment_l2_height,
             )
         });
