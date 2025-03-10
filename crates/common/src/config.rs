@@ -369,8 +369,7 @@ impl FromEnv for SequencerConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             private_key: std::env::var("PRIVATE_KEY")?,
-            min_l2_blocks_per_commitment: std::env::var("MIN_l2_blockIRMATIONS_PER_COMMITMENT")?
-                .parse()?,
+            min_l2_blocks_per_commitment: std::env::var("MIN_L2_BLOCKS_PER_COMMITMENT")?.parse()?,
             test_mode: std::env::var("TEST_MODE")?.parse()?,
             deposit_mempool_fetch_limit: std::env::var("DEPOSIT_MEMPOOL_FETCH_LIMIT")?.parse()?,
             mempool_conf: SequencerMempoolConfig::from_env()?,
@@ -660,7 +659,7 @@ mod tests {
             "PRIVATE_KEY",
             "1212121212121212121212121212121212121212121212121212121212121212",
         );
-        std::env::set_var("MIN_l2_blockIRMATIONS_PER_COMMITMENT", "123");
+        std::env::set_var("MIN_L2_BLOCKS_PER_COMMITMENT", "123");
         std::env::set_var("TEST_MODE", "false");
         std::env::set_var("DEPOSIT_MEMPOOL_FETCH_LIMIT", "10");
         std::env::set_var("DA_UPDATE_INTERVAL_MS", "1000");
