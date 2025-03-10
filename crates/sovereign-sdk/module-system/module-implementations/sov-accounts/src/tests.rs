@@ -1,6 +1,6 @@
 use borsh::BorshSerialize;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::{AddressBech32, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -11,7 +11,7 @@ type C = DefaultContext;
 
 #[test]
 fn test_config_account() {
-    let priv_key = DefaultPrivateKey::generate();
+    let priv_key = K256PrivateKey::generate();
     let init_pub_key = priv_key.pub_key();
     let init_pub_key_addr = init_pub_key.to_address::<<C as Spec>::Address>();
 

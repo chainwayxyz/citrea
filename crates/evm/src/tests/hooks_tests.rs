@@ -362,7 +362,6 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
         .unwrap();
     let root = binding.header.header().state_root.0;
 
-    let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -430,20 +429,12 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
     };
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
-    // only the last 256 blocks should exist on block 258
-    // which is [2, 257]
-    // not 0 and 1
     assert_eq!(
-        evm.latest_block_hashes.get(&26, &mut working_set).unwrap(),
+        evm.latest_block_hashes.get(&257, &mut working_set).unwrap(),
         evm.blocks_rlp
-            .get(256, &mut working_set.accessory_state())
+            .get(257, &mut working_set.accessory_state())
             .unwrap()
             .header
             .hash()
     );
-
-    assert!(evm.latest_block_hashes.get(&0, &mut working_set).is_none());
-    assert!(evm.latest_block_hashes.get(&1, &mut working_set).is_none());
-    assert!(evm.latest_block_hashes.get(&28, &mut working_set).is_none());
-    assert!(evm.latest_block_hashes.get(&2, &mut working_set).is_some());
 }

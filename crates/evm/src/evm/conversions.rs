@@ -69,16 +69,14 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, spec_id: SpecId) 
         authorization_list: None,
     };
 
-    if spec_id >= SpecId::CANCUN {
-        // A bug was found before activating cancun
-        // Access list supplied with txs were ignored
-        // that's why we can only use the access list if spec >= cancun
-        tx_env.access_list = tx.access_list().cloned().unwrap_or_default().0;
+    // A bug was found before activating cancun
+    // Access list supplied with txs were ignored
+    // that's why we can only use the access list if spec >= cancun
+    tx_env.access_list = tx.access_list().cloned().unwrap_or_default().0;
 
-        // EIP-4844 related fields
-        tx_env.blob_hashes = tx.blob_versioned_hashes().unwrap_or_default();
-        tx_env.max_fee_per_blob_gas = tx.max_fee_per_blob_gas().map(U256::from);
-    }
+    // EIP-4844 related fields
+    tx_env.blob_hashes = tx.blob_versioned_hashes().unwrap_or_default();
+    tx_env.max_fee_per_blob_gas = tx.max_fee_per_blob_gas().map(U256::from);
 
     tx_env
 }

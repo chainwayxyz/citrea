@@ -51,8 +51,6 @@ fn call_multiple_test() {
             nonce: 0,
             storage: Default::default(),
         }],
-        // SHANGAI instead of LATEST
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         ..Default::default()
     };
     config_push_contracts(&mut config, None);
@@ -127,10 +125,22 @@ fn call_multiple_test() {
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
-                    success: true, cumulative_gas_used: 50759,
+                    success: true,
+                    cumulative_gas_used: 132943,
                     logs: vec![]
                 },
-                gas_used: 50759,
+                gas_used: 132943,
+                log_index_start: 0,
+                l1_diff_size: 52
+            },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: true,
+                    cumulative_gas_used: 176673,
+                    logs: vec![]
+                },
+                gas_used: 43730,
                 log_index_start: 0,
                 l1_diff_size: 53
             },
@@ -138,69 +148,24 @@ fn call_multiple_test() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")], // Updated topic
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202")),
-                            ).unwrap()
-                        }
-                    ]
+                    cumulative_gas_used: 203303,
+                    logs: vec![]
                 },
-                gas_used: 80626,
+                gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt{
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead")),
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000")),
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
+                l1_diff_size: 53
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![Log {
-                        address: address!("3100000000000000000000000000000000000001"),
-                        data: LogData::new(
-                            vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")], // Updated topic
-                            Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                        ).unwrap()
-                    }]
+                    cumulative_gas_used: 229933,
+                    logs: vec![]
                 },
-                gas_used: 80626,
+                gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 213569, logs: vec![] }, gas_used: 132943, log_index_start: 1, l1_diff_size: 52 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 257299, logs: vec![] }, gas_used: 43730, log_index_start: 1, l1_diff_size: 53 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 283929, logs: vec![] }, gas_used: 26630, log_index_start: 1, l1_diff_size: 53 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 310559, logs: vec![] },
-            gas_used: 26630, log_index_start: 1, l1_diff_size: 53 }
+                l1_diff_size: 53
+            }
         ]
     );
     // checkout esad/fix-block-env-bug branch
@@ -261,103 +226,30 @@ fn call_test() {
 
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
-        evm.receipts_rlp.iter(&mut working_set.accessory_state()).collect::<Vec<_>>(),
+        evm.receipts_rlp
+            .iter(&mut working_set.accessory_state())
+            .collect::<Vec<_>>(),
         [
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50759,
-                    logs: vec![]
-                },
-                gas_used: 50759,
-                log_index_start: 0,
-                l1_diff_size: 53
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"))
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 213569,
+                    cumulative_gas_used: 132943,
                     logs: vec![]
                 },
                 gas_used: 132943,
-                log_index_start: 1,
+                log_index_start: 0,
                 l1_diff_size: 52
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 257299,
+                    cumulative_gas_used: 176673,
                     logs: vec![]
                 },
                 gas_used: 43730,
-                log_index_start: 1,
+                log_index_start: 0,
                 l1_diff_size: 53
             }
         ]
@@ -404,9 +296,8 @@ fn failed_transaction_test() {
         );
     }
 
-    // assert one pending transaction (system transaction)
     let pending_txs = &evm.pending_transactions;
-    assert_eq!(pending_txs.len(), 1);
+    assert_eq!(pending_txs.len(), 0);
 
     evm.end_l2_block_hook(&l2_block_info, working_set);
     // assert no pending transaction
@@ -417,90 +308,14 @@ fn failed_transaction_test() {
         evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
-        [
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 50759,
-                    logs: vec![]
-                },
-                gas_used: 50759,
-                log_index_start: 0,
-                l1_diff_size: 53
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"))
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            }
-        ]
+        []
     );
     let block = evm
         .blocks_rlp
         .last(&mut working_set.accessory_state())
         .unwrap();
     assert_eq!(block.transactions.start, 0);
-    assert_eq!(block.transactions.end, 3);
+    assert_eq!(block.transactions.end, 0);
 }
 
 // tests first part of https://eips.ethereum.org/EIPS/eip-6780
@@ -1198,102 +1013,17 @@ fn test_l1_fee_success() {
             evm.receipts_rlp
                 .iter(&mut working_set.accessory_state())
                 .collect::<Vec<_>>(),
-            [
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 50759,
-                        logs: vec![]
-                    },
-                    gas_used: 50759,
-                    log_index_start: 0,
-                    l1_diff_size: 53
+            [Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: true,
+                    cumulative_gas_used: 114235,
+                    logs: vec![]
                 },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 131385,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000001"),
-                                data: LogData::new(
-                                    vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 80626,
-                    log_index_start: 0,
-                    l1_diff_size: 94
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 300497,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                    Bytes::from_static(&hex!(
-                                        "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"
-                                    ))
-                                ).unwrap()
-                            },
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 169112,
-                    log_index_start: 1,
-                    l1_diff_size: 154
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 80626,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000001"),
-                                data: LogData::new(
-                                    vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 80626,
-                    log_index_start: 0,
-                    l1_diff_size: 94
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 194861,
-                        logs: vec![]
-                    },
-                    gas_used: 114235,
-                    log_index_start: 1,
-                    l1_diff_size: 52
-                }
-            ]
+                gas_used: 114235,
+                log_index_start: 0,
+                l1_diff_size: 52
+            }]
         );
     }
 
@@ -1369,75 +1099,11 @@ fn test_l1_fee_not_enough_funds() {
             L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee
         );
 
-        assert_eq!(
-            evm.receipts_rlp
-                .iter(&mut working_set.accessory_state())
-                .collect::<Vec<_>>(),
-            [
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 50759,
-                        logs: vec![]
-                    },
-                    gas_used: 50759,
-                    log_index_start: 0,
-                    l1_diff_size: 53
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 131385,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000001"),
-                                data: LogData::new(
-                                    vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 80626,
-                    log_index_start: 0,
-                    l1_diff_size: 94
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 300497,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                    Bytes::from_static(&hex!(
-                                        "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"
-                                    ))
-                                ).unwrap()
-                            },
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 169112,
-                    log_index_start: 1,
-                    l1_diff_size: 154
-                }
-            ]
-        );
+        assert!(evm
+            .receipts_rlp
+            .iter(&mut working_set.accessory_state())
+            .collect::<Vec<_>>()
+            .is_empty());
     }
 
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
@@ -1521,97 +1187,22 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50759,
-                    logs: vec![]
-                },
-                gas_used: 50759,
-                log_index_start: 0,
-                l1_diff_size: 53
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"))
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 187573,
+                    cumulative_gas_used: 106947,
                     logs: vec![]
                 },
                 gas_used: 106947,
-                log_index_start: 1,
+                log_index_start: 0,
                 l1_diff_size: 52
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: false,
-                    cumulative_gas_used: 1187573,
+                    cumulative_gas_used: 1106947,
                     logs: vec![]
                 },
                 gas_used: 1000000,
-                log_index_start: 1,
+                log_index_start: 0,
                 l1_diff_size: 31
             }
         ]
@@ -1651,73 +1242,6 @@ fn test_l1_fee_compression_discount() {
 
     let l2_block_info = HookL2BlockInfo {
         l2_height: 2,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 2, SovSpecId::Fork2, l1_fee_rate);
-        let call_tx = dev_signer
-            .sign_default_transaction_with_priority_fee(
-                TxKind::Call(Address::random()),
-                vec![],
-                0,
-                1000,
-                20000000,
-                1,
-            )
-            .unwrap();
-
-        evm.call(
-            CallMessage { txs: vec![call_tx] },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    let db_account = evm
-        .account_info(&dev_signer.address(), &mut working_set)
-        .unwrap();
-
-    let base_fee_vault = evm.account_info(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
-
-    let coinbase_account = evm
-        .account_info(&config.coinbase, &mut working_set)
-        .unwrap();
-    assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
-
-    let gas_fee_paid = 21000;
-    let tx1_diff_size = 140;
-
-    let mut expected_db_balance = U256::from(
-        100000000000000u64
-            - 1000
-            - gas_fee_paid * 10000001
-            - tx1_diff_size
-            - L1_FEE_OVERHEAD as u64,
-    );
-    let mut expected_base_fee_vault_balance = U256::from(gas_fee_paid * 10000000);
-    let mut expected_coinbase_balance = U256::from(gas_fee_paid);
-    let mut expected_l1_fee_vault_balance = U256::from(tx1_diff_size + L1_FEE_OVERHEAD as u64);
-
-    assert_eq!(db_account.balance, expected_db_balance);
-    assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
-    assert_eq!(coinbase_account.balance, expected_coinbase_balance);
-    assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
-
-    // Set up the next transaction with the fork 2 activated
-    let spec_id = SovSpecId::Fork2;
-    let l2_block_info = HookL2BlockInfo {
-        l2_height: 3,
         pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Fork2, // Compression discount is enabled
         sequencer_pub_key: vec![],
@@ -1733,7 +1257,7 @@ fn test_l1_fee_compression_discount() {
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
                 vec![],
-                1,
+                0,
                 1000,
                 20000000,
                 1,
@@ -1764,29 +1288,31 @@ fn test_l1_fee_compression_discount() {
     // gas fee remains the same
     let tx2_diff_size = 46;
 
-    expected_db_balance -=
-        U256::from(gas_fee_paid * 10000001 + 1000 + tx2_diff_size + L1_FEE_OVERHEAD as u64);
-    expected_base_fee_vault_balance += U256::from(gas_fee_paid * 10000000);
-    expected_coinbase_balance += U256::from(gas_fee_paid);
-    expected_l1_fee_vault_balance += U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
+    let tx_gas = 21000;
+
+    let expected_db_balance = U256::from(
+        100000000000000u64 - 1000 - tx_gas * 10000001 - L1_FEE_OVERHEAD as u64 - tx2_diff_size,
+    );
+    let expected_base_fee_vault_balance = U256::from(tx_gas * 10000000);
+    let expected_coinbase_balance = U256::from(tx_gas);
+    let expected_l1_fee_vault_balance = U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
 
     assert_eq!(db_account.balance, expected_db_balance);
     assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
     assert_eq!(coinbase_account.balance, expected_coinbase_balance);
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
-    // assert comression discount
-    assert_eq!(
-        tx1_diff_size * BROTLI_COMPRESSION_PERCENTAGE as u64 / 100,
-        tx2_diff_size
-    );
-
     assert_eq!(
         evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .map(|r| r.l1_diff_size)
             .collect::<Vec<_>>(),
-        [255, 561, 1019, 561, tx1_diff_size, tx2_diff_size]
+        [tx2_diff_size]
+    );
+
+    assert_eq!(
+        140 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
+        tx2_diff_size
     );
 }
 

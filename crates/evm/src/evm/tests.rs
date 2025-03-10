@@ -46,9 +46,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
 
     let contract = SimpleStorageContract::default();
 
-    // We are not supporting CANCUN yet
-    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(Default::default(), SpecId::SHANGHAI);
+    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(Default::default(), SpecId::CANCUN);
     cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
     let mut citrea_ext = CitreaExternal::new(0);

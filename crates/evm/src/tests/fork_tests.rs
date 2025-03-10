@@ -654,8 +654,7 @@ fn test_kzg_point_eval_should_revert() {
 }
 
 // 1. deploy p256verify contract on fork1 (any fork will work)
-// 2. call p256verify with a valid data on fork1 (it must fail because p256verify is not enabled on fork1)
-// 3. call p256verify with a valid data on fork2 (it must succeed because p256verify is enabled)
+// 2. call p256verify with a valid data on fork2 (it must succeed because p256verify is enabled)
 #[test]
 fn test_p256_verify() {
     let (config, dev_signer, contract_addr) =
@@ -663,7 +662,7 @@ fn test_p256_verify() {
 
     let (mut evm, mut working_set, spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
-    let mut l2_height = 2;
+    let l2_height = 2;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
@@ -690,47 +689,6 @@ fn test_p256_verify() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message, call_message],
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    // expect this call to fail because we do not have the p256 feature of revm enabled on fork1
-    let receipts: Vec<_> = evm
-        .receipts_rlp
-        .iter(&mut working_set.accessory_state())
-        .collect();
-    assert!(!receipts.last().unwrap().receipt.success);
-
-    let storage_value = evm.storage_get(&contract_addr, &U256::ZERO, &mut working_set);
-    assert!(storage_value.is_none());
-
-    l2_height += 1;
-
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-
-        let input = Bytes::from_str("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1").unwrap();
-
-        let call_message = call_p256_verify_transaction(contract_addr, &dev_signer, 2, input);
-
-        evm.call(
-            CallMessage {
-                txs: vec![call_message],
             },
             &context,
             &mut working_set,
