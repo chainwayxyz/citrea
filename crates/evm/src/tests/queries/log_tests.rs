@@ -337,7 +337,7 @@ fn log_filter_test_with_range() {
     };
 
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-    assert_eq!(rpc_logs.len(), 8);
+    assert_eq!(rpc_logs.len(), 4);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,

@@ -157,7 +157,7 @@ fn test_cancun_transient_storage_activation() {
 
     l2_height += 1;
 
-    // Call claim gift from transient storage contract expect to fail on Fork2 spec
+    // Call claim gift from transient storage contract
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
@@ -182,49 +182,13 @@ fn test_cancun_transient_storage_activation() {
         .collect();
 
     // Last tx should have failed because cancun is not activated
-    assert!(!receipts.last().unwrap().receipt.success);
-
-    // Now trying with CANCUN spec on the next block
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-        let call_tx =
-            claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 3);
-
-        evm.call(
-            CallMessage { txs: vec![call_tx] },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    l2_height += 1;
-
-    let receipts: Vec<_> = evm
-        .receipts_rlp
-        .iter(&mut working_set.accessory_state())
-        .collect();
-
-    // Last tx should have passed
     assert!(receipts.last().unwrap().receipt.success);
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
         let call_tx =
-            claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 4);
+            claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 3);
 
         evm.call(
             CallMessage { txs: vec![call_tx] },
@@ -307,40 +271,6 @@ fn test_cancun_mcopy_activation() {
         .iter(&mut working_set.accessory_state())
         .collect();
 
-    // Last tx should have failed because cancun is not activated
-    assert!(!receipts.last().unwrap().receipt.success);
-
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    // Send money to transient storage contract
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-        let call_tx = call_mcopy(contract_addr, &dev_signer, 2);
-
-        evm.call(
-            CallMessage { txs: vec![call_tx] },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    let receipts: Vec<_> = evm
-        .receipts_rlp
-        .iter(&mut working_set.accessory_state())
-        .collect();
-
-    // Last tx should have failed because cancun is not activated
     assert!(receipts.last().unwrap().receipt.success);
     let storage_value = evm
         .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
@@ -502,40 +432,6 @@ fn test_blob_base_fee_should_return_1() {
         .iter(&mut working_set.accessory_state())
         .collect();
 
-    // Last tx should have failed because cancun is not activated
-    assert!(!receipts.last().unwrap().receipt.success);
-
-    // Now trying with CANCUN spec on the next block
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-        let call_tx = store_blob_base_fee_transaction(contract_addr, &dev_signer, 2);
-
-        evm.call(
-            CallMessage { txs: vec![call_tx] },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    let receipts: Vec<_> = evm
-        .receipts_rlp
-        .iter(&mut working_set.accessory_state())
-        .collect();
-
-    // Last tx should have passed
     assert!(receipts.last().unwrap().receipt.success);
 
     let storage_value = evm
@@ -716,13 +612,7 @@ fn test_offchain_contract_storage_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let fork_fn = |num: u64| {
-        if num < 3 {
-            Fork::new(SovSpecId::Fork2, 0)
-        } else {
-            Fork::new(SovSpecId::Fork2, 4)
-        }
-    };
+    let fork_fn = |_: u64| Fork::new(SovSpecId::Fork2, 4);
 
     let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 0;
@@ -766,7 +656,7 @@ fn test_offchain_contract_storage_evm() {
     let contract_info = evm.account_info(&contract_addr, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
-    let Fork2_cont_evm_code = evm
+    let cont_code = evm
         .offchain_code
         .get(&code_hash, &mut working_set.offchain_state())
         .unwrap();
@@ -776,36 +666,7 @@ fn test_offchain_contract_storage_evm() {
         .get_code_inner(contract_addr, None, &mut working_set, fork_fn)
         .unwrap();
 
-    assert_eq!(*Fork2_cont_evm_code.original_byte_slice(), code);
-
-    let offchain_code = evm
-        .offchain_code
-        .get(&code_hash, &mut working_set.offchain_state());
-
-    assert!(offchain_code.is_none());
-
-    // activate fork and then try to get it from offchain storage and expect it to exist
-    // Deployed a contract in Fork2 fork
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-    sleep(std::time::Duration::from_secs(2));
-    l2_height += 1;
-
-    let offchain_code = evm
-        .offchain_code
-        .get(&code_hash, &mut working_set.offchain_state());
-
-    assert!(offchain_code.is_none());
+    assert_eq!(*cont_code.original_byte_slice(), code);
 
     let evm_code = evm
         .offchain_code
@@ -857,11 +718,6 @@ fn test_offchain_contract_storage_evm() {
 
     assert!(offchain_code.is_some());
 
-    let evm_code = evm
-        .offchain_code
-        .get(&code_hash, &mut working_set.offchain_state());
-    assert!(evm_code.is_none());
-
     // make tx on the contract that was deployed before fork1 and see that you can read it from offchain storage afterwards
     let l2_block_info = HookL2BlockInfo {
         l2_height,
@@ -895,12 +751,6 @@ fn test_offchain_contract_storage_evm() {
         .get_code_inner(new_contract_address, None, &mut working_set, fork_fn)
         .unwrap();
     assert_eq!(code, *offchain_code.unwrap().original_byte_slice());
-
-    // Also try to get code of a contract deployed in Fork2 fork and expect it to exist as well
-    let code = evm
-        .get_code_inner(contract_addr, None, &mut working_set, fork_fn)
-        .unwrap();
-    assert_eq!(code, *Fork2_cont_evm_code.original_byte_slice());
 
     // Now I should be able to read the contract from offchain storage
     let contract_info = evm.account_info(&contract_addr, &mut working_set);

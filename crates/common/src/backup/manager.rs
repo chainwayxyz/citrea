@@ -6,7 +6,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use tokio::sync::{Mutex, MutexGuard};
@@ -24,7 +24,7 @@ pub struct BackupConfig {
 impl BackupConfig {
     fn new() -> Self {
         let backup_dirs = vec![
-            LEDGER_DB_PATH_SUFFIX.to_string(),
+            LedgerDB::DB_PATH_SUFFIX.to_string(),
             StateDB::DB_PATH_SUFFIX.to_string(),
             NativeDB::DB_PATH_SUFFIX.to_string(),
         ];

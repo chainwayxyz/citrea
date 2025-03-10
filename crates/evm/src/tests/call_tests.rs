@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::BlockId;
-use alloy_primitives::{address, b256, Address, Bytes, TxKind, B256, U64};
+use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{BlockNumberOrTag, Log, LogData};
-use revm::primitives::{hex, KECCAK_EMPTY, U256};
+use reth_primitives::BlockNumberOrTag;
+use revm::primitives::{KECCAK_EMPTY, U256};
 use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -19,7 +19,6 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
-use crate::evm::DbAccount;
 use crate::handler::{BROTLI_COMPRESSION_PERCENTAGE, L1_FEE_OVERHEAD};
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
@@ -319,7 +318,7 @@ fn failed_transaction_test() {
 }
 
 // tests first part of https://eips.ethereum.org/EIPS/eip-6780
-// test self destruct behaviour before cancun and after cancun
+// test self destruct behaviour after cancun
 #[test]
 fn self_destruct_test() {
     let contract_balance: u64 = 1000000000000000;
@@ -378,8 +377,6 @@ fn self_destruct_test() {
     // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
-    let db_contract = DbAccount::new(&contract_addr);
-
     // Test if we managed to set the variable in the contract
     assert_eq!(
         evm.storage_get(&contract_addr, &U256::from(0), &mut working_set)
@@ -387,115 +384,16 @@ fn self_destruct_test() {
         U256::from(123)
     );
 
-    // Test if the key is set in the keys statevec
-    assert_eq!(db_contract.keys.len(&mut working_set), 1);
     let l1_fee_rate = 0;
 
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-        // selfdestruct
-        evm.call(
-            CallMessage {
-                txs: vec![selfdestruct_message(
-                    contract_addr,
-                    &dev_signer,
-                    3,
-                    die_to_address,
-                )],
-            },
-            &context,
-            &mut working_set,
+    let contract_code_hash_before_destruct = contract_info.code_hash.unwrap();
+    let contract_code_before_destruct = evm
+        .offchain_code
+        .get(
+            &contract_code_hash_before_destruct,
+            &mut working_set.offchain_state(),
         )
         .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    l2_height += 1;
-
-    // we now delete destructed accounts from storage
-    assert_eq!(evm.account_info(&contract_addr, &mut working_set), None);
-
-    let die_to_acc = evm
-        .account_info(&die_to_address, &mut working_set)
-        .expect("die to address should exist");
-
-    let receipts = evm
-        .receipts_rlp
-        .iter(&mut working_set.accessory_state())
-        .collect::<Vec<_>>();
-
-    // the tx should be a success
-    assert!(receipts[0].receipt.success);
-
-    // the to address balance should be equal to contract balance
-    assert_eq!(die_to_acc.balance, U256::from(contract_balance));
-
-    let db_account = DbAccount::new(&contract_addr);
-
-    // the storage should be empty
-    assert_eq!(
-        evm.storage_get(&contract_addr, &U256::from(0), &mut working_set),
-        None
-    );
-
-    // the keys should be empty
-    assert_eq!(db_account.keys.len(&mut working_set), 0);
-    let new_contract_address = address!("e04dd177927f4293a16f9c3f990b45afebc0e12c");
-    // Now deploy selfdestruct contract again
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-
-        // deploy selfdestruct contract
-        // send some money to the selfdestruct contract
-        // set some variable in the contract
-        let rlp_transactions = vec![
-            create_contract_message(&dev_signer, 4, SelfDestructorContract::default()),
-            send_money_to_contract_message(
-                new_contract_address,
-                &dev_signer,
-                5,
-                contract_balance as u128,
-            ),
-            set_selfdestruct_arg_message(new_contract_address, &dev_signer, 6, 123),
-        ];
-
-        evm.call(
-            CallMessage {
-                txs: rlp_transactions,
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    l2_height += 1;
-
-    let contract_info = evm
-        .account_info(&new_contract_address, &mut working_set)
-        .expect("contract address should exist");
-
-    let new_contract_code_hash_before_destruct = contract_info.code_hash.unwrap();
-    let new_contract_code_before_destruct = evm.offchain_code.get(
-        &new_contract_code_hash_before_destruct,
-        &mut working_set.offchain_state(),
-    );
 
     // Activate fork1
     // After cancun activated here SELFDESTRUCT will recover all funds to the target
@@ -521,9 +419,9 @@ fn self_destruct_test() {
         evm.call(
             CallMessage {
                 txs: vec![selfdestruct_message(
-                    new_contract_address,
+                    contract_addr,
                     &dev_signer,
-                    7,
+                    3,
                     die_to_address,
                 )],
             },
@@ -545,28 +443,24 @@ fn self_destruct_test() {
 
     // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
     let contract_info = evm
-        .account_info(&new_contract_address, &mut working_set)
+        .account_info(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
     // Test if we managed to send money to contract
     assert_eq!(contract_info.nonce, 1);
     assert_eq!(
         contract_info.code_hash.unwrap(),
-        new_contract_code_hash_before_destruct
+        contract_code_hash_before_destruct
     );
 
-    // Both on-chain state and off-chain state code should exist
-    let code = evm.offchain_code.get(
-        &new_contract_code_hash_before_destruct,
-        &mut working_set.offchain_state(),
-    );
-    assert_eq!(code, new_contract_code_before_destruct);
-
-    let off_chain_code = evm.offchain_code.get(
-        &new_contract_code_hash_before_destruct,
-        &mut working_set.offchain_state(),
-    );
-    assert_eq!(off_chain_code, new_contract_code_before_destruct);
+    let code = evm
+        .offchain_code
+        .get(
+            &contract_code_hash_before_destruct,
+            &mut working_set.offchain_state(),
+        )
+        .unwrap();
+    assert_eq!(code, contract_code_before_destruct);
 
     // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(0));
@@ -576,11 +470,11 @@ fn self_destruct_test() {
         .expect("die to address should exist");
 
     // the to address balance should be equal to double contract balance now that two selfdestructs have been called
-    assert_eq!(die_to_contract.balance, U256::from(2 * contract_balance));
+    assert_eq!(die_to_contract.balance, U256::from(contract_balance));
 
     // the storage should not be empty
     assert_eq!(
-        evm.storage_get(&new_contract_address, &U256::from(0), &mut working_set,),
+        evm.storage_get(&contract_addr, &U256::from(0), &mut working_set,),
         Some(U256::from(123))
     );
 }

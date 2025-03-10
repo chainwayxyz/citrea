@@ -1,11 +1,8 @@
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_primitives::{address, Address, B256, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
-use revm::primitives::bitvec::view::BitViewSized;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateMap, StateVec};
 use sov_state::storage::StateValueCodec;
-use sov_state::Prefix;
 
 pub(crate) mod conversions;
 pub(crate) mod db;
@@ -30,7 +27,7 @@ pub(crate) mod call;
 mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
-use sov_state::codec::{BcsCodec, BorshCodec};
+use sov_state::codec::BorshCodec;
 
 #[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
@@ -98,38 +95,6 @@ impl StateValueCodec<AccountInfo> for BorshCodec {
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<AccountInfo, Self::Error> {
         borsh::from_slice(bytes)
-    }
-}
-
-/// Stores information about an EVM account and a corresponding account state.
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub struct DbAccount {
-    /// Storage
-    pub storage: StateMap<U256, U256, BcsCodec>,
-    /// Keys
-    pub keys: StateVec<U256, BcsCodec>,
-}
-
-impl DbAccount {
-    /// Create a new DbAccount
-    pub fn new(address: &Address) -> Self {
-        Self {
-            storage: StateMap::with_codec(Self::create_storage_prefix(address), BcsCodec {}),
-            keys: StateVec::with_codec(Self::create_keys_prefix(address), BcsCodec {}),
-        }
-    }
-
-    /// Create a storage prefix
-    pub(crate) fn create_storage_prefix(address: &Address) -> Prefix {
-        let mut prefix = Prefix::from_slice(&DBACCOUNT_STORAGE_PREFIX);
-        prefix.extend_from_slice(address.as_raw_slice());
-        prefix
-    }
-
-    fn create_keys_prefix(address: &Address) -> Prefix {
-        let mut prefix = Prefix::from_slice(&DBACCOUNT_KEYS_PREFIX);
-        prefix.extend_from_slice(address.as_raw_slice());
-        prefix
     }
 }
 

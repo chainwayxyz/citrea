@@ -227,7 +227,7 @@ where
     let mut proof_rxs = Vec::with_capacity(inputs.len());
     let inputs_to_prove = inputs
         .into_iter()
-        .filter(|input| !state_transition_already_proven::<Da>(input, &submitted_proofs));
+        .filter(|input| !state_transition_already_proven(input, &submitted_proofs));
 
     // Add each non-proven proof's data to ProverService
     for (input, sequencer_commitment_range) in inputs_to_prove {
@@ -511,7 +511,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 
 /// TODO: This check needs a rewrite for sure.
 /// We could check on the sequencer commitments range only and not generate inputs
-pub(crate) fn state_transition_already_proven<Da: DaService>(
+pub(crate) fn state_transition_already_proven(
     input: &(BatchProofCircuitInputV3<Transaction>, (u32, u32)),
     proofs: &Vec<StoredBatchProof>,
 ) -> bool {

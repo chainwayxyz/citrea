@@ -45,8 +45,8 @@ fn begin_l2_block_hook_creates_pending_block() {
             number: U256::from(2),
             coinbase: *BENEFICIARY,
             timestamp: U256::from(54),
-            prevrandao: Some(*DA_ROOT_HASH),
-            basefee: U256::from(767816124),
+            prevrandao: Some(B256::ZERO),
+            basefee: U256::from(765625000),
             gas_limit: U256::from(config.block_gas_limit),
             difficulty: U256::ZERO,
             blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0))
@@ -158,25 +158,25 @@ fn end_l2_block_hook_moves_transactions_and_receipts() {
 
     assert_eq!(
         evm.receipts_rlp
-            .get(4, &mut working_set.accessory_state())
+            .get(0, &mut working_set.accessory_state())
             .unwrap(),
         tx1.receipt
     );
     assert_eq!(
         evm.receipts_rlp
-            .get(5, &mut working_set.accessory_state())
+            .get(1, &mut working_set.accessory_state())
             .unwrap(),
         tx2.receipt
     );
     assert_eq!(
         evm.transactions_rlp
-            .get(4, &mut working_set.accessory_state())
+            .get(0, &mut working_set.accessory_state())
             .unwrap(),
         tx1.transaction
     );
     assert_eq!(
         evm.transactions_rlp
-            .get(5, &mut working_set.accessory_state())
+            .get(1, &mut working_set.accessory_state())
             .unwrap(),
         tx2.transaction
     );
@@ -185,14 +185,14 @@ fn end_l2_block_hook_moves_transactions_and_receipts() {
         evm.transaction_hashes
             .get(&tx1_hash, &mut working_set.accessory_state())
             .unwrap(),
-        4
+        0
     );
 
     assert_eq!(
         evm.transaction_hashes
             .get(&tx2_hash, &mut working_set.accessory_state())
             .unwrap(),
-        5
+        1
     );
 
     assert_eq!(evm.pending_transactions.len(), 0);
