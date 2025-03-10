@@ -190,15 +190,15 @@ where
     ) -> anyhow::Result<()> {
         let start = Instant::now();
 
-        let l2_height = l2_block_response.height;
+        let l2_height = l2_block_response.header.height;
 
         info!(
             "Running l2 block batch #{} with hash: 0x{}",
             l2_height,
-            hex::encode(l2_block_response.hash),
+            hex::encode(l2_block_response.header.hash),
         );
 
-        if self.l2_block_hash != l2_block_response.prev_hash {
+        if self.l2_block_hash != l2_block_response.header.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
@@ -283,7 +283,7 @@ where
         let _ = self.l2_block_tx.send(l2_height);
 
         self.state_root = next_state_root;
-        self.l2_block_hash = l2_block_response.hash;
+        self.l2_block_hash = l2_block_response.header.hash;
 
         info!(
             "New State Root after l2 block #{} is: 0x{}",
@@ -380,7 +380,7 @@ async fn sync_l2(
 
         // Make sure l2 blocks are sorted for us to make sure they are processed
         // in the correct order.
-        l2_blocks.sort_by_key(|l2_block| l2_block.height);
+        l2_blocks.sort_by_key(|l2_block| l2_block.header.height);
 
         if let Err(e) = sender.send(l2_blocks).await {
             error!("Could not notify about L2 block: {}", e);

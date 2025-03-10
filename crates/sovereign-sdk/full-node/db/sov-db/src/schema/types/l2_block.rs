@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::block::{L2Block, L2Header, SignedL2Header};
-use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::rpc::block::{L2BlockResponse, L2HeaderResponse};
 use sov_rollup_interface::zk::StorageRootHash;
 
 use super::DbHash;
@@ -68,10 +68,19 @@ impl TryFrom<StoredL2Block> for L2BlockResponse {
     type Error = anyhow::Error;
 
     fn try_from(value: StoredL2Block) -> Result<Self, Self::Error> {
-        Ok(Self {
+        let header = L2HeaderResponse {
             height: value.height,
             hash: value.hash,
             prev_hash: value.prev_hash,
+            state_root: value.state_root,
+            signature: value.signature,
+            pub_key: value.pub_key,
+            l1_fee_rate: value.l1_fee_rate,
+            timestamp: value.timestamp,
+            tx_merkle_root: value.tx_merkle_root,
+        };
+        Ok(Self {
+            header,
             txs: Some(
                 value
                     .txs
@@ -79,12 +88,6 @@ impl TryFrom<StoredL2Block> for L2BlockResponse {
                     .filter_map(|tx| tx.body.map(Into::into))
                     .collect(),
             ), // Rollup full nodes don't store tx bodies
-            state_root: value.state_root,
-            signature: value.signature,
-            pub_key: value.pub_key,
-            l1_fee_rate: value.l1_fee_rate,
-            timestamp: value.timestamp,
-            tx_merkle_root: value.tx_merkle_root,
         })
     }
 }
