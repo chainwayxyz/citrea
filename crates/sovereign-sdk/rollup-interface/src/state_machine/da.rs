@@ -15,6 +15,8 @@ use crate::{BasicAddress, Network};
 pub struct SequencerCommitment {
     /// Merkle root of soft confirmation hashes
     pub merkle_root: [u8; 32],
+    /// Absolute order of the sequencer commitment, the first commitment has index 0, the next one has 1...
+    pub index: u32,
     /// Start L2 block's number
     pub l2_start_block_number: u64,
     /// End L2 block's number
@@ -38,7 +40,7 @@ impl core::cmp::PartialOrd for SequencerCommitment {
 
 impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.l2_start_block_number.cmp(&other.l2_start_block_number)
+        self.index.cmp(&other.index)
     }
 }
 

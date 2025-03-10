@@ -127,6 +127,7 @@ pub async fn generate_mock_txs(
     let mut valid_commitments = vec![];
     let mut valid_proofs = vec![];
     let mut valid_method_ids = vec![];
+    let mut seq_index = 0;
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
@@ -141,9 +142,11 @@ pub async fn generate_mock_txs(
 
     let commitment = SequencerCommitment {
         merkle_root: [13; 32],
+        index: seq_index,
         l2_start_block_number: 1002,
         l2_end_block_number: 1100,
     };
+    seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
         .send_transaction(DaTxRequest::SequencerCommitment(commitment))
@@ -152,9 +155,11 @@ pub async fn generate_mock_txs(
 
     let commitment = SequencerCommitment {
         merkle_root: [14; 32],
+        index: seq_index,
         l2_start_block_number: 1101,
         l2_end_block_number: 1245,
     };
+    seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
         .send_transaction(DaTxRequest::SequencerCommitment(commitment))
@@ -184,6 +189,7 @@ pub async fn generate_mock_txs(
     wrong_prefix_da_service
         .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
+            index: seq_index,
             l2_start_block_number: 1246,
             l2_end_block_number: 1268,
         }))
@@ -203,6 +209,7 @@ pub async fn generate_mock_txs(
     wrong_key_da_service
         .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
+            index: seq_index,
             l2_start_block_number: 1246,
             l2_end_block_number: 1268,
         }))
@@ -211,6 +218,7 @@ pub async fn generate_mock_txs(
 
     let commitment = SequencerCommitment {
         merkle_root: [15; 32],
+        index: seq_index,
         l2_start_block_number: 1246,
         l2_end_block_number: 1268,
     };

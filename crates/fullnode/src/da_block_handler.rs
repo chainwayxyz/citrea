@@ -282,8 +282,7 @@ where
             ),
         )?;
 
-        self.ledger_db
-            .set_last_commitment_l2_height(SoftConfirmationNumber(end_l2_height))?;
+        self.ledger_db.set_last_commitment(sequencer_commitment)?;
 
         Ok(())
     }

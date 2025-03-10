@@ -8,7 +8,7 @@ use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::StateDiff;
 use tracing::{debug, warn};
 
-use super::CommitmentInfo;
+use super::CommitmentRange;
 
 // Based on the test runs, brotli is able to compress the state diff 58% to 70%,
 // with an average of 66% for both empty and full blocks. This is a super safe
@@ -41,17 +41,18 @@ where
         &mut self,
         l2_height: u64,
         l2_state_diff: StateDiff,
-    ) -> anyhow::Result<Option<CommitmentInfo>> {
+    ) -> anyhow::Result<Option<CommitmentRange>> {
         // Get latest finalized and pending commitments and find the max height
         let last_finalized_l2_height = self
             .ledger_db
-            .get_last_commitment_l2_height()?
+            .get_last_commitment()?
+            .map(|seq| SoftConfirmationNumber(seq.l2_end_block_number))
             .unwrap_or(SoftConfirmationNumber(0));
         let last_pending_l2_height = self
             .ledger_db
-            .get_pending_commitments_l2_range()?
+            .get_pending_commitments()?
             .iter()
-            .map(|(_, end)| *end)
+            .map(|seq| SoftConfirmationNumber(seq.l2_end_block_number))
             .max()
             .unwrap_or(SoftConfirmationNumber(0));
         let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
@@ -99,7 +100,7 @@ where
         &self,
         last_committed_l2_height: SoftConfirmationNumber,
         current_l2_height: u64,
-    ) -> Option<CommitmentInfo> {
+    ) -> Option<CommitmentRange> {
         // If the last commitment made is on par with the head
         // soft confirmation, we have already committed the latest block.
         if last_committed_l2_height.0 >= current_l2_height {
@@ -120,9 +121,7 @@ where
         }
 
         debug!("Enough soft confirmations to submit commitment");
-        Some(CommitmentInfo {
-            l2_height_range: SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end),
-        })
+        Some(SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end))
     }
 
     fn check_state_diff_threshold(
@@ -130,7 +129,7 @@ where
         last_committed_l2_height: SoftConfirmationNumber,
         current_l2_height: u64,
         state_diff: &StateDiff,
-    ) -> Option<CommitmentInfo> {
+    ) -> Option<CommitmentRange> {
         if state_diff.is_empty() {
             return None;
         }
@@ -156,9 +155,7 @@ where
         );
 
         debug!("Enough state diff size to submit commitment");
-        Some(CommitmentInfo {
-            l2_height_range: SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end),
-        })
+        Some(SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end))
     }
 
     fn set_state_diff(&mut self, state_diff: StateDiff) -> anyhow::Result<()> {

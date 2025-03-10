@@ -53,7 +53,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
+    PendingSequencerCommitment::table_name(),
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
@@ -151,7 +151,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
     LightClientProofBySlotNumber::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
+    PendingSequencerCommitment::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     SoftConfirmationStatus::table_name(),
@@ -372,12 +372,12 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source for in progress sequencer commitments
-    (PendingSequencerCommitmentL2Range) L2HeightRange => ()
+    (PendingSequencerCommitment) u32 => SequencerCommitment
 );
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SoftConfirmationNumber
+    (LastSequencerCommitmentSent) () => SequencerCommitment
 );
 
 define_table_with_seek_key_codec!(

@@ -314,6 +314,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .into_iter()
             .map(|response| SequencerCommitment {
                 merkle_root: response.merkle_root,
+                index: response.index.to(),
                 l2_start_block_number: response.l2_start_block_number.to(),
                 l2_end_block_number: response.l2_end_block_number.to(),
             })
