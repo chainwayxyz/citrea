@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::BlockId;
-use alloy_primitives::{address, b256, Address, Bytes, TxKind, B256, U64};
+use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{BlockNumberOrTag, Log, LogData};
-use revm::primitives::{hex, KECCAK_EMPTY, U256};
+use reth_primitives::BlockNumberOrTag;
+use revm::primitives::{KECCAK_EMPTY, U256};
 use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;

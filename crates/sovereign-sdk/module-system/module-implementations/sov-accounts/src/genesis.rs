@@ -3,9 +3,9 @@ use core::result::Result;
 use borsh::BorshDeserialize;
 use hex::FromHex;
 use serde::{Deserialize, Deserializer};
-use sov_modules_api::default_signature::{DefaultPublicKey, K256PublicKey};
+use sov_modules_api::default_signature::K256PublicKey;
 use sov_modules_api::{
-    Address, PublicKey, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet,
+    Address, PublicKey, SoftConfirmationHookError, StateMapAccessor, WorkingSet,
 };
 
 use crate::{Account, Accounts};

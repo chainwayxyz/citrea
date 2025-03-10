@@ -454,7 +454,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     let InnerEvmContext {
         journaled_state,
         env,
-        db,
+        
         ..
     } = &mut context.evm.inner;
 

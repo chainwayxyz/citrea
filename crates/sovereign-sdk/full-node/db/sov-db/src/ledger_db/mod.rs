@@ -41,10 +41,6 @@ mod traits;
 
 pub use traits::*;
 
-/// LedgerDB path suffix
-pub const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
-pub const LEDGER_DB_NAME: &str = "ledger-db";
-
 #[derive(Clone, Debug)]
 /// A database which stores the ledger history (slots, transactions, events, etc).
 /// Ledger data is first ingested into an in-memory map before being fed to the state-transition function.
@@ -56,7 +52,8 @@ pub struct LedgerDB {
 }
 
 impl LedgerDB {
-    const DB_PATH_SUFFIX: &'static str = "ledger";
+    /// LedgerDB path suffix
+    pub const DB_PATH_SUFFIX: &'static str = "ledger";
     const DB_NAME: &'static str = "ledger-db";
 
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.

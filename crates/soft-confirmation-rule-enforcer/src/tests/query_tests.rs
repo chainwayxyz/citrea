@@ -9,7 +9,7 @@ fn block_count_rule_is_enforced() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    let mut soft_confirmation_info = sc_info_helper();
+    let soft_confirmation_info = sc_info_helper();
 
     // call end_soft_confirmation_hook a couple times for da hash 0
     for _ in 0..3 {

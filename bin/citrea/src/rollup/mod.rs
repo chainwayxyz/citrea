@@ -20,7 +20,7 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
@@ -106,7 +106,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let storage_manager = self.create_storage_manager(rollup_config)?;
 
         backup_manager
-            .register_database(LEDGER_DB_PATH_SUFFIX.to_string(), ledger_db.db_handle())?;
+            .register_database(LedgerDB::DB_PATH_SUFFIX.to_string(), ledger_db.db_handle())?;
         backup_manager.register_database(
             StateDB::DB_PATH_SUFFIX.to_string(),
             storage_manager.get_state_db_handle(),
