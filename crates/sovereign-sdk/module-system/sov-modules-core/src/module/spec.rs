@@ -110,6 +110,6 @@ pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     /// The current active spec
     fn active_spec(&self) -> SpecId;
 
-    /// The L1 fee rate applied to the soft confirmation
+    /// The L1 fee rate applied to the l2 block
     fn l1_fee_rate(&self) -> u128;
 }

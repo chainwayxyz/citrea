@@ -48,7 +48,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 1000,
+        min_l2_blocks_per_commitment: 1000,
         da_update_interval_ms: 500,
         block_production_interval_ms: 500,
         ..Default::default()
@@ -87,7 +87,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     // publish a block which will start filling of all missing da blocks in one l2 block
     // since this test runs on fork2 instead of generating one block pre missed da block
     // It will generate one l2 block for every missed 10 da block
-    // We are testing for 25 missed da blocks one of them will go to the last soft confirmation
+    // We are testing for 25 missed da blocks one of them will go to the last l2 block
     // So we will have 24 missed block count
     // 10 + 10 + 4 This will generate 3 blocks, these blocks 2,3,4 will have 10, 10, 4 system transactions (set block info) respectively
     // and the last block will have 1 system transaction (set block info)
@@ -161,11 +161,11 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     // Wait for storage
     sleep(Duration::from_secs(1)).await;
 
-    let head_soft_confirmation_num = seq_test_client
-        .ledger_get_head_soft_confirmation_height()
+    let head_l2_block_num = seq_test_client
+        .ledger_get_head_l2_block_height()
         .await
         .unwrap();
-    assert_eq!(head_soft_confirmation_num, last_filler_l2_block + 2);
+    assert_eq!(head_l2_block_num, last_filler_l2_block + 2);
 
     seq_task.abort();
     Ok(())
@@ -185,10 +185,10 @@ async fn test_sequencer_commitment_threshold() {
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     // Put a large number for commitment threshold
-    let min_soft_confirmations_per_commitment = 1_000_000;
+    let min_l2_blocks_per_commitment = 1_000_000;
 
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment,
+        min_l2_blocks_per_commitment,
         mempool_conf: SequencerMempoolConfig {
             max_account_slots: 4000,
             ..Default::default()
@@ -352,14 +352,14 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .eth_get_transaction_by_hash(*tx.tx_hash(), Some(true))
         .await;
 
-    let soft_confirmation = seq_test_client
-        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(block.header.number)
+    let l2_block = seq_test_client
+        .ledger_get_l2_block_by_number::<MockDaSpec>(block.header.number)
         .await
         .unwrap();
 
     assert_eq!(block.transactions.len(), 0);
     assert!(tx_from_mempool.is_none());
-    assert_eq!(soft_confirmation.txs.unwrap().len(), 0);
+    assert_eq!(l2_block.txs.unwrap().len(), 0);
 
     wait_for_l2_block(&full_node_test_client, block.header.number, None).await;
 
@@ -405,7 +405,7 @@ async fn test_gas_limit_too_high() {
 
     // Increase max account slots to not stuck as spammer
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 1000,
+        min_l2_blocks_per_commitment: 1000,
         deposit_mempool_fetch_limit: 100,
         mempool_conf: SequencerMempoolConfig {
             max_account_slots: tx_count * 2,
@@ -547,7 +547,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 1000,
+        min_l2_blocks_per_commitment: 1000,
         mempool_conf: SequencerMempoolConfig {
             max_account_slots: 100,
             ..Default::default()
@@ -589,12 +589,12 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             .unwrap();
     }
 
-    // 56th tx should be the last tx in the soft confirmation
+    // 56th tx should be the last tx in the l2 block
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // 57th tx should not be in soft confirmation
+    // 57th tx should not be in l2 block
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
@@ -609,8 +609,8 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     // Wait for storage
     sleep(Duration::from_secs(1)).await;
 
-    let initial_soft_confirmation = seq_test_client
-        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(1)
+    let initial_l2_block = seq_test_client
+        .ledger_get_l2_block_by_number::<MockDaSpec>(1)
         .await
         .unwrap();
 
@@ -628,9 +628,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     // last in tx byte array should be a subarray of txs[0]
     assert!(find_subarray(
-        initial_soft_confirmation.clone().txs.unwrap()[0]
-            .tx
-            .as_slice(),
+        initial_l2_block.clone().txs.unwrap()[0].tx.as_slice(),
         &last_tx_raw[2..]
     )
     .is_some());
@@ -654,21 +652,21 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     // not in tx byte array should not be a subarray of txs[0]
     assert!(find_subarray(
-        initial_soft_confirmation.txs.unwrap()[0].tx.as_slice(),
+        initial_l2_block.txs.unwrap()[0].tx.as_slice(),
         &not_in_raw[2..]
     )
     .is_none());
 
     seq_test_client.send_publish_batch_request().await;
 
-    let second_soft_confirmation = seq_test_client
-        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(2)
+    let second_l2_block = seq_test_client
+        .ledger_get_l2_block_by_number::<MockDaSpec>(2)
         .await
         .unwrap();
 
-    // should be in tx byte array of the soft confirmation after
+    // should be in tx byte array of the l2 block after
     assert!(find_subarray(
-        second_soft_confirmation.txs.unwrap()[0].tx.as_slice(),
+        second_l2_block.txs.unwrap()[0].tx.as_slice(),
         &not_in_raw[2..]
     )
     .is_some());

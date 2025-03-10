@@ -92,9 +92,9 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
             },
             &mut self.working_set.offchain_state(),
         )? {
-            return Ok(code);
+            Ok(code)
         } else {
-            return Ok(Default::default());
+            Ok(Default::default())
         }
     }
 

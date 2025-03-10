@@ -3,10 +3,8 @@ use core::result::Result;
 use borsh::BorshDeserialize;
 use hex::FromHex;
 use serde::{Deserialize, Deserializer};
-use sov_modules_api::default_signature::{DefaultPublicKey, K256PublicKey};
-use sov_modules_api::{
-    Address, PublicKey, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet,
-};
+use sov_modules_api::default_signature::K256PublicKey;
+use sov_modules_api::{Address, L2BlockHookError, PublicKey, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -47,11 +45,11 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         &self,
         pub_key: &[u8],
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<Account, SoftConfirmationHookError> {
+    ) -> Result<Account, L2BlockHookError> {
         let default_address: Address = {
             let pub_key: K256PublicKey = K256PublicKey::try_from_slice(pub_key)
                 // TODO: Update error handling
-                .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
+                .map_err(|_| L2BlockHookError::SovTxAccountNotFound)?;
             pub_key.to_address()
         };
 
@@ -74,9 +72,9 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         &self,
         address: &Address,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<(), SoftConfirmationHookError> {
+    ) -> Result<(), L2BlockHookError> {
         if self.public_keys.get(address, working_set).is_some() {
-            return Err(SoftConfirmationHookError::SovTxAccountAlreadyExists);
+            return Err(L2BlockHookError::SovTxAccountAlreadyExists);
         }
 
         Ok(())

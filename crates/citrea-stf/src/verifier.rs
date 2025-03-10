@@ -58,28 +58,26 @@ where
             panic!("Short header proof provider already set");
         }
 
-        println!("going into apply_soft_confirmations_from_sequencer_commitments");
+        println!("going into apply_l2_blocks_from_sequencer_commitments");
 
         let ApplySequencerCommitmentsOutput {
             final_state_root,
             state_diff,
             last_l2_height,
-            final_soft_confirmation_hash,
+            final_l2_block_hash,
             sequencer_commitment_merkle_roots,
             cumulative_state_log,
-        } = self
-            .app
-            .apply_soft_confirmations_from_sequencer_commitments(
-                guest,
-                sequencer_k256_public_key,
-                &data.initial_state_root,
-                pre_state.clone(),
-                data.sequencer_commitments,
-                &data.cache_prune_l2_heights,
-                forks,
-            );
+        } = self.app.apply_l2_blocks_from_sequencer_commitments(
+            guest,
+            sequencer_k256_public_key,
+            &data.initial_state_root,
+            pre_state.clone(),
+            data.sequencer_commitments,
+            &data.cache_prune_l2_heights,
+            forks,
+        );
 
-        println!("out of apply_soft_confirmations_from_sequencer_commitments");
+        println!("out of apply_l2_blocks_from_sequencer_commitments");
 
         let last_queried_hash = SHORT_HEADER_PROOF_PROVIDER
             .get()
@@ -100,7 +98,7 @@ where
         BatchProofCircuitOutputV3 {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            final_soft_confirmation_hash,
+            final_l2_block_hash,
             state_diff,
             last_l2_height,
             sequencer_commitment_merkle_roots,

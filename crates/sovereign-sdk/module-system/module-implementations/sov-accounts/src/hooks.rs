@@ -1,10 +1,6 @@
-use borsh::BorshDeserialize;
-use sov_modules_api::default_signature::DefaultPublicKey;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    Address, Context, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet,
-};
+use sov_modules_api::{Address, Context, L2BlockHookError, SpecId, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -19,7 +15,7 @@ impl<C: Context> Accounts<C> {
         &self,
         pubkey: &[u8],
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<Account, SoftConfirmationHookError> {
+    ) -> Result<Account, L2BlockHookError> {
         self.accounts
             .get(pubkey, working_set)
             .map_or_else(|| self.create_default_account(pubkey, working_set), Ok)
@@ -37,12 +33,12 @@ impl<C: Context> TxHooks for Accounts<C> {
         working_set: &mut WorkingSet<C::Storage>,
         _sequencer: &Self::PreArg,
         spec_id: SpecId,
-    ) -> Result<AccountsTxHook, SoftConfirmationHookError> {
+    ) -> Result<AccountsTxHook, L2BlockHookError> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
         let tx_nonce = tx.nonce();
 
         if sender.nonce != tx_nonce {
-            return Err(SoftConfirmationHookError::SovTxBadNonce);
+            return Err(L2BlockHookError::SovTxBadNonce);
         }
 
         Ok(AccountsTxHook {
@@ -56,11 +52,11 @@ impl<C: Context> TxHooks for Accounts<C> {
         _ctx: &C,
         working_set: &mut WorkingSet<C::Storage>,
         spec_id: SpecId,
-    ) -> Result<(), SoftConfirmationHookError> {
+    ) -> Result<(), L2BlockHookError> {
         let mut account = self
             .accounts
             .get_or_err(tx.pub_key(), working_set)
-            .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
+            .map_err(|_| L2BlockHookError::SovTxAccountNotFound)?;
         account.nonce += 1;
         self.accounts.set(tx.pub_key(), &account, working_set);
 

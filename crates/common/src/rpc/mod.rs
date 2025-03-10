@@ -11,7 +11,7 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::{ErrorObjectOwned, Request};
 use jsonrpsee::{MethodResponse, RpcModule};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
-use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::schema::types::L2BlockNumber;
 use tower_http::cors::{Any, CorsLayer};
 
 mod auth;
@@ -36,8 +36,8 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             )
         };
 
-        let Some((SoftConfirmationNumber(head_batch_num), _)) = ledger_db
-            .get_head_soft_confirmation()
+        let Some((L2BlockNumber(head_batch_num), _)) = ledger_db
+            .get_head_l2_block()
             .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
         else {
             return Ok::<(), ErrorObjectOwned>(());
@@ -48,9 +48,8 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
         }
 
         let soft_batches = ledger_db
-            .get_soft_confirmation_range(
-                &(SoftConfirmationNumber(head_batch_num - 1)
-                    ..=SoftConfirmationNumber(head_batch_num)),
+            .get_l2_block_range(
+                &(L2BlockNumber(head_batch_num - 1)..=L2BlockNumber(head_batch_num)),
             )
             .map_err(|err| error(&format!("Failed to get soft batch range: {}", err)))?;
 
@@ -58,10 +57,10 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
         tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
 
         let (new_head_batch_num, _) = ledger_db
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
             .unwrap();
-        if new_head_batch_num > SoftConfirmationNumber(head_batch_num) {
+        if new_head_batch_num > L2BlockNumber(head_batch_num) {
             Ok::<(), ErrorObjectOwned>(())
         } else {
             Err(error("Block number is not increasing"))

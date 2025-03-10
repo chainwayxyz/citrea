@@ -8,7 +8,7 @@ mod pub_key_hex;
 
 pub use sov_rollup_interface::fork;
 pub use sov_rollup_interface::spec::SpecId;
-pub use sov_rollup_interface::stf::{SoftConfirmationHookError, SoftConfirmationModuleCallError};
+pub use sov_rollup_interface::stf::{L2BlockHookError, L2BlockModuleCallError};
 
 #[cfg(feature = "macros")]
 mod reexport_macros;
@@ -188,9 +188,9 @@ pub use sov_modules_core::{
     DispatchCall, EncodeCall, Genesis, Module, ModuleCallJsonSchema, ModuleInfo, ModulePrefix,
     PublicKey, Signature, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
+pub use sov_rollup_interface::block::L2Block;
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
-pub use sov_rollup_interface::soft_confirmation::L2Block;
 pub use sov_rollup_interface::stf::StateDiff;
 pub use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 pub use sov_rollup_interface::zk::Zkvm;

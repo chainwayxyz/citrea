@@ -141,7 +141,7 @@ pub async fn start_rollup(
     let Dependencies {
         da_service,
         mut task_manager,
-        soft_confirmation_channel,
+        l2_block_channel,
     } = mock_demo_rollup
         .setup_dependencies(
             &rollup_config,
@@ -184,8 +184,8 @@ pub async fn start_rollup(
         .runner
         .clone()
         .map(|runner| runner.sequencer_client_url);
-    let soft_confirmation_rx = if light_client_prover_config.is_none() {
-        soft_confirmation_channel.1
+    let l2_block_rx = if light_client_prover_config.is_none() {
+        l2_block_channel.1
     } else {
         None
     };
@@ -197,7 +197,7 @@ pub async fn start_rollup(
             ledger_db.clone(),
             da_service.clone(),
             sequencer_client_url,
-            soft_confirmation_rx,
+            l2_block_rx,
             &backup_manager,
         )
         .expect("RPC module setup should work");
@@ -219,7 +219,7 @@ pub async fn start_rollup(
             da_service,
             ledger_db,
             storage_manager,
-            soft_confirmation_channel.0,
+            l2_block_channel.0,
             rpc_module,
             backup_manager,
         )
@@ -250,7 +250,7 @@ pub async fn start_rollup(
             da_service,
             ledger_db.clone(),
             storage_manager,
-            soft_confirmation_channel.0,
+            l2_block_channel.0,
             rpc_module,
             backup_manager,
         )
@@ -344,7 +344,7 @@ pub async fn start_rollup(
             da_service,
             ledger_db.clone(),
             storage_manager,
-            soft_confirmation_channel.0,
+            l2_block_channel.0,
             backup_manager,
         )
         .instrument(span.clone())
@@ -476,9 +476,9 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
-        debug!("Waiting for soft confirmation {}", num);
+        debug!("Waiting for l2 block {}", num);
         let latest_block = client
-            .ledger_get_head_soft_confirmation_height()
+            .ledger_get_head_l2_block_height()
             .await
             .expect("Expected height to be Some");
 

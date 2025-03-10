@@ -8,7 +8,7 @@ use revm::primitives::{
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use short_header_proof_provider::{ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::{
-    native_error, native_trace, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
+    native_error, native_trace, L2BlockModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };
 #[cfg(feature = "native")]
 use tracing::trace_span;
@@ -59,7 +59,7 @@ where
 }
 
 /// Will fail on the first error.
-/// Rendering the soft confirmation invalid
+/// Rendering the l2 block invalid
 pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
     db: EvmDb<C>,
     block_env: BlockEnv,
@@ -68,7 +68,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     ext: &mut EXT,
     prev_gas_used: u64,
     l2_height: u64,
-) -> Result<Vec<ExecutionResult>, SoftConfirmationModuleCallError> {
+) -> Result<Vec<ExecutionResult>, L2BlockModuleCallError> {
     if txs.is_empty() {
         return Ok(vec![]);
     }
@@ -94,7 +94,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
         if tx.signer() == SYSTEM_SIGNER {
             if should_be_end_of_sys_txs {
                 native_error!("System transaction found after user txs");
-                return Err(SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
+                return Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
             post_fork2_system_tx_verifier(evm.evm.db_mut(), tx, l2_height)?;
@@ -105,7 +105,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
         // if tx is eip4844 error out
         if tx.is_eip4844() {
             native_error!("EIP-4844 transaction is not supported");
-            return Err(SoftConfirmationModuleCallError::EvmTxTypeNotSupported(
+            return Err(L2BlockModuleCallError::EvmTxTypeNotSupported(
                 "EIP-4844".to_string(),
             ));
         }
@@ -114,21 +114,19 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             native_error!("Invalid tx {}. Error: {}", tx.hash(), e);
             match e {
                 // only custom error we use is for not enough funds for L1 fee
-                EVMError::Custom(_) => SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee,
-                _ => SoftConfirmationModuleCallError::EvmTransactionExecutionError,
+                EVMError::Custom(_) => L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee,
+                _ => L2BlockModuleCallError::EvmTransactionExecutionError,
             }
         })?;
 
         // Check if the transaction used more gas than the available block gas limit
         if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
             native_error!("Gas used exceeds block gas limit");
-            return Err(
-                SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
-                    cumulative_gas: cumulative_gas_used,
-                    tx_gas_used: result_and_state.result.gas_used(),
-                    block_gas_limit,
-                },
-            );
+            return Err(L2BlockModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                cumulative_gas: cumulative_gas_used,
+                tx_gas_used: result_and_state.result.gas_used(),
+                block_gas_limit,
+            });
         }
 
         native_trace!("Commiting tx to DB");
@@ -145,10 +143,10 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
     db: &mut EvmDb<C>,
     tx: &TransactionSignedEcRecovered,
     l2_height: u64,
-) -> Result<(), SoftConfirmationModuleCallError> {
+) -> Result<(), L2BlockModuleCallError> {
     let function_selector: [u8; 4] = tx.input()[0..4]
         .try_into()
-        .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+        .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
 
     // Early return if this is the first block because sequencer will not have any L1 block hash in system contract before setblock info call
     if l2_height == 1 {
@@ -157,13 +155,13 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36]
             .try_into()
-            .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
         let shp_provider = SHORT_HEADER_PROOF_PROVIDER
             .get()
             .expect("Short header proof provider not set");
         let txs_commitment: [u8; 32] = tx.input()[36..68]
             .try_into()
-            .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
         let coinbase_depth: u8 = U256::from_be_slice(&tx.input()[68..100]).to::<u8>();
 
         let citrea_spec = fork_from_block_number(l2_height).spec_id;
@@ -185,10 +183,10 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
             Ok(true) => return Ok(()),
             Ok(false) => {
                 // Failed to verify shp
-                return Err(SoftConfirmationModuleCallError::ShortHeaderProofVerificationError);
+                return Err(L2BlockModuleCallError::ShortHeaderProofVerificationError);
             }
             Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
-                return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
+                return Err(L2BlockModuleCallError::ShortHeaderProofNotFound);
             }
         }
     }

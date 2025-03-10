@@ -28,7 +28,7 @@ pub enum SpecId {
     /// First fork activates:
     /// 1. the light client proof
     /// 2. EVM cancun upgrade (with no kzg precompile)
-    /// 3. Don't use borsh when signing SoftConfirmation's
+    /// 3. Don't use borsh when signing L2Block's
     /// 4. Better usage of DA layer by committing only the hash
     ///    of the smart contracts to state
     // Kumquat = 1,

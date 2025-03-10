@@ -29,7 +29,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, WorkingSet};
+use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
@@ -598,7 +598,7 @@ where
                 .sequencer_client
                 .as_ref()
                 .unwrap()
-                .get_head_soft_confirmation_height(),
+                .get_head_l2_block_height(),
             self.ethereum.da_service.get_last_finalized_block_header()
         );
 
@@ -610,8 +610,8 @@ where
             },
         };
 
-        let head_soft_confirmation = self.ethereum.ledger_db.get_head_soft_confirmation();
-        let l2_synced_block_number = match head_soft_confirmation {
+        let head_l2_block = self.ethereum.ledger_db.get_head_l2_block();
+        let l2_synced_block_number = match head_l2_block {
             Ok(Some((height, _))) => height.0,
             Ok(None) => 0u64,
             Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
@@ -712,7 +712,7 @@ pub fn create_rpc_module<C, Da>(
     storage: C::Storage,
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
-    soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+    l2_block_rx: Option<broadcast::Receiver<u64>>,
 ) -> RpcModule<EthereumRpcServerImpl<C, Da>>
 where
     C: sov_modules_api::Context,
@@ -727,7 +727,7 @@ where
 
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
-    let enable_subscriptions = soft_confirmation_rx.is_some();
+    let enable_subscriptions = l2_block_rx.is_some();
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let ethereum = Arc::new(Ethereum::new(
@@ -737,7 +737,7 @@ where
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
-        soft_confirmation_rx,
+        l2_block_rx,
     ));
     let server = EthereumRpcServerImpl::new(ethereum);
 

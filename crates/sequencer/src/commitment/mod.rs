@@ -7,7 +7,7 @@ use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
@@ -25,7 +25,7 @@ mod controller;
 #[derive(Clone, Debug)]
 pub struct CommitmentInfo {
     /// L2 heights to commit
-    pub l2_height_range: RangeInclusive<SoftConfirmationNumber>,
+    pub l2_height_range: RangeInclusive<L2BlockNumber>,
 }
 
 pub struct CommitmentService<Da, Db>
@@ -36,7 +36,7 @@ where
     ledger_db: Db,
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
-    soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
+    l2_block_rx: UnboundedReceiver<(u64, StateDiff)>,
     commitment_controller: Arc<RwLock<CommitmentController<Db>>>,
 }
 
@@ -49,18 +49,18 @@ where
         ledger_db: Db,
         da_service: Arc<Da>,
         sequencer_da_pub_key: Vec<u8>,
-        min_soft_confirmations: u64,
-        soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
+        min_l2_blocks: u64,
+        l2_block_rx: UnboundedReceiver<(u64, StateDiff)>,
     ) -> Self {
         let commitment_controller = Arc::new(RwLock::new(CommitmentController::new(
             ledger_db.clone(),
-            min_soft_confirmations,
+            min_l2_blocks,
         )));
         Self {
             ledger_db,
             da_service,
             sequencer_da_pub_key,
-            soft_confirmation_rx,
+            l2_block_rx,
             commitment_controller,
         }
     }
@@ -70,14 +70,14 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
-                    self.soft_confirmation_rx.close();
+                    self.l2_block_rx.close();
                     return;
                 },
-                info = self.soft_confirmation_rx.recv() => {
+                info = self.l2_block_rx.recv() => {
                     let Some((height, state_diff)) = info else {
                         // An error is returned because the channel is either
                         // closed or lagged.
-                        error!("Commitment service soft confirmation channel closed abruptly");
+                        error!("Commitment service l2 block channel closed abruptly");
                         return;
                     };
 
@@ -123,18 +123,18 @@ where
         let l2_start = *commitment_info.l2_height_range.start();
         let l2_end = *commitment_info.l2_height_range.end();
 
-        let soft_confirmation_hashes = self
+        let l2_block_hashes = self
             .ledger_db
-            .get_soft_confirmation_range(&(l2_start..=l2_end))?
+            .get_l2_block_range(&(l2_start..=l2_end))?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
 
         SEQUENCER_METRICS
             .commitment_blocks_count
-            .set(soft_confirmation_hashes.len() as f64);
+            .set(l2_block_hashes.len() as f64);
 
-        let commitment = self.get_commitment(commitment_info, soft_confirmation_hashes)?;
+        let commitment = self.get_commitment(commitment_info, l2_block_hashes)?;
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
@@ -262,18 +262,18 @@ where
     pub fn get_commitment(
         &self,
         commitment_info: CommitmentInfo,
-        soft_confirmation_hashes: Vec<[u8; 32]>,
+        l2_block_hashes: Vec<[u8; 32]>,
     ) -> anyhow::Result<SequencerCommitment> {
         // sanity check
         assert_eq!(
             commitment_info.l2_height_range.end().0 - commitment_info.l2_height_range.start().0
                 + 1u64,
-            soft_confirmation_hashes.len() as u64,
-            "Sequencer: Soft confirmation hashes length does not match the commitment info"
+            l2_block_hashes.len() as u64,
+            "Sequencer: L2 block hashes length does not match the commitment info"
         );
 
-        // build merkle tree over soft confirmations
-        let merkle_root = MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice())
+        // build merkle tree over l2 blocks
+        let merkle_root = MerkleTree::<Sha256>::from_leaves(l2_block_hashes.as_slice())
             .root()
             .ok_or(anyhow!("Couldn't compute merkle root"))?;
         Ok(SequencerCommitment {

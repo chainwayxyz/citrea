@@ -158,7 +158,7 @@ pub(crate) fn sealed_block_to_block_env(
         difficulty: U256::from(0),
         blob_excess_gas_and_price: sealed_header
             .excess_blob_gas
-            .or_else(|| Some(0))
+            .or(Some(0))
             .map(BlobExcessGasAndPrice::new),
     }
 }

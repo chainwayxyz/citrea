@@ -1033,7 +1033,7 @@ dependencies = [
  "citrea-evm",
  "serde",
  "short-header-proof-provider",
- "soft-confirmation-rule-enforcer",
+ "l2-block-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
@@ -3224,7 +3224,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "soft-confirmation-rule-enforcer"
+name = "l2-block-rule-enforcer"
 version = "0.6.0"
 dependencies = [
  "borsh",

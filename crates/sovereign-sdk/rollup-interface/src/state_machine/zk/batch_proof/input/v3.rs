@@ -2,8 +2,8 @@ use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
+use crate::block::L2Block;
 use crate::da::SequencerCommitment;
-use crate::soft_confirmation::L2Block;
 use crate::witness::Witness;
 use crate::zk::StorageRootHash;
 
@@ -49,7 +49,7 @@ pub struct BatchProofCircuitInputV3<'txs, Tx: Clone + BorshSerialize> {
     pub final_state_root: StorageRootHash,
     /// The L2 blocks that are inside the sequencer commitments.
     pub l2_blocks: VecDeque<Vec<L2Block<'txs, Tx>>>,
-    /// Corresponding witness for the soft confirmations.
+    /// Corresponding witness for the l2 blocks.
     pub state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>>,
     /// Short header proofs for verifying system transactions
     pub short_header_proofs: VecDeque<Vec<u8>>,
@@ -77,23 +77,18 @@ where
         assert_eq!(self.l2_blocks.len(), self.state_transition_witnesses.len());
         let mut x = VecDeque::with_capacity(self.l2_blocks.len());
 
-        for (confirmations, witnesses) in self
+        for (l2_blocks, witnesses) in self
             .l2_blocks
             .into_iter()
             .zip(self.state_transition_witnesses)
         {
-            assert_eq!(confirmations.len(), witnesses.len());
+            assert_eq!(l2_blocks.len(), witnesses.len());
 
-            let v: Vec<_> = confirmations
+            let v: Vec<_> = l2_blocks
                 .into_iter()
                 .zip(witnesses)
-                .map(|(confirmation, (state_witness, offchain_witness))| {
-                    (
-                        confirmation.l2_height(),
-                        confirmation,
-                        state_witness,
-                        offchain_witness,
-                    )
+                .map(|(l2_block, (state_witness, offchain_witness))| {
+                    (l2_block.height(), l2_block, state_witness, offchain_witness)
                 })
                 .collect();
 

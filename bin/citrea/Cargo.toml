@@ -31,7 +31,7 @@ prover-services = { path = "../../crates/prover-services" }
 short-header-proof-provider = { path = "../../crates/short-header-proof-provider", features = ["native"] }
 
 # Sovereign-SDK deps
-soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
+l2-block-rule-enforcer = { path = "../../crates/l2-block-rule-enforcer" }
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
 sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = ["server"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", features = ["native"] }

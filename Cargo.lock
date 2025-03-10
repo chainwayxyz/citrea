@@ -1937,6 +1937,7 @@ dependencies = [
  "hex",
  "jmt",
  "jsonrpsee",
+ "l2-block-rule-enforcer",
  "lazy_static",
  "log",
  "log-panics",
@@ -1959,7 +1960,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "short-header-proof-provider",
- "soft-confirmation-rule-enforcer",
  "sov-db",
  "sov-ledger-rpc",
  "sov-mock-da",
@@ -2080,7 +2080,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=21059161ea8cd9605b484a948e8e1057a68fd03f#21059161ea8cd9605b484a948e8e1057a68fd03f"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=31ddc6d#31ddc6d6b1352b694b4c6d2f3531c7cca1661e5a"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2285,6 +2285,7 @@ dependencies = [
  "digest 0.10.7",
  "hex",
  "jsonrpsee",
+ "l2-block-rule-enforcer",
  "metrics",
  "metrics-derive",
  "once_cell",
@@ -2303,7 +2304,6 @@ dependencies = [
  "reth-trie",
  "rs_merkle",
  "schnellru",
- "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-db",
  "sov-modules-api",
@@ -2325,10 +2325,10 @@ dependencies = [
  "borsh",
  "citrea-evm",
  "jsonrpsee",
+ "l2-block-rule-enforcer",
  "serde",
  "serde_json",
  "short-header-proof-provider",
- "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
@@ -4465,6 +4465,25 @@ checksum = "ed9625ffda8729b85e45cf04090035ac368927b8cebc34898e7c120f52e4838b"
 dependencies = [
  "bitflags 1.3.2",
  "libc",
+]
+
+[[package]]
+name = "l2-block-rule-enforcer"
+version = "0.6.0"
+dependencies = [
+ "borsh",
+ "chrono",
+ "citrea-evm",
+ "jsonrpsee",
+ "lazy_static",
+ "serde",
+ "sov-mock-da",
+ "sov-modules-api",
+ "sov-prover-storage-manager",
+ "sov-rollup-interface",
+ "sov-state",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -8155,25 +8174,6 @@ checksum = "c970269d99b64e60ec3bd6ad27270092a5394c4e309314b18ae3fe575695fbe8"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "soft-confirmation-rule-enforcer"
-version = "0.6.0"
-dependencies = [
- "borsh",
- "chrono",
- "citrea-evm",
- "jsonrpsee",
- "lazy_static",
- "serde",
- "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
- "tempfile",
- "tracing",
 ]
 
 [[package]]

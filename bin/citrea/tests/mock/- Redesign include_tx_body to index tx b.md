@@ -1,0 +1,7 @@
+- Redesign include_tx_body to index tx body out of block so that we can query tx hash or full tx in RPC
+- New tx body indexing by (block hash, txno)
+- Unflatten the response (split up header/txs) in line with https://github.com/chainwayxyz/citrea/issues/1990#issuecomment-2696564386
+- Backward compatibilty handling:
+    -  Index both as StoredL2Block and StoredL2Block for height > Fork2
+    -  Make sure the new RPC return None on height < Fork2, no need for migration
+- Duplicate all RPCs returning L2BlockResponse under citrea_ namespace and return L2BlockResponse

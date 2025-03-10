@@ -49,7 +49,7 @@ impl TestCase for FullNodeRestartTest {
         let state_root_before = full_node
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .await?
             .unwrap()
             .state_root;
@@ -59,7 +59,7 @@ impl TestCase for FullNodeRestartTest {
         let state_root_after = full_node
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .await?
             .unwrap()
             .state_root;

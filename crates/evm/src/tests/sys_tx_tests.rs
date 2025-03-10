@@ -7,9 +7,9 @@ use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{BlockNumberOrTag, Log};
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, SoftConfirmationModuleCallError, StateVecAccessor};
+use sov_modules_api::{Context, L2BlockModuleCallError, Module, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
@@ -152,7 +152,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(hash.as_ref(), &[1u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[2u8; 32]);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -162,7 +162,7 @@ fn test_sys_bitcoin_light_client() {
     };
 
     // New L1 block №2
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
@@ -184,7 +184,7 @@ fn test_sys_bitcoin_light_client() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let system_account = evm.account_info(&SYSTEM_SIGNER, &mut working_set).unwrap();
@@ -292,7 +292,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -301,7 +301,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         timestamp: 0,
     };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         // deploy logs contract
         evm.call(
@@ -317,13 +317,13 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let mut working_set = working_set.checkpoint().to_revertable();
     l2_height += 1;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -332,7 +332,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         timestamp: 0,
     };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
@@ -385,7 +385,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
                 &mut working_set,
             )
             .unwrap_err(),
-            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+            L2BlockModuleCallError::EvmGasUsedExceedsBlockGasLimit {
                 cumulative_gas: 29978230,
                 tx_gas_used: 26388,
                 block_gas_limit: 30000000
@@ -396,7 +396,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     // let's start over
     let mut working_set = working_set.revert().to_revertable();
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -405,7 +405,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         timestamp: 0,
     };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
@@ -460,7 +460,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             .is_ok());
     }
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
@@ -494,7 +494,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 //     let l1_fee_rate = 1;
 //     let l2_height = 2;
 
-//     let soft_confirmation_info = HookSoftConfirmationInfo{
+//     let l2_block_info = HookL2BlockInfo{
 //         l2_height,
 //         da_slot_height: 2,
 //         da_slot_hash: [2u8; 32],
@@ -552,8 +552,8 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 //         timestamp: 0,
 //     });
 
-//     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-//     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+//     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+//     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
 //     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
 //     let recipient_address = address!("0101010101010101010101010101010101010101");
@@ -614,7 +614,7 @@ fn test_upgrade_light_client() {
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -623,7 +623,7 @@ fn test_upgrade_light_client() {
         timestamp: 0,
     };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     let upgrade_tx = contract_owner
         .sign_default_transaction(
@@ -646,7 +646,7 @@ fn test_upgrade_light_client() {
     )
     .unwrap();
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let hash = evm
@@ -737,7 +737,7 @@ fn test_change_upgrade_owner() {
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -746,7 +746,7 @@ fn test_change_upgrade_owner() {
         timestamp: 0,
     };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     let change_owner_tx = contract_owner
         .sign_default_transaction(
@@ -766,13 +766,13 @@ fn test_change_upgrade_owner() {
     )
     .unwrap();
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
     let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -780,7 +780,7 @@ fn test_change_upgrade_owner() {
         l1_fee_rate,
         timestamp: 0,
     };
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     // New owner should be able to upgrade the contract
 
@@ -806,7 +806,7 @@ fn test_change_upgrade_owner() {
     )
     .unwrap();
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let provided_new_owner = evm

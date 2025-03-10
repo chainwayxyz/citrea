@@ -15,11 +15,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         address: &Address,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> bool {
-        if self.account_idxs.get(address, working_set).is_some() {
-            true
-        } else {
-            false
-        }
+        self.account_idxs.get(address, working_set).is_some()
     }
 
     /// Returns the account info at the given address.

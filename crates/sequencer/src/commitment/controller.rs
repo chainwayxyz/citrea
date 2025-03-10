@@ -4,7 +4,7 @@ use citrea_common::utils::merge_state_diffs;
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::schema::types::L2BlockNumber;
 use sov_modules_api::StateDiff;
 use tracing::{debug, warn};
 
@@ -20,7 +20,7 @@ where
     Db: SequencerLedgerOps,
 {
     ledger_db: Db,
-    min_soft_confirmations: u64,
+    min_l2_blocks: u64,
     last_state_diff: StateDiff,
 }
 
@@ -28,11 +28,11 @@ impl<Db> CommitmentController<Db>
 where
     Db: SequencerLedgerOps,
 {
-    pub fn new(ledger_db: Db, min_soft_confirmations: u64) -> Self {
+    pub fn new(ledger_db: Db, min_l2_blocks: u64) -> Self {
         let last_state_diff = ledger_db.get_state_diff().unwrap_or_default();
         Self {
             ledger_db,
-            min_soft_confirmations,
+            min_l2_blocks,
             last_state_diff,
         }
     }
@@ -46,14 +46,14 @@ where
         let last_finalized_l2_height = self
             .ledger_db
             .get_last_commitment_l2_height()?
-            .unwrap_or(SoftConfirmationNumber(0));
+            .unwrap_or(L2BlockNumber(0));
         let last_pending_l2_height = self
             .ledger_db
             .get_pending_commitments_l2_range()?
             .iter()
             .map(|(_, end)| *end)
             .max()
-            .unwrap_or(SoftConfirmationNumber(0));
+            .unwrap_or(L2BlockNumber(0));
         let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
 
         // If block state diff is empty, it is certain that state diff threshold won't be exceeded.
@@ -80,8 +80,8 @@ where
             None
         };
 
-        // Check if soft confirmation threshold is reached
-        if let Some(info) = self.check_min_soft_confirmations(last_committed_l2_height, l2_height) {
+        // Check if l2 block threshold is reached
+        if let Some(info) = self.check_min_l2_blocks(last_committed_l2_height, l2_height) {
             // Clear state diff
             self.set_state_diff(vec![])?;
             return Ok(Some(info));
@@ -95,13 +95,13 @@ where
         Ok(None)
     }
 
-    fn check_min_soft_confirmations(
+    fn check_min_l2_blocks(
         &self,
-        last_committed_l2_height: SoftConfirmationNumber,
+        last_committed_l2_height: L2BlockNumber,
         current_l2_height: u64,
     ) -> Option<CommitmentInfo> {
         // If the last commitment made is on par with the head
-        // soft confirmation, we have already committed the latest block.
+        // l2 block, we have already committed the latest block.
         if last_committed_l2_height.0 >= current_l2_height {
             warn!(
                 last_committed = last_committed_l2_height.0,
@@ -115,19 +115,19 @@ where
         let l2_end = current_l2_height;
 
         let l2_range_length = 1 + l2_end - l2_start;
-        if l2_range_length < self.min_soft_confirmations {
+        if l2_range_length < self.min_l2_blocks {
             return None;
         }
 
-        debug!("Enough soft confirmations to submit commitment");
+        debug!("Enough l2 blocks to submit commitment");
         Some(CommitmentInfo {
-            l2_height_range: SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end),
+            l2_height_range: L2BlockNumber(l2_start)..=L2BlockNumber(l2_end),
         })
     }
 
     fn check_state_diff_threshold(
         &self,
-        last_committed_l2_height: SoftConfirmationNumber,
+        last_committed_l2_height: L2BlockNumber,
         current_l2_height: u64,
         state_diff: &StateDiff,
     ) -> Option<CommitmentInfo> {
@@ -157,7 +157,7 @@ where
 
         debug!("Enough state diff size to submit commitment");
         Some(CommitmentInfo {
-            l2_height_range: SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end),
+            l2_height_range: L2BlockNumber(l2_start)..=L2BlockNumber(l2_end),
         })
     }
 

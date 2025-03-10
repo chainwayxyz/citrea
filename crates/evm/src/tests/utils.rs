@@ -9,7 +9,7 @@ use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::KECCAK_EMPTY;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
@@ -65,7 +65,7 @@ pub(crate) fn get_evm_with_spec(
     let mut working_set = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root, &mut working_set.accessory_state());
 
-    let hook_info = HookSoftConfirmationInfo {
+    let hook_info = HookL2BlockInfo {
         l2_height: 1,
         pre_state_root: root,
         current_spec: spec_id,
@@ -75,8 +75,8 @@ pub(crate) fn get_evm_with_spec(
     };
 
     // Pass the same struct to both hooks
-    evm.begin_soft_confirmation_hook(&hook_info, &mut working_set);
-    evm.end_soft_confirmation_hook(&hook_info, &mut working_set);
+    evm.begin_l2_block_hook(&hook_info, &mut working_set);
+    evm.end_l2_block_hook(&hook_info, &mut working_set);
 
     let root = commit(working_set, storage.clone());
     let mut working_set: WorkingSet<<C as Spec>::Storage> = WorkingSet::new(storage.clone());

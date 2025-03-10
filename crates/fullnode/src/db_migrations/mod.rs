@@ -1,8 +1,7 @@
 use std::sync::OnceLock;
 
 use citrea_common::db_migrations::{
-    MigrateBatchAndSlotByNumber, MigrateSoftConfirmationTxMerkleRoot,
-    MigrateVerifiedProofsBySlotNumber, RemoveUnusedTables,
+    MigrateBatchAndSlotByNumber, MigrateVerifiedProofsBySlotNumber, RemoveUnusedTables,
 };
 use sov_db::ledger_db::migrations::LedgerMigration;
 use sov_db::schema::tables::FULL_NODE_LEDGER_TABLES;
@@ -22,7 +21,6 @@ pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'sta
                 tables: FULL_NODE_LEDGER_TABLES,
             }),
             Box::new(FixVerifiedBatchProofsEncoding),
-            Box::new(MigrateSoftConfirmationTxMerkleRoot),
         ]
     })
 }

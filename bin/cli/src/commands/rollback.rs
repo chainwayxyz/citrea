@@ -32,7 +32,7 @@ pub(crate) async fn rollback(
     let native_db = NativeDB::setup_schema_db(&rocksdb_config)?;
     let state_db = StateDB::setup_schema_db(&rocksdb_config)?;
 
-    let Some(soft_confirmation_number) = ledger_db.get_head_soft_confirmation_height()? else {
+    let Some(l2_block_number) = ledger_db.get_head_l2_block_height()? else {
         return Ok(());
     };
 
@@ -40,7 +40,7 @@ pub(crate) async fn rollback(
     rollback
         .execute(
             node_type.into(),
-            soft_confirmation_number,
+            l2_block_number,
             l2_target,
             l1_target,
             last_sequencer_commitment_l2_height,

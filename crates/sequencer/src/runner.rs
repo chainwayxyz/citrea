@@ -19,7 +19,7 @@ use citrea_evm::{
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
-use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
@@ -33,7 +33,7 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     EncodeCall, L2Block, PrivateKey, SlotData, Spec, SpecId, StateDiff, StateValueAccessor,
@@ -41,11 +41,11 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::block::{L2Header, SignedL2Header};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
-use sov_rollup_interface::stf::SoftConfirmationResult;
+use sov_rollup_interface::stf::L2BlockResult;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -88,12 +88,12 @@ where
     pub(crate) deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     pub(crate) storage_manager: ProverStorageManager,
     pub(crate) state_root: StorageRootHash,
-    pub(crate) soft_confirmation_hash: SoftConfirmationHash,
+    pub(crate) l2_block_hash: L2BlockHash,
     _sequencer_pub_key: Vec<u8>,
     _sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     pub(crate) fork_manager: ForkManager<'static>,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    l2_block_tx: broadcast::Sender<u64>,
     backup_manager: Arc<BackupManager>,
 }
 
@@ -115,7 +115,7 @@ where
         mempool: Arc<CitreaMempool>,
         deposit_mempool: Arc<Mutex<DepositDataMempool>>,
         fork_manager: ForkManager<'static>,
-        soft_confirmation_tx: broadcast::Sender<u64>,
+        l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
         l2_force_block_rx: UnboundedReceiver<()>,
     ) -> anyhow::Result<Self> {
@@ -133,12 +133,12 @@ where
             deposit_mempool,
             storage_manager,
             state_root: init_params.state_root,
-            soft_confirmation_hash: init_params.batch_hash,
+            l2_block_hash: init_params.batch_hash,
             _sequencer_pub_key: public_keys.sequencer_public_key,
             _sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
-            soft_confirmation_tx,
+            l2_block_tx,
             backup_manager,
         })
     }
@@ -151,7 +151,7 @@ where
         >,
         pub_key: &[u8],
         prestate: ProverStorage,
-        soft_confirmation_info: HookSoftConfirmationInfo,
+        l2_block_info: HookL2BlockInfo,
         deposit_data: &[Vec<u8>],
         da_blocks: Vec<Da::FilteredBlock>,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
@@ -164,26 +164,22 @@ where
 
             let mut nonce = self.get_nonce(&mut working_set_to_discard)?;
 
-            if let Err(err) = self.stf.begin_soft_confirmation(
-                pub_key,
-                &mut working_set_to_discard,
-                &soft_confirmation_info,
-            ) {
+            if let Err(err) =
+                self.stf
+                    .begin_l2_block(pub_key, &mut working_set_to_discard, &l2_block_info)
+            {
                 warn!(
-                    "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                    "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                     err
                 );
-                bail!(
-                    "DryRun: Failed to apply begin soft confirmation hook: {:?}",
-                    err
-                )
+                bail!("DryRun: Failed to apply begin l2 block hook: {:?}", err)
             }
 
             let evm = citrea_evm::Evm::<DefaultContext>::default();
             // Initially fill with system transactions if any
             let (mut all_txs, mut working_set_to_discard) = self
                 .produce_and_run_system_transactions(
-                    &soft_confirmation_info,
+                    &l2_block_info,
                     &evm,
                     working_set_to_discard,
                     deposit_data,
@@ -225,27 +221,25 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx =
-                    self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
+                let signed_tx = self.sign_tx(raw_message, l2_block_info.current_spec(), nonce)?;
                 nonce += 1;
 
                 let txs = vec![signed_tx];
 
                 let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
-                if let Err(e) = self.stf.apply_soft_confirmation_txs(
-                    &soft_confirmation_info,
-                    &txs,
-                    &mut working_set,
-                ) {
+                if let Err(e) = self
+                    .stf
+                    .apply_l2_block_txs(&l2_block_info, &txs, &mut working_set)
+                {
                     // Decrement nonce if the transaction failed
                     nonce -= 1;
                     match e {
-                                        // Since this is the sequencer, it should never get a soft confirmation error or a hook error
-                                        sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
-                                        sov_rollup_interface::stf::StateTransitionError::HookError(soft_confirmation_hook_error) => panic!("Hook error: {:?}", soft_confirmation_hook_error),
-                                        sov_rollup_interface::stf::StateTransitionError::ModuleCallError(soft_confirmation_module_call_error) => match soft_confirmation_module_call_error {
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                                        // Since this is the sequencer, it should never get a l2 block error or a hook error
+                                        sov_rollup_interface::stf::StateTransitionError::L2BlockError(l2_block_error) => panic!("L2 block error: {:?}", l2_block_error),
+                                        sov_rollup_interface::stf::StateTransitionError::HookError(l2_block_hook_error) => panic!("Hook error: {:?}", l2_block_hook_error),
+                                        sov_rollup_interface::stf::StateTransitionError::ModuleCallError(l2_block_module_call_error) => match l2_block_module_call_error {
+                                            sov_modules_api::L2BlockModuleCallError::EvmGasUsedExceedsBlockGasLimit {
                                                                                         cumulative_gas,
                                                                                         tx_gas_used: _,
                                                                                         block_gas_limit
@@ -258,26 +252,26 @@ where
                                                                                         continue;
                                                                                        }
                                                                                     },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
+                                            sov_modules_api::L2BlockModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
+                                            sov_modules_api::L2BlockModuleCallError::EvmTransactionExecutionError => {
                                                                                         invalid_senders.insert(evm_tx.transaction_id.sender);
                                                                                         working_set_to_discard = working_set.revert().to_revertable();
                                                                                         continue;
                                                                                     },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
+                                            sov_modules_api::L2BlockModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
+                                            sov_modules_api::L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee => {
                                                                                         l1_fee_failed_txs.push(*evm_tx.hash());
                                                                                         invalid_senders.insert(evm_tx.transaction_id.sender);
                                                                                         working_set_to_discard = working_set.revert().to_revertable();
                                                                                         continue;
                                                                                     },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTxNotSerializable => panic!("Fed a non-serializable tx"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
-                                            sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofNotFound => unreachable!(),
-                                            sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => panic!("System tx after user tx"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxParseError => panic!("Sequencer produced incorrectly formatted system tx"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2 => panic!("System tx not allowed after fork2"),
+                                            sov_modules_api::L2BlockModuleCallError::EvmTxNotSerializable => panic!("Fed a non-serializable tx"),
+                                            sov_modules_api::L2BlockModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
+                                            sov_modules_api::L2BlockModuleCallError::ShortHeaderProofNotFound => unreachable!(),
+                                            sov_modules_api::L2BlockModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
+                                            sov_modules_api::L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx => panic!("System tx after user tx"),
+                                            sov_modules_api::L2BlockModuleCallError::EvmSystemTxParseError => panic!("Sequencer produced incorrectly formatted system tx"),
+                                            sov_modules_api::L2BlockModuleCallError::EvmSystemTxNotAllowedAfterFork2 => panic!("System tx not allowed after fork2"),
                                                                                     },
                                     }
                 };
@@ -318,11 +312,7 @@ where
         last_used_l1_height: &mut u64,
     ) -> anyhow::Result<(u64, StateDiff)> {
         let start: Instant = Instant::now();
-        let l2_height = self
-            .ledger_db
-            .get_head_soft_confirmation_height()?
-            .unwrap_or(0)
-            + 1;
+        let l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
         self.fork_manager.register_block(l2_height)?;
         let result = {
             if da_blocks.len() == 1 && da_blocks[0].header().height() == *last_used_l1_height {
@@ -371,7 +361,7 @@ where
                 .pub_key(),
         )?;
 
-        let soft_confirmation_info = HookSoftConfirmationInfo {
+        let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: self.state_root,
             current_spec: active_fork_spec,
@@ -394,7 +384,7 @@ where
                 evm_txs,
                 &pub_key,
                 prestate.clone(),
-                soft_confirmation_info.clone(),
+                l2_block_info.clone(),
                 &deposit_data,
                 da_blocks,
             )
@@ -409,15 +399,15 @@ where
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        if let Err(err) =
-            self.stf
-                .begin_soft_confirmation(&pub_key, &mut working_set, &soft_confirmation_info)
+        if let Err(err) = self
+            .stf
+            .begin_l2_block(&pub_key, &mut working_set, &l2_block_info)
         {
             warn!(
-                "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err
             );
-            bail!("Failed to apply begin soft confirmation hook: {:?}", err)
+            bail!("Failed to apply begin l2 block hook: {:?}", err)
         }
 
         let mut blobs = vec![];
@@ -434,51 +424,48 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx =
-                self.sign_tx(raw_message, soft_confirmation_info.current_spec(), nonce)?;
+            let signed_tx = self.sign_tx(raw_message, l2_block_info.current_spec(), nonce)?;
 
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
         }
 
         self.stf
-            .apply_soft_confirmation_txs(&soft_confirmation_info, &txs, &mut working_set)
+            .apply_l2_block_txs(&l2_block_info, &txs, &mut working_set)
             .expect("dry_run_transactions should have already checked this");
 
-        self.stf
-            .end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
+        self.stf.end_l2_block(l2_block_info, &mut working_set)?;
 
-        // Finalize soft confirmation
-        let soft_confirmation_result =
-            self.stf
-                .finalize_soft_confirmation(active_fork_spec, working_set, prestate);
+        // Finalize l2 block
+        let l2_block_result = self
+            .stf
+            .finalize_l2_block(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
         let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, active_fork_spec);
         let tx_merkle_root = compute_tx_merkle_root(&tx_hashes)?;
 
-        // create the soft confirmation header
+        // create the l2 block header
         let header = L2Header::new(
             l2_height,
-            self.soft_confirmation_hash,
-            soft_confirmation_result.state_root_transition.final_root,
+            self.l2_block_hash,
+            l2_block_result.state_root_transition.final_root,
             l1_fee_rate,
             tx_merkle_root,
             timestamp,
         );
 
-        let signed_header = self.sign_soft_confirmation_header(header)?;
+        let signed_header = self.sign_l2_block_header(header)?;
         // TODO: cleanup l2 block structure once we decide how to pull data from the running sequencer in the existing form
         let l2_block = L2Block::new(signed_header, txs.into());
 
         info!(
             "Saving block #{}, Tx count: #{}",
-            l2_block.l2_height(),
+            l2_block.height(),
             evm_txs_count
         );
 
-        let state_diff =
-            self.save_l2_block(l2_block, soft_confirmation_result, tx_hashes, blobs)?;
+        let state_diff = self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
 
         self.maintain_mempool(l1_fee_failed_txs)?;
 
@@ -494,11 +481,7 @@ where
     pub(crate) fn save_l2_block(
         &mut self,
         l2_block: L2Block<Transaction>,
-        soft_confirmation_result: SoftConfirmationResult<
-            ProverStorage,
-            sov_state::Witness,
-            sov_state::ReadWriteLog,
-        >,
+        l2_block_result: L2BlockResult<ProverStorage, sov_state::Witness, sov_state::ReadWriteLog>,
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
     ) -> anyhow::Result<StateDiff> {
@@ -508,7 +491,7 @@ where
             hex::encode(l2_block.sequencer_pub_key()),
         );
 
-        let state_root_transition = soft_confirmation_result.state_root_transition;
+        let state_root_transition = l2_block_result.state_root_transition;
 
         if state_root_transition.final_root.as_ref() == self.state_root.as_ref() {
             bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
@@ -522,9 +505,9 @@ where
         let next_state_root = state_root_transition.final_root;
 
         self.storage_manager
-            .finalize_storage(soft_confirmation_result.change_set);
+            .finalize_storage(l2_block_result.change_set);
 
-        let soft_confirmation_hash = l2_block.hash();
+        let l2_block_hash = l2_block.hash();
 
         self.ledger_db
             .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
@@ -533,15 +516,15 @@ where
         // // connect L1 and L2 height
         // self.ledger_db.extend_l2_range_of_l1_slot(
         //     SlotNumber(da_block.header().height()),
-        //     SoftConfirmationNumber(l2_height),
+        //     L2BlockNumber(l2_height),
         // )?;
 
         self.state_root = next_state_root;
-        self.soft_confirmation_hash = soft_confirmation_hash;
+        self.l2_block_hash = l2_block_hash;
 
         // this was saving L2 block
 
-        Ok(soft_confirmation_result.state_diff)
+        Ok(l2_block_result.state_diff)
     }
 
     pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
@@ -596,10 +579,7 @@ where
         let prestate = self.storage_manager.create_final_view_storage();
         let mut working_set = WorkingSet::new(prestate.clone());
         let evm = Evm::<DefaultContext>::default();
-        let head_l2_height = self
-            .ledger_db
-            .get_head_soft_confirmation_height()?
-            .unwrap_or(0);
+        let head_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
         let spec_id = fork_from_block_number(head_l2_height).spec_id;
         let mut last_used_l1_height =
             match get_last_l1_height_in_light_client(&evm, &mut working_set) {
@@ -616,10 +596,10 @@ where
             self.ledger_db.clone(),
             self.da_service.clone(),
             self.sequencer_da_pub_key.clone(),
-            self.config.min_soft_confirmations_per_commitment,
+            self.config.min_l2_blocks_per_commitment,
             da_commitment_rx,
         );
-        if self.soft_confirmation_hash != [0; 32] {
+        if self.l2_block_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
             commitment_service.resubmit_pending_commitments().await?;
         }
@@ -678,7 +658,7 @@ where
                         Ok((l2_height, state_diff)) => {
 
                             // Only errors when there are no receivers
-                            let _ = self.soft_confirmation_tx.send(l2_height);
+                            let _ = self.l2_block_tx.send(l2_height);
 
                             let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
@@ -708,7 +688,7 @@ where
                     match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
                         Ok((l2_height, state_diff)) => {
                             // Only errors when there are no receivers
-                            let _ = self.soft_confirmation_tx.send(l2_height);
+                            let _ = self.l2_block_tx.send(l2_height);
 
                             let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
@@ -775,10 +755,7 @@ where
         Ok(tx)
     }
 
-    fn sign_soft_confirmation_header(
-        &mut self,
-        header: L2Header,
-    ) -> anyhow::Result<SignedL2Header> {
+    fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
         let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
         let priv_key = K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
@@ -927,7 +904,7 @@ where
 
     fn produce_and_run_system_transactions(
         &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
         evm: &Evm<DefaultContext>,
         working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
         deposit_data: &[Vec<u8>],
@@ -941,7 +918,7 @@ where
 
         for (index, l1_block) in da_blocks.into_iter().enumerate() {
             // First l1 block of first l2 block
-            if soft_confirmation_info.l2_height() == 1 && index == 0 {
+            if l2_block_info.l2_height() == 1 && index == 0 {
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
 
@@ -973,7 +950,7 @@ where
         system_events.extend(deposit_events);
 
         self.process_sys_txs(
-            soft_confirmation_info,
+            l2_block_info,
             working_set_to_discard,
             nonce,
             evm,
@@ -983,7 +960,7 @@ where
 
     fn process_sys_txs(
         &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
         mut working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
         nonce: &mut u64,
         evm: &Evm<DefaultContext>,
@@ -1023,17 +1000,16 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx =
-                self.sign_tx(raw_message, soft_confirmation_info.current_spec(), *nonce)?;
+            let signed_tx = self.sign_tx(raw_message, l2_block_info.current_spec(), *nonce)?;
             *nonce += 1;
 
             let txs = vec![signed_tx];
 
             let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
-            if let Err(e) =
-                self.stf
-                    .apply_soft_confirmation_txs(soft_confirmation_info, &txs, &mut working_set)
+            if let Err(e) = self
+                .stf
+                .apply_l2_block_txs(l2_block_info, &txs, &mut working_set)
             {
                 return Err(anyhow!("Failed to apply system transaction: {:?}", e));
             }

@@ -4,26 +4,29 @@
 use std::collections::BTreeMap;
 
 use alloy_primitives::{U32, U64, U8};
+use block::L2BlockResponse;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
-use crate::soft_confirmation::{L2Block, L2Header, SignedL2Header};
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::BatchProofInfo;
 use crate::RefCount;
 
+/// L2 Block response
+pub mod block;
+
 /// A struct containing enough information to uniquely specify single batch.
 
-/// An identifier that specifies a single soft confirmation
+/// An identifier that specifies a single l2 block
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "camelCase")]
-pub enum SoftConfirmationIdentifier {
-    /// The monotonically increasing number of the soft confirmation
+pub enum L2BlockIdentifier {
+    /// The monotonically increasing number of the l2 block
     Number(u64),
-    /// The hex-encoded hash of the soft confirmation
+    /// The hex-encoded hash of the l2 block
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
 }
 
@@ -42,93 +45,13 @@ impl From<Vec<u8>> for HexTx {
     }
 }
 
-/// The response to a JSON-RPC request for a particular soft confirmation.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SoftConfirmationResponse {
-    /// The L2 height of the soft confirmation.
-    pub l2_height: u64,
-    /// The DA height of the soft confirmation.
-    pub da_slot_height: u64,
-    /// The DA slothash of the soft confirmation.
-    // TODO: find a way to hex serialize this and then
-    // deserialize in `SequencerClient`
-    #[serde(with = "hex::serde")]
-    pub da_slot_hash: [u8; 32],
-    #[serde(with = "hex::serde")]
-    /// The DA slot transactions commitment of the soft confirmation.
-    pub da_slot_txs_commitment: [u8; 32],
-    /// The hash of the soft confirmation.
-    #[serde(with = "hex::serde")]
-    pub hash: [u8; 32],
-    /// The hash of the previous soft confirmation.
-    #[serde(with = "hex::serde")]
-    pub prev_hash: [u8; 32],
-    /// The transactions in this batch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<HexTx>>,
-    /// State root of the soft confirmation.
-    #[serde(with = "hex::serde")]
-    pub state_root: [u8; 32],
-    /// Signature of the batch
-    #[serde(with = "hex::serde")]
-    pub soft_confirmation_signature: Vec<u8>,
-    /// Public key of the signer
-    #[serde(with = "hex::serde")]
-    pub pub_key: Vec<u8>,
-    /// Deposit data from the L1 chain
-    pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
-    /// Base layer fee rate sats/wei etc. per byte.
-    pub l1_fee_rate: u128,
-    /// Sequencer's block timestamp.
-    pub timestamp: u64,
-    /// Tx merkle root.
-    pub tx_merkle_root: [u8; 32],
-}
-
-impl<'txs, Tx> TryFrom<SoftConfirmationResponse> for L2Block<'txs, Tx>
-where
-    Tx: Clone + BorshDeserialize + BorshSerialize,
-{
-    type Error = borsh::io::Error;
-    fn try_from(val: SoftConfirmationResponse) -> Result<Self, Self::Error> {
-        let parsed_txs = val
-            .txs
-            .iter()
-            .flatten()
-            .map(|tx| {
-                let body = &tx.tx;
-                borsh::from_slice::<Tx>(body)
-            })
-            .collect::<Result<Vec<_>, Self::Error>>()?;
-
-        let header = L2Header::new(
-            val.l2_height,
-            val.prev_hash,
-            val.state_root,
-            val.l1_fee_rate,
-            val.tx_merkle_root,
-            val.timestamp,
-        );
-        let signed_header = SignedL2Header::new(
-            header,
-            val.hash,
-            val.soft_confirmation_signature,
-            val.pub_key,
-        );
-
-        let res = L2Block::new(signed_header, parsed_txs.into());
-        Ok(res)
-    }
-}
-
 /// The response to a JSON-RPC request for sequencer commitments on a DA Slot.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SequencerCommitmentResponse {
     /// L1 block height the commitment was on
     pub l1_height: U64,
-    /// Hex encoded Merkle root of soft confirmation hashes
+    /// Hex encoded Merkle root of l2 block hashes
     #[serde(with = "utils::rpc_hex")]
     pub merkle_root: [u8; 32],
     /// Hex encoded Start L2 block's number
@@ -304,12 +227,12 @@ pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup after the transition
     #[serde(with = "faster_hex")]
     pub final_state_root: Vec<u8>,
-    /// The hash of the last soft confirmation before the state transition
+    /// The hash of the last l2 block before the state transition
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prev_soft_confirmation_hash: Option<SerializableHash>,
-    /// The hash of the last soft confirmation in the state transition
+    pub prev_l2_block_hash: Option<SerializableHash>,
+    /// The hash of the last l2 block in the state transition
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub final_soft_confirmation_hash: Option<SerializableHash>,
+    pub final_l2_block_hash: Option<SerializableHash>,
     /// State diff of L2 blocks in the processed sequencer commitments.
     #[serde(
         serialize_with = "custom_serialize_btreemap",
@@ -444,57 +367,52 @@ pub enum ItemOrHash<T> {
     Full(T),
 }
 
-/// Statuses for soft confirmation
+/// Statuses for l2 block
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SoftConfirmationStatus {
+pub enum L2BlockStatus {
     /// No confirmation yet, rely on the sequencer
     Trusted,
-    /// The soft confirmation has been finalized with a sequencer commitment
+    /// The l2 block has been finalized with a sequencer commitment
     Finalized,
-    /// The soft confirmation has been ZK-proven
+    /// The l2 block has been ZK-proven
     Proven,
 }
 
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
-    /// Get a list of soft confirmations by id. The IDs need not be ordered.
-    fn get_soft_confirmations(
+    /// Get a list of l2 blocks by id. The IDs need not be ordered.
+    fn get_l2_blocks(
         &self,
-        batch_ids: &[SoftConfirmationIdentifier],
-    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
+        batch_ids: &[L2BlockIdentifier],
+    ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error>;
 
-    /// Get soft confirmation
-    fn get_soft_confirmation(
+    /// Get l2 block
+    fn get_l2_block(
         &self,
-        batch_id: &SoftConfirmationIdentifier,
-    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
+        batch_id: &L2BlockIdentifier,
+    ) -> Result<Option<L2BlockResponse>, anyhow::Error>;
 
-    /// Get a single soft confirmation by hash.
-    fn get_soft_confirmation_by_hash(
+    /// Get a single l2 block by hash.
+    fn get_l2_block_by_hash(
         &self,
         hash: &[u8; 32],
-    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
+    ) -> Result<Option<L2BlockResponse>, anyhow::Error>;
 
-    /// Get a single soft confirmation by number.
-    fn get_soft_confirmation_by_number(
-        &self,
-        number: u64,
-    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
+    /// Get a single l2 block by number.
+    fn get_l2_block_by_number(&self, number: u64)
+        -> Result<Option<L2BlockResponse>, anyhow::Error>;
 
-    /// Get a range of soft confirmations.
-    fn get_soft_confirmations_range(
+    /// Get a range of l2 blocks.
+    fn get_l2_blocks_range(
         &self,
         start: u64,
         end: u64,
-    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
+    ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error>;
 
-    /// Takes an L2 Height and and returns the soft confirmation status of the soft confirmation
-    fn get_soft_confirmation_status(
-        &self,
-        soft_confirmation_receipt: u64,
-    ) -> Result<SoftConfirmationStatus, anyhow::Error>;
+    /// Takes an L2 Height and and returns the l2 block status of the l2 block
+    fn get_l2_block_status(&self, l2_block_receipt: u64) -> Result<L2BlockStatus, anyhow::Error>;
 
     /// Returns the L2 genesis state root
     fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error>;
@@ -528,12 +446,11 @@ pub trait LedgerRpcProvider {
         &self,
     ) -> Result<Option<LastVerifiedBatchProofResponse>, anyhow::Error>;
 
-    /// Get head soft confirmation
-    fn get_head_soft_confirmation(&self)
-        -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
+    /// Get head l2 block
+    fn get_head_l2_block(&self) -> Result<Option<L2BlockResponse>, anyhow::Error>;
 
-    /// Get head soft confirmation height
-    fn get_head_soft_confirmation_height(&self) -> Result<u64, anyhow::Error>;
+    /// Get head l2 block height
+    fn get_head_l2_block_height(&self) -> Result<u64, anyhow::Error>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most

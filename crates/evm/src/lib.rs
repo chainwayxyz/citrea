@@ -38,9 +38,7 @@ use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
 use revm::primitives::{BlockEnv, SpecId as EvmSpecId};
-use sov_modules_api::{
-    ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
-};
+use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
 use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
@@ -178,7 +176,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         msg: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<sov_modules_api::CallResponse, L2BlockModuleCallError> {
         self.execute_call(msg.txs, context, working_set)
     }
 }
@@ -193,9 +191,5 @@ impl<C: sov_modules_api::Context> Evm<C> {
 }
 
 const fn citrea_spec_id_to_evm_spec_id(spec_id: CitreaSpecId) -> EvmSpecId {
-    match spec_id {
-        // CitreaSpecId::Genesis => EvmSpecId::SHANGHAI,
-        // Any other citrea spec id mapped to cancun
-        _ => EvmSpecId::CANCUN,
-    }
+    EvmSpecId::CANCUN
 }

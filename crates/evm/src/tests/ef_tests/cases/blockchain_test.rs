@@ -9,7 +9,7 @@ use alloy_rlp::{Decodable, Encodable};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use reth_primitives::{SealedBlock, EMPTY_OMMER_ROOT_HASH};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, StateMapAccessor, StateValueAccessor, WorkingSet};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
@@ -62,9 +62,9 @@ impl BlockchainTestCase {
         current_spec: SovSpecId,
     ) -> (WorkingSet<ProverStorage>, ProverStorage) {
         let l1_fee_rate = 0;
-        let soft_confirmation_info =
-            // Call begin_soft_confirmation_hook
-            HookSoftConfirmationInfo {
+        let l2_block_info =
+            // Call begin_l2_block_hook
+            HookL2BlockInfo {
                 l2_height,
                 pre_state_root: *root,
                 current_spec,
@@ -73,13 +73,13 @@ impl BlockchainTestCase {
                 timestamp: 0,
             };
 
-        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
         let dummy_address = generate_address::<DefaultContext>("dummy");
         let context = DefaultContext::new(dummy_address, l2_height, current_spec, l1_fee_rate);
         let _ = evm.execute_call(txs, &context, &mut working_set);
 
-        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
         let root = commit(working_set, storage.clone());
         let mut working_set = WorkingSet::new(storage.clone());
         evm.finalize_hook(&root, &mut working_set.accessory_state());
@@ -140,7 +140,7 @@ impl Case for BlockchainTestCase {
                     gas_used: case.genesis_block_header.gas_used.to(),
                     timestamp: case.genesis_block_header.timestamp.to(),
                     mix_hash: case.genesis_block_header.mix_hash,
-                    nonce: case.genesis_block_header.nonce.into(),
+                    nonce: case.genesis_block_header.nonce,
                     base_fee_per_gas: case.genesis_block_header.base_fee_per_gas.map(|b| b.to()),
                     extra_data: case.genesis_block_header.extra_data.clone(),
                     // EIP-4844 related fields
@@ -187,7 +187,7 @@ impl Case for BlockchainTestCase {
                     .set(&0, &case.genesis_block_header.hash, &mut working_set);
                 evm.head_rlp.set(&block, &mut working_set);
                 evm.pending_head
-                    .set(&block.into(), &mut working_set.accessory_state());
+                    .set(&block, &mut working_set.accessory_state());
                 evm.finalize_hook(
                     &case.genesis_block_header.state_root.0,
                     &mut working_set.accessory_state(),

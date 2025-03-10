@@ -14,7 +14,7 @@ use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::ParallelProverService;
 use rand::Rng;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
@@ -321,7 +321,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
             sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
         {
             let state_diff = ledger_db
-                .get_l2_state_diff(SoftConfirmationNumber(l2_height))?
+                .get_l2_state_diff(L2BlockNumber(l2_height))?
                 .ok_or(anyhow!(
                     "Could not find state diff for L2 range {}-{}",
                     sequencer_commitment.l2_start_block_number,

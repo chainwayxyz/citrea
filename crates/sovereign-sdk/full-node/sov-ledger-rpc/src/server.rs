@@ -5,10 +5,10 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
+use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedBatchProofResponse, LedgerRpcProvider,
-    SequencerCommitmentResponse, SoftConfirmationResponse, SoftConfirmationStatus,
-    VerifiedBatchProofResponse,
+    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, LedgerRpcProvider,
+    SequencerCommitmentResponse, VerifiedBatchProofResponse,
 };
 
 use crate::{HexHash, HexStateRoot, LedgerRpcServer};
@@ -32,40 +32,27 @@ impl<T> LedgerRpcServer for LedgerRpcServerImpl<T>
 where
     T: LedgerRpcProvider + Send + Sync + 'static,
 {
-    fn get_soft_confirmation_by_number(
-        &self,
-        number: U64,
-    ) -> RpcResult<Option<SoftConfirmationResponse>> {
+    fn get_l2_block_by_number(&self, number: U64) -> RpcResult<Option<L2BlockResponse>> {
         self.ledger
-            .get_soft_confirmation_by_number(number.to())
+            .get_l2_block_by_number(number.to())
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_soft_confirmation_by_hash(
-        &self,
-        hash: HexHash,
-    ) -> RpcResult<Option<SoftConfirmationResponse>> {
+    fn get_l2_block_by_hash(&self, hash: HexHash) -> RpcResult<Option<L2BlockResponse>> {
         self.ledger
-            .get_soft_confirmation_by_hash(&hash.0)
+            .get_l2_block_by_hash(&hash.0)
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_soft_confirmation_range(
-        &self,
-        start: U64,
-        end: U64,
-    ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>> {
+    fn get_l2_block_range(&self, start: U64, end: U64) -> RpcResult<Vec<Option<L2BlockResponse>>> {
         self.ledger
-            .get_soft_confirmations_range(start.to(), end.to())
+            .get_l2_blocks_range(start.to(), end.to())
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_soft_confirmation_status(
-        &self,
-        soft_confirmation_receipt: U64,
-    ) -> RpcResult<SoftConfirmationStatus> {
+    fn get_l2_block_status(&self, l2_block_receipt: U64) -> RpcResult<L2BlockStatus> {
         self.ledger
-            .get_soft_confirmation_status(soft_confirmation_receipt.to())
+            .get_l2_block_status(l2_block_receipt.to())
             .map_err(to_ledger_rpc_error)
     }
 
@@ -150,15 +137,13 @@ where
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_head_soft_confirmation(&self) -> RpcResult<Option<SoftConfirmationResponse>> {
-        self.ledger
-            .get_head_soft_confirmation()
-            .map_err(to_ledger_rpc_error)
+    fn get_head_l2_block(&self) -> RpcResult<Option<L2BlockResponse>> {
+        self.ledger.get_head_l2_block().map_err(to_ledger_rpc_error)
     }
 
-    fn get_head_soft_confirmation_height(&self) -> RpcResult<U64> {
+    fn get_head_l2_block_height(&self) -> RpcResult<U64> {
         self.ledger
-            .get_head_soft_confirmation_height()
+            .get_head_l2_block_height()
             .map(U64::from)
             .map_err(to_ledger_rpc_error)
     }

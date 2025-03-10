@@ -157,9 +157,7 @@ impl BackupManager {
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
 
-        let l2_height = ledger_db
-            .get_head_soft_confirmation_height()?
-            .unwrap_or_default();
+        let l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or_default();
 
         let start_time = Instant::now();
         info!("Starting database backup process...");

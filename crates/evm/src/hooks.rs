@@ -2,7 +2,7 @@ use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
 use sov_rollup_interface::zk::StorageRootHash;
@@ -19,9 +19,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         feature = "native",
         instrument(level = "trace", skip(self, working_set), ret)
     )]
-    pub fn begin_soft_confirmation_hook(
+    pub fn begin_l2_block_hook(
         &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
     ) {
         // just to be sure, we clear the pending transactions
@@ -36,8 +36,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(working_set)
                 .expect("Head block should always be set");
 
-            parent_block.header.state_root =
-                B256::from_slice(&soft_confirmation_info.pre_state_root());
+            parent_block.header.state_root = B256::from_slice(&l2_block_info.pre_state_root());
 
             self.head_rlp.set(&parent_block, working_set);
 
@@ -73,13 +72,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block_number + 1),
             coinbase: cfg.coinbase,
-            timestamp: U256::from(soft_confirmation_info.timestamp()),
+            timestamp: U256::from(l2_block_info.timestamp()),
             // TODO: https://github.com/chainwayxyz/citrea/issues/1978
-            prevrandao: Some(
-                [0u8; 32]
-                    .try_into()
-                    .expect("32 bytes can be converted to 32 bytes"),
-            ),
+            prevrandao: Some([0u8; 32].into()),
             basefee: U256::from(basefee),
             gas_limit: U256::from(cfg.block_gas_limit),
             difficulty: U256::ZERO,
@@ -94,9 +89,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
-    pub fn end_soft_confirmation_hook(
+    pub fn end_l2_block_hook(
         &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
     ) {
         let parent_block = self
@@ -167,7 +162,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let block = Block {
             header,
-            l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
+            l1_fee_rate: l2_block_info.l1_fee_rate(),
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 

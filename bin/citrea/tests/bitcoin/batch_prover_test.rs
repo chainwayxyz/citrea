@@ -84,7 +84,7 @@ pub async fn wait_for_proving_finish(
 }
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
-/// It generates soft confirmations and wait until it reaches the first commitment.
+/// It generates l2 blocks and wait until it reaches the first commitment.
 /// It asserts that the blob inscribe txs have been sent.
 /// This catches regression to the default prover flow, such as the one introduced by [#942](https://github.com/chainwayxyz/citrea/pull/942) and [#973](https://github.com/chainwayxyz/citrea/pull/973)
 struct BasicProverTest;
@@ -109,10 +109,9 @@ impl TestCase for BasicProverTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -185,7 +184,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 1,
+            min_l2_blocks_per_commitment: 1,
             ..Default::default()
         }
     }
@@ -253,10 +252,9 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Generate FINALIZED DA block.
         da.generate(FINALITY_DEPTH).await?;
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -323,7 +321,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         // Trigger a new commitment.
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -412,7 +410,7 @@ impl TestCase for LocalProvingTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             // Made this 1 or-else proving takes forever
-            min_soft_confirmations_per_commitment: 1,
+            min_l2_blocks_per_commitment: 1,
             ..Default::default()
         }
     }
@@ -425,10 +423,9 @@ impl TestCase for LocalProvingTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
-        // Generate soft confirmations to invoke commitment creation
-        for _ in 0..min_soft_confirmations_per_commitment {
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        // Generate l2 blocks to invoke commitment creation
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -498,7 +495,7 @@ impl TestCase for ParallelProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 98,
+            min_l2_blocks_per_commitment: 98,
             mempool_conf: SequencerMempoolConfig {
                 max_account_slots: 1000,
                 ..Default::default()
@@ -513,8 +510,7 @@ impl TestCase for ParallelProvingTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
         let seq_test_client = make_test_client(SocketAddr::new(
             sequencer.config().rpc_bind_host().parse()?,
@@ -523,7 +519,7 @@ impl TestCase for ParallelProvingTest {
         .await?;
 
         // Invoke 2 sequencer commitments
-        for _ in 0..min_soft_confirmations_per_commitment * 2 {
+        for _ in 0..min_l2_blocks_per_commitment * 2 {
             // 6 txs in each block
             for _ in 0..6 {
                 let _ = seq_test_client
@@ -605,7 +601,7 @@ async fn parallel_proving_test() -> Result<()> {
 //         // Set just below kumquat height so we can generate first soft com txs in genesis
 //         // and second batch above kumquat
 //         SequencerConfig {
-//             min_soft_confirmations_per_commitment: kumquat_height - 5,
+//             min_l2_blocks_per_commitment: kumquat_height - 5,
 //             ..Default::default()
 //         }
 //     }
@@ -629,9 +625,9 @@ async fn parallel_proving_test() -> Result<()> {
 //             .await
 //             .unwrap();
 
-//         let min_soft_confirmations = sequencer.min_soft_confirmations_per_commitment();
+//         let min_l2_blocks = sequencer.min_l2_blocks_per_commitment();
 
-//         for _ in 0..min_soft_confirmations {
+//         for _ in 0..min_l2_blocks {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
@@ -645,36 +641,36 @@ async fn parallel_proving_test() -> Result<()> {
 
 //         let height = sequencer
 //             .client
-//             .ledger_get_head_soft_confirmation_height()
+//             .ledger_get_head_l2_block_height()
 //             .await?;
 
 //         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
 
 //         // Generate softcom in kumquat
-//         for _ in 0..min_soft_confirmations {
+//         for _ in 0..min_l2_blocks {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
 //         let height = sequencer
 //             .client
-//             .ledger_get_head_soft_confirmation_height()
+//             .ledger_get_head_l2_block_height()
 //             .await?;
 //         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
 
 //         // Generate softcom in fork2
-//         for _ in 0..min_soft_confirmations {
+//         for _ in 0..min_l2_blocks {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
 //         let last_sc_before_fork2 = sequencer
 //             .client
 //             .http_client()
-//             .get_soft_confirmation_by_number(U64::from(199u64))
+//             .get_l2_block_by_number(U64::from(199u64))
 //             .await
 //             .unwrap()
 //             .unwrap();
 
-//         // the last tx of last soft confirmation before fork2 should be the change authority sov tx
+//         // the last tx of last l2 block before fork2 should be the change authority sov tx
 //         let last_tx_hex = last_sc_before_fork2
 //             .clone()
 //             .txs
@@ -702,17 +698,17 @@ async fn parallel_proving_test() -> Result<()> {
 
 //         // Going to ignore the first byte here because it's the call prefix
 //         // It is an enum of modules:
-//         // 0 is accounts,1 is evm, 2 is soft confirmation rule enforcer
+//         // 0 is accounts,1 is evm, 2 is l2 block rule enforcer
 //         // assert the first byte is 2 as in sc rule enforcer
 //         assert_eq!(tx.runtime_msg()[0], 2);
 
-//         let change_authority_call_message: soft_confirmation_rule_enforcer::CallMessage
+//         let change_authority_call_message: l2_block_rule_enforcer::CallMessage
 //         // Going to ignore the first byte here because it's the call prefix as explained above
-//         = soft_confirmation_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
+//         = l2_block_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
 //             .expect("Should be the tx");
 
 //         match change_authority_call_message {
-//             soft_confirmation_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
+//             l2_block_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
 //                 assert_eq!(new_authority, address);
 //                 println!("New authority: {:?}", new_authority);
 //             }
@@ -721,7 +717,7 @@ async fn parallel_proving_test() -> Result<()> {
 
 //         let height = sequencer
 //             .client
-//             .ledger_get_head_soft_confirmation_height()
+//             .ledger_get_head_l2_block_height()
 //             .await?;
 //         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
 
@@ -824,7 +820,7 @@ impl TestCase for L1HashOutputTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 12,
+            min_l2_blocks_per_commitment: 12,
             ..Default::default()
         }
     }

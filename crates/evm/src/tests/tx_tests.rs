@@ -7,7 +7,6 @@ use alloy_primitives::{Address, Bytes, TxKind, U256};
 use alloy_rlp::{Decodable, Encodable};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use bytes::BytesMut;
-use citrea_primitives::forks::fork_from_block_number;
 use reth_primitives::{Signature, TransactionSigned, TransactionSignedEcRecovered};
 use revm::primitives::{BlockEnv, TransactTo, TxEnv};
 

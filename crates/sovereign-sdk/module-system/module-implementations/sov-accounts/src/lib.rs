@@ -10,7 +10,7 @@ pub use query::*;
 mod tests;
 
 pub use hooks::AccountsTxHook;
-use sov_modules_api::{Address, Context, ModuleInfo, SoftConfirmationModuleCallError, WorkingSet};
+use sov_modules_api::{Address, Context, L2BlockModuleCallError, ModuleInfo, WorkingSet};
 use sov_state::codec::BorshCodec;
 use sov_state::storage::StateValueCodec;
 
@@ -78,7 +78,7 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
         _msg: Self::CallMessage,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<sov_modules_api::CallResponse, L2BlockModuleCallError> {
         Ok(sov_modules_api::CallResponse::default())
     }
 }

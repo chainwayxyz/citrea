@@ -9,7 +9,7 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
 
@@ -79,7 +79,7 @@ fn test_state_change() {
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
@@ -87,7 +87,7 @@ fn test_state_change() {
         l1_fee_rate: 1,
         timestamp: 0,
     };
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     let call_result = evm.get_call_inner(
         TransactionRequest {
@@ -107,7 +107,7 @@ fn test_state_change() {
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);

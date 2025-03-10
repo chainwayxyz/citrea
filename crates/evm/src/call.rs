@@ -3,7 +3,7 @@ use core::panic;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, SoftConfirmationModuleCallError, WorkingSet};
+use sov_modules_api::{CallResponse, L2BlockModuleCallError, WorkingSet};
 
 use crate::conversions::ConversionError;
 use crate::evm::db::EvmDb;
@@ -36,14 +36,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         txs: Vec<RlpEvmTransaction>,
         context: &C,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<CallResponse, L2BlockModuleCallError> {
         // use of `self.block_env` is allowed here
 
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
             .map(|tx| tx.try_into())
             .collect::<Result<Vec<_>, ConversionError>>()
-            .map_err(|_| SoftConfirmationModuleCallError::EvmTxNotSerializable)?;
+            .map_err(|_| L2BlockModuleCallError::EvmTxNotSerializable)?;
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let active_evm_spec = citrea_spec_id_to_evm_spec_id(context.active_spec());

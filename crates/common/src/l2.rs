@@ -6,7 +6,7 @@ use alloy_primitives::U64;
 use anyhow::{bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
-use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -18,7 +18,7 @@ use sov_modules_api::{L2Block, SpecId, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::rpc::SoftConfirmationResponse;
+use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
@@ -50,7 +50,7 @@ where
     storage_manager: ProverStorageManager,
     ledger_db: DB,
     state_root: StorageRootHash,
-    soft_confirmation_hash: SoftConfirmationHash,
+    l2_block_hash: L2BlockHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_k256_pub_key: Vec<u8>,
@@ -58,7 +58,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<DA>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager<'static>,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    l2_block_tx: broadcast::Sender<u64>,
     backup_manager: Arc<BackupManager>,
     l2_signal_tx: mpsc::Sender<L2BlockSignal>,
 }
@@ -83,12 +83,12 @@ where
         ledger_db: DB,
         storage_manager: ProverStorageManager,
         fork_manager: ForkManager<'static>,
-        soft_confirmation_tx: broadcast::Sender<u64>,
+        l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
         l2_signal_tx: mpsc::Sender<L2BlockSignal>,
         include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
-        let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
+        let start_l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
 
         info!("Starting L2 height: {}", start_l2_height);
 
@@ -99,7 +99,7 @@ where
             storage_manager,
             ledger_db,
             state_root: init_params.state_root,
-            soft_confirmation_hash: init_params.batch_hash,
+            l2_block_hash: init_params.batch_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
@@ -108,7 +108,7 @@ where
             sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
-            soft_confirmation_tx,
+            l2_block_tx,
             backup_manager,
             l2_signal_tx,
         })
@@ -186,19 +186,19 @@ where
 
     async fn process_l2_block(
         &mut self,
-        soft_confirmation: &SoftConfirmationResponse,
+        l2_block_response: &L2BlockResponse,
     ) -> anyhow::Result<()> {
         let start = Instant::now();
 
-        let l2_height = soft_confirmation.l2_height;
+        let l2_height = l2_block_response.height;
 
         info!(
-            "Running soft confirmation batch #{} with hash: 0x{}",
+            "Running l2 block batch #{} with hash: 0x{}",
             l2_height,
-            hex::encode(soft_confirmation.hash),
+            hex::encode(l2_block_response.hash),
         );
 
-        if self.soft_confirmation_hash != soft_confirmation.prev_hash {
+        if self.l2_block_hash != l2_block_response.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
@@ -208,7 +208,7 @@ where
             l2_height,
             "Prover storage version is corrupted"
         );
-        let tx_bodies = soft_confirmation
+        let tx_bodies = l2_block_response
             .txs
             .clone()
             .map(|txs| txs.into_iter().map(|tx| tx.tx).collect::<Vec<_>>());
@@ -218,7 +218,7 @@ where
         self.fork_manager.register_block(l2_height)?;
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let l2_block: L2Block<Transaction> = soft_confirmation
+        let l2_block: L2Block<Transaction> = l2_block_response
             .clone()
             .try_into()
             .context("Failed to parse transactions")?;
@@ -229,19 +229,19 @@ where
             self.sequencer_pub_key.as_slice()
         };
 
-        let soft_confirmation_result = {
-            // Since Post fork2 we do not have the slot hash in soft confirmations we inspect the txs and get the slot hashes from set block infos
+        let l2_block_result = {
+            // Since Post fork2 we do not have the slot hash in l2 blocks we inspect the txs and get the slot hashes from set block infos
 
             // Then store the short header proofs of those blocks in the ledger db
 
             decode_sov_tx_and_update_short_header_proofs(
-                soft_confirmation,
+                l2_block_response,
                 &self.ledger_db,
                 self.da_service.clone(),
             )
             .await?;
 
-            self.stf.apply_soft_confirmation(
+            self.stf.apply_l2_block(
                 current_spec,
                 sequencer_pub_key,
                 &self.state_root,
@@ -254,14 +254,14 @@ where
             )?
         };
 
-        let next_state_root = soft_confirmation_result.state_root_transition.final_root;
-        // Check if post state root is the same as the one in the soft confirmation
-        if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
+        let next_state_root = l2_block_result.state_root_transition.final_root;
+        // Check if post state root is the same as the one in the l2 block
+        if next_state_root.as_ref().to_vec() != l2_block.state_root() {
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
         self.storage_manager
-            .finalize_storage(soft_confirmation_result.change_set);
+            .finalize_storage(l2_block_result.change_set);
 
         let tx_hashes = compute_tx_hashes::<DefaultContext>(&l2_block.txs, current_spec);
         let tx_bodies = if self.include_tx_body {
@@ -276,17 +276,17 @@ where
         // TODO: https://github.com/chainwayxyz/citrea/issues/1992
         // self.ledger_db.extend_l2_range_of_l1_slot(
         //     SlotNumber(current_l1_block.header().height()),
-        //     SoftConfirmationNumber(l2_height),
+        //     L2BlockNumber(l2_height),
         // )?;
 
         // Only errors when there are no receivers
-        let _ = self.soft_confirmation_tx.send(l2_height);
+        let _ = self.l2_block_tx.send(l2_height);
 
         self.state_root = next_state_root;
-        self.soft_confirmation_hash = soft_confirmation.hash;
+        self.l2_block_hash = l2_block_response.hash;
 
         info!(
-            "New State Root after soft confirmation #{} is: 0x{}",
+            "New State Root after l2 block #{} is: 0x{}",
             l2_height,
             hex::encode(self.state_root)
         );
@@ -300,7 +300,7 @@ where
             .send(L2BlockSignal {
                 height: l2_height,
                 process_duration: duration,
-                state_diff: Some(soft_confirmation_result.state_diff),
+                state_diff: Some(l2_block_result.state_diff),
             })
             .await
         {
@@ -319,7 +319,7 @@ where
 async fn sync_l2(
     start_l2_height: u64,
     sequencer_client: HttpClient,
-    sender: mpsc::Sender<Vec<SoftConfirmationResponse>>,
+    sender: mpsc::Sender<Vec<L2BlockResponse>>,
     sync_blocks_count: u64,
 ) {
     let mut l2_height = start_l2_height;
@@ -332,23 +332,19 @@ async fn sync_l2(
             .build();
 
         let inner_client = &sequencer_client;
-        let mut soft_confirmations = match retry_backoff(exponential_backoff, || async move {
-            let soft_confirmations = inner_client
-                .get_soft_confirmation_range(
+        let mut l2_blocks = match retry_backoff(exponential_backoff, || async move {
+            let l2_blocks = inner_client
+                .get_l2_block_range(
                     U64::from(l2_height),
                     U64::from(l2_height + sync_blocks_count - 1),
                 )
                 .await;
-            match soft_confirmations {
-                Ok(soft_confirmations) => {
-                    Ok(soft_confirmations.into_iter().flatten().collect::<Vec<_>>())
-                }
+            match l2_blocks {
+                Ok(l2_blocks) => Ok(l2_blocks.into_iter().flatten().collect::<Vec<_>>()),
                 Err(e) => match e {
                     JsonrpseeError::Transport(e) => {
-                        let error_msg = format!(
-                            "Soft Confirmation: connection error during RPC call: {:?}",
-                            e
-                        );
+                        let error_msg =
+                            format!("L2 Block: connection error during RPC call: {:?}", e);
                         debug!(error_msg);
                         Err(backoff::Error::Transient {
                             err: error_msg,
@@ -356,7 +352,7 @@ async fn sync_l2(
                         })
                     }
                     _ => Err(backoff::Error::Transient {
-                        err: format!("Soft Confirmation: unknown error from RPC call: {:?}", e),
+                        err: format!("L2 Block: unknown error from RPC call: {:?}", e),
                         retry_after: None,
                     }),
                 },
@@ -364,15 +360,15 @@ async fn sync_l2(
         })
         .await
         {
-            Ok(soft_confirmations) => soft_confirmations,
+            Ok(l2_blocks) => l2_blocks,
             Err(_) => {
                 continue;
             }
         };
 
-        if soft_confirmations.is_empty() {
+        if l2_blocks.is_empty() {
             debug!(
-                "Soft Confirmation: no batch at starting height {}, retrying...",
+                "L2 Block: no batch at starting height {}, retrying...",
                 l2_height
             );
 
@@ -380,13 +376,13 @@ async fn sync_l2(
             continue;
         }
 
-        l2_height += soft_confirmations.len() as u64;
+        l2_height += l2_blocks.len() as u64;
 
-        // Make sure soft confirmations are sorted for us to make sure they are processed
+        // Make sure l2 blocks are sorted for us to make sure they are processed
         // in the correct order.
-        soft_confirmations.sort_by_key(|soft_confirmation| soft_confirmation.l2_height);
+        l2_blocks.sort_by_key(|l2_block| l2_block.height);
 
-        if let Err(e) = sender.send(soft_confirmations).await {
+        if let Err(e) = sender.send(l2_blocks).await {
             error!("Could not notify about L2 block: {}", e);
         }
     }

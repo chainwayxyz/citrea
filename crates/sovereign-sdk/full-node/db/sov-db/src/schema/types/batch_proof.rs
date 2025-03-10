@@ -72,10 +72,8 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
                 sequencer_public_key: vec![],
                 sequencer_commitments_range: None,
                 preproven_commitments: None,
-                prev_soft_confirmation_hash: None,
-                final_soft_confirmation_hash: Some(SerializableHash(
-                    value.final_soft_confirmation_hash,
-                )),
+                prev_l2_block_hash: None,
+                final_l2_block_hash: Some(SerializableHash(value.final_l2_block_hash)),
                 last_l2_height: Some(U64::from(value.last_l2_height)),
                 last_active_spec_id: None,
                 last_l1_hash_on_bitcoin_light_client_contract: Some(SerializableHash(

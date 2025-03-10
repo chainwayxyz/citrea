@@ -11,11 +11,12 @@ use reth_primitives::TransactionSignedEcRecovered;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
-use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::schema::types::L2BlockNumber;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::rpc::{SoftConfirmationResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateDiff;
@@ -28,22 +29,18 @@ pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff 
 }
 
 /// Remove proven commitments using the end block number of the L2 range.
-/// This is basically filtering out proven soft confirmations.
+/// This is basically filtering out proven l2 blocks.
 pub fn filter_out_proven_commitments<DB: SharedLedgerOps>(
     ledger_db: &DB,
     sequencer_commitments: &[SequencerCommitment],
 ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
-    filter_out_commitments_by_status(
-        ledger_db,
-        sequencer_commitments,
-        SoftConfirmationStatus::Proven,
-    )
+    filter_out_commitments_by_status(ledger_db, sequencer_commitments, L2BlockStatus::Proven)
 }
 
 fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
     ledger_db: &DB,
     sequencer_commitments: &[SequencerCommitment],
-    exclude_status: SoftConfirmationStatus,
+    exclude_status: L2BlockStatus,
 ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
     let mut skipped_commitments = vec![];
     let mut filtered = vec![];
@@ -60,9 +57,8 @@ fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
         visited_l2_ranges.insert(current_range);
 
         // Check if the commitment was previously finalized.
-        let Some(status) = ledger_db.get_soft_confirmation_status(SoftConfirmationNumber(
-            sequencer_commitment.l2_end_block_number,
-        ))?
+        let Some(status) = ledger_db
+            .get_l2_block_status(L2BlockNumber(sequencer_commitment.l2_end_block_number))?
         else {
             filtered.push(sequencer_commitment.clone());
             continue;
@@ -80,7 +76,7 @@ fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
 
 pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64) -> bool {
     let Some(head_l2_height) = ledger_db
-        .get_head_soft_confirmation_height()
+        .get_head_l2_block_height()
         .expect("Ledger db read must not fail")
     else {
         return false;
@@ -140,11 +136,11 @@ async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOp
 
 /// This does not check for misplaced sys txs etc. but they will be rejected by the stf if they are misplaced when the transactions are run
 pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: SharedLedgerOps>(
-    soft_confirmation_response: &SoftConfirmationResponse,
+    l2_block_response: &L2BlockResponse,
     ledger_db: &DB,
     da_service: Arc<Da>,
 ) -> anyhow::Result<()> {
-    if let Some(txs) = &soft_confirmation_response.txs {
+    if let Some(txs) = &l2_block_response.txs {
         for tx in txs {
             let tx = &tx.tx;
             let tx = Transaction::try_from_slice(tx).expect("Should deserialize transaction");

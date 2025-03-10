@@ -1,11 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, WorkingSet};
+use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::spec::SpecId;
-pub use sov_rollup_interface::stf::SoftConfirmationError;
-use sov_rollup_interface::stf::SoftConfirmationHookError;
+pub use sov_rollup_interface::stf::L2BlockError;
+use sov_rollup_interface::stf::L2BlockHookError;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use crate::transaction::Transaction;
@@ -27,7 +27,7 @@ pub trait TxHooks {
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
         arg: &Self::PreArg,
         spec_id: SpecId,
-    ) -> Result<Self::PreResult, SoftConfirmationHookError>;
+    ) -> Result<Self::PreResult, L2BlockHookError>;
 
     /// Runs after the tx is dispatched to an appropriate module.
     /// IF this hook returns error rollup panics
@@ -37,34 +37,34 @@ pub trait TxHooks {
         ctx: &Self::Context,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
         spec_id: SpecId,
-    ) -> Result<(), SoftConfirmationHookError>;
+    ) -> Result<(), L2BlockHookError>;
 }
 
-/// Hooks that are executed before and after a soft confirmation is processed.
-pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
+/// Hooks that are executed before and after a l2 block is processed.
+pub trait ApplyL2BlockHooks<Da: DaSpec> {
     type Context: Context;
 
-    /// Runs at the beginning of apply_soft_confirmation.
+    /// Runs at the beginning of apply_l2_block.
     /// If this hook returns Err, batch is not applied
-    fn begin_soft_confirmation_hook(
+    fn begin_l2_block_hook(
         &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
-    ) -> Result<(), SoftConfirmationHookError>;
+    ) -> Result<(), L2BlockHookError>;
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
-    fn end_soft_confirmation_hook(
+    fn end_l2_block_hook(
         &mut self,
-        soft_confirmation_info: HookSoftConfirmationInfo,
+        l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
-    ) -> Result<(), SoftConfirmationHookError>;
+    ) -> Result<(), L2BlockHookError>;
 }
 
-/// Post fork 2 Information about the soft confirmation block
+/// Post fork 2 Information about the l2 block block
 /// Does not include l1 data
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
-pub struct HookSoftConfirmationInfo {
+pub struct HookL2BlockInfo {
     // L2 block height
     pub l2_height: u64,
     /// Previous batch's pre state root
@@ -79,7 +79,7 @@ pub struct HookSoftConfirmationInfo {
     pub timestamp: u64,
 }
 
-impl HookSoftConfirmationInfo {
+impl HookL2BlockInfo {
     pub fn l2_height(&self) -> u64 {
         self.l2_height
     }
@@ -110,14 +110,14 @@ impl HookSoftConfirmationInfo {
     }
 }
 
-impl HookSoftConfirmationInfo {
+impl HookL2BlockInfo {
     pub fn new<Tx: Clone + BorshSerialize>(
         l2_block: &L2Block<Tx>,
         pre_state_root: StorageRootHash,
         current_spec: SpecId,
     ) -> Self {
         Self {
-            l2_height: l2_block.l2_height(),
+            l2_height: l2_block.height(),
             pre_state_root,
             current_spec,
             sequencer_pub_key: l2_block.sequencer_pub_key().to_vec(),

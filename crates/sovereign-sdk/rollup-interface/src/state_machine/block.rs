@@ -1,5 +1,5 @@
 //! Defines traits and types used by the rollup to verify claims about the
-//! soft confirmation
+//! l2 block
 
 use std::borrow::Cow;
 
@@ -7,10 +7,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use digest::{Digest, Output};
 use serde::{Deserialize, Serialize};
 
-/// Soft confirmation header
+/// L2 block header
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 pub struct L2Header {
-    l2_height: u64,
+    height: u64,
     prev_hash: [u8; 32],
     state_root: [u8; 32],
     l1_fee_rate: u128,
@@ -22,7 +22,7 @@ impl L2Header {
     #[allow(clippy::too_many_arguments)]
     /// New L2Header
     pub fn new(
-        l2_height: u64,
+        height: u64,
         prev_hash: [u8; 32],
         state_root: [u8; 32],
         l1_fee_rate: u128,
@@ -30,7 +30,7 @@ impl L2Header {
         timestamp: u64,
     ) -> Self {
         Self {
-            l2_height,
+            height,
             prev_hash,
             state_root,
             l1_fee_rate,
@@ -39,10 +39,10 @@ impl L2Header {
         }
     }
 
-    /// Compute soft confirmation header digest
+    /// Compute l2 block header digest
     pub fn compute_digest<D: Digest>(&self) -> Output<D> {
         let mut hasher = D::new();
-        hasher.update(self.l2_height.to_be_bytes());
+        hasher.update(self.height.to_be_bytes());
         hasher.update(self.prev_hash);
         hasher.update(self.state_root);
         hasher.update(self.l1_fee_rate.to_be_bytes());
@@ -79,7 +79,7 @@ impl SignedL2Header {
 
 /// Signed L2 block
 /// `blobs`, `deposit_data`, `da_slot_height` and `da_slot_hash` are kept for compatibility reason
-/// and hash checking against PreFork2 *SoftConfirmations structs.
+/// and hash checking against PreFork2 *L2Blocks structs.
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     /// Header
@@ -95,8 +95,8 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     }
 
     /// L2 block height
-    pub fn l2_height(&self) -> u64 {
-        self.header.inner.l2_height
+    pub fn height(&self) -> u64 {
+        self.header.inner.height
     }
 
     /// Hash of the signed batch

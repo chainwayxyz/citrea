@@ -1,5 +1,5 @@
 [package]
-name = "soft-confirmation-rule-enforcer"
+name = "l2-block-rule-enforcer"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }

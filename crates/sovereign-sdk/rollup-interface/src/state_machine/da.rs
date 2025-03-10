@@ -10,10 +10,10 @@ use crate::zk::Proof;
 use crate::{BasicAddress, Network};
 
 /// Commitments made to the DA layer from the sequencer.
-/// Has merkle root of soft confirmation hashes from L1 start block to L1 end block (inclusive)
+/// Has merkle root of l2 block hashes from L1 start block to L1 end block (inclusive)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct SequencerCommitment {
-    /// Merkle root of soft confirmation hashes
+    /// Merkle root of l2 block hashes
     pub merkle_root: [u8; 32],
     /// Start L2 block's number
     pub l2_start_block_number: u64,

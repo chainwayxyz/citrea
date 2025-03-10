@@ -11,7 +11,7 @@ use reth_primitives::{BlockId, BlockNumberOrTag};
 use reth_rpc_eth_types::EthApiError;
 use serde_json::json;
 use sov_modules_api::fork::Fork;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
@@ -874,7 +874,7 @@ fn test_queries_with_forks() {
         evm.eth_estimate_gas_inner(tx_req_with_access_list, None, &mut working_set, fork_fn);
     assert_eq!(with_access_list.unwrap(), U256::from(30558));
 
-    let soft_confirmation_info = HookSoftConfirmationInfo {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
@@ -883,8 +883,8 @@ fn test_queries_with_forks() {
         timestamp: 0,
     };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let no_access_list_post_fork = evm.eth_estimate_gas_inner(

@@ -19,11 +19,11 @@ use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
+use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
-use super::types::soft_confirmation::StoredSoftConfirmation;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2HeightRange, SlotNumber,
-    SoftConfirmationNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2BlockNumber, L2HeightRange, SlotNumber,
+    StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -48,14 +48,14 @@ pub const STATE_TABLES: &[&str] = &[
 /// A list of all tables used by Sequencer LedgerDB
 pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
-    SoftConfirmationByNumber::table_name(),
-    SoftConfirmationByHash::table_name(),
+    L2BlockByNumber::table_name(),
+    L2BlockByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
-    SoftConfirmationStatus::table_name(),
+    L2BlockStatus::table_name(),
     CommitmentsByNumber::table_name(),
     MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
@@ -81,13 +81,13 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
 pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     SlotByHash::table_name(),
-    SoftConfirmationByNumber::table_name(),
-    SoftConfirmationByHash::table_name(),
+    L2BlockByNumber::table_name(),
+    L2BlockByHash::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
     LastSequencerCommitmentSent::table_name(),
-    SoftConfirmationStatus::table_name(),
+    L2BlockStatus::table_name(),
     ProverLastScannedSlot::table_name(),
     CommitmentsByNumber::table_name(),
     LastPrunedBlock::table_name(),
@@ -103,14 +103,14 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
 pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     SlotByHash::table_name(),
-    SoftConfirmationByNumber::table_name(),
-    SoftConfirmationByHash::table_name(),
+    L2BlockByNumber::table_name(),
+    L2BlockByHash::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
     ProverLastScannedSlot::table_name(),
-    SoftConfirmationStatus::table_name(),
+    L2BlockStatus::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
@@ -128,7 +128,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     SlotByHash::table_name(),
-    SoftConfirmationByNumber::table_name(),
+    L2BlockByNumber::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
     // Don't know if this will be needed
@@ -144,8 +144,8 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     SlotByHash::table_name(),
-    SoftConfirmationByNumber::table_name(),
-    SoftConfirmationByHash::table_name(),
+    L2BlockByNumber::table_name(),
+    L2BlockByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
@@ -154,7 +154,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
-    SoftConfirmationStatus::table_name(),
+    L2BlockStatus::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
@@ -341,17 +341,17 @@ define_table_with_default_codec!(
 );
 
 define_table_with_seek_key_codec!(
-    /// The primary source for soft confirmation data
-    (SoftConfirmationByNumber) SoftConfirmationNumber => StoredSoftConfirmation
+    /// The primary source for l2 block data
+    (L2BlockByNumber) L2BlockNumber => StoredL2Block
 );
 
 define_table_with_default_codec!(
-    /// A "secondary index" for soft confirmation data by hash
-    (SoftConfirmationByHash) DbHash => SoftConfirmationNumber
+    /// A "secondary index" for l2 block data by hash
+    (L2BlockByHash) DbHash => L2BlockNumber
 );
 
 define_table_with_default_codec!(
-    /// A "secondary index" for soft confirmation data by hash
+    /// A "secondary index" for l2 block data by hash
     (ShortHeaderProofBySlotHash) DbHash => Vec<u8>
 );
 
@@ -362,7 +362,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source of state & offchain witnesses by L2 height
-    (L2Witness) SoftConfirmationNumber => (Vec<u8>, Vec<u8>)
+    (L2Witness) L2BlockNumber => (Vec<u8>, Vec<u8>)
 );
 
 define_table_with_default_codec!(
@@ -377,7 +377,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SoftConfirmationNumber
+    (LastSequencerCommitmentSent) () => L2BlockNumber
 );
 
 define_table_with_seek_key_codec!(
@@ -390,7 +390,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// Check whether a block is finalized
-    (SoftConfirmationStatus) SoftConfirmationNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
+    (L2BlockStatus) L2BlockNumber => sov_rollup_interface::rpc::L2BlockStatus
 );
 
 define_table_without_codec!(
@@ -436,7 +436,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// L2 height to state diff for prover
-    (ProverStateDiffs) SoftConfirmationNumber => StateDiff
+    (ProverStateDiffs) L2BlockNumber => StateDiff
 );
 
 define_table_with_seek_key_codec!(

@@ -4,7 +4,7 @@ use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, Module,
-    ModuleInfo, SoftConfirmationModuleCallError, Spec, SpecId, StateValue, WorkingSet,
+    ModuleInfo, L2BlockModuleCallError, Spec, SpecId, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 
@@ -58,7 +58,7 @@ pub mod my_module {
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<C::Storage>,
-        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+        ) -> Result<CallResponse, L2BlockModuleCallError> {
             self.data.set(&msg, working_set);
             Ok(CallResponse::default())
         }

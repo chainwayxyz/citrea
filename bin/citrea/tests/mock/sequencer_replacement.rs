@@ -388,10 +388,10 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 }
 
 /// Run the sequencer and the full node.
-/// Check if the full node saves and serves the soft confirmations by
+/// Check if the full node saves and serves the l2 blocks by
 /// starting a new full node that syncs from the first full node.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
+async fn test_l2_block_save() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -417,7 +417,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
+        min_l2_blocks_per_commitment: config.seq_min_l2_blocks,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };

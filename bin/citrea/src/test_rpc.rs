@@ -6,9 +6,9 @@ use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_db::schema::types::soft_confirmation::StoredTransaction;
+use sov_db::schema::types::l2_block::StoredTransaction;
 use sov_modules_api::L2Block;
-use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
+use sov_rollup_interface::block::{L2Header, SignedL2Header};
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -193,27 +193,27 @@ macro_rules! jsonrpc_result {
 }
 
 #[test]
-fn test_get_soft_confirmation() {
-    // Get the first soft confirmation by number
-    let payload = jsonrpc_req!("ledger_getSoftConfirmationByNumber", [1]);
+fn test_get_l2_block() {
+    // Get the first l2 block by number
+    let payload = jsonrpc_req!("ledger_getL2BlockByNumber", [1]);
 
     let tx_hashes = vec![
         ::sha2::Sha256::digest(b"tx1").into(),
         ::sha2::Sha256::digest(b"tx2").into(),
     ];
     let empty_tx_merkle_root = compute_tx_merkle_root(&tx_hashes).unwrap();
-    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1, "txs":["709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b", "27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1","stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0, "txMerkleRoot": empty_tx_merkle_root});
+    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1, "txs":["709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b", "27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1","stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","signature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0, "txMerkleRoot": empty_tx_merkle_root});
     regular_test_helper(payload, &expected);
 
-    // Get the first soft confirmation by hash
+    // Get the first l2 block by hash
     let payload = jsonrpc_req!(
-        "ledger_getSoftConfirmationByHash",
+        "ledger_getL2BlockByHash",
         ["b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f"]
     );
     regular_test_helper(payload, &expected);
 
-    // Get the second soft confirmation by number
-    let payload = jsonrpc_req!("ledger_getSoftConfirmationByNumber", [2]);
+    // Get the second l2 block by number
+    let payload = jsonrpc_req!("ledger_getL2BlockByNumber", [2]);
     let txs = batch2_tx_receipts()
         .0
         .into_iter()
@@ -227,19 +227,19 @@ fn test_get_soft_confirmation() {
         .collect::<Vec<_>>();
     let tx_merkle_root = compute_tx_merkle_root(&tx_hashes).unwrap();
     let expected = jsonrpc_result!(
-        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2, "txs": txs, "prevHash":"11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d","stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0, "txMerkleRoot": tx_merkle_root}
+        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2, "txs": txs, "prevHash":"11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d","stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","signature":"","pubKey":"","l1FeeRate":0, "timestamp": 0, "txMerkleRoot": tx_merkle_root}
     );
     regular_test_helper(payload, &expected);
 
-    //  Get the second soft confirmation by hash
+    //  Get the second l2 block by hash
     let payload = jsonrpc_req!(
-        "ledger_getSoftConfirmationByHash",
+        "ledger_getL2BlockByHash",
         ["f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e"]
     );
     regular_test_helper(payload, &expected);
 
-    // Get range of soft confirmations
-    let payload = jsonrpc_req!("ledger_getSoftConfirmationRange", [1, 2]);
+    // Get range of l2 blocks
+    let payload = jsonrpc_req!("ledger_getL2BlockRange", [1, 2]);
 
     let txs = batch2_tx_receipts()
         .0
@@ -255,19 +255,19 @@ fn test_get_soft_confirmation() {
     let tx_merkle_root = compute_tx_merkle_root(&tx_hashes).unwrap();
     let expected = jsonrpc_result!(
         [
-            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1,"txs":["709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b", "27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1", "stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0, "txMerkleRoot": empty_tx_merkle_root},
-            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2,"txs": txs, "prevHash": "11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d", "stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0, "txMerkleRoot": tx_merkle_root}
+            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1,"txs":["709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b", "27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1", "stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","signature":"","pubKey":"","l1FeeRate":0, "timestamp": 0, "txMerkleRoot": empty_tx_merkle_root},
+            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2,"txs": txs, "prevHash": "11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d", "stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","signature":"","pubKey":"","l1FeeRate":0, "timestamp": 0, "txMerkleRoot": tx_merkle_root}
         ]
     );
     regular_test_helper(payload, &expected);
 }
 
 #[test]
-fn test_get_soft_confirmation_status() {
-    let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
+fn test_get_l2_block_status() {
+    let payload = jsonrpc_req!("ledger_getL2BlockStatus", [1]);
     let expected = jsonrpc_result!("trusted");
     regular_test_helper(payload, &expected);
-    let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
+    let payload = jsonrpc_req!("ledger_getL2BlockStatus", [1]);
     let expected = jsonrpc_result!("trusted");
     regular_test_helper(payload, &expected);
 }
