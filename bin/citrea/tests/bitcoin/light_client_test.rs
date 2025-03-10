@@ -27,7 +27,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
-use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -1318,7 +1318,7 @@ fn create_serialized_fake_receipt_batch_proof(
     malformed_journal: bool,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> Vec<u8> {
-    let batch_proof_output = BatchProofCircuitOutputV3 {
+    let batch_proof_output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         last_l2_height,
@@ -1326,7 +1326,7 @@ fn create_serialized_fake_receipt_batch_proof(
         state_diff: state_diff.unwrap_or_default(),
         sequencer_commitment_merkle_roots: vec![],
         last_l1_hash_on_bitcoin_light_client_contract,
-    };
+    });
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 
     // Distorts the output and make it unparsable

@@ -23,9 +23,7 @@ use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
-use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
-use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_state::Witness;
 use tokio::sync::Mutex;
@@ -663,27 +661,10 @@ where
 
     // l1_height => (tx_id, proof, circuit_output)
     // save proof along with tx id to db, should be queryable by slot number or slot hash
-    let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
-        BatchProofCircuitOutputV3,
-    >(&proof)
-    {
-        Ok(output) => (SpecId::Fork2, StoredBatchProofOutput::V3(output)),
-        Err(e) => {
-            info!("Failed to extract post fork 2 output from proof: {:?}. Trying to extract pre fork 2 output", e);
-            match Vm::extract_output::<BatchProofCircuitOutputV2>(&proof) {
-                Ok(output) => (SpecId::Kumquat, StoredBatchProofOutput::V2(output)),
-                Err(e) => {
-                    info!("Failed to extract kumquat fork output from proof: {:?}. Trying to extract genesis fork output", e);
-                    let output = Vm::extract_output::<BatchProofCircuitOutputV1>(&proof)
-                        .expect("Should be able to extract either pre or post fork 1 output");
+    let batch_proof_output = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
+        .map_err(|e| anyhow!("Failed to extract batch proof output from proof: {:?}", e))?;
 
-                    // If we got output of pre fork 1 that means we are in genesis
-                    (SpecId::Genesis, StoredBatchProofOutput::V1(output))
-                }
-            }
-        }
-    };
-
+    let last_active_spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
     let code_commitment = code_commitments_by_spec
         .get(&last_active_spec_id)
         .expect("Proof public input must contain valid spec id");
@@ -699,7 +680,7 @@ where
         l1_height,
         tx_id_u8,
         proof,
-        batch_proof_output,
+        batch_proof_output.into(),
     ) {
         panic!("Failed to put proof data in the ledger db: {}", e);
     }
