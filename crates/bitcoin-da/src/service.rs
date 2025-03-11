@@ -791,8 +791,7 @@ impl DaService for BitcoinService {
                             };
 
                             let DataOnDa::Complete(zk_proof) = data else {
-                                warn!("{}: Complete: unexpected kind", tx_id);
-                                continue;
+                                bail!("{}: Complete: unexpected kind", tx_id);
                             };
                             completes.push((i, zk_proof));
                         }
