@@ -27,8 +27,8 @@ pub trait SharedLedgerOps {
     /// Put L2 block to db
     fn put_l2_block(
         &self,
-        batch: &StoredL2Block,
-        batch_number: &L2BlockNumber,
+        l2_block: &StoredL2Block,
+        l2_block_number: &L2BlockNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 

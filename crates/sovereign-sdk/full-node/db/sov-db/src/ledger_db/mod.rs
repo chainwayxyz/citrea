@@ -167,12 +167,12 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_l2_block(
         &self,
-        batch: &StoredL2Block,
-        batch_number: &L2BlockNumber,
+        l2_block: &StoredL2Block,
+        l2_block_number: &L2BlockNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<L2BlockByNumber>(batch_number, batch)?;
-        schema_batch.put::<L2BlockByHash>(&batch.hash, batch_number)
+        schema_batch.put::<L2BlockByNumber>(l2_block_number, l2_block)?;
+        schema_batch.put::<L2BlockByHash>(&l2_block.hash, l2_block_number)
     }
 
     /// Commits a l2 block to the database by inserting its transactions and batches before
