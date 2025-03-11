@@ -98,6 +98,7 @@ contract BridgeTest is Test {
         // Assert if asset transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
         assertEq(bridge.txIdToDepositId(hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0"), 1);
+        assertEq(bridge.depositTxIds(1), hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0");
     }
 
     // TODO: Replace the logic of testing the root of withdrawal tree in a more proper manner if this goes into production
