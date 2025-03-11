@@ -102,7 +102,6 @@ where
         let service = self.0.clone();
         async move {
             let resp = service.call(req).await;
-
             if resp.is_success() {
                 tracing::trace!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
             } else {
