@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, get_da_block_at_height};
 use citrea_common::utils::check_l2_block_exists;
-use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height, FORKS};
+use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
 use serde::{Deserialize, Serialize};
@@ -87,7 +87,7 @@ where
     let (da_data, inclusion_proof, completeness_proof) =
         da_service.extract_relevant_blobs_with_proof(l1_block);
 
-    let sequencer_commitments: Vec<SequencerCommitment> =
+    let mut sequencer_commitments: Vec<SequencerCommitment> =
         extract_sequencer_commitments::<Da>(da_service.clone(), l1_block, &sequencer_da_pub_key);
 
     if sequencer_commitments.is_empty() {
@@ -98,21 +98,26 @@ where
     // TODO: Make sure commitment indexes are sequential
 
     // Store commitments by index
-    for commitment in sequencer_commitments {
+    for commitment in sequencer_commitments.iter() {
         ledger
-            .put_commitment_by_index(&commitment)
+            .put_commitment_by_index(commitment)
             .expect("Should store commitment");
     }
 
     let l2_start_block_number = if sequencer_commitments[0].index == 0 {
         // If this is the first commitment in fork2, the start l2 height will be fork2 activation height
         // Start block number should be fork2  activation height
-        get_fork2_activation_height()
+        if get_fork2_activation_height() == 0 {
+            1
+        } else {
+            get_fork2_activation_height()
+        }
     } else {
         let previous_commitment_index = sequencer_commitments[0].index - 1;
         // If this is not the first commitment in fork2, the start l2 height will be the end block number of the previous commitment
         ledger
-            .get_commitment_by_index(previous_commitment_index)?
+            .get_commitment_by_index(previous_commitment_index)
+            .expect("Ledger should not error out")
             .expect("There should exist a commitment")
             .l2_end_block_number
             + 1
@@ -237,10 +242,19 @@ where
         // TODO: Remove preproven commitments
         let preproven_commitments = vec![];
 
-        let previous_sequencer_commitment = sequencer_commitments[0]
-            .index
-            .checked_sub(1)
-            .map(|index| ledger.get_commitment_by_index(index)?);
+        println!("sequencer commitments: {:?}", sequencer_commitments);
+
+        let previous_sequencer_commitment =
+            sequencer_commitments[0].index.checked_sub(1).map(|index| {
+                ledger
+                    .get_commitment_by_index(index)
+                    .expect("Should get commitment")
+                    .expect("Commitment should exist")
+            });
+        println!(
+            "previous_sequencer_commitment: {:?}",
+            previous_sequencer_commitment
+        );
 
         let input = BatchProofCircuitInput {
             initial_state_root,
@@ -755,12 +769,26 @@ pub(crate) fn save_commitments<DB>(
     DB: BatchProverLedgerOps,
 {
     for sequencer_commitment in sequencer_commitments.iter() {
+        let l2_start_block_number = if sequencer_commitment.index == 0 {
+            if get_fork2_activation_height() == 0 {
+                1
+            } else {
+                get_fork2_activation_height()
+            }
+        } else {
+            ledger_db
+                .get_commitment_by_index(sequencer_commitment.index - 1)
+                .expect("Ledger should not error out")
+                .expect("There should exist a commitment")
+                .l2_end_block_number
+                + 1
+        };
         // Save commitments on prover ledger db
         ledger_db
             .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
             .unwrap();
 
-        let l2_start_height = sequencer_commitment.l2_start_block_number;
+        let l2_start_height = l2_start_block_number;
         let l2_end_height = sequencer_commitment.l2_end_block_number;
         for i in l2_start_height..=l2_end_height {
             ledger_db

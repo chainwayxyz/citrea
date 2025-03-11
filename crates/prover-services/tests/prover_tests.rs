@@ -191,6 +191,8 @@ fn make_transition_data(header_hash: MockHash) -> BatchProofCircuitInput<'static
         sequencer_commitments: vec![],
         cache_prune_l2_heights: vec![],
         last_l1_hash_witness: Witness::default(),
+        // Update this after you get the input from this function
+        previous_sequencer_commitment: None,
     }
 }
 

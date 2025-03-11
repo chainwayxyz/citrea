@@ -5,6 +5,7 @@ pub enum SyncError {
     MissingL2(&'static str, BlockNumber, BlockNumber),
     // Should not retry in this case
     SequencerCommitmentNotFound([u8; 32]),
+    SequencerCommitmentWithIndexNotFound(u32),
     Error(anyhow::Error),
 }
 

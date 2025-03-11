@@ -581,13 +581,14 @@ where
                 )
             } else {
                 // If this is the first batch proof, then the first commitment idx should be 0
+                // TODO: First commitment index is not in 0 parallel_proving_test why?
                 assert_eq!(
                     sequencer_commitments[0].index, 0,
                     "First commitment must be index 0"
                 );
                 (None, None)
             };
-        let mut current_batch_proof_first_l2_height = previous_batch_proof_l2_end_height + 1;
+        let current_batch_proof_first_l2_height = previous_batch_proof_l2_end_height + 1;
         let mut fork_manager = ForkManager::new(forks, current_batch_proof_first_l2_height);
         let mut sequencer_commitment_l2_start_height = current_batch_proof_first_l2_height;
 

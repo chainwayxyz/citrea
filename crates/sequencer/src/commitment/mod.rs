@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::anyhow;
+use citrea_primitives::forks::get_fork2_activation_height;
 use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -46,10 +47,13 @@ fn load_next_commitment_index<Db: SequencerLedgerOps>(db: &Db) -> u32 {
         .into_iter()
         .map(|s| s.index)
         .max();
+    println!("max_pending: {:?}", max_pending);
     // max index from last commitment:
     let max_last = db.get_last_commitment().unwrap().map(|s| s.index);
+    println!("max_last: {:?}", max_last);
     // maximum of pending and last:
     let max_db = max_pending.max(max_last);
+    println!("max_db: {:?}", max_db);
     if let Some(max_db) = max_db {
         max_db + 1
     } else {
@@ -146,6 +150,9 @@ where
     ) -> anyhow::Result<()> {
         let l2_start = *commitment_info.start();
         let l2_end = *commitment_info.end();
+
+        println!("commitment_index: {:?}", commitment_index);
+        println!("commitment_info: {:?}", commitment_info);
 
         let soft_confirmation_hashes = self
             .ledger_db
@@ -272,7 +279,20 @@ where
                     .delete_pending_commitment(pending_db_comm.index)?;
             } else {
                 // Submit commitment
-                let range = SoftConfirmationNumber(pending_db_comm.l2_start_block_number)
+                let l2_start_block_number = if pending_db_comm.index == 0 {
+                    if get_fork2_activation_height() == 0 {
+                        1
+                    } else {
+                        get_fork2_activation_height()
+                    }
+                } else {
+                    self.ledger_db
+                        .get_commitment_by_index(pending_db_comm.index - 1)?
+                        .unwrap()
+                        .l2_end_block_number
+                        + 1
+                };
+                let range = SoftConfirmationNumber(l2_start_block_number)
                     ..=SoftConfirmationNumber(pending_db_comm.l2_end_block_number);
 
                 self.commit(pending_db_comm.index, range, true).await?;
@@ -302,7 +322,6 @@ where
         Ok(SequencerCommitment {
             merkle_root,
             index: commitment_index,
-            l2_start_block_number: commitment_info.start().0,
             l2_end_block_number: commitment_info.end().0,
         })
     }

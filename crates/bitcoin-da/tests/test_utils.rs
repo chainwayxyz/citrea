@@ -143,7 +143,6 @@ pub async fn generate_mock_txs(
     let commitment = SequencerCommitment {
         merkle_root: [13; 32],
         index: seq_index,
-        l2_start_block_number: 1002,
         l2_end_block_number: 1100,
     };
     seq_index += 1;
@@ -156,7 +155,6 @@ pub async fn generate_mock_txs(
     let commitment = SequencerCommitment {
         merkle_root: [14; 32],
         index: seq_index,
-        l2_start_block_number: 1101,
         l2_end_block_number: 1245,
     };
     seq_index += 1;
@@ -190,7 +188,6 @@ pub async fn generate_mock_txs(
         .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             index: seq_index,
-            l2_start_block_number: 1246,
             l2_end_block_number: 1268,
         }))
         .await
@@ -210,7 +207,6 @@ pub async fn generate_mock_txs(
         .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             index: seq_index,
-            l2_start_block_number: 1246,
             l2_end_block_number: 1268,
         }))
         .await
@@ -219,7 +215,6 @@ pub async fn generate_mock_txs(
     let commitment = SequencerCommitment {
         merkle_root: [15; 32],
         index: seq_index,
-        l2_start_block_number: 1246,
         l2_end_block_number: 1268,
     };
     valid_commitments.push(commitment.clone());

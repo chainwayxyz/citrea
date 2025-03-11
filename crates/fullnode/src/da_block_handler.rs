@@ -8,6 +8,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
+use citrea_primitives::forks::get_fork2_activation_height;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
@@ -135,6 +136,13 @@ where
             l1_block,
             &self.sequencer_da_pub_key,
         );
+
+        for commitment in sequencer_commitments.iter() {
+            self.ledger_db
+                .put_commitment_by_index(commitment)
+                .expect("Should save commitment to ledger db");
+        }
+
         let zk_proofs =
             match extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key)
                 .await
@@ -171,6 +179,9 @@ where
                     SyncError::SequencerCommitmentNotFound(merkle_root) => {
                         error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
                     }
+                    SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
+                        error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
+                    }
                 }
             }
         }
@@ -189,6 +200,9 @@ where
                         error!("Could not process sequencer commitments: {}... skipping", e);
                     }
                     SyncError::SequencerCommitmentNotFound(_) => unreachable!("Error irrelevant!"),
+                    SyncError::SequencerCommitmentWithIndexNotFound(_) => {
+                        unreachable!("Error irrelevant!")
+                    }
                 }
             }
         }
@@ -213,7 +227,19 @@ where
         l1_block: &Da::FilteredBlock,
         sequencer_commitment: &SequencerCommitment,
     ) -> Result<(), SyncError> {
-        let start_l2_height = sequencer_commitment.l2_start_block_number;
+        let start_l2_height = if sequencer_commitment.index == 0 {
+            if get_fork2_activation_height() == 0 {
+                1
+            } else {
+                get_fork2_activation_height()
+            }
+        } else {
+            self.ledger_db
+                .get_commitment_by_index(sequencer_commitment.index - 1)?
+                .expect("Commitment must exist")
+                .l2_end_block_number
+                + 1
+        };
         let end_l2_height = sequencer_commitment.l2_end_block_number;
 
         tracing::info!(
@@ -311,7 +337,7 @@ where
                 self.process_fork2_zk_proof(
                     l1_block,
                     output.initial_state_root,
-                    output.sequencer_commitment_merkle_roots.clone(),
+                    output.sequencer_commitment_index_range,
                     proof,
                     StoredBatchProofOutput::from(output),
                 )
@@ -379,12 +405,20 @@ where
         l1_block: &Da::FilteredBlock,
         initial_state_root: [u8; 32],
         // TODO Get sequencer commitments index range from bp output and get merkle roots from there
-        soft_confirmation_merkle_roots: Vec<[u8; 32]>,
+        sequencer_commitment_index_range: (u32, u32),
         raw_proof: Proof,
         batch_proof_output: StoredBatchProofOutput,
     ) -> Result<(), SyncError> {
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
-        for root in soft_confirmation_merkle_roots {
+        let mut merkle_roots = vec![];
+        for index in sequencer_commitment_index_range.0..=sequencer_commitment_index_range.1 {
+            let sequencer_commitment = self
+                .ledger_db
+                .get_commitment_by_index(index)?
+                .ok_or(SyncError::SequencerCommitmentWithIndexNotFound(index))?;
+            merkle_roots.push(sequencer_commitment.merkle_root);
+        }
+        for root in merkle_roots {
             // make sure sequencer commitment soft confirmation merkle root match
             // since we wouldn't have the sequencer commitment in the ledger db
             // this makes sure the sequencer commitment exists
@@ -476,8 +510,9 @@ where
             .map(|(_, commitment)| commitment)
             .collect();
 
-        let l2_height =
-            filtered_commitments[sequencer_commitments_range.0 as usize].l2_start_block_number;
+        // TODO: THIS VALUE IS SET TEMPORARILY TO 0 AS WE DO NOT USE IT IN TESTS
+        // ALSO THIS FUNCTION WILL EVENTUALLY BE REMOVED WITH FORK2
+        let l2_height = 0;
         // Fetch the block prior to the one at l2_height so compare state roots
 
         let state_root_prior_soft_confirmation = self
@@ -500,7 +535,9 @@ where
             .skip(sequencer_commitments_range.0 as usize)
             .take((sequencer_commitments_range.1 - sequencer_commitments_range.0 + 1) as usize)
         {
-            let l2_start_height = commitment.l2_start_block_number;
+            // TODO: THIS VALUE IS SET TEMPORARILY TO 0 AS WE DO NOT USE IT IN TESTS
+            // ALSO THIS FUNCTION WILL EVENTUALLY BE REMOVED WITH FORK2
+            let l2_start_height = 0;
             let l2_end_height = commitment.l2_end_block_number;
             for i in l2_start_height..=l2_end_height {
                 self.ledger_db.put_l2_block_status(

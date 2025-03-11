@@ -124,7 +124,6 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
-    assert_eq!(commitments[0].l2_start_block_number, 1);
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
     full_node_task.abort();
@@ -175,7 +174,6 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     let commitments = wait_for_commitment(&da_service, 3, None).await;
 
     assert_eq!(commitments.len(), 1);
-    assert_eq!(commitments[0].l2_start_block_number, 5);
     assert_eq!(commitments[0].l2_end_block_number, 8);
 
     seq_task.abort();

@@ -595,6 +595,7 @@ impl TestCase for TestProverTransactionChaining {
             .await?;
         let txs = &block.txdata;
 
+        // TODO: Why is this very flaky now?
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
 
         let _coinbase = &txs[0];
