@@ -614,7 +614,7 @@ mod tests {
         let ParsedTransaction::Complete(complete) = parsed else {
             panic!("Tx is not of a Complete kind");
         };
-        let body = decompress_blob(&complete.body);
+        let body = decompress_blob(&complete.body).unwrap();
         let _ = DataOnDa::borsh_parse_complete(&body).unwrap();
     }
 

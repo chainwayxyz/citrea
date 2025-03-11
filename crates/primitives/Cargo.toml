@@ -12,9 +12,8 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
 alloy-eips = { workspace = true }
-brotli = { workspace = true }
 anyhow = { workspace = true }
-
+brotli = { workspace = true }
 
 [features]
 testing = ["sov-rollup-interface/testing"]

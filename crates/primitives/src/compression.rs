@@ -1,5 +1,6 @@
-use anyhow::anyhow;
 use std::io::Write;
+
+use anyhow::anyhow;
 
 pub fn compress_blob(blob: &[u8]) -> anyhow::Result<Vec<u8>> {
     use brotli::CompressorWriter;
