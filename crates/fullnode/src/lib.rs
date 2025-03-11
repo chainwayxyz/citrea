@@ -86,7 +86,6 @@ where
     let l1_block_handler = L1BlockHandler::new(
         ledger_db,
         da_service,
-        public_keys.sequencer_public_key,
         public_keys.sequencer_da_pub_key,
         public_keys.prover_da_pub_key,
         code_commitments,

@@ -21,7 +21,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
-use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_state::Witness;
 use tracing::level_filters::LevelFilter;
@@ -546,10 +546,9 @@ where
 
     // l1_height => (tx_id, proof, circuit_output)
     // save proof along with tx id to db, should be queryable by slot number or slot hash
-    let batch_proof_output: StoredBatchProofOutput =
-        Vm::extract_output::<BatchProofCircuitOutputV3>(&proof)
-            .expect("Should be able to extract post fork 2 output")
-            .into();
+    let batch_proof_output = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
+        .map_err(|e| anyhow!("Failed to extract batch proof output from proof: {:?}", e))?;
+
     let last_active_spec_id = SpecId::Fork2;
 
     let code_commitment = code_commitments_by_spec
@@ -567,7 +566,7 @@ where
         l1_height,
         tx_id_u8,
         proof,
-        batch_proof_output,
+        batch_proof_output.into(),
     ) {
         panic!("Failed to put proof data in the ledger db: {}", e);
     }

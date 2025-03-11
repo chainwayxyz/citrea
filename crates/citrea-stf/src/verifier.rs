@@ -6,6 +6,7 @@ use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlueprint};
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_rollup_interface::RefCount;
 use sov_state::codec::BorshCodec;
@@ -44,7 +45,7 @@ where
         pre_state: C::Storage,
         sequencer_k256_public_key: &[u8],
         forks: &[Fork],
-    ) -> BatchProofCircuitOutputV3 {
+    ) -> BatchProofCircuitOutput {
         println!("Running sequencer commitments in DA slot");
 
         let mut data: BatchProofCircuitInputV3Part1 = guest.read_from_host();
@@ -95,7 +96,7 @@ where
             )
         };
 
-        BatchProofCircuitOutputV3 {
+        BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
             initial_state_root: data.initial_state_root,
             final_state_root,
             final_l2_block_hash,
@@ -103,7 +104,7 @@ where
             last_l2_height,
             sequencer_commitment_merkle_roots,
             last_l1_hash_on_bitcoin_light_client_contract: last_l1_hash,
-        }
+        })
     }
 }
 

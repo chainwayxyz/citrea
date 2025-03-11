@@ -294,7 +294,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee = 768134099;
+    let second_block_base_fee = 768133771;
 
     let _pending = seq_test_client
         .send_eth(

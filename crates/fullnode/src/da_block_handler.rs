@@ -8,6 +8,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
+use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
@@ -19,7 +20,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::Mutex;
@@ -37,7 +38,6 @@ where
 {
     ledger_db: DB,
     da_service: Arc<Da>,
-    _sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -56,7 +56,6 @@ where
     pub fn new(
         ledger_db: DB,
         da_service: Arc<Da>,
-        sequencer_pub_key: Vec<u8>,
         sequencer_da_pub_key: Vec<u8>,
         prover_da_pub_key: Vec<u8>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -66,7 +65,10 @@ where
         Self {
             ledger_db,
             da_service,
+<<<<<<< HEAD
             _sequencer_pub_key: sequencer_pub_key,
+=======
+>>>>>>> 9bfbc654e0ccf1becbad58ad60fed40e09cadfe1
             sequencer_da_pub_key,
             prover_da_pub_key,
             code_commitments_by_spec,
@@ -291,28 +293,25 @@ where
         );
         tracing::trace!("ZK proof: {:?}", proof);
 
-        // there must be some diff in kumquat and genesis proof verification
-        match Vm::extract_output::<BatchProofCircuitOutputV3>(&proof) {
-            Ok(output) => {
-                let code_commitment = self
-                    .code_commitments_by_spec
-                    .get(&SpecId::Fork2)
-                    .expect("Proof public input must contain valid spec id");
-                Vm::verify(proof.as_slice(), code_commitment)
-                    .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+        let batch_proof_output = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
+            .map_err(|e| anyhow!("Failed to extract batch proof output from proof: {:?}", e))?;
+        let spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
+        let code_commitment = self
+            .code_commitments_by_spec
+            .get(&spec_id)
+            .expect("Proof public input must contain valid spec id");
+        Vm::verify(proof.as_slice(), code_commitment)
+            .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
-                self.process_fork2_zk_proof(
-                    l1_block,
-                    output.initial_state_root,
-                    output.sequencer_commitment_merkle_roots.clone(),
-                    proof,
-                    StoredBatchProofOutput::from(output),
-                )
-            }
-            Err(_e) => Err(SyncError::Error(anyhow!(
-                "Failed to extract post fork 2 output from proof"
-            ))),
-        }
+        self.process_fork2_zk_proof(
+            l1_block,
+            batch_proof_output.initial_state_root(),
+            batch_proof_output
+                .sequencer_commitment_merkle_roots()
+                .clone(),
+            proof,
+            batch_proof_output.into(),
+        )
     }
 
     fn process_fork2_zk_proof(
