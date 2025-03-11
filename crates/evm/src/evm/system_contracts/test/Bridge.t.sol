@@ -146,65 +146,6 @@ contract BridgeTest is Test {
         assertEq(user.balance, 0);
     }
 
-    function testDeclareWithdrawFiller() public {
-        vm.startPrank(user);
-        vm.deal(address(user), DEPOSIT_AMOUNT);
-        bytes32 txId = hex"6a6c1c25dca27739971f40e0754b0cff929161da645042ca0fefa9b2c391ea1a";
-        bytes4 outputId = hex"00000000";
-        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
-        assertEq(user.balance, 0);
-        vm.stopPrank();
-        vin = hex"026a6c1c25dca27739971f40e0754b0cff929161da645042ca0fefa9b2c391ea1a0000000000fdffffffa9de49965a3403c16854c5e90c4775394833c631e676d06c7b71478b7334bb320000000000fdffffff";
-        vout = hex"0300ca9a3b000000002251204f78821f08f119333f981396ec5941b9f67a05c5302ecb7031861a879bbb0fbb182feb02000000002251200e1bdc1d71264094617e30ff7f766efbf5c49eb287987851dc5f1a61cdba6ef80000000000000000036a0100";
-        witness = hex"014191a09b54be9406db65658f507fca7b70777893b64ae04bd59b64902d8b0169c007e35e5d9d058b7ab5c16d712fb13486e2a7448250a32f988f780d9a0d59d2238301400faa22369f9e3227e73ce94518959032a03fe736886e65640249aa30e4d4339ddcce6f262e6e683211641d3c1ee72697b9f457eb96bece1dda14151d645b82c2";
-        intermediate_nodes = hex"2e3102ed31fbd35fc8d2e1fd81bcec0e95e2bc2ea1ff3ac4bce47f8e09550e5370476f21a08f8687c6b540b4f4b239aa97780e1f6ad671540e82a503ac4bf2082551513fcc8e309648459a48ea22d69f9f237f05235694e6c5010d70e161abd2";
-        index = 5;
-        vm.prank(SYSTEM_CALLER);
-        Bridge.TransactionParams memory withdrawTp = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
-        bridge.declareWithdrawFiller(withdrawTp, 0, 0);
-        require(bridge.withdrawFillers(0) == 1); // 1-indexed first operator
-    }
-
-    function testCannotMarkDeclaredOperatorAsMalicious() public {
-        doDeposit();
-        testDeclareWithdrawFiller();
-        vin = hex"01e27049ce4ef9fbdb7600d5d0e5de35a0aafb6e08196e4082acbe0ae945f2b3f70000000000fdffffff";
-        vout = hex"0325840100000000002251206fe94d7d713357c5fa461f78fa0973a1ecb25f6cf64e566dc30c938a91eec6004a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc332600000000000000000236a2184b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac000";
-        witness = hex"0440b869bcf4ac53b360c26f00f9c168b76a58391963e6e0f597f6eb1069e106a6860efb402a5f5b7036b8b1123012312bcc08dff35f67ac96456ced535ce015f1a840fbae91e3cd08ff8789f8f2c244c28b23ade14e26b82d82df8c28ee2dec9aa9835641e76f402c1833c41c46726caa98c6c5b73624004d52dfd9240a4ea9b07f6f44207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ad204f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aaac21c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51";
-        intermediate_nodes = hex"21076fdb84aa34da7e46fead9ca72f4bf175c2c95c944c62e8569726646327d370476f21a08f8687c6b540b4f4b239aa97780e1f6ad671540e82a503ac4bf2082551513fcc8e309648459a48ea22d69f9f237f05235694e6c5010d70e161abd2";
-        index = 4;
-        vm.prank(SYSTEM_CALLER);
-        Bridge.TransactionParams memory kickoff2Tp = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
-        vm.expectRevert("Operator is not malicious");
-        bridge.markMaliciousOperator(kickoff2Tp);
-    }
-
-    function testCannotMarkNonExistentDepositAsMalicious() public {
-        testDeclareWithdrawFiller();
-        vin = hex"01e27049ce4ef9fbdb7600d5d0e5de35a0aafb6e08196e4082acbe0ae945f2b3f70000000000fdffffff";
-        vout = hex"0325840100000000002251206fe94d7d713357c5fa461f78fa0973a1ecb25f6cf64e566dc30c938a91eec6004a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc332600000000000000000236a2184b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac000";
-        witness = hex"0440b869bcf4ac53b360c26f00f9c168b76a58391963e6e0f597f6eb1069e106a6860efb402a5f5b7036b8b1123012312bcc08dff35f67ac96456ced535ce015f1a840fbae91e3cd08ff8789f8f2c244c28b23ade14e26b82d82df8c28ee2dec9aa9835641e76f402c1833c41c46726caa98c6c5b73624004d52dfd9240a4ea9b07f6f44207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ad204f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aaac21c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51";
-        intermediate_nodes = hex"21076fdb84aa34da7e46fead9ca72f4bf175c2c95c944c62e8569726646327d370476f21a08f8687c6b540b4f4b239aa97780e1f6ad671540e82a503ac4bf2082551513fcc8e309648459a48ea22d69f9f237f05235694e6c5010d70e161abd2";
-        index = 4;
-        vm.prank(SYSTEM_CALLER);
-        Bridge.TransactionParams memory kickoff2Tp = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
-        vm.expectRevert("Deposit do not exist");
-        bridge.markMaliciousOperator(kickoff2Tp);
-    }
-
-    function testMarkMaliciousOperator() public {
-        doDeposit();
-        vin = hex"01e27049ce4ef9fbdb7600d5d0e5de35a0aafb6e08196e4082acbe0ae945f2b3f70000000000fdffffff";
-        vout = hex"0325840100000000002251206fe94d7d713357c5fa461f78fa0973a1ecb25f6cf64e566dc30c938a91eec6004a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc332600000000000000000236a2184b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac000";
-        witness = hex"0440b869bcf4ac53b360c26f00f9c168b76a58391963e6e0f597f6eb1069e106a6860efb402a5f5b7036b8b1123012312bcc08dff35f67ac96456ced535ce015f1a840fbae91e3cd08ff8789f8f2c244c28b23ade14e26b82d82df8c28ee2dec9aa9835641e76f402c1833c41c46726caa98c6c5b73624004d52dfd9240a4ea9b07f6f44207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ad204f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aaac21c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51";
-        intermediate_nodes = hex"21076fdb84aa34da7e46fead9ca72f4bf175c2c95c944c62e8569726646327d370476f21a08f8687c6b540b4f4b239aa97780e1f6ad671540e82a503ac4bf2082551513fcc8e309648459a48ea22d69f9f237f05235694e6c5010d70e161abd2";
-        index = 4;
-        vm.prank(SYSTEM_CALLER);
-        Bridge.TransactionParams memory kickoff2Tp = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
-        bridge.markMaliciousOperator(kickoff2Tp);
-        assertTrue(bridge.isOperatorMalicious(0));
-    }
-
     function testCannotBatchWithdrawWithWrongValue() public {
         vm.startPrank(user);
         vm.deal(address(user), 10 ether);

@@ -36,23 +36,17 @@ contract Bridge is Ownable2StepUpgradeable {
 
     bool public initialized;
     address public operator;
-    bool[1000] public isOperatorMalicious;
     uint256 public depositAmount;
     uint256 currentDepositId;
     bytes public scriptPrefix;
     bytes public scriptSuffix;
-    bytes public slashOrTakeScript;
     UTXO[] public withdrawalUTXOs;
     mapping(bytes32 => uint256) public txIdToDepositId;
-    mapping(uint256 => uint256) public withdrawFillers;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes scriptPrefix, bytes scriptSuffix);
     event OperatorUpdated(address oldOperator, address newOperator);
-    event WithdrawFillerDeclared(uint256 withdrawId, uint256 withdrawFillerId);
-    event MaliciousOperatorMarked(uint256 operatorId);
-    event SlashOrTakeScriptUpdate(bytes slashOrTakeScript);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -96,16 +90,6 @@ contract Bridge is Ownable2StepUpgradeable {
         scriptSuffix = _scriptSuffix;
 
         emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);
-    }
-
-    /// @notice Sets the slashOrTake script that is expected in the witness field of the slashOrTake transaction on Bitcoin
-    /// @param _slashOrTakeScript The slashOrTake script
-    function setSlashOrTakeScript(bytes calldata _slashOrTakeScript) external onlyOwner {
-        require(_slashOrTakeScript.length != 0, "Deposit script cannot be empty");
-
-        slashOrTakeScript = _slashOrTakeScript;
-
-        emit SlashOrTakeScriptUpdate(_slashOrTakeScript);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
@@ -184,56 +168,6 @@ contract Bridge is Ownable2StepUpgradeable {
     function setOperator(address _operator) external onlyOwner {
         operator = _operator;
         emit OperatorUpdated(operator, _operator);
-    }
-
-    /// @notice Stores the filler of a certain withdrawal after the a user's withdrawal is covered on Bitcoin side
-    /// @param withdrawTp Transaction parameters of the withdrawal transaction on Bitcoin
-    /// @param inputIndex Index of the input that is the withdrawal UTXO (withdrawing user's ANYONECANPAY)
-    /// @param withdrawId ID of the withdrawal action
-    function declareWithdrawFiller(TransactionParams calldata withdrawTp, uint256 inputIndex, uint256 withdrawId) external {
-        validateAndCheckInclusion(withdrawTp);
-        bytes memory input = BTCUtils.extractInputAtIndex(withdrawTp.vin, inputIndex);
-        bytes32 txId = BTCUtils.extractInputTxIdLE(input);
-        bytes4 index = BTCUtils.extractTxIndexLE(input);
-        UTXO memory utxo = withdrawalUTXOs[withdrawId];
-        require(utxo.txId == txId && utxo.outputId == index, "not matching UTXO");
-
-        (, uint256 nOuts) = BTCUtils.parseVarInt(withdrawTp.vout);
-        bytes memory output = BTCUtils.extractOutputAtIndex(withdrawTp.vout, nOuts - 1);
-        bytes memory opReturnData = BTCUtils.extractOpReturnData(output);
-        uint256 withdrawFillerId = uint256(bytesToBytes32(opReturnData));
-        withdrawFillers[withdrawId] = getInternalOperatorId(withdrawFillerId);
-        emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
-    }
-
-    /// @notice Marks an operator as malicious if the operator burned their slashOrTake transaction as if they filled a withdrawal even though they didn't fill a withdrawal
-    /// @param slashOrTakeTp Transaction parameters of the slashOrTake transaction on Bitcoin
-    function markMaliciousOperator(TransactionParams calldata slashOrTakeTp) external {
-        validateAndCheckInclusion(slashOrTakeTp);
-        
-        (, uint256 nOuts) = BTCUtils.parseVarInt(slashOrTakeTp.vout);
-        bytes memory output = BTCUtils.extractOutputAtIndex(slashOrTakeTp.vout, nOuts - 1);
-        bytes memory opReturnData = BTCUtils.extractOpReturnData(output);
-        bytes32 moveTxId = bytesToBytes32(opReturnData.slice(0, 32));
-        uint256 operatorId = uint256(bytesToBytes32(opReturnData.slice(32, opReturnData.length - 32)));
-        uint256 depositId = txIdToDepositId[moveTxId];
-        require(depositId != 0, "Deposit do not exist");
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(slashOrTakeTp.witness, 0);
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
-        uint256 len = slashOrTakeScript.length;
-        bytes memory _slashOrTakeScript = script.slice(0, len);
-        require(isBytesEqual(_slashOrTakeScript, slashOrTakeScript), "Invalid slashOrTake script");
-        uint256 fillerOperatorId = withdrawFillers[depositId - 1]; // depositId is 1-indexed while withdrawFillers is 0-indexed
-        bool isMalicious = fillerOperatorId == 0 || fillerOperatorId != getInternalOperatorId(operatorId);
-        require(isMalicious, "Operator is not malicious");
-        isOperatorMalicious[operatorId] = true;
-
-        emit MaliciousOperatorMarked(operatorId);
-    }
-
-    // In order to prevent confusion between absence of a withdrawal filler and the first operator, we use 1-indexing for operator IDs
-    function getInternalOperatorId(uint256 operatorId) internal pure returns (uint256) {
-        return operatorId + 1;
     }
 
     function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
