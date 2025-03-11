@@ -37,7 +37,7 @@ where
 {
     ledger_db: DB,
     da_service: Arc<Da>,
-    sequencer_pub_key: Vec<u8>,
+    _sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -66,7 +66,7 @@ where
         Self {
             ledger_db,
             da_service,
-            sequencer_pub_key,
+            _sequencer_pub_key: sequencer_pub_key,
             sequencer_da_pub_key,
             prover_da_pub_key,
             code_commitments_by_spec,
@@ -309,7 +309,7 @@ where
                     StoredBatchProofOutput::from(output),
                 )
             }
-            Err(e) => Err(SyncError::Error(anyhow!(
+            Err(_e) => Err(SyncError::Error(anyhow!(
                 "Failed to extract post fork 2 output from proof"
             ))),
         }

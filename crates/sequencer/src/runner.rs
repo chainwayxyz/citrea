@@ -580,7 +580,7 @@ where
         let mut working_set = WorkingSet::new(prestate.clone());
         let evm = Evm::<DefaultContext>::default();
         let head_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
-        let spec_id = fork_from_block_number(head_l2_height).spec_id;
+        let _spec_id = fork_from_block_number(head_l2_height).spec_id;
         let mut last_used_l1_height =
             match get_last_l1_height_in_light_client(&evm, &mut working_set) {
                 Some(l1_height) => l1_height.to(),

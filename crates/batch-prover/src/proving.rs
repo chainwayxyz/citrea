@@ -103,7 +103,7 @@ where
         });
     }
 
-    let (mut sequencer_commitments, preproven_commitments) =
+    let (mut sequencer_commitments, _preproven_commitments) =
         filter_out_proven_commitments(&ledger, &sequencer_commitments).map_err(|e| {
             L1ProcessingError::Other(format!("Error filtering out proven commitments: {}", e))
         })?;

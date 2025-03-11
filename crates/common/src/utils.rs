@@ -85,7 +85,7 @@ pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64
     head_l2_height >= l2_height
 }
 
-pub fn compute_tx_hashes<C: Context>(txs: &[Transaction], current_spec: SpecId) -> Vec<[u8; 32]> {
+pub fn compute_tx_hashes<C: Context>(txs: &[Transaction], _current_spec: SpecId) -> Vec<[u8; 32]> {
     txs.iter()
         .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
         .collect()

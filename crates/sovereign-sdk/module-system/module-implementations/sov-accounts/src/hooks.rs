@@ -32,7 +32,7 @@ impl<C: Context> TxHooks for Accounts<C> {
         tx: &Transaction,
         working_set: &mut WorkingSet<C::Storage>,
         _sequencer: &Self::PreArg,
-        spec_id: SpecId,
+        _spec_id: SpecId,
     ) -> Result<AccountsTxHook, L2BlockHookError> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
         let tx_nonce = tx.nonce();
@@ -51,7 +51,7 @@ impl<C: Context> TxHooks for Accounts<C> {
         tx: &Transaction,
         _ctx: &C,
         working_set: &mut WorkingSet<C::Storage>,
-        spec_id: SpecId,
+        _spec_id: SpecId,
     ) -> Result<(), L2BlockHookError> {
         let mut account = self
             .accounts

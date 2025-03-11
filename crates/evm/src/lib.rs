@@ -190,6 +190,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 }
 
-const fn citrea_spec_id_to_evm_spec_id(spec_id: CitreaSpecId) -> EvmSpecId {
+const fn citrea_spec_id_to_evm_spec_id(_spec_id: CitreaSpecId) -> EvmSpecId {
     EvmSpecId::CANCUN
 }

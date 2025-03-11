@@ -20,7 +20,7 @@ lazy_static! {
 #[test]
 fn genesis_data() {
     let config = get_evm_test_config();
-    let (evm, mut working_set, spec_id) = get_evm(&config);
+    let (evm, mut working_set, _spec_id) = get_evm(&config);
 
     let account = &config.data[0];
 

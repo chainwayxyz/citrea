@@ -272,7 +272,7 @@ where
 
         let block_id_internal = evm.block_number_from_state(block_id, &mut working_set)?;
 
-        let citrea_spec = fork_from_block_number(block_id_internal).spec_id;
+        let _citrea_spec = fork_from_block_number(block_id_internal).spec_id;
 
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 

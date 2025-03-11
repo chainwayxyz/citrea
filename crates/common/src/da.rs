@@ -153,7 +153,7 @@ pub async fn extract_zk_proofs<Da: DaService>(
 pub async fn get_initial_slot_height(client: &HttpClient) -> u64 {
     loop {
         match client.get_l2_block_by_number(U64::from(1)).await {
-            Ok(Some(batch)) => {
+            Ok(Some(_batch)) => {
                 // TODO determine how to fetch l1 height
                 let l1_height = 0;
                 return l1_height;

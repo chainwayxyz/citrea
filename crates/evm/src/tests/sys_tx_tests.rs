@@ -33,7 +33,7 @@ fn test_sys_bitcoin_light_client() {
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     assert_eq!(
         evm.receipts_rlp

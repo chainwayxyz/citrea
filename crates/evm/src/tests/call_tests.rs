@@ -53,7 +53,7 @@ fn call_multiple_test() {
         ..Default::default()
     };
     config_push_contracts(&mut config, None);
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
@@ -185,7 +185,7 @@ fn call_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -329,7 +329,7 @@ fn self_destruct_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -410,7 +410,7 @@ fn self_destruct_test() {
     };
 
     // Switch to another fork
-    let spec_id = SovSpecId::Fork2;
+    let _spec_id = SovSpecId::Fork2;
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -849,7 +849,7 @@ fn test_l1_fee_success() {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-        let (mut evm, mut working_set, spec_id) = get_evm(&config);
+        let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
         let l2_block_info = HookL2BlockInfo {
             l2_height: 2,
@@ -950,7 +950,7 @@ fn test_l1_fee_not_enough_funds() {
     );
 
     let l1_fee_rate = 10000;
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let l2_height = 2;
 
@@ -1021,7 +1021,7 @@ fn test_l1_fee_halt() {
     let (config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
-    let (mut evm, mut working_set, spec_id) = get_evm(&config); // l2 height 1
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
     let l2_height = 2;
 
@@ -1131,7 +1131,7 @@ fn test_l1_fee_compression_discount() {
     let (config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 1;
 
     let l2_block_info = HookL2BlockInfo {

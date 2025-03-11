@@ -45,7 +45,7 @@ impl From<AccountInfo> for reth_primitives::Account {
     }
 }
 
-pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, spec_id: SpecId) -> TxEnv {
+pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, _spec_id: SpecId) -> TxEnv {
     let to = match tx.to() {
         Some(addr) => TransactTo::Call(addr),
         None => TransactTo::Create,

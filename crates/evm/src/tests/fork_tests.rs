@@ -214,7 +214,7 @@ fn test_cancun_mcopy_activation() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -264,7 +264,7 @@ fn test_cancun_mcopy_activation() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    l2_height += 1;
+    // l2_height += 1;
 
     let receipts: Vec<_> = evm
         .receipts_rlp
@@ -290,7 +290,7 @@ fn test_self_destructing_constructor() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -369,7 +369,7 @@ fn test_blob_base_fee_should_return_1() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -425,7 +425,7 @@ fn test_blob_base_fee_should_return_1() {
     }
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-    l2_height += 1;
+    // l2_height += 1;
 
     let receipts: Vec<_> = evm
         .receipts_rlp
@@ -446,7 +446,7 @@ fn test_kzg_point_eval_should_revert() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -556,7 +556,7 @@ fn test_p256_verify() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -614,7 +614,7 @@ fn test_offchain_contract_storage_evm() {
 
     let fork_fn = |_: u64| Fork::new(SovSpecId::Fork2, 4);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
