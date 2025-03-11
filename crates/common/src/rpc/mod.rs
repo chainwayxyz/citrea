@@ -38,7 +38,7 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
 
         let Some((L2BlockNumber(head_batch_num), _)) = ledger_db
             .get_head_l2_block()
-            .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
+            .map_err(|err| error(&format!("Failed to get head l2 block: {}", err)))?
         else {
             return Ok::<(), ErrorObjectOwned>(());
         };
@@ -47,18 +47,18 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             return Ok::<(), ErrorObjectOwned>(());
         }
 
-        let soft_batches = ledger_db
+        let l2_blocks = ledger_db
             .get_l2_block_range(
                 &(L2BlockNumber(head_batch_num - 1)..=L2BlockNumber(head_batch_num)),
             )
-            .map_err(|err| error(&format!("Failed to get soft batch range: {}", err)))?;
+            .map_err(|err| error(&format!("Failed to get l2 block range: {}", err)))?;
 
-        let block_time_s = (soft_batches[1].timestamp - soft_batches[0].timestamp).max(1);
+        let block_time_s = (l2_blocks[1].timestamp - l2_blocks[0].timestamp).max(1);
         tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
 
         let (new_head_batch_num, _) = ledger_db
             .get_head_l2_block()
-            .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
+            .map_err(|err| error(&format!("Failed to get head l2 block: {}", err)))?
             .unwrap();
         if new_head_batch_num > L2BlockNumber(head_batch_num) {
             Ok::<(), ErrorObjectOwned>(())

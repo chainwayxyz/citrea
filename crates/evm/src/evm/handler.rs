@@ -39,7 +39,7 @@ const STORAGE_KEY_SIZE: usize = 59;
 /// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
 const STORAGE_VALUE_SIZE: usize = 33;
 
-/// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, soft_confirmation_rule_enforcer and sov_accounts
+/// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, l2_block_rule_enforcer and sov_accounts
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
 /// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 l2 blocks
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
