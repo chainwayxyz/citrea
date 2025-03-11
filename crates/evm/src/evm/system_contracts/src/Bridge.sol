@@ -79,9 +79,9 @@ contract Bridge is Ownable2StepUpgradeable {
         operator = SYSTEM_CALLER;
 
         // Add a dummy UTXO to the withdrawalUTXOs array to avoid index 0 being used
-        withdrawalUTXOs[0] = UTXO({txId: bytes32(0), outputId: bytes4(0)});
+        withdrawalUTXOs.push(UTXO({txId: bytes32(0), outputId: bytes4(0)}));
         // Add a dummy txId to the depositTxIds array to avoid index 0 being used
-        depositTxIds[0] = bytes32(0);
+        depositTxIds.push(bytes32(0));
 
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);

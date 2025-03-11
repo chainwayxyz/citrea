@@ -138,7 +138,7 @@ contract BridgeTest is Test {
         
 
         for (uint i = 0; i < 10; i++) {
-            (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(i);
+            (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(i + 1);
             assertEq(_txId, btc_addresses[i]);
             assertEq(_outputId, output_ids[i]);
         }
