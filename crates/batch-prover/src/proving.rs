@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, get_da_block_at_height};
-use citrea_common::utils::{check_l2_block_exists, filter_out_proven_commitments};
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_common::utils::check_l2_block_exists;
+use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height, FORKS};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
 use serde::{Deserialize, Serialize};
@@ -95,11 +95,33 @@ where
             l1_height: l1_block.header().height(),
         });
     }
+    // TODO: Make sure commitment indexes are sequential
+
+    // Store commitments by index
+    for commitment in sequencer_commitments {
+        ledger
+            .put_commitment_by_index(&commitment)
+            .expect("Should store commitment");
+    }
+
+    let l2_start_block_number = if sequencer_commitments[0].index == 0 {
+        // If this is the first commitment in fork2, the start l2 height will be fork2 activation height
+        // Start block number should be fork2  activation height
+        get_fork2_activation_height()
+    } else {
+        let previous_commitment_index = sequencer_commitments[0].index - 1;
+        // If this is not the first commitment in fork2, the start l2 height will be the end block number of the previous commitment
+        ledger
+            .get_commitment_by_index(previous_commitment_index)?
+            .expect("There should exist a commitment")
+            .l2_end_block_number
+            + 1
+    };
 
     // If the L2 range does not exist, we break off the local loop getting back to
     // the outer loop / select to make room for other tasks to run.
     // We retry the L1 block there as well.
-    let start_block_number = sequencer_commitments[0].l2_start_block_number;
+    let start_block_number = l2_start_block_number;
     let end_block_number =
         sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
 
@@ -110,11 +132,6 @@ where
             end_block_number,
         });
     }
-
-    let (mut sequencer_commitments, preproven_commitments) =
-        filter_out_proven_commitments(&ledger, &sequencer_commitments).map_err(|e| {
-            L1ProcessingError::Other(format!("Error filtering out proven commitments: {}", e))
-        })?;
 
     sequencer_commitments.sort();
 
@@ -145,9 +162,16 @@ where
 
     let mut batch_proof_circuit_inputs = Vec::with_capacity(ranges.len());
 
-    for sequencer_commitments_range in ranges {
-        let first_l2_height_of_l1 =
-            sequencer_commitments[*sequencer_commitments_range.start()].l2_start_block_number;
+    for (idx, sequencer_commitments_range) in ranges.iter().enumerate() {
+        let first_l2_height_of_l1 = if idx == 0 {
+            // If at first commitment the start height should be the start block number
+            // Which is end height + 1 of the previous commitment
+            start_block_number
+        } else {
+            // If not at first commitment the start height should be the end height + 1 of the previous commitment in the commitments array
+            sequencer_commitments[*ranges[idx - 1].end()].l2_end_block_number + 1
+        };
+
         let last_l2_height_of_l1 =
             sequencer_commitments[*sequencer_commitments_range.end()].l2_end_block_number;
 
@@ -166,6 +190,7 @@ where
             da_block_headers_of_l2_blocks,
             last_l1_hash_witness,
         ) = get_batch_proof_circuit_input_from_commitments(
+            first_l2_height_of_l1,
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
             &ledger,
@@ -209,6 +234,14 @@ where
             )))?
             .prev_hash;
 
+        // TODO: Remove preproven commitments
+        let preproven_commitments = vec![];
+
+        let previous_sequencer_commitment = sequencer_commitments[0]
+            .index
+            .checked_sub(1)
+            .map(|index| ledger.get_commitment_by_index(index)?);
+
         let input = BatchProofCircuitInput {
             initial_state_root,
             da_data: da_data.clone(),
@@ -232,6 +265,7 @@ where
                 .to_vec(),
             cache_prune_l2_heights,
             last_l1_hash_witness,
+            previous_sequencer_commitment,
         };
 
         batch_proof_circuit_inputs.push(input);
@@ -342,6 +376,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
 >(
+    first_l2_height_of_commitments: u64,
     sequencer_commitments: &[SequencerCommitment],
     da_service: &Arc<Da>,
     ledger_db: &DB,
@@ -353,9 +388,14 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
     let mut da_block_headers_of_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
 
-    for sequencer_commitment in sequencer_commitments.iter() {
+    for (idx, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
         // get the l2 height ranges of each seq_commitments
-        let start_l2 = sequencer_commitment.l2_start_block_number;
+
+        let start_l2 = if idx == 0 {
+            first_l2_height_of_commitments
+        } else {
+            sequencer_commitments[idx - 1].l2_end_block_number + 1
+        };
         let end_l2 = sequencer_commitment.l2_end_block_number;
 
         let soft_confirmations_in_commitment = ledger_db

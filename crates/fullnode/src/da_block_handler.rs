@@ -378,6 +378,7 @@ where
         &self,
         l1_block: &Da::FilteredBlock,
         initial_state_root: [u8; 32],
+        // TODO Get sequencer commitments index range from bp output and get merkle roots from there
         soft_confirmation_merkle_roots: Vec<[u8; 32]>,
         raw_proof: Proof,
         batch_proof_output: StoredBatchProofOutput,

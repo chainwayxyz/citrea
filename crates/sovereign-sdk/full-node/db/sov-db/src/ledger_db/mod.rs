@@ -18,9 +18,9 @@ use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot,
     L2RangeByL1Height, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, ShortHeaderProofBySlotHash,
-    SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -501,6 +501,18 @@ impl SharedLedgerOps for LedgerDB {
         root: [u8; 32],
     ) -> anyhow::Result<Option<L2HeightRange>> {
         self.db.get::<CommitmentMerkleRoots>(&root)
+    }
+
+    fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<SequencerCommitmentByIndex>(&commitment.index, commitment)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {
+        self.db.get::<SequencerCommitmentByIndex>(&index)
     }
 }
 

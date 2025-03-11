@@ -99,9 +99,9 @@ pub struct ApplySequencerCommitmentsOutput {
     /// Cumulative state log
     pub cumulative_state_log: ReadWriteLog,
     /// The index of the previous commitment that was given as input in the batch proof
-    pub previous_commitment_index: u64,
+    pub previous_commitment_index: Option<u32>,
     /// The hash of the previous commitment that was given as input in the batch proof
-    pub previous_commitment_hash: [u8; 32],
+    pub previous_commitment_hash: Option<[u8; 32]>,
 }
 
 impl<C, RT, Da> StfBlueprint<C, Da, RT>
@@ -563,23 +563,30 @@ where
 
         // If there is no previous commitment, then this is the first batch proof
         // and this should start from proving the first l2 block
-        if let Some(previous_sequencer_commitment) = previous_sequencer_commitment {
-            // The index of the previous commitment should be one less than the first commitment
-            assert_eq!(
-                previous_sequencer_commitment.index + 1,
-                sequencer_commitments[0].index,
-                "Sequencer commitments must be sequential"
-            );
-            // If there exists a previous commitment, then the first l2 block to prove
-            // should be the one after the last commitment
-            previous_batch_proof_l2_end_height = previous_sequencer_commitment.l2_end_block_number;
-        } else {
-            // If this is the first batch proof, then the first commitment idx should be 0
-            assert_eq!(
-                sequencer_commitments[0].index, 0,
-                "First commitment must be index 0"
-            );
-        };
+        let (previous_commitment_index, previous_commitment_hash) =
+            if let Some(previous_sequencer_commitment) = previous_sequencer_commitment {
+                // The index of the previous commitment should be one less than the first commitment
+                assert_eq!(
+                    previous_sequencer_commitment.index + 1,
+                    sequencer_commitments[0].index,
+                    "Sequencer commitments must be sequential"
+                );
+                // If there exists a previous commitment, then the first l2 block to prove
+                // should be the one after the last commitment
+                previous_batch_proof_l2_end_height =
+                    previous_sequencer_commitment.l2_end_block_number;
+                (
+                    Some(previous_sequencer_commitment.index),
+                    Some(previous_sequencer_commitment.serialize_and_calculate_sha_256()),
+                )
+            } else {
+                // If this is the first batch proof, then the first commitment idx should be 0
+                assert_eq!(
+                    sequencer_commitments[0].index, 0,
+                    "First commitment must be index 0"
+                );
+                (None, None)
+            };
         let mut current_batch_proof_first_l2_height = previous_batch_proof_l2_end_height + 1;
         let mut fork_manager = ForkManager::new(forks, current_batch_proof_first_l2_height);
         let mut sequencer_commitment_l2_start_height = current_batch_proof_first_l2_height;
@@ -738,9 +745,8 @@ where
             sequencer_commitment_hashes,
             sequencer_commitment_index_range,
             cumulative_state_log: cumulative_state_log.unwrap(),
-            previous_commitment_index: previous_sequencer_commitment.map(|c| c.index),
-            previous_commitment_hash: previous_sequencer_commitment
-                .map(|c| c.serialize_and_calculate_sha_256()),
+            previous_commitment_index,
+            previous_commitment_hash,
         }
     }
 }

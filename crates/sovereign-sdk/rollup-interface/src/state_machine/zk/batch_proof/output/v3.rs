@@ -35,7 +35,7 @@ pub struct BatchProofCircuitOutputV3 {
     /// L1 hashes added to the Bitcoin light client contract
     pub last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
     /// The index of the previous commitment that was given as input in the batch proof
-    pub previous_commitment_index: Option<u64>,
+    pub previous_commitment_index: Option<u32>,
     /// The hash of the previous commitment that was given as input in the batch proof
     pub previous_commitment_hash: Option<[u8; 32]>,
 }

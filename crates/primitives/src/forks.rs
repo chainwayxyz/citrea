@@ -87,3 +87,12 @@ const _CHECK_FORKS: () = {
         panic!("FORKS order is invalid")
     }
 };
+
+pub fn get_fork2_activation_height() -> u64 {
+    let forks = get_forks();
+    let fork = forks
+        .iter()
+        .find(|f| f.spec_id == SpecId::Fork2)
+        .expect("Fork2 should exist");
+    fork.activation_height
+}

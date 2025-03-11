@@ -66,7 +66,10 @@ where
             state_diff,
             last_l2_height,
             final_soft_confirmation_hash,
-            sequencer_commitment_merkle_roots,
+            sequencer_commitment_hashes,
+            sequencer_commitment_index_range,
+            previous_commitment_index,
+            previous_commitment_hash,
             cumulative_state_log,
         } = self
             .app
@@ -107,8 +110,11 @@ where
             final_soft_confirmation_hash,
             state_diff,
             last_l2_height,
-            sequencer_commitment_merkle_roots,
+            sequencer_commitment_hashes,
             last_l1_hash_on_bitcoin_light_client_contract: last_l1_hash,
+            sequencer_commitment_index_range,
+            previous_commitment_index,
+            previous_commitment_hash,
         }
     }
 }
