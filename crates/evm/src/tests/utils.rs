@@ -269,7 +269,8 @@ pub(crate) fn get_evm_config_starting_base_fee(
     (config, dev_signer, contract_addr)
 }
 pub(crate) fn get_evm_test_config() -> EvmConfig {
-    let config = EvmConfig {
+    
+    EvmConfig {
         data: vec![AccountData {
             address: Address::from([1u8; 20]),
             balance: U256::checked_mul(U256::from(1000), U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH
@@ -308,8 +309,7 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
         difficulty: U256::ZERO,
         extra_data: Bytes::default(),
         nonce: 0,
-    };
-    config
+    }
 }
 
 pub(crate) fn get_fork_fn_only_fork2() -> impl Fn(u64) -> Fork {
