@@ -97,8 +97,8 @@ contract BridgeTest is Test {
         doDeposit();
         // Assert if asset transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        assertEq(bridge.txIdToDepositId(hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0"), 1);
-        assertEq(bridge.depositTxIds(1), hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0");
+        assertTrue(bridge.processedTxIds(hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0"));
+        assertEq(bridge.depositTxIds(0), hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0");
     }
 
     // TODO: Replace the logic of testing the root of withdrawal tree in a more proper manner if this goes into production
@@ -139,7 +139,7 @@ contract BridgeTest is Test {
         
 
         for (uint i = 0; i < 10; i++) {
-            (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(i + 1);
+            (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(i);
             assertEq(_txId, btc_addresses[i]);
             assertEq(_outputId, output_ids[i]);
         }

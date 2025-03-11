@@ -44,7 +44,7 @@ contract Bridge is Ownable2StepUpgradeable {
     UTXO[] public withdrawalUTXOs;
     bytes32[] public depositTxIds;
 
-    mapping(bytes32 => uint256) public txIdToDepositId;
+    mapping(bytes32 => bool) public processedTxIds;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -78,11 +78,6 @@ contract Bridge is Ownable2StepUpgradeable {
         // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
         operator = SYSTEM_CALLER;
 
-        // Add a dummy UTXO to the withdrawalUTXOs array to avoid index 0 being used
-        withdrawalUTXOs.push(UTXO({txId: bytes32(0), outputId: bytes4(0)}));
-        // Add a dummy txId to the depositTxIds array to avoid index 0 being used
-        depositTxIds.push(bytes32(0));
-
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);
     }
@@ -113,8 +108,8 @@ contract Bridge is Ownable2StepUpgradeable {
         require(nIns == 1, "Only one input allowed");
         bytes32 txId = ValidateSPV.calculateTxId(moveTp.version, moveTp.vin, moveTp.vout, moveTp.locktime);
 
-        require(txIdToDepositId[txId] == 0, "txId already spent");
-        txIdToDepositId[txId] = ++currentDepositId;
+        require(processedTxIds[txId] == false, "txId already spent");
+        processedTxIds[txId] = true;
         depositTxIds.push(txId);
         
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
