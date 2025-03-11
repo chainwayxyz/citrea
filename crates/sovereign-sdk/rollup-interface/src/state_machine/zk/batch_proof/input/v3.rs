@@ -24,6 +24,10 @@ pub struct BatchProofCircuitInputV3Part2<'txs, Tx: Clone + BorshSerialize>(
 pub struct BatchProofCircuitInputV3Part1<Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
+    /// The sequencer commitment before the first sequencer commitment in the sequencer_commitments vector
+    /// If it is none than this is the first batch proof
+    /// Else the index of the sequencer commitment should be `sequencer_commitments[0].index - 1``
+    pub previous_sequencer_commitment: Option<SequencerCommitment>,
     /// Sequencer commitments being proven
     /// Since `SequencerCommitment` does not have the sequencer's signature,
     /// the light client prover will be doing the signature verification

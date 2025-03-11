@@ -49,7 +49,6 @@ pub(crate) fn rollback_soft_confirmations(
             &SequencerCommitment {
                 merkle_root: [0; 32],
                 index: last_sequencer_commitment_index,
-                l2_start_block_number: 0,
                 l2_end_block_number: last_sequencer_commitment_l2_height,
             },
         )?;

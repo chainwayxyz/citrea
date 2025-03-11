@@ -76,6 +76,7 @@ where
                 sequencer_k256_public_key,
                 &data.initial_state_root,
                 pre_state.clone(),
+                data.previous_sequencer_commitment,
                 data.sequencer_commitments,
                 data.da_block_headers_of_soft_confirmations,
                 &data.cache_prune_l2_heights,
