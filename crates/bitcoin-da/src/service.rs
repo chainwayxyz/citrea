@@ -782,11 +782,17 @@ impl DaService for BitcoinService {
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
-                            let body = decompress_blob(&complete.body)?;
-                            let data = DataOnDa::borsh_parse_complete(&body)
-                                .map_err(|e| anyhow!("{}: Failed to parse complete: {e}", tx_id))?;
+                            let Ok(body) = decompress_blob(&complete.body) else {
+                                continue;
+                            };
+
+                            let Ok(data) = DataOnDa::borsh_parse_complete(&body) else {
+                                continue;
+                            };
+
                             let DataOnDa::Complete(zk_proof) = data else {
-                                bail!("{}: Complete: unexpected kind", tx_id);
+                                warn!("{}: Complete: unexpected kind", tx_id);
+                                continue;
                             };
                             completes.push((i, zk_proof));
                         }
@@ -876,8 +882,13 @@ impl DaService for BitcoinService {
                     }
                 }
             }
-            let zk_proof: Proof = borsh::from_slice(decompress_blob(&body)?.as_slice())
-                .map_err(|e| anyhow!("{}: Failed to parse Proof from Aggregate: {e}", tx_id))?;
+            let Ok(blob) = decompress_blob(&body) else {
+                continue 'aggregate;
+            };
+            let Ok(zk_proof) = borsh::from_slice(blob.as_slice()) else {
+                warn!("{}: Failed to parse Proof from Aggregate", tx_id);
+                continue;
+            };
             aggregates.push((i, zk_proof));
         }
 
@@ -994,7 +1005,9 @@ impl DaService for BitcoinService {
                 match tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let blob = decompress_blob(&complete.body)?;
+                            let Ok(blob) = decompress_blob(&complete.body) else {
+                                continue;
+                            };
                             let relevant_tx = BlobWithSender::new(
                                 blob,
                                 complete.public_key,
