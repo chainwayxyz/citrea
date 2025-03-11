@@ -29,7 +29,7 @@ fn get_block_by_hash_test() {
 
     let third_block = evm
         .get_block_by_hash(
-            b256!("7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67"),
+            b256!("8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d"),
             None,
             &mut working_set,
         )
@@ -482,8 +482,8 @@ fn call_test() {
 fn check_against_third_block(block: &AnyNetworkBlock) {
     // details = false
     let inner_block = serde_json::from_value::<AnyNetworkBlock>(json!({
-        "hash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
-        "parentHash": "0x6ea083b35351f7353eefb027cdcce2554f1dc1df05d8a51927994bd37c9881a6",
+        "hash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+        "parentHash": "0xc2e4cc89bc3817503ec7a406b462c1b38cb7243bd4118ee29a088ac0caa38a6a",
         "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
         "miner": "0x0000000000000000000000000000000000000000",
         "stateRoot": "0x6464646464646464646464646464646464646464646464646464646464646464",
@@ -526,8 +526,7 @@ fn check_against_third_block(block: &AnyNetworkBlock) {
 }
 
 fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
-    let expected = serde_json::from_value::<Vec<AnyTransactionReceipt>>(json!(
-        [{
+    let expected = serde_json::from_value::<Vec<AnyTransactionReceipt>>(json!([{
             "status": "0x1",
             "cumulativeGasUsed": "0x6720",
             "logs": [
@@ -540,7 +539,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x6d91615c65c0e8f861b0fbfce2d9897fb942293e341eda10c91a6912c4f32668"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
@@ -555,7 +554,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
@@ -568,7 +567,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
             "transactionIndex": "0x0",
-            "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
             "blockNumber": "0x2",
             "gasUsed": "0x6720",
             "effectiveGasPrice": "0x2dbf4076",
@@ -591,7 +590,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x63b901bb1c5ce387d96b2fa4dea95d718cf56095f6c1c7539385849cc23324e1"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
@@ -606,7 +605,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
@@ -619,7 +618,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
             "transactionIndex": "0x1",
-            "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
             "blockNumber": "0x2",
             "gasUsed": "0x66fc",
             "effectiveGasPrice": "0x2dbf4076",
@@ -642,7 +641,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x5188fc8ba319bea37b8a074fdec21db88eef23191a849074ae8d6df8b2a32364"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
@@ -657,7 +656,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
@@ -670,7 +669,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
             "transactionIndex": "0x2",
-            "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
             "blockNumber": "0x2",
             "gasUsed": "0x66fc",
             "effectiveGasPrice": "0x2dbf4076",
@@ -693,7 +692,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x29d61b64fc4b3d3e07e2692f6bc997236f115e546fae45393595f0cb0acbc4a0"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
@@ -708,7 +707,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
@@ -721,7 +720,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
             "transactionIndex": "0x3",
-            "blockHash": "0x7ed344fd0e49159ace6e20ec29fa50fbe6b46d03d07ccc11ce5d6b5f5ef6df67",
+            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
             "blockNumber": "0x2",
             "gasUsed": "0x66fc",
             "effectiveGasPrice": "0x2dbf4076",
@@ -730,7 +729,8 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "contractAddress": null,
             "l1DiffSize": "0x1f",
             "l1FeeRate": "0x1"
-        }])).unwrap();
+        }
+        ])).unwrap();
 
     assert_eq!(receipts, expected)
 }

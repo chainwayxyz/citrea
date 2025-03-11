@@ -23,10 +23,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "c7a94c90380bdcf1b7f6a74c2e67416061020bce42e8463ab9c245b5fd3e2cbd"
+        "8a9502ec1cb3d9208434723c2a12a591d1296a0476d4c145d52163eebbd36a66"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "7170ccd7acb8feab3c902a43ad5c01b0cb85d6c0530c0895029fad9fbe91a80d"
+        "d94e4df8ef013a997888e9ffc34cb84cc7708a90e57d520a98fd7509f08196cb"
     ));
 }
 
@@ -229,7 +229,7 @@ pub(crate) fn get_evm_config(
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
             balance: signer_balance,
@@ -241,7 +241,6 @@ pub(crate) fn get_evm_config(
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
     (config, dev_signer, contract_addr)
 }
 
@@ -253,7 +252,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
             balance: signer_balance,
@@ -267,11 +266,10 @@ pub(crate) fn get_evm_config_starting_base_fee(
         coinbase: PRIORITY_FEE_VAULT,
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
     (config, dev_signer, contract_addr)
 }
 pub(crate) fn get_evm_test_config() -> EvmConfig {
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: Address::from([1u8; 20]),
             balance: U256::checked_mul(U256::from(1000), U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH
@@ -311,7 +309,6 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
         extra_data: Bytes::default(),
         nonce: 0,
     };
-    config_push_contracts(&mut config, None);
     config
 }
 

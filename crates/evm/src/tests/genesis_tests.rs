@@ -109,17 +109,7 @@ fn genesis_block() {
 
     let mut accessory_state = working_set.accessory_state();
 
-    let block_number = evm
-        .block_hashes
-        .get(&GENESIS_HASH, &mut accessory_state)
-        .unwrap();
-
-    let block = evm
-        .blocks_rlp
-        .get(block_number as usize, &mut accessory_state)
-        .unwrap();
-
-    assert_eq!(block_number, 0);
+    let block = evm.blocks_rlp.get(0, &mut accessory_state).unwrap();
 
     assert_eq!(
         block,

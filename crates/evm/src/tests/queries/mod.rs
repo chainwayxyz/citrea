@@ -20,8 +20,8 @@ use crate::smart_contracts::{
 };
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
-    commit, config_push_contracts, create_contract_transaction, get_evm_with_storage,
-    publish_event_message, set_arg_message,
+    commit, create_contract_transaction, get_evm_with_storage, publish_event_message,
+    set_arg_message,
 };
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
@@ -43,7 +43,7 @@ fn init_evm(
 ) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
             balance: U256::from_str("100000000000000000000").unwrap(),
@@ -54,7 +54,7 @@ fn init_evm(
         }],
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
+
     let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
 
     let l1_fee_rate = 1;
@@ -194,7 +194,7 @@ pub fn init_evm_single_block(
 ) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![
             AccountData {
                 address: dev_signer.address(),
@@ -215,7 +215,7 @@ pub fn init_evm_single_block(
         ],
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
+
     let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
 
     // let contract_addr: Address = Address::from_slice(
@@ -267,7 +267,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
 {
     let dev_signer: TestSigner = TestSigner::new_random();
 
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
             balance: U256::from_str("100000000000000000000").unwrap(), // Setting initial balance
@@ -278,7 +278,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         }],
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
+
     let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
 
     let contract_addr: Address = Address::from_slice(

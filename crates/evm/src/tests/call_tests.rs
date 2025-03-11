@@ -41,7 +41,7 @@ type C = DefaultContext;
 fn call_multiple_test() {
     let dev_signer1: TestSigner = TestSigner::new_random();
 
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer1.address(),
             balance: U256::from_str("100000000000000000000").unwrap(),
@@ -52,7 +52,6 @@ fn call_multiple_test() {
         }],
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
     let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
@@ -258,8 +257,7 @@ fn call_test() {
 #[test]
 fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
-    let mut config = EvmConfig::default();
-    config_push_contracts(&mut config, None);
+    let config = EvmConfig::default();
 
     let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let working_set = &mut working_set;
@@ -846,8 +844,11 @@ fn test_l1_fee_success() {
         expected_base_fee_vault_balance: U256,
         expected_l1_fee_vault_balance: U256,
     ) {
-        let (config, dev_signer, _) =
+        let (mut config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
+
+        // this will push contracts to the config
+        config_push_contracts(&mut config, None);
 
         let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
@@ -943,11 +944,12 @@ fn test_l1_fee_success() {
 
 #[test]
 fn test_l1_fee_not_enough_funds() {
-    let (config, dev_signer, _) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, _) = get_evm_config_starting_base_fee(
         U256::from_str("1142350000000").unwrap(), // only covers base fee
         None,
         MIN_BASE_FEE_PER_GAS as u64,
     );
+    config_push_contracts(&mut config, None);
 
     let l1_fee_rate = 10000;
     let (mut evm, mut working_set, _spec_id) = get_evm(&config);
@@ -986,8 +988,6 @@ fn test_l1_fee_not_enough_funds() {
             &mut working_set,
         );
 
-        println!("{:?}", call_result);
-
         assert_eq!(
             call_result.unwrap_err(),
             L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee
@@ -1012,14 +1012,18 @@ fn test_l1_fee_not_enough_funds() {
     assert_eq!(db_account.nonce, 0);
 
     // The coinbase balance is zero
-    let db_coinbase = evm.account_info(&config.coinbase, &mut working_set);
-    assert_eq!(db_coinbase.unwrap().balance, U256::from(0));
+    let db_coinbase = evm
+        .account_info(&config.coinbase, &mut working_set)
+        .unwrap();
+    assert_eq!(db_coinbase.balance, U256::from(0));
 }
 
 #[test]
 fn test_l1_fee_halt() {
-    let (config, dev_signer, _) =
+    let (mut config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
+
+    config_push_contracts(&mut config, None);
 
     let (mut evm, mut working_set, _spec_id) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
@@ -1128,8 +1132,10 @@ fn test_l1_fee_halt() {
 
 #[test]
 fn test_l1_fee_compression_discount() {
-    let (config, dev_signer, _) =
+    let (mut config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
+
+    config_push_contracts(&mut config, None);
 
     let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 1;
