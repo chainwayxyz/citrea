@@ -201,6 +201,7 @@ where
         Ok(())
     }
 
+    // TODO Re-write since da_slot_height is not indexed as part of L2Block
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
         info!("Resubmitting pending commitments");

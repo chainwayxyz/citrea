@@ -683,21 +683,12 @@ impl SequencerLedgerOps for LedgerDB {
             .map(|diff| diff.unwrap_or_default())
     }
 
+    // TODO Rewrite to properly get da_slot_height
     /// Get the most recent commitment's l1 height
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>> {
         let l2_height = self.get_last_commitment_l2_height()?;
-        match l2_height {
-            Some(l2_height) => {
-                let l2_block = self
-                    .get_l2_block_by_number(&l2_height)?
-                    .expect("Expected l2 block to exist");
-                // TODO decide how to fetch l1 height
-                Ok(Some(SlotNumber(0)))
-                // Ok(Some(SlotNumber(l2_block.da_slot_height)))
-            }
-            None => Ok(None),
-        }
+        Ok(None)
     }
 
     fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()> {
