@@ -47,7 +47,7 @@ impl TestCase for BitcoinVerifierTest {
         let (block, _, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
 
         let (mut txs, inclusion_proof, completeness_proof) =
-            service.extract_relevant_blobs_with_proof(&block);
+            service.extract_relevant_blobs_with_proof(&block)?;
 
         txs.iter_mut().for_each(|t| {
             t.full_data();

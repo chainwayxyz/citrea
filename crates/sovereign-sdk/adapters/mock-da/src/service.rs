@@ -448,11 +448,11 @@ impl DaService for MockDaService {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-    ) -> (
+    ) -> anyhow::Result<(
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
+    )> {
         let mut txs = vec![];
         for b in block.blobs.clone() {
             let clone_for_full_data = b.clone();
@@ -461,7 +461,7 @@ impl DaService for MockDaService {
                 txs.push(b);
             }
         }
-        (txs.clone(), [0u8; 32], txs)
+        Ok((txs.clone(), [0u8; 32], txs))
     }
 
     #[tracing::instrument(name = "MockDA", level = "debug", skip_all)]

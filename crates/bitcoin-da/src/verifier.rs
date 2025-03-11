@@ -37,6 +37,7 @@ pub enum ValidationError {
     BlobWasTamperedWith,
     IncorrectSenderInBlob,
     BlobContentWasModified,
+    BlobDecompressionFailure,
     IncorrectCompletenessProof,
     RelevantTxNotInProof,
     IncorrectInclusionProof,
@@ -100,7 +101,8 @@ impl DaVerifier for BitcoinVerifier {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
                             blobs.push(BlobWithSender::new(
-                                decompress_blob(&complete.body),
+                                decompress_blob(&complete.body)
+                                    .map_err(|_| ValidationError::BlobDecompressionFailure)?,
                                 complete.public_key,
                                 hash,
                                 Some(*wtxid),

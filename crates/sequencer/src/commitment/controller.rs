@@ -142,7 +142,7 @@ where
             return None;
         }
 
-        let compressed_state_diff = compress_blob(&uncompressed_state_diff);
+        let compressed_state_diff = compress_blob(&uncompressed_state_diff).unwrap();
         if compressed_state_diff.len() <= MAX_TXBODY_SIZE {
             return None;
         }

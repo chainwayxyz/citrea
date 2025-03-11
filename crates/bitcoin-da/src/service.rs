@@ -334,7 +334,7 @@ impl BitcoinService {
 
         match tx_request {
             DaTxRequest::ZKProof(zkproof) => {
-                let data = split_proof(zkproof);
+                let data = split_proof(zkproof)?;
 
                 let reveal_light_client_prefix = self.reveal_tx_prefix.clone();
                 // create inscribe transactions
@@ -782,7 +782,7 @@ impl DaService for BitcoinService {
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
-                            let body = decompress_blob(&complete.body);
+                            let body = decompress_blob(&complete.body)?;
                             let data = DataOnDa::borsh_parse_complete(&body)
                                 .map_err(|e| anyhow!("{}: Failed to parse complete: {e}", tx_id))?;
                             let DataOnDa::Complete(zk_proof) = data else {
@@ -876,7 +876,7 @@ impl DaService for BitcoinService {
                     }
                 }
             }
-            let zk_proof: Proof = borsh::from_slice(decompress_blob(&body).as_slice())
+            let zk_proof: Proof = borsh::from_slice(decompress_blob(&body)?.as_slice())
                 .map_err(|e| anyhow!("{}: Failed to parse Proof from Aggregate: {e}", tx_id))?;
             aggregates.push((i, zk_proof));
         }
@@ -936,11 +936,11 @@ impl DaService for BitcoinService {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-    ) -> (
+    ) -> anyhow::Result<(
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
+    )> {
         info!(
             "Getting extraction proof for block {:?}",
             block.header.block_hash()
@@ -994,7 +994,7 @@ impl DaService for BitcoinService {
                 match tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let blob = decompress_blob(&complete.body);
+                            let blob = decompress_blob(&complete.body)?;
                             let relevant_tx = BlobWithSender::new(
                                 blob,
                                 complete.public_key,
@@ -1051,7 +1051,7 @@ impl DaService for BitcoinService {
             }
         }
 
-        (relevant_txs, inclusion_proof, completeness_proof)
+        Ok((relevant_txs, inclusion_proof, completeness_proof))
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -1244,15 +1244,15 @@ impl From<TxidWrapper> for [u8; 32] {
 ///   let compressed = compress(borsh(Proof))
 ///   let chunks = compressed.chunks(MAX_TXBODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
-fn split_proof(zk_proof: Proof) -> RawTxData {
+fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
-    let original_compressed = compress_blob(&original_blob);
+    let original_compressed = compress_blob(&original_blob)?;
 
     if original_compressed.len() < MAX_TXBODY_SIZE {
         let data = DataOnDa::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
-        let blob = compress_blob(&blob);
-        RawTxData::Complete(blob)
+        let blob = compress_blob(&blob)?;
+        Ok(RawTxData::Complete(blob))
     } else {
         let mut chunks = vec![];
         for chunk in original_compressed.chunks(MAX_TXBODY_SIZE) {
@@ -1261,7 +1261,7 @@ fn split_proof(zk_proof: Proof) -> RawTxData {
             chunks.push(blob)
         }
 
-        RawTxData::Chunks(chunks)
+        Ok(RawTxData::Chunks(chunks))
     }
 }
 
