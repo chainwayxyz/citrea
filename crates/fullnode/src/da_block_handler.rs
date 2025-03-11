@@ -65,10 +65,6 @@ where
         Self {
             ledger_db,
             da_service,
-<<<<<<< HEAD
-            _sequencer_pub_key: sequencer_pub_key,
-=======
->>>>>>> 9bfbc654e0ccf1becbad58ad60fed40e09cadfe1
             sequencer_da_pub_key,
             prover_da_pub_key,
             code_commitments_by_spec,

@@ -35,7 +35,7 @@ impl BatchProofCircuitOutput {
     /// Get the final soft confirmation hash
     pub fn final_soft_confirmation_hash(&self) -> [u8; 32] {
         match self {
-            BatchProofCircuitOutput::V3(output) => output.final_soft_confirmation_hash,
+            BatchProofCircuitOutput::V3(output) => output.final_l2_block_hash,
         }
     }
 

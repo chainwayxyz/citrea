@@ -98,8 +98,8 @@ where
             stf,
             storage_manager,
             ledger_db,
-            state_root: init_params.state_root,
-            l2_block_hash: init_params.batch_hash,
+            state_root: init_params.prev_state_root,
+            l2_block_hash: init_params.prev_l2_block_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,

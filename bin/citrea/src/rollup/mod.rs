@@ -400,18 +400,18 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             );
 
             return Ok(InitParams {
-                state_root: prover_storage.get_root_hash(number.0 + 1)?,
-                batch_hash: l2_block.hash,
+                prev_state_root: prover_storage.get_root_hash(number.0 + 1)?,
+                prev_l2_block_hash: l2_block.hash,
             });
         }
 
         let genesis_root = prover_storage.get_root_hash(1);
-        if let Ok(state_root) = genesis_root {
+        if let Ok(prev_state_root) = genesis_root {
             // Chain was initialized but no L2 blocks were processed
             debug!("Chain is already initialized. Skipping initialization.");
             return Ok(InitParams {
-                state_root,
-                batch_hash: [0; 32],
+                prev_state_root,
+                prev_l2_block_hash: [0; 32],
             });
         }
 
@@ -426,8 +426,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             hex::encode(genesis_root),
         );
         Ok(InitParams {
-            state_root: genesis_root,
-            batch_hash: [0; 32],
+            prev_state_root: genesis_root,
+            prev_l2_block_hash: [0; 32],
         })
     }
 }
