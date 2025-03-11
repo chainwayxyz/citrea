@@ -4,13 +4,11 @@ use accessors::{BlockHashAccessor, ChunkAccessor};
 use borsh::BorshDeserialize;
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::{
-    BatchProofCircuitOutputV2, BatchProofCircuitOutputV3, BlobReaderTrait, DaSpec, WorkingSet, Zkvm,
-};
+use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
 use sov_rollup_interface::da::{BatchProofMethodId, DaVerifier, DataOnDa};
 use sov_rollup_interface::witness::Witness;
-use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::{
     BatchProofInfo, LightClientCircuitOutput,
@@ -72,36 +70,18 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return Err("Failed to extract output from proof");
         };
 
-        // TODO: only V3 supported after
-        // https://github.com/chainwayxyz/citrea/pull/2017
-        let (
-            batch_proof_output_initial_state_root,
-            batch_proof_output_final_state_root,
-            batch_proof_output_last_l2_height,
-        ) = if let Ok(output) = Z::deserialize_output::<BatchProofCircuitOutputV3>(&journal) {
-            if !BlockHashAccessor::<S>::exists(
-                output.last_l1_hash_on_bitcoin_light_client_contract,
-                working_set,
-            ) {
-                return Err("Batch proof with unknown header chain");
-            }
+        let batch_proof_output = Z::deserialize_output::<BatchProofCircuitOutput>(&journal)
+            .map_err(|_| "Failed to deserialize output")?;
+        if !BlockHashAccessor::<S>::exists(
+            batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract(),
+            working_set,
+        ) {
+            return Err("Batch proof with unknown header chain");
+        }
 
-            (
-                output.initial_state_root,
-                output.final_state_root,
-                output.last_l2_height,
-            )
-        } else if let Ok(output) = Z::deserialize_output::<BatchProofCircuitOutputV2>(&journal) {
-            (
-                output.initial_state_root,
-                output.final_state_root,
-                output.last_l2_height,
-            )
-        } else if let Ok(output) = Z::deserialize_output::<BatchProofCircuitOutputV1>(&journal) {
-            (output.initial_state_root, output.final_state_root, 0)
-        } else {
-            return Err("Failed to parse proof");
-        };
+        let batch_proof_output_initial_state_root = batch_proof_output.initial_state_root();
+        let batch_proof_output_final_state_root = batch_proof_output.final_state_root();
+        let batch_proof_output_last_l2_height = batch_proof_output.last_l2_height();
 
         // Do not add if last l2 height is smaller or equal to previous output
         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again

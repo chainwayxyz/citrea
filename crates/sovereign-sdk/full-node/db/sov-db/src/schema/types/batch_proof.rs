@@ -2,16 +2,18 @@ use std::fmt::Debug;
 
 use alloy_primitives::{U32, U64, U8};
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, SerializableHash, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::Proof;
 
 /// The on-disk format for a state transition.
-#[derive(Debug, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub enum StoredBatchProofOutput {
     /// V1 batch proof output wrapper
     V1(BatchProofCircuitOutputV1),
@@ -38,6 +40,16 @@ impl From<StoredBatchProof> for BatchProofResponse {
             l1_tx_id: value.l1_tx_id,
             proof: value.proof,
             proof_output: BatchProofOutputRpcResponse::from(value.proof_output),
+        }
+    }
+}
+
+impl From<BatchProofCircuitOutput> for StoredBatchProofOutput {
+    fn from(value: BatchProofCircuitOutput) -> Self {
+        match value {
+            BatchProofCircuitOutput::V1(value) => Self::V1(value),
+            BatchProofCircuitOutput::V2(value) => Self::V2(value),
+            BatchProofCircuitOutput::V3(value) => Self::V3(value),
         }
     }
 }

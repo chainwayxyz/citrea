@@ -9,7 +9,7 @@ use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa};
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
-use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
@@ -24,7 +24,7 @@ pub(crate) fn create_mock_batch_proof(
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    let bp = BatchProofCircuitOutputV3 {
+    let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         final_soft_confirmation_hash: [4; 32],
@@ -32,7 +32,7 @@ pub(crate) fn create_mock_batch_proof(
         last_l2_height,
         sequencer_commitment_merkle_roots: vec![],
         last_l1_hash_on_bitcoin_light_client_contract,
-    };
+    });
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
 
@@ -66,7 +66,7 @@ pub(crate) fn create_serialized_mock_proof(
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    let bp = BatchProofCircuitOutputV3 {
+    let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         final_soft_confirmation_hash: [4; 32],
@@ -74,7 +74,7 @@ pub(crate) fn create_serialized_mock_proof(
         last_l2_height,
         sequencer_commitment_merkle_roots: vec![],
         last_l1_hash_on_bitcoin_light_client_contract,
-    };
+    });
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
 
