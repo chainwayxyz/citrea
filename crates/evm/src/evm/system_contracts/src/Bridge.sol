@@ -40,7 +40,10 @@ contract Bridge is Ownable2StepUpgradeable {
     uint256 currentDepositId;
     bytes public scriptPrefix;
     bytes public scriptSuffix;
+
     UTXO[] public withdrawalUTXOs;
+    bytes32[] public depositTxIds;
+
     mapping(bytes32 => uint256) public txIdToDepositId;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
@@ -75,6 +78,11 @@ contract Bridge is Ownable2StepUpgradeable {
         // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
         operator = SYSTEM_CALLER;
 
+        // Add a dummy UTXO to the withdrawalUTXOs array to avoid index 0 being used
+        withdrawalUTXOs[0] = UTXO({txId: bytes32(0), outputId: bytes4(0)});
+        // Add a dummy txId to the depositTxIds array to avoid index 0 being used
+        depositTxIds[0] = bytes32(0);
+
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);
     }
@@ -107,6 +115,7 @@ contract Bridge is Ownable2StepUpgradeable {
 
         require(txIdToDepositId[txId] == 0, "txId already spent");
         txIdToDepositId[txId] = ++currentDepositId;
+        depositTxIds.push(txId);
         
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
