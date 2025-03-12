@@ -186,7 +186,7 @@ jobs:
       - name: Run cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: "--exclude humantime check"
+          command: check
 
   coverage:
     needs:
