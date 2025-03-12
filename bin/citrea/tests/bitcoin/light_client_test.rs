@@ -127,7 +127,6 @@ impl TestCase for LightClientProvingTest {
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await
             .unwrap();
-        println!("sdjhfgasdjhfgasdjhf2");
 
         // Expect light client prover to have generated light client proof
         let lcp = light_client_prover
