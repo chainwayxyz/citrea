@@ -97,11 +97,11 @@ pub trait DaService: Send + Sync + 'static {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-    ) -> anyhow::Result<(
+    ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    )>;
+    );
 
     /// Decompress and deserialize the chunks into a single complete proof.
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;

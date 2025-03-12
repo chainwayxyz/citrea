@@ -160,9 +160,8 @@ where
             .set_l1_height_of_l1_hash(l1_hash, l1_height)
             .expect("Setting l1 height of l1 hash in ledger db");
 
-        let (da_data, inclusion_proof, completeness_proof) = self
-            .da_service
-            .extract_relevant_blobs_with_proof(&l1_block)?;
+        let (da_data, inclusion_proof, completeness_proof) =
+            self.da_service.extract_relevant_blobs_with_proof(&l1_block);
 
         let previous_l1_height = l1_height - 1;
         let (assumption, light_client_proof_journal, l2_last_height, light_client_proof_output) =

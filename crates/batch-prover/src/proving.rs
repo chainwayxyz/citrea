@@ -82,9 +82,8 @@ where
 {
     let l1_height = l1_block.header().height();
 
-    let (da_data, inclusion_proof, completeness_proof) = da_service
-        .extract_relevant_blobs_with_proof(l1_block)
-        .map_err(|e| L1ProcessingError::Other(e.to_string()))?;
+    let (da_data, inclusion_proof, completeness_proof) =
+        da_service.extract_relevant_blobs_with_proof(l1_block);
 
     let sequencer_commitments: Vec<SequencerCommitment> =
         extract_sequencer_commitments::<Da>(da_service.clone(), l1_block, &sequencer_da_pub_key);

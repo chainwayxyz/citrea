@@ -946,11 +946,11 @@ impl DaService for BitcoinService {
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-    ) -> anyhow::Result<(
+    ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    )> {
+    ) {
         info!(
             "Getting extraction proof for block {:?}",
             block.header.block_hash()
@@ -1063,7 +1063,7 @@ impl DaService for BitcoinService {
             }
         }
 
-        Ok((relevant_txs, inclusion_proof, completeness_proof))
+        (relevant_txs, inclusion_proof, completeness_proof)
     }
 
     #[instrument(level = "trace", skip_all)]
