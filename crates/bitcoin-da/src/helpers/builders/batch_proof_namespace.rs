@@ -194,7 +194,9 @@ pub fn create_batchproof_type_0(
         );
 
         let min_commit_value = Amount::from_sat(fee + reveal_value);
-        while unsigned_commit_tx.output[0].value >= min_commit_value {
+        while unsigned_commit_tx.output[0].value >= min_commit_value
+            && reveal_tx.output[0].value >= Amount::ONE_SAT
+        {
             // tracing::info!("reveal output: {}", reveal_tx.output[0].value);
             let reveal_wtxid = reveal_tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
@@ -225,26 +227,9 @@ pub fn create_batchproof_type_0(
                     },
                 });
             } else {
-                unsigned_commit_tx.output[0].value = match unsigned_commit_tx.output[0]
-                    .value
-                    .checked_sub(Amount::ONE_SAT)
-                {
-                    Some(value) => value,
-                    None => break,
-                };
-
-                unsigned_commit_tx.output[1].value = match unsigned_commit_tx.output[1]
-                    .value
-                    .checked_add(Amount::ONE_SAT)
-                {
-                    Some(value) => value,
-                    None => break,
-                };
-                reveal_tx.output[0].value =
-                    match reveal_tx.output[0].value.checked_sub(Amount::ONE_SAT) {
-                        Some(value) => value,
-                        None => break,
-                    };
+                unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
+                unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
+                reveal_tx.output[0].value -= Amount::ONE_SAT;
 
                 reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
                 update_witness(

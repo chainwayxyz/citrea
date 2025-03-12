@@ -278,7 +278,9 @@ pub fn create_inscription_type_0(
         );
 
         let min_commit_value = Amount::from_sat(fee + reveal_value);
-        while unsigned_commit_tx.output[0].value >= min_commit_value {
+        while unsigned_commit_tx.output[0].value >= min_commit_value
+            && reveal_tx.output[0].value >= Amount::ONE_SAT
+        {
             let reveal_wtxid = reveal_tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
             // check if first N bytes equal to the given prefix
@@ -433,7 +435,9 @@ pub fn create_inscription_type_1(
             );
 
             let min_commit_value = Amount::from_sat(fee + reveal_value);
-            while unsigned_commit_tx.output[0].value >= min_commit_value {
+            while unsigned_commit_tx.output[0].value >= min_commit_value
+                && reveal_tx.output[0].value >= Amount::ONE_SAT
+            {
                 let reveal_wtxid = reveal_tx.compute_wtxid();
                 let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
@@ -618,7 +622,9 @@ pub fn create_inscription_type_1(
         );
 
         let min_commit_value = Amount::from_sat(fee + reveal_value);
-        while unsigned_commit_tx.output[0].value >= min_commit_value {
+        while unsigned_commit_tx.output[0].value >= min_commit_value
+            && reveal_tx.output[0].value >= Amount::ONE_SAT
+        {
             let reveal_wtxid = reveal_tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
