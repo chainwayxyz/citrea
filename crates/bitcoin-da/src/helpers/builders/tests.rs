@@ -20,12 +20,12 @@ fn compression_decompression() {
 
     // compress and measure time
     let time = std::time::Instant::now();
-    let compressed_blob = compress_blob(&blob);
+    let compressed_blob = compress_blob(&blob).unwrap();
     println!("compression time: {:?}", time.elapsed());
 
     // decompress and measure time
     let time = std::time::Instant::now();
-    let decompressed_blob = decompress_blob(&compressed_blob);
+    let decompressed_blob = decompress_blob(&compressed_blob).unwrap();
     println!("decompression time: {:?}", time.elapsed());
 
     assert_eq!(blob, decompressed_blob);

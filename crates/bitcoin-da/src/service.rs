@@ -334,7 +334,7 @@ impl BitcoinService {
 
         match tx_request {
             DaTxRequest::ZKProof(zkproof) => {
-                let data = split_proof(zkproof);
+                let data = split_proof(zkproof)?;
 
                 let reveal_light_client_prefix = self.reveal_tx_prefix.clone();
                 // create inscribe transactions
@@ -760,7 +760,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         prover_da_pub_key: &[u8],
-    ) -> Result<Vec<Proof>> {
+    ) -> Vec<Proof> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
 
@@ -782,11 +782,19 @@ impl DaService for BitcoinService {
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
-                            let body = decompress_blob(&complete.body);
-                            let data = DataOnDa::borsh_parse_complete(&body)
-                                .map_err(|e| anyhow!("{}: Failed to parse complete: {e}", tx_id))?;
+                            let Ok(body) = decompress_blob(&complete.body) else {
+                                warn!("{tx_id}: Failed to decompress blob");
+                                continue;
+                            };
+
+                            let Ok(data) = DataOnDa::borsh_parse_complete(&body) else {
+                                warn!("{tx_id}: Failed to parse complete data");
+                                continue;
+                            };
+
                             let DataOnDa::Complete(zk_proof) = data else {
-                                bail!("{}: Complete: unexpected kind", tx_id);
+                                warn!("{}: Complete: unexpected kind", tx_id);
+                                continue;
                             };
                             completes.push((i, zk_proof));
                         }
@@ -817,14 +825,16 @@ impl DaService for BitcoinService {
         let mut aggregates = Vec::new();
         'aggregate: for (i, tx_id, aggregate) in aggregate_idxs {
             let mut body = Vec::new();
-            let data = DataOnDa::try_from_slice(&aggregate.body)
-                .map_err(|e| anyhow!("{}: Failed to parse aggregate: {e}", tx_id))?;
+            let Ok(data) = DataOnDa::try_from_slice(&aggregate.body) else {
+                warn!("{tx_id}: Failed to parse aggregate");
+                continue;
+            };
             let DataOnDa::Aggregate(chunk_ids, _wtx_ids) = data else {
-                error!("{}: Aggregate: unexpected kind", tx_id);
+                error!("{tx_id}: Aggregate: unexpected kind");
                 continue;
             };
             if chunk_ids.is_empty() {
-                error!("{}: Empty aggregate tx list", tx_id);
+                error!("{tx_id}: Empty aggregate tx list");
                 continue;
             }
             for chunk_id in chunk_ids {
@@ -860,10 +870,13 @@ impl DaService for BitcoinService {
                 };
                 match parsed {
                     ParsedTransaction::Chunk(part) => {
-                        let data = DataOnDa::try_from_slice(&part.body)
-                            .map_err(|e| anyhow!("{}: Failed to parse chunk: {e}", tx_id))?;
+                        let Ok(data) = DataOnDa::try_from_slice(&part.body) else {
+                            warn!("{tx_id}: Failed to parse chunk");
+                            continue 'aggregate;
+                        };
                         let DataOnDa::Chunk(chunk) = data else {
-                            bail!("{}: Chunk: unexpected kind", tx_id);
+                            warn!("{tx_id}: Chunk: unexpected kind",);
+                            continue 'aggregate;
                         };
                         body.extend(chunk);
                     }
@@ -876,8 +889,14 @@ impl DaService for BitcoinService {
                     }
                 }
             }
-            let zk_proof: Proof = borsh::from_slice(decompress_blob(&body).as_slice())
-                .map_err(|e| anyhow!("{}: Failed to parse Proof from Aggregate: {e}", tx_id))?;
+            let Ok(blob) = decompress_blob(&body) else {
+                warn!("{tx_id}: Failed to decompress blob from Aggregate");
+                continue 'aggregate;
+            };
+            let Ok(zk_proof) = borsh::from_slice(blob.as_slice()) else {
+                warn!("{}: Failed to parse Proof from Aggregate", tx_id);
+                continue 'aggregate;
+            };
             aggregates.push((i, zk_proof));
         }
 
@@ -885,11 +904,7 @@ impl DaService for BitcoinService {
         // restore the order of tx they appear in the block
         proofs.sort_by_key(|b| b.0);
 
-        let mut result = Vec::new();
-        for (_i, proof) in proofs {
-            result.push(proof);
-        }
-        Ok(result)
+        proofs.into_iter().map(|(_, proof)| proof).collect()
     }
 
     /// Extract SequencerCommitment's from the block
@@ -897,7 +912,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         sequencer_da_pub_key: &[u8],
-    ) -> Result<Vec<SequencerCommitment>> {
+    ) -> Vec<SequencerCommitment> {
         let mut sequencer_commitments = Vec::new();
 
         for tx in &block.txdata {
@@ -925,7 +940,7 @@ impl DaService for BitcoinService {
                 // ignore
             }
         }
-        Ok(sequencer_commitments)
+        sequencer_commitments
     }
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
@@ -994,7 +1009,9 @@ impl DaService for BitcoinService {
                 match tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let blob = decompress_blob(&complete.body);
+                            let Ok(blob) = decompress_blob(&complete.body) else {
+                                continue;
+                            };
                             let relevant_tx = BlobWithSender::new(
                                 blob,
                                 complete.public_key,
@@ -1244,15 +1261,15 @@ impl From<TxidWrapper> for [u8; 32] {
 ///   let compressed = compress(borsh(Proof))
 ///   let chunks = compressed.chunks(MAX_TXBODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
-fn split_proof(zk_proof: Proof) -> RawTxData {
+fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
-    let original_compressed = compress_blob(&original_blob);
+    let original_compressed = compress_blob(&original_blob)?;
 
     if original_compressed.len() < MAX_TXBODY_SIZE {
         let data = DataOnDa::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
-        let blob = compress_blob(&blob);
-        RawTxData::Complete(blob)
+        let blob = compress_blob(&blob)?;
+        Ok(RawTxData::Complete(blob))
     } else {
         let mut chunks = vec![];
         for chunk in original_compressed.chunks(MAX_TXBODY_SIZE) {
@@ -1261,7 +1278,7 @@ fn split_proof(zk_proof: Proof) -> RawTxData {
             chunks.push(blob)
         }
 
-        RawTxData::Chunks(chunks)
+        Ok(RawTxData::Chunks(chunks))
     }
 }
 

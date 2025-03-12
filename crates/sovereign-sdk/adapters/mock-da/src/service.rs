@@ -417,7 +417,7 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _prover_da_pub_key: &[u8],
-    ) -> anyhow::Result<Vec<Proof>> {
+    ) -> Vec<Proof> {
         let mut res = vec![];
         for b in block.blobs.clone() {
             if let Ok(DataOnDa::Complete(proof)) = DataOnDa::try_from_slice(b.full_data()) {
@@ -426,14 +426,14 @@ impl DaService for MockDaService {
                 // ignore
             }
         }
-        Ok(res)
+        res
     }
 
     fn extract_relevant_sequencer_commitments(
         &self,
         block: &Self::FilteredBlock,
         _sequencer_da_pub_key: &[u8],
-    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+    ) -> Vec<SequencerCommitment> {
         let mut res = vec![];
         for b in block.blobs.clone() {
             if let Ok(DataOnDa::SequencerCommitment(seq_com)) =
@@ -442,7 +442,7 @@ impl DaService for MockDaService {
                 res.push(seq_com);
             }
         }
-        Ok(res)
+        res
     }
 
     fn extract_relevant_blobs_with_proof(

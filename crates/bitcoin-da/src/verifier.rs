@@ -99,8 +99,12 @@ impl DaVerifier for BitcoinVerifier {
                 match parsed_tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
+                            let Ok(blob) = decompress_blob(&complete.body) else {
+                                continue;
+                            };
+
                             blobs.push(BlobWithSender::new(
-                                decompress_blob(&complete.body),
+                                blob,
                                 complete.public_key,
                                 hash,
                                 Some(*wtxid),

@@ -132,15 +132,7 @@ where
         );
 
         let zk_proofs =
-            match extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key)
-                .await
-            {
-                Ok(proofs) => proofs,
-                Err(e) => {
-                    error!("Could not process L1 block: {}...skipping", e);
-                    return;
-                }
-            };
+            extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key).await;
 
         if !sequencer_commitments.is_empty() {
             // If the L2 range does not exist, we break off the current process call
@@ -325,7 +317,7 @@ where
             l1_block,
             batch_proof_output.initial_state_root(),
             proof,
-            batch_proof_output.into(),
+            batch_proof_output,
         )
     }
 
