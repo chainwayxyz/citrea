@@ -38,8 +38,8 @@ use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::{HookSoftConfirmationInfo, HookSoftConfirmationInfoV2};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    EncodeCall, L2Block, PrivateKey, SlotData, Spec, SpecId, StateDiff, StateValueAccessor,
-    WorkingSet,
+    EncodeCall, L2Block, PrivateKey, SlotData, SoftConfirmationModuleCallError, Spec, SpecId,
+    StateDiff, StateValueAccessor, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -47,7 +47,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
-use sov_rollup_interface::stf::SoftConfirmationResult;
+use sov_rollup_interface::stf::{SoftConfirmationResult, StateTransitionError};
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -253,45 +253,45 @@ where
                     // Decrement nonce if the transaction failed
                     nonce -= 1;
                     match e {
-                                        // Since this is the sequencer, it should never get a soft confirmation error or a hook error
-                                        sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
-                                        sov_rollup_interface::stf::StateTransitionError::HookError(soft_confirmation_hook_error) => panic!("Hook error: {:?}", soft_confirmation_hook_error),
-                                        sov_rollup_interface::stf::StateTransitionError::ModuleCallError(soft_confirmation_module_call_error) => match soft_confirmation_module_call_error {
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
-                                                                                        cumulative_gas,
-                                                                                        tx_gas_used: _,
-                                                                                        block_gas_limit
-                                                                                    } => {
-                                                                                       if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
-                                                                                        break;
-                                                                                       } else {
-                                                                                        invalid_senders.insert(evm_tx.transaction_id.sender);
-                                                                                        working_set_to_discard = working_set.revert().to_revertable();
-                                                                                        continue;
-                                                                                       }
-                                                                                    },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
-                                                                                        invalid_senders.insert(evm_tx.transaction_id.sender);
-                                                                                        working_set_to_discard = working_set.revert().to_revertable();
-                                                                                        continue;
-                                                                                    },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
-                                                                                        l1_fee_failed_txs.push(*evm_tx.hash());
-                                                                                        invalid_senders.insert(evm_tx.transaction_id.sender);
-                                                                                        working_set_to_discard = working_set.revert().to_revertable();
-                                                                                        continue;
-                                                                                    },
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTxNotSerializable => panic!("Fed a non-serializable tx"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
-                                            sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofNotFound => unreachable!(),
-                                            sov_modules_api::SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => panic!("System tx after user tx"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxParseError => panic!("Sequencer produced incorrectly formatted system tx"),
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2 => panic!("System tx not allowed after fork2"),
-                                                                                    },
-                                    }
+                        // Since this is the sequencer, it should never get a soft confirmation error or a hook error
+                        StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
+                        StateTransitionError::HookError(soft_confirmation_hook_error) => panic!("Hook error: {:?}", soft_confirmation_hook_error),
+                        StateTransitionError::ModuleCallError(soft_confirmation_module_call_error) => match soft_confirmation_module_call_error {
+                            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                                cumulative_gas,
+                                tx_gas_used: _,
+                                block_gas_limit
+                            } => {
+                                if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
+                                break;
+                                } else {
+                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                working_set_to_discard = working_set.revert().to_revertable();
+                                continue;
+                                }
+                            },
+                            SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
+                            SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
+                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                working_set_to_discard = working_set.revert().to_revertable();
+                                continue;
+                            },
+                            SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
+                            SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
+                                l1_fee_failed_txs.push(*evm_tx.hash());
+                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                working_set_to_discard = working_set.revert().to_revertable();
+                                continue;
+                            },
+                            SoftConfirmationModuleCallError::EvmTxNotSerializable => panic!("Fed a non-serializable tx"),
+                            SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
+                            SoftConfirmationModuleCallError::ShortHeaderProofNotFound => unreachable!(),
+                            SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => unreachable!(),
+                            SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => panic!("System tx after user tx"),
+                            SoftConfirmationModuleCallError::EvmSystemTxParseError => panic!("Sequencer produced incorrectly formatted system tx"),
+                            SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2 => panic!("System tx not allowed after fork2"),
+                        },
+                    }
                 };
 
                 // if no errors
