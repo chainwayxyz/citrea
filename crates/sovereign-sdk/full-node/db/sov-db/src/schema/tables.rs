@@ -376,7 +376,8 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source for in progress sequencer commitments
-    (PendingSequencerCommitment) u32 => SequencerCommitment
+    /// This table is used to store the pending sequencer commitments indexes
+    (PendingSequencerCommitment) () => Vec<u32>
 );
 
 define_table_with_seek_key_codec!(
@@ -397,7 +398,7 @@ define_table_with_default_codec!(
     (SoftConfirmationStatus) SoftConfirmationNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Index to sequencer commitment mapping
     (SequencerCommitmentByIndex) u32 => SequencerCommitment
 );
