@@ -783,10 +783,12 @@ impl DaService for BitcoinService {
                         {
                             // push only when signature is correct
                             let Ok(body) = decompress_blob(&complete.body) else {
+                                warn!("{tx_id}: Failed to decompress blob");
                                 continue;
                             };
 
                             let Ok(data) = DataOnDa::borsh_parse_complete(&body) else {
+                                warn!("{tx_id}: Failed to parse complete data");
                                 continue;
                             };
 
@@ -888,6 +890,7 @@ impl DaService for BitcoinService {
                 }
             }
             let Ok(blob) = decompress_blob(&body) else {
+                warn!("{tx_id}: Failed to decompress blob from Aggregate");
                 continue 'aggregate;
             };
             let Ok(zk_proof) = borsh::from_slice(blob.as_slice()) else {
