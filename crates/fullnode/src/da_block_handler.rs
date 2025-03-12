@@ -12,7 +12,6 @@ use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_heig
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
-use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::{DaSpec, Zkvm};
@@ -131,12 +130,6 @@ where
             l1_block,
             &self.sequencer_da_pub_key,
         );
-
-        for commitment in sequencer_commitments.iter() {
-            self.ledger_db
-                .put_commitment_by_index(commitment)
-                .expect("Should save commitment to ledger db");
-        }
 
         let zk_proofs =
             match extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key)
@@ -299,6 +292,9 @@ where
             ),
         )?;
 
+        self.ledger_db
+            .put_commitment_by_index(sequencer_commitment)?;
+
         self.ledger_db.set_last_commitment(sequencer_commitment)?;
 
         Ok(())
@@ -347,6 +343,8 @@ where
             Some(idx) => {
                 let previous_sequencer_commitment = self
                     .ledger_db
+                    // TODO: This works for now, but once we generate proofs by taking commitments from mempool
+                    // we will need to store the commitments earlier to process proofs, maybe just process commitments first for that
                     .get_commitment_by_index(idx)?
                     .ok_or(SyncError::SequencerCommitmentWithIndexNotFound(idx))?;
 
