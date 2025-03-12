@@ -193,6 +193,12 @@ where
                         .as_secs_f64(),
                 );
 
+                ledger_db
+                    .put_commitment_by_index(&commitment_c)
+                    .map_err(|_| {
+                        anyhow!("Sequencer: Failed to store sequencer commitment by index")
+                    })?;
+
                 ledger_db.set_last_commitment(&commitment_c).map_err(|_| {
                     anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                 })?;
