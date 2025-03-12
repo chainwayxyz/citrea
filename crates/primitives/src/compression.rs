@@ -1,19 +1,21 @@
-use std::io::Write;
+use std::io::{self, Write};
 
-use anyhow::anyhow;
-
-pub fn compress_blob(blob: &[u8]) -> anyhow::Result<Vec<u8>> {
+pub fn compress_blob(blob: &[u8]) -> Result<Vec<u8>, io::Error> {
     use brotli::CompressorWriter;
     let mut writer = CompressorWriter::new(Vec::new(), 4096, 11, 22);
     writer.write_all(blob)?;
     Ok(writer.into_inner())
 }
 
-pub fn decompress_blob(blob: &[u8]) -> anyhow::Result<Vec<u8>> {
+pub fn decompress_blob(blob: &[u8]) -> Result<Vec<u8>, io::Error> {
     use brotli::DecompressorWriter;
     let mut writer = DecompressorWriter::new(Vec::new(), 4096);
     writer.write_all(blob)?;
-    writer
-        .into_inner()
-        .map_err(|e| anyhow!("decompression failed {e:?}"))
+    match writer.into_inner() {
+        Ok(result) => Ok(result),
+        Err(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Brotli decompression failure",
+        )),
+    }
 }

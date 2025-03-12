@@ -2227,7 +2227,6 @@ name = "citrea-primitives"
 version = "0.6.0"
 dependencies = [
  "alloy-eips",
- "anyhow",
  "brotli",
  "sov-rollup-interface",
 ]
