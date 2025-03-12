@@ -195,7 +195,7 @@ pub fn create_batchproof_type_0(
 
         let min_commit_value = Amount::from_sat(fee + reveal_value);
         while unsigned_commit_tx.output[0].value >= min_commit_value
-            && reveal_tx.output[0].value >= Amount::ONE_SAT
+            && reveal_tx.output[0].value > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
         {
             // tracing::info!("reveal output: {}", reveal_tx.output[0].value);
             let reveal_wtxid = reveal_tx.compute_wtxid();
