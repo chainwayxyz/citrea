@@ -17,7 +17,6 @@ pub(crate) async fn rollback(
     l2_target: u64,
     l1_target: u64,
     last_sequencer_commitment_index: u32,
-    last_sequencer_commitment_l2_height: u64,
 ) -> anyhow::Result<()> {
     info!(
         "Rolling back DB at {} down to L2 {}, L1 {}",
@@ -45,7 +44,6 @@ pub(crate) async fn rollback(
             l2_target,
             l1_target,
             last_sequencer_commitment_index,
-            last_sequencer_commitment_l2_height,
         )
         .await?;
 

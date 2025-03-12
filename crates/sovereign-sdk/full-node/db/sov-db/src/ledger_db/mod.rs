@@ -419,7 +419,11 @@ impl SharedLedgerOps for LedgerDB {
     /// Returns last sequencer commitment.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_commitment(&self) -> anyhow::Result<Option<SequencerCommitment>> {
-        self.db.get::<LastSequencerCommitmentSent>(&())
+        let index = self.db.get::<LastSequencerCommitmentSent>(&())?;
+        match index {
+            Some(index) => self.db.get::<SequencerCommitmentByIndex>(&index),
+            None => Ok(None),
+        }
     }
 
     /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
@@ -429,7 +433,7 @@ impl SharedLedgerOps for LedgerDB {
     fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
-        schema_batch.put::<LastSequencerCommitmentSent>(&(), seqcomm)?;
+        schema_batch.put::<LastSequencerCommitmentSent>(&(), &seqcomm.index)?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())

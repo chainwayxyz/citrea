@@ -17,7 +17,6 @@ pub(crate) fn rollback_ledger_db(
     target_l2: u64,
     target_l1: u64,
     last_sequencer_commitment_index: u32,
-    last_sequencer_commitment_l2_height: u64,
 ) {
     debug!(
         "Rolling back Ledger, down to L2 block {}, L1 block {}",
@@ -31,7 +30,6 @@ pub(crate) fn rollback_ledger_db(
             &ledger_db,
             target_l2,
             last_sequencer_commitment_index,
-            last_sequencer_commitment_l2_height,
         )
     );
     match node_type {

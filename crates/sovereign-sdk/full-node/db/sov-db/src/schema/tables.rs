@@ -382,7 +382,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SequencerCommitment
+    (LastSequencerCommitmentSent) () => u32
 );
 
 define_table_with_seek_key_codec!(
