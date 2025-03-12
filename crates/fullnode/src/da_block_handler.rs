@@ -375,10 +375,14 @@ where
                 .ledger_db
                 .get_commitment_by_index(index)?
                 .ok_or(SyncError::SequencerCommitmentWithIndexNotFound(index))?;
-            assert_eq!(
-                sequencer_commitment.serialize_and_calculate_sha_256(),
-                expected_hash
-            );
+
+            if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
+                return Err(anyhow!(
+                    "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                    hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
+                    hex::encode(expected_hash)
+                ).into());
+            }
             let seq_comm_range = (l2_start_height, sequencer_commitment.l2_end_block_number);
 
             let l2_height_before_comm_range = seq_comm_range.0 - 1;
