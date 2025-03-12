@@ -18,9 +18,9 @@ use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot,
     L2RangeByL1Height, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, ShortHeaderProofBySlotHash,
-    SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -419,7 +419,11 @@ impl SharedLedgerOps for LedgerDB {
     /// Returns last sequencer commitment.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_commitment(&self) -> anyhow::Result<Option<SequencerCommitment>> {
-        self.db.get::<LastSequencerCommitmentSent>(&())
+        let index = self.db.get::<LastSequencerCommitmentSent>(&())?;
+        match index {
+            Some(index) => self.db.get::<SequencerCommitmentByIndex>(&index),
+            None => Ok(None),
+        }
     }
 
     /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
@@ -429,7 +433,7 @@ impl SharedLedgerOps for LedgerDB {
     fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
-        schema_batch.put::<LastSequencerCommitmentSent>(&(), seqcomm)?;
+        schema_batch.put::<LastSequencerCommitmentSent>(&(), &seqcomm.index)?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
@@ -501,6 +505,18 @@ impl SharedLedgerOps for LedgerDB {
         root: [u8; 32],
     ) -> anyhow::Result<Option<L2HeightRange>> {
         self.db.get::<CommitmentMerkleRoots>(&root)
+    }
+
+    fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<SequencerCommitmentByIndex>(&commitment.index, commitment)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {
+        self.db.get::<SequencerCommitmentByIndex>(&index)
     }
 }
 
@@ -649,29 +665,47 @@ impl SequencerLedgerOps for LedgerDB {
     /// Returns start-end L2 heights.
     #[instrument(level = "trace", skip(self), err)]
     fn get_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let mut iter = self.db.iter::<PendingSequencerCommitment>()?;
-        iter.seek_to_first();
-
-        let mut comms = iter
-            .map(|item| item.map(|item| item.value))
-            .collect::<Result<Vec<_>, _>>()?;
-        // Sort ascending
-        comms.sort();
-
-        Ok(comms)
+        let commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
+        match commitment_indexes {
+            Some(mut commitment_indexes) => {
+                if commitment_indexes.is_empty() {
+                    return Ok(vec![]);
+                }
+                commitment_indexes.sort_unstable();
+                let start = commitment_indexes[0];
+                let end = commitment_indexes[commitment_indexes.len() - 1];
+                self.get_data_range::<SequencerCommitmentByIndex, _, _>(&(start..end))
+            }
+            None => Ok(vec![]),
+        }
     }
 
     /// Put a pending commitment l2 range
     #[instrument(level = "trace", skip(self), err)]
     fn put_pending_commitment(&self, seqcomm: &SequencerCommitment) -> anyhow::Result<()> {
-        self.db
-            .put::<PendingSequencerCommitment>(&seqcomm.index, seqcomm)
+        let pending_commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
+        match pending_commitment_indexes {
+            Some(mut indexes) => {
+                indexes.push(seqcomm.index);
+                self.db.put::<PendingSequencerCommitment>(&(), &indexes)
+            }
+            None => self
+                .db
+                .put::<PendingSequencerCommitment>(&(), &vec![seqcomm.index]),
+        }
     }
 
     /// Delete a pending commitment l2 range
     #[instrument(level = "trace", skip(self), err)]
     fn delete_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
-        self.db.delete::<PendingSequencerCommitment>(&index)
+        let pending_commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
+        match pending_commitment_indexes {
+            Some(mut indexes) => {
+                indexes.retain(|&i| i != index);
+                self.db.put::<PendingSequencerCommitment>(&(), &indexes)
+            }
+            None => Ok(()),
+        }
     }
 
     /// Sets the latest state diff

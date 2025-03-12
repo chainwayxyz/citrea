@@ -151,6 +151,12 @@ pub trait SharedLedgerOps {
         &self,
         root: [u8; 32],
     ) -> anyhow::Result<Option<L2HeightRange>>;
+
+    /// Store commitment by index
+    fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()>;
+
+    /// Get commitment by index
+    fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>>;
 }
 
 /// Node ledger operations

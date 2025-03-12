@@ -140,8 +140,6 @@ pub struct SequencerCommitmentResponse {
     pub merkle_root: [u8; 32],
     /// Hex encoded index - absolute order
     pub index: U32,
-    /// Hex encoded Start L2 block's number
-    pub l2_start_block_number: U64,
     /// Hex encoded End L2 block's number
     pub l2_end_block_number: U64,
 }
@@ -439,7 +437,6 @@ pub fn sequencer_commitment_to_response(
         l1_height: U64::from(l1_height),
         merkle_root: commitment.merkle_root,
         index: U32::from(commitment.index),
-        l2_start_block_number: U64::from(commitment.l2_start_block_number),
         l2_end_block_number: U64::from(commitment.l2_end_block_number),
     }
 }

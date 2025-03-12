@@ -27,7 +27,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
-use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -127,7 +127,6 @@ impl TestCase for LightClientProvingTest {
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await
             .unwrap();
-        println!("sdjhfgasdjhfgasdjhf2");
 
         // Expect light client prover to have generated light client proof
         let lcp = light_client_prover
@@ -211,6 +210,10 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             initial_da_height: 171,
             ..Default::default()
         }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(169)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -1318,15 +1321,20 @@ fn create_serialized_fake_receipt_batch_proof(
     malformed_journal: bool,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
 ) -> Vec<u8> {
-    let batch_proof_output = BatchProofCircuitOutputV3 {
+    // TODO: FIXME: Newly added values are wrong
+    let batch_proof_output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
         last_l2_height,
         final_soft_confirmation_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
-        sequencer_commitment_merkle_roots: vec![],
+        // TODO: Update these values accordingly
+        sequencer_commitment_hashes: vec![],
         last_l1_hash_on_bitcoin_light_client_contract,
-    };
+        sequencer_commitment_index_range: (0, 0),
+        previous_commitment_index: None,
+        previous_commitment_hash: None,
+    });
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 
     // Distorts the output and make it unparsable

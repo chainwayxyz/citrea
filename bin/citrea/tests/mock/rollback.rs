@@ -172,7 +172,6 @@ async fn rollback_node(
     rollback_l2_height: u64,
     rollback_l1_height: u64,
     commitment_index: u32,
-    commitment_l2_height: u64,
 ) -> anyhow::Result<()> {
     copy_db_dir_recursive(old_path, new_path).unwrap();
 
@@ -186,7 +185,6 @@ async fn rollback_node(
             rollback_l2_height,
             rollback_l1_height,
             commitment_index,
-            commitment_l2_height,
         )
         .await
         .unwrap();
@@ -329,7 +327,6 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
         rollback_l2_height,
         rollback_l1_height,
         rollback_index,
-        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -424,7 +421,6 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
         rollback_l2_height,
         rollback_l1_height,
         rollback_index,
-        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -441,7 +437,6 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
         rollback_l2_height,
         rollback_l1_height,
         rollback_index,
-        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -549,7 +544,6 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
         rollback_l2_height,
         rollback_l1_height,
         rollback_index,
-        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -730,7 +724,6 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         rollback_l2_height,
         rollback_l1_height,
         rollback_index,
-        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -743,7 +736,6 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         rollback_l2_height,
         rollback_l1_height,
         rollback_index,
-        rollback_l2_height,
     )
     .await
     .unwrap();
@@ -756,7 +748,6 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         rollback_l2_height,
         rollback_l1_height,
         rollback_index,
-        rollback_l2_height,
     )
     .await
     .unwrap();

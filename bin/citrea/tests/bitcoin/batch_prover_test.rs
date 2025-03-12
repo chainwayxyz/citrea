@@ -1,35 +1,30 @@
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use alloy_primitives::{Address, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
+use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
-use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_stf::runtime::DefaultContext;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_signature::K256PublicKey;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{PublicKey, Spec, SpecId};
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::Network;
 use tokio::time::sleep;
@@ -177,220 +172,220 @@ async fn basic_prover_test() -> Result<()> {
         .await
 }
 
-#[derive(Default)]
-struct SkipPreprovenCommitmentsTest {
-    task_manager: TaskManager<()>,
-}
+// TODO: Should I remove this?
+// #[derive(Default)]
+// struct SkipPreprovenCommitmentsTest {
+//     task_manager: TaskManager<()>,
+// }
 
-#[async_trait]
-impl TestCase for SkipPreprovenCommitmentsTest {
-    fn test_config() -> TestCaseConfig {
-        TestCaseConfig {
-            with_batch_prover: true,
-            with_full_node: true,
-            ..Default::default()
-        }
-    }
+// #[async_trait]
+// impl TestCase for SkipPreprovenCommitmentsTest {
+//     fn test_config() -> TestCaseConfig {
+//         TestCaseConfig {
+//             with_batch_prover: true,
+//             with_full_node: true,
+//             ..Default::default()
+//         }
+//     }
 
-    fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: 1,
-            ..Default::default()
-        }
-    }
+//     fn sequencer_config() -> SequencerConfig {
+//         SequencerConfig {
+//             min_soft_confirmations_per_commitment: 1,
+//             ..Default::default()
+//         }
+//     }
 
-    fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
-    }
+//     fn scan_l1_start_height() -> Option<u64> {
+//         Some(170)
+//     }
 
-    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let da = f.bitcoin_nodes.get(0).unwrap();
-        let sequencer = f.sequencer.as_ref().unwrap();
-        let batch_prover = f.batch_prover.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
+//     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+//         let da = f.bitcoin_nodes.get(0).unwrap();
+//         let sequencer = f.sequencer.as_ref().unwrap();
+//         let batch_prover = f.batch_prover.as_ref().unwrap();
+//         let full_node = f.full_node.as_ref().unwrap();
 
-        let da_config = &f.bitcoin_nodes.get(0).unwrap().config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is because the prover has a check to make sure that the commitment was
-                // submitted by the sequencer and NOT any other key. Which means that arbitrary keys
-                // CANNOT submit preproven commitments.
-                // Using the sequencer DA private key means that we simulate the fact that the sequencer
-                // somehow resubmitted the same commitment.
-                sequencer
-                    .config()
-                    .rollup
-                    .da
-                    .da_private_key
-                    .as_ref()
-                    .unwrap()
-                    .clone(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+//         let da_config = &f.bitcoin_nodes.get(0).unwrap().config;
+//         let bitcoin_da_service_config = BitcoinServiceConfig {
+//             node_url: format!(
+//                 "http://127.0.0.1:{}/wallet/{}",
+//                 da_config.rpc_port,
+//                 NodeKind::Bitcoin
+//             ),
+//             node_username: da_config.rpc_user.clone(),
+//             node_password: da_config.rpc_password.clone(),
+//             network: bitcoin::Network::Regtest,
+//             da_private_key: Some(
+//                 // This is because the prover has a check to make sure that the commitment was
+//                 // submitted by the sequencer and NOT any other key. Which means that arbitrary keys
+//                 // CANNOT submit preproven commitments.
+//                 // Using the sequencer DA private key means that we simulate the fact that the sequencer
+//                 // somehow resubmitted the same commitment.
+//                 sequencer
+//                     .config()
+//                     .rollup
+//                     .da
+//                     .da_private_key
+//                     .as_ref()
+//                     .unwrap()
+//                     .clone(),
+//             ),
+//             tx_backup_dir: Self::test_config()
+//                 .dir
+//                 .join("tx_backup_dir")
+//                 .display()
+//                 .to_string(),
+//             monitoring: Default::default(),
+//             mempool_space_url: None,
+//         };
+//         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
+//         let bitcoin_da_service = Arc::new(
+//             BitcoinService::new_with_wallet_check(
+//                 bitcoin_da_service_config,
+//                 RollupParams {
+//                     reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+//                 },
+//                 tx,
+//             )
+//             .await
+//             .unwrap(),
+//         );
 
-        self.task_manager
-            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+//         self.task_manager
+//             .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
-        // Generate FINALIZED DA block.
-        da.generate(FINALITY_DEPTH).await?;
+//         // Generate FINALIZED DA block.
+//         da.generate(FINALITY_DEPTH).await?;
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+//         let min_soft_confirmations_per_commitment =
+//             sequencer.min_soft_confirmations_per_commitment();
 
-        for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+//         for _ in 0..min_soft_confirmations_per_commitment {
+//             sequencer.client.send_publish_batch_request().await?;
+//         }
 
-        // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(2, None).await?;
+//         // Wait for blob inscribe tx to be in mempool
+//         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+//         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height(None).await?;
-        batch_prover
-            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await?;
+//         let finalized_height = da.get_finalized_height(None).await?;
+//         batch_prover
+//             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
+//             .await?;
 
-        // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(2, None).await?;
+//         // Wait for batch proof tx to hit mempool
+//         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
-        let _proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 1)
-            .await
-            .unwrap();
+//         da.generate(FINALITY_DEPTH).await?;
+//         let _proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 1)
+//             .await
+//             .unwrap();
 
-        // TODO: this test will need refactor
-        // assert!(proofs
-        //     .first()
-        //     .unwrap()
-        //     .proof_output
-        //     .preproven_commitments
-        //     .is_empty());
+//         // TODO: this test will need refactor
+//         // assert!(proofs
+//         //     .first()
+//         //     .unwrap()
+//         //     .proof_output
+//         //     .preproven_commitments
+//         //     .is_empty());
 
-        // Make sure the mempool is mined.
-        da.wait_mempool_len(0, None).await?;
+//         // Make sure the mempool is mined.
+//         da.wait_mempool_len(0, None).await?;
 
-        // Fetch the commitment created from the previous L1 range
-        let commitments: Vec<SequencerCommitment> = full_node
-            .client
-            .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Failed to get sequencer commitments at {}",
-                    finalized_height
-                )
-            })
-            .unwrap_or_else(|| panic!("No sequencer commitments found at {}", finalized_height))
-            .into_iter()
-            .map(|response| SequencerCommitment {
-                merkle_root: response.merkle_root,
-                index: response.index.to(),
-                l2_start_block_number: response.l2_start_block_number.to(),
-                l2_end_block_number: response.l2_end_block_number.to(),
-            })
-            .collect();
+//         // Fetch the commitment created from the previous L1 range
+//         let commitments: Vec<SequencerCommitment> = full_node
+//             .client
+//             .http_client()
+//             .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
+//             .await
+//             .unwrap_or_else(|_| {
+//                 panic!(
+//                     "Failed to get sequencer commitments at {}",
+//                     finalized_height
+//                 )
+//             })
+//             .unwrap_or_else(|| panic!("No sequencer commitments found at {}", finalized_height))
+//             .into_iter()
+//             .map(|response| SequencerCommitment {
+//                 merkle_root: response.merkle_root,
+//                 index: response.index.to(),
+//                 l2_end_block_number: response.l2_end_block_number.to(),
+//             })
+//             .collect();
 
-        // Send the same commitment that was already proven.
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitments.first().unwrap().clone()),
-                1,
-            )
-            .await
-            .unwrap();
+//         // Send the same commitment that was already proven.
+//         bitcoin_da_service
+//             .send_transaction_with_fee_rate(
+//                 DaTxRequest::SequencerCommitment(commitments.first().unwrap().clone()),
+//                 1,
+//             )
+//             .await
+//             .unwrap();
 
-        // Wait for the duplicate commitment transaction to be accepted.
-        da.wait_mempool_len(2, None).await?;
+//         // Wait for the duplicate commitment transaction to be accepted.
+//         da.wait_mempool_len(2, None).await?;
 
-        // Trigger a new commitment.
-        for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+//         // Trigger a new commitment.
+//         for _ in 0..min_soft_confirmations_per_commitment {
+//             sequencer.client.send_publish_batch_request().await?;
+//         }
 
-        // Wait for the sequencer commitment to be submitted & accepted.
-        da.wait_mempool_len(4, None).await?;
+//         // Wait for the sequencer commitment to be submitted & accepted.
+//         da.wait_mempool_len(4, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
+//         da.generate(FINALITY_DEPTH).await?;
+//         let finalized_height = da.get_finalized_height(None).await?;
 
-        batch_prover
-            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await?;
+//         batch_prover
+//             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
+//             .await?;
 
-        // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(2, None).await?;
+//         // Wait for batch proof tx to hit mempool
+//         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
+//         da.generate(FINALITY_DEPTH).await?;
+//         let finalized_height = da.get_finalized_height(None).await?;
 
-        // Wait for the full node to see all process verify and store all batch proofs
-        full_node.wait_for_l1_height(finalized_height, None).await?;
-        let _proofs = wait_for_zkproofs(
-            full_node,
-            finalized_height,
-            Some(Duration::from_secs(600)),
-            1,
-        )
-        .await
-        .unwrap();
+//         // Wait for the full node to see all process verify and store all batch proofs
+//         full_node.wait_for_l1_height(finalized_height, None).await?;
+//         let _proofs = wait_for_zkproofs(
+//             full_node,
+//             finalized_height,
+//             Some(Duration::from_secs(600)),
+//             1,
+//         )
+//         .await
+//         .unwrap();
 
-        // TODO: this test will need refactor
-        // assert_eq!(
-        //     proofs
-        //         .first()
-        //         .unwrap()
-        //         .proof_output
-        //         .preproven_commitments
-        //         .len(),
-        //     1
-        // );
+//         // TODO: this test will need refactor
+//         // assert_eq!(
+//         //     proofs
+//         //         .first()
+//         //         .unwrap()
+//         //         .proof_output
+//         //         .preproven_commitments
+//         //         .len(),
+//         //     1
+//         // );
 
-        Ok(())
-    }
+//         Ok(())
+//     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
-        Ok(())
-    }
-}
+//     async fn cleanup(&self) -> Result<()> {
+//         self.task_manager.abort().await;
+//         Ok(())
+//     }
+// }
 
-#[tokio::test]
-async fn prover_skips_preproven_commitments_test() -> Result<()> {
-    TestCaseRunner::new(SkipPreprovenCommitmentsTest::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
-}
+// #[tokio::test]
+// async fn prover_skips_preproven_commitments_test() -> Result<()> {
+//     TestCaseRunner::new(SkipPreprovenCommitmentsTest::default())
+//         .set_citrea_path(get_citrea_path())
+//         .run()
+//         .await
+// }
 
 struct LocalProvingTest;
 

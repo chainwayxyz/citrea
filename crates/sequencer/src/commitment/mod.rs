@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::anyhow;
+use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -192,6 +193,12 @@ where
                         .as_secs_f64(),
                 );
 
+                ledger_db
+                    .put_commitment_by_index(&commitment_c)
+                    .map_err(|_| {
+                        anyhow!("Sequencer: Failed to store sequencer commitment by index")
+                    })?;
+
                 ledger_db.set_last_commitment(&commitment_c).map_err(|_| {
                     anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                 })?;
@@ -272,7 +279,16 @@ where
                     .delete_pending_commitment(pending_db_comm.index)?;
             } else {
                 // Submit commitment
-                let range = SoftConfirmationNumber(pending_db_comm.l2_start_block_number)
+                let l2_start_block_number = if pending_db_comm.index == 0 {
+                    get_fork2_activation_height_non_zero()
+                } else {
+                    self.ledger_db
+                        .get_commitment_by_index(pending_db_comm.index - 1)?
+                        .unwrap()
+                        .l2_end_block_number
+                        + 1
+                };
+                let range = SoftConfirmationNumber(l2_start_block_number)
                     ..=SoftConfirmationNumber(pending_db_comm.l2_end_block_number);
 
                 self.commit(pending_db_comm.index, range, true).await?;
@@ -302,7 +318,6 @@ where
         Ok(SequencerCommitment {
             merkle_root,
             index: commitment_index,
-            l2_start_block_number: commitment_info.start().0,
             l2_end_block_number: commitment_info.end().0,
         })
     }

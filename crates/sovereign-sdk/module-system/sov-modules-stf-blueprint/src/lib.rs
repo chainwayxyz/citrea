@@ -93,9 +93,15 @@ pub struct ApplySequencerCommitmentsOutput {
     /// Last soft confirmation hash
     pub final_soft_confirmation_hash: [u8; 32],
     /// Sequencer commitment hashes
-    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
+    pub sequencer_commitment_hashes: Vec<[u8; 32]>,
+    /// The range of sequencer commitments that were processed.
+    pub sequencer_commitment_index_range: (u32, u32),
     /// Cumulative state log
     pub cumulative_state_log: ReadWriteLog,
+    /// The index of the previous commitment that was given as input in the batch proof
+    pub previous_commitment_index: Option<u32>,
+    /// The hash of the previous commitment that was given as input in the batch proof
+    pub previous_commitment_hash: Option<[u8; 32]>,
 }
 
 impl<C, RT, Da> StfBlueprint<C, Da, RT>
@@ -519,6 +525,7 @@ where
         sequencer_k256_public_key: &[u8],
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
+        previous_sequencer_commitment: Option<SequencerCommitment>,
         sequencer_commitments: Vec<SequencerCommitment>,
         slot_headers: VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         cache_prune_l2_heights: &[u64],
@@ -526,22 +533,65 @@ where
     ) -> ApplySequencerCommitmentsOutput {
         let mut state_diff = CumulativeStateDiff::default();
 
-        let sequencer_commitment_merkle_roots = sequencer_commitments
+        let sequencer_commitment_hashes = sequencer_commitments
             .iter()
-            .map(|c| c.merkle_root)
+            .map(|c| c.serialize_and_calculate_sha_256())
             .collect::<Vec<_>>();
+
+        let sequencer_commitment_index_range = (
+            sequencer_commitments.first().unwrap().index,
+            sequencer_commitments.last().unwrap().index,
+        );
 
         // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
         let mut prev_soft_confirmation_hash: Option<[u8; 32]> = None;
-        let mut last_commitment_end_height: Option<u64> = None;
 
         let group_count: u32 = guest.read_from_host();
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
 
-        let mut fork_manager =
-            ForkManager::new(forks, sequencer_commitments[0].l2_start_block_number);
+        // Get fork2
+        let fork2 = forks
+            .iter()
+            .find(|f| f.spec_id == SpecId::Fork2)
+            .expect("Fork2 must exist");
+
+        let fork2_activation_height = fork2.activation_height;
+
+        let mut previous_batch_proof_l2_end_height = fork2_activation_height;
+
+        // If there is no previous commitment, then this is the first batch proof
+        // and this should start from proving the first l2 block
+        let (previous_commitment_index, previous_commitment_hash) =
+            if let Some(previous_sequencer_commitment) = previous_sequencer_commitment {
+                // The index of the previous commitment should be one less than the first commitment
+                assert_eq!(
+                    previous_sequencer_commitment.index + 1,
+                    sequencer_commitments[0].index,
+                    "Sequencer commitments must be sequential"
+                );
+                // If there exists a previous commitment, then the first l2 block to prove
+                // should be the one after the last commitment
+                previous_batch_proof_l2_end_height =
+                    previous_sequencer_commitment.l2_end_block_number;
+                (
+                    Some(previous_sequencer_commitment.index),
+                    Some(previous_sequencer_commitment.serialize_and_calculate_sha_256()),
+                )
+            } else {
+                // If this is the first batch proof, then the first commitment idx should be 0
+                assert_eq!(
+                    sequencer_commitments[0].index, 0,
+                    "First commitment must be index 0"
+                );
+                (None, None)
+            };
+        let current_batch_proof_first_l2_height = previous_batch_proof_l2_end_height + 1;
+        let mut fork_manager = ForkManager::new(forks, current_batch_proof_first_l2_height);
+        let mut sequencer_commitment_l2_start_height = current_batch_proof_first_l2_height;
+
+        let mut last_commitment_end_height = previous_batch_proof_l2_end_height;
 
         // Reuseable log caches
         let mut cumulative_state_log = None;
@@ -552,18 +602,18 @@ where
             sequencer_commitments.into_iter().zip_eq(slot_headers)
         {
             // if the commitment is not sequential, then the proof is invalid.
-            if let Some(end_height) = last_commitment_end_height {
-                assert_eq!(
-                    end_height + 1,
-                    sequencer_commitment.l2_start_block_number,
-                    "Sequencer commitments must be sequential"
-                );
-            }
-            last_commitment_end_height = Some(sequencer_commitment.l2_end_block_number);
+
+            assert_eq!(
+                last_commitment_end_height + 1,
+                sequencer_commitment_l2_start_height,
+                "Sequencer commitments must be sequential"
+            );
+
+            last_commitment_end_height = sequencer_commitment.l2_end_block_number;
 
             // we must verify given DA headers match the commitments
 
-            let mut l2_height = sequencer_commitment.l2_start_block_number;
+            let mut l2_height = sequencer_commitment_l2_start_height;
 
             let state_change_count: u32 = guest.read_from_host();
             let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
@@ -682,16 +732,21 @@ where
             );
 
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
+            // Update next sequencer commitment start height
+            sequencer_commitment_l2_start_height = l2_height;
         }
 
         ApplySequencerCommitmentsOutput {
             final_state_root: current_state_root,
             state_diff,
             // There has to be a height
-            last_l2_height: last_commitment_end_height.unwrap(),
+            last_l2_height: last_commitment_end_height,
             final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
-            sequencer_commitment_merkle_roots,
+            sequencer_commitment_hashes,
+            sequencer_commitment_index_range,
             cumulative_state_log: cumulative_state_log.unwrap(),
+            previous_commitment_index,
+            previous_commitment_hash,
         }
     }
 }

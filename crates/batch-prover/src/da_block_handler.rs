@@ -9,7 +9,7 @@ use citrea_common::da::sync_l1;
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig, RollupPublicKeys};
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height_non_zero};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::ParallelProverService;
 use rand::Rng;
@@ -316,16 +316,28 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
 
     let mut range = 0usize..=0usize;
     let mut cumulative_state_diff = StateDiff::new();
+    let first_l2_block_number = if sequencer_commitments[0].index == 0 {
+        // TODO: Handle this better
+        get_fork2_activation_height_non_zero()
+    } else {
+        let previous_commitment = ledger_db
+            .get_commitment_by_index(sequencer_commitments[0].index - 1)?
+            .expect("Should exist");
+        previous_commitment.l2_end_block_number + 1
+    };
     for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
         let mut sequencer_commitment_state_diff = StateDiff::new();
-        for l2_height in
-            sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
-        {
+        let l2_start_block_number = if index == 0 {
+            first_l2_block_number
+        } else {
+            sequencer_commitments[index - 1].l2_end_block_number + 1
+        };
+        for l2_height in l2_start_block_number..=sequencer_commitment.l2_end_block_number {
             let state_diff = ledger_db
                 .get_l2_state_diff(SoftConfirmationNumber(l2_height))?
                 .ok_or(anyhow!(
                     "Could not find state diff for L2 range {}-{}",
-                    sequencer_commitment.l2_start_block_number,
+                    l2_start_block_number,
                     sequencer_commitment.l2_end_block_number
                 ))?;
             sequencer_commitment_state_diff =
