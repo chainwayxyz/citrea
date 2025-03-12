@@ -8,7 +8,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
-use citrea_primitives::forks::get_fork2_activation_height;
+use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
@@ -228,11 +228,7 @@ where
         sequencer_commitment: &SequencerCommitment,
     ) -> Result<(), SyncError> {
         let start_l2_height = if sequencer_commitment.index == 0 {
-            if get_fork2_activation_height() == 0 {
-                1
-            } else {
-                get_fork2_activation_height()
-            }
+            get_fork2_activation_height_non_zero()
         } else {
             self.ledger_db
                 .get_commitment_by_index(sequencer_commitment.index - 1)?

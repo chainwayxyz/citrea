@@ -581,7 +581,6 @@ where
                 )
             } else {
                 // If this is the first batch proof, then the first commitment idx should be 0
-                // TODO: First commitment index is not in 0 parallel_proving_test why?
                 assert_eq!(
                     sequencer_commitments[0].index, 0,
                     "First commitment must be index 0"

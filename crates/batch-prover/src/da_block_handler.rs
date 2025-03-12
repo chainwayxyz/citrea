@@ -9,7 +9,7 @@ use citrea_common::da::sync_l1;
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig, RollupPublicKeys};
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height};
+use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height_non_zero};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::ParallelProverService;
 use rand::Rng;
@@ -318,11 +318,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
     let mut cumulative_state_diff = StateDiff::new();
     let first_l2_block_number = if sequencer_commitments[0].index == 0 {
         // TODO: Handle this better
-        if get_fork2_activation_height() == 0 {
-            1
-        } else {
-            get_fork2_activation_height()
-        }
+        get_fork2_activation_height_non_zero()
     } else {
         let previous_commitment = ledger_db
             .get_commitment_by_index(sequencer_commitments[0].index - 1)?

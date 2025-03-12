@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, get_da_block_at_height};
 use citrea_common::utils::check_l2_block_exists;
-use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height};
+use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height_non_zero};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData};
 use serde::{Deserialize, Serialize};
@@ -107,11 +107,7 @@ where
     let l2_start_block_number = if sequencer_commitments[0].index == 0 {
         // If this is the first commitment in fork2, the start l2 height will be fork2 activation height
         // Start block number should be fork2  activation height
-        if get_fork2_activation_height() == 0 {
-            1
-        } else {
-            get_fork2_activation_height()
-        }
+        get_fork2_activation_height_non_zero()
     } else {
         let previous_commitment_index = sequencer_commitments[0].index - 1;
         // If this is not the first commitment in fork2, the start l2 height will be the end block number of the previous commitment
@@ -768,11 +764,7 @@ pub(crate) fn save_commitments<DB>(
 {
     for sequencer_commitment in sequencer_commitments.iter() {
         let l2_start_block_number = if sequencer_commitment.index == 0 {
-            if get_fork2_activation_height() == 0 {
-                1
-            } else {
-                get_fork2_activation_height()
-            }
+            get_fork2_activation_height_non_zero()
         } else {
             ledger_db
                 .get_commitment_by_index(sequencer_commitment.index - 1)

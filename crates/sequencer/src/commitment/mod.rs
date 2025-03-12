@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::anyhow;
-use citrea_primitives::forks::get_fork2_activation_height;
+use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -274,11 +274,7 @@ where
             } else {
                 // Submit commitment
                 let l2_start_block_number = if pending_db_comm.index == 0 {
-                    if get_fork2_activation_height() == 0 {
-                        1
-                    } else {
-                        get_fork2_activation_height()
-                    }
+                    get_fork2_activation_height_non_zero()
                 } else {
                     self.ledger_db
                         .get_commitment_by_index(pending_db_comm.index - 1)?
