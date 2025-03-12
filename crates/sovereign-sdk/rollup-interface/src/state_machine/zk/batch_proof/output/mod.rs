@@ -99,4 +99,22 @@ impl BatchProofCircuitOutput {
             BatchProofCircuitOutput::V3(output) => output.last_l2_height,
         }
     }
+
+    /// Get the previous commitment index
+    pub fn previous_commitment_index(&self) -> Option<u32> {
+        match self {
+            BatchProofCircuitOutput::V1(_) => None,
+            BatchProofCircuitOutput::V2(_) => None,
+            BatchProofCircuitOutput::V3(output) => output.previous_commitment_index,
+        }
+    }
+
+    /// Get the previous commitment hash
+    pub fn previous_commitment_hash(&self) -> Option<[u8; 32]> {
+        match self {
+            BatchProofCircuitOutput::V1(_) => None,
+            BatchProofCircuitOutput::V2(_) => None,
+            BatchProofCircuitOutput::V3(output) => output.previous_commitment_hash,
+        }
+    }
 }
