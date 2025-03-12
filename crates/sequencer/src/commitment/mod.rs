@@ -310,8 +310,7 @@ where
                 .map_err(|e| anyhow!(e))?;
             let iter = self
                 .da_service
-                .extract_relevant_sequencer_commitments(&block, &self.sequencer_da_pub_key)
-                .unwrap_or_default();
+                .extract_relevant_sequencer_commitments(&block, &self.sequencer_da_pub_key);
             mined_commitments.extend(iter);
         }
 

@@ -760,7 +760,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         prover_da_pub_key: &[u8],
-    ) -> Result<Vec<Proof>> {
+    ) -> Vec<Proof> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
 
@@ -791,7 +791,8 @@ impl DaService for BitcoinService {
                             };
 
                             let DataOnDa::Complete(zk_proof) = data else {
-                                bail!("{}: Complete: unexpected kind", tx_id);
+                                warn!("{}: Complete: unexpected kind", tx_id);
+                                continue;
                             };
                             completes.push((i, zk_proof));
                         }
@@ -822,14 +823,16 @@ impl DaService for BitcoinService {
         let mut aggregates = Vec::new();
         'aggregate: for (i, tx_id, aggregate) in aggregate_idxs {
             let mut body = Vec::new();
-            let data = DataOnDa::try_from_slice(&aggregate.body)
-                .map_err(|e| anyhow!("{}: Failed to parse aggregate: {e}", tx_id))?;
+            let Ok(data) = DataOnDa::try_from_slice(&aggregate.body) else {
+                warn!("{tx_id}: Failed to parse aggregate");
+                continue;
+            };
             let DataOnDa::Aggregate(chunk_ids, _wtx_ids) = data else {
-                error!("{}: Aggregate: unexpected kind", tx_id);
+                error!("{tx_id}: Aggregate: unexpected kind");
                 continue;
             };
             if chunk_ids.is_empty() {
-                error!("{}: Empty aggregate tx list", tx_id);
+                error!("{tx_id}: Empty aggregate tx list");
                 continue;
             }
             for chunk_id in chunk_ids {
@@ -865,10 +868,13 @@ impl DaService for BitcoinService {
                 };
                 match parsed {
                     ParsedTransaction::Chunk(part) => {
-                        let data = DataOnDa::try_from_slice(&part.body)
-                            .map_err(|e| anyhow!("{}: Failed to parse chunk: {e}", tx_id))?;
+                        let Ok(data) = DataOnDa::try_from_slice(&part.body) else {
+                            warn!("{tx_id}: Failed to parse chunk");
+                            continue 'aggregate;
+                        };
                         let DataOnDa::Chunk(chunk) = data else {
-                            bail!("{}: Chunk: unexpected kind", tx_id);
+                            warn!("{tx_id}: Chunk: unexpected kind",);
+                            continue 'aggregate;
                         };
                         body.extend(chunk);
                     }
@@ -886,7 +892,7 @@ impl DaService for BitcoinService {
             };
             let Ok(zk_proof) = borsh::from_slice(blob.as_slice()) else {
                 warn!("{}: Failed to parse Proof from Aggregate", tx_id);
-                continue;
+                continue 'aggregate;
             };
             aggregates.push((i, zk_proof));
         }
@@ -895,11 +901,7 @@ impl DaService for BitcoinService {
         // restore the order of tx they appear in the block
         proofs.sort_by_key(|b| b.0);
 
-        let mut result = Vec::new();
-        for (_i, proof) in proofs {
-            result.push(proof);
-        }
-        Ok(result)
+        proofs.into_iter().map(|(_, proof)| proof).collect()
     }
 
     /// Extract SequencerCommitment's from the block
@@ -907,7 +909,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         sequencer_da_pub_key: &[u8],
-    ) -> Result<Vec<SequencerCommitment>> {
+    ) -> Vec<SequencerCommitment> {
         let mut sequencer_commitments = Vec::new();
 
         for tx in &block.txdata {
@@ -935,7 +937,7 @@ impl DaService for BitcoinService {
                 // ignore
             }
         }
-        Ok(sequencer_commitments)
+        sequencer_commitments
     }
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.

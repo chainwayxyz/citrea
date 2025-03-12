@@ -80,14 +80,14 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         block: &Self::FilteredBlock,
         prover_da_pub_key: &[u8],
-    ) -> anyhow::Result<Vec<Proof>>;
+    ) -> Vec<Proof>;
 
     /// Extract SequencerCommitment's from the block
     fn extract_relevant_sequencer_commitments(
         &self,
         block: &Self::FilteredBlock,
         sequencer_da_pub_key: &[u8],
-    ) -> anyhow::Result<Vec<SequencerCommitment>>;
+    ) -> Vec<SequencerCommitment>;
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
     /// For example, this method might return all of the blob transactions in rollup's namespace on Celestia,
