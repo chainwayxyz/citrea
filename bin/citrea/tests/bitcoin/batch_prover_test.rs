@@ -1,35 +1,30 @@
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use alloy_primitives::{Address, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
+use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
-use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_stf::runtime::DefaultContext;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_signature::K256PublicKey;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{PublicKey, Spec, SpecId};
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::Network;
 use tokio::time::sleep;

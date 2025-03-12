@@ -240,18 +240,18 @@ where
             .prev_hash;
 
         // TODO: Remove preproven commitments
-        let preproven_commitments = vec![];
+        let preproven_commitments = [];
 
         let previous_sequencer_commitment = sequencer_commitments
-            [*sequencer_commitments_range.start() as usize]
-            .index
-            .checked_sub(1)
-            .map(|index| {
-                ledger
-                    .get_commitment_by_index(index)
-                    .expect("Should get commitment")
-                    .expect("Commitment should exist")
-            });
+            [*sequencer_commitments_range.start()]
+        .index
+        .checked_sub(1)
+        .map(|index| {
+            ledger
+                .get_commitment_by_index(index)
+                .expect("Should get commitment")
+                .expect("Commitment should exist")
+        });
 
         let input = BatchProofCircuitInput {
             initial_state_root,
@@ -382,6 +382,7 @@ where
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     'txs,
     Da: DaService,

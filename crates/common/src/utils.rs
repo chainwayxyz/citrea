@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use alloy_sol_types::SolCall;
@@ -11,12 +11,10 @@ use reth_primitives::TransactionSignedEcRecovered;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
-use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, DaSpec, Spec};
-use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::rpc::{SoftConfirmationResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateDiff;
