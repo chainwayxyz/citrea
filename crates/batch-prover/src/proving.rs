@@ -242,19 +242,16 @@ where
         // TODO: Remove preproven commitments
         let preproven_commitments = vec![];
 
-        println!("sequencer commitments: {:?}", sequencer_commitments);
-
-        let previous_sequencer_commitment =
-            sequencer_commitments[0].index.checked_sub(1).map(|index| {
+        let previous_sequencer_commitment = sequencer_commitments
+            [*sequencer_commitments_range.start() as usize]
+            .index
+            .checked_sub(1)
+            .map(|index| {
                 ledger
                     .get_commitment_by_index(index)
                     .expect("Should get commitment")
                     .expect("Commitment should exist")
             });
-        println!(
-            "previous_sequencer_commitment: {:?}",
-            previous_sequencer_commitment
-        );
 
         let input = BatchProofCircuitInput {
             initial_state_root,
