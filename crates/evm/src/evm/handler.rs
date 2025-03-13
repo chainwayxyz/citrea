@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
-use std::mem::size_of;
 use std::sync::Arc;
 
 use reth_primitives::KECCAK_EMPTY;
