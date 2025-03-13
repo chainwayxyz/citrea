@@ -11,7 +11,6 @@ use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_evm::{Evm, Filter};
-use citrea_primitives::forks::fork_from_block_number;
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -269,8 +268,6 @@ where
         let evm = Evm::<C>::default();
 
         let block_id_internal = evm.block_number_from_state(block_id, &mut working_set)?;
-
-        let _citrea_spec = fork_from_block_number(block_id_internal).spec_id;
 
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 
