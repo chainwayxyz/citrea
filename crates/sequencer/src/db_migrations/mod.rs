@@ -9,13 +9,5 @@ use sov_db::schema::tables::SEQUENCER_LEDGER_TABLES;
 pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>> {
     static MIGRATIONS: OnceLock<Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>> =
         OnceLock::new();
-    MIGRATIONS.get_or_init(|| {
-        vec![
-            Box::new(MigrateVerifiedProofsBySlotNumber),
-            Box::new(MigrateBatchAndSlotByNumber),
-            Box::new(RemoveUnusedTables {
-                tables: SEQUENCER_LEDGER_TABLES,
-            }),
-        ]
-    })
+    MIGRATIONS.get_or_init(|| vec![])
 }
