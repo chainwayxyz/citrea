@@ -30,7 +30,7 @@ use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 const ACCOUNT_IDX_KEY_SIZE: usize = 26;
 
 /// Account index is 64 bit integer
-const ACCOUNT_IDX_VALUE_SIZE: usize = 8;
+const ACCOUNT_IDX_SIZE: usize = 8;
 
 /// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak  internally for evm operations
 const DB_ACCOUNT_SIZE_EOA: usize = 42;
@@ -562,7 +562,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
 
     for (addr, account) in account_changes {
         if account.created {
-            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_VALUE_SIZE;
+            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
         }
 
         // Apply size of address of changed account
