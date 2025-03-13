@@ -25,7 +25,6 @@ use sov_keys::PublicKey;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{Spec, SpecId};
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::Network;
