@@ -13,7 +13,6 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SpecId, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -219,7 +218,7 @@ where
         self.fork_manager.register_block(l2_height)?;
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let l2_block: L2Block<Transaction> = soft_confirmation
+        let l2_block: L2Block = soft_confirmation
             .clone()
             .try_into()
             .context("Failed to parse transactions")?;

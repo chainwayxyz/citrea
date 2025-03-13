@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
 use crate::soft_confirmation::{L2Block, L2Header, SignedL2Header};
+use crate::transaction::Transaction;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::BatchProofInfo;
 use crate::RefCount;
@@ -86,10 +87,7 @@ pub struct SoftConfirmationResponse {
     pub tx_merkle_root: [u8; 32],
 }
 
-impl<'txs, Tx> TryFrom<SoftConfirmationResponse> for L2Block<'txs, Tx>
-where
-    Tx: Clone + BorshDeserialize + BorshSerialize,
-{
+impl TryFrom<SoftConfirmationResponse> for L2Block {
     type Error = borsh::io::Error;
     fn try_from(val: SoftConfirmationResponse) -> Result<Self, Self::Error> {
         let parsed_txs = val
@@ -98,7 +96,7 @@ where
             .flatten()
             .map(|tx| {
                 let body = &tx.tx;
-                borsh::from_slice::<Tx>(body)
+                borsh::from_slice::<Transaction>(body)
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
 
@@ -119,7 +117,7 @@ where
 
         let res = L2Block::new(
             signed_header,
-            parsed_txs.into(),
+            parsed_txs,
             val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
             val.da_slot_height,
             val.da_slot_hash,

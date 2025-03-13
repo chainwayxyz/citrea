@@ -3,6 +3,7 @@
 pub mod da;
 pub mod soft_confirmation;
 pub mod stf;
+pub mod transaction;
 pub mod witness;
 pub mod zk;
 

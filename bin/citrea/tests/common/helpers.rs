@@ -28,8 +28,8 @@ use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,
 };
+use sov_keys::default_signature::private_key::DefaultPrivateKey;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};

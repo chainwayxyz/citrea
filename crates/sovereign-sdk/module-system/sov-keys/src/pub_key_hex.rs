@@ -107,11 +107,10 @@ impl TryFrom<&PublicKeyHex> for K256PublicKey {
 
 #[cfg(test)]
 mod tests {
-    use sov_modules_core::PrivateKey;
-
     use super::*;
     use crate::default_signature::k256_private_key::K256PrivateKey;
     use crate::default_signature::private_key::DefaultPrivateKey;
+    use crate::PrivateKey;
 
     #[test]
     fn test_k256_pub_key_hex() {

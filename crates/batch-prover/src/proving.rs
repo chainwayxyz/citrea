@@ -14,7 +14,6 @@ use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -36,11 +35,11 @@ use crate::errors::L1ProcessingError;
 
 const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
 
-type CommitmentStateTransitionData<'txs, Da> = (
+type CommitmentStateTransitionData<Da> = (
     VecDeque<Vec<u8>>,
     VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
-    VecDeque<Vec<L2Block<'txs, Transaction>>>,
+    VecDeque<Vec<L2Block>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
     Witness,
 );
@@ -59,7 +58,7 @@ pub enum GroupCommitments {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn data_to_prove<'txs, Da, DB>(
+pub(crate) async fn data_to_prove<Da, DB>(
     da_service: Arc<Da>,
     ledger: DB,
     storage_manager: &ProverStorageManager,
@@ -72,7 +71,7 @@ pub(crate) async fn data_to_prove<'txs, Da, DB>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<'txs, Da::Spec, Transaction>>,
+        Vec<BatchProofCircuitInput<Da::Spec>>,
     ),
     L1ProcessingError,
 >
@@ -245,7 +244,7 @@ pub(crate) async fn prove_l1<Da, Vm, DB>(
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block: &Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<'_, Da::Spec, Transaction>>,
+    inputs: Vec<BatchProofCircuitInput<Da::Spec>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -336,7 +335,6 @@ where
 }
 
 pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
-    'txs,
     Da: DaService,
     DB: BatchProverLedgerOps,
 >(
@@ -347,7 +345,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     storage_manager: &ProverStorageManager,
     sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
-) -> Result<CommitmentStateTransitionData<'txs, Da>, anyhow::Error> {
+) -> Result<CommitmentStateTransitionData<Da>, anyhow::Error> {
     let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
     let mut da_block_headers_of_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
 
@@ -392,7 +390,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
 
-            let l2_block: L2Block<Transaction> = soft_confirmation
+            let l2_block: L2Block = soft_confirmation
                 .try_into()
                 .context("Failed to parse transactions")?;
 
@@ -430,8 +428,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     ))
 }
 
-async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerOps>(
-    committed_l2_blocks: &VecDeque<Vec<L2Block<'txs, Transaction>>>,
+async fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
+    committed_l2_blocks: &VecDeque<Vec<L2Block>>,
     ledger_db: &DB,
     da_service: &Arc<Da>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
@@ -617,7 +615,7 @@ async fn generate_cumulative_witness<'txs, Da: DaService, DB: BatchProverLedgerO
 /// TODO: This check needs a rewrite for sure.
 /// We could check on the sequencer commitments range only and not generate inputs
 pub(crate) fn state_transition_already_proven<Da: DaService>(
-    input: &BatchProofCircuitInput<Da::Spec, Transaction>,
+    input: &BatchProofCircuitInput<Da::Spec>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool {
     for proof in proofs {

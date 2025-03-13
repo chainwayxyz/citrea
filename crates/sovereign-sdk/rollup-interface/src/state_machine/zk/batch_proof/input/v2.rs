@@ -10,11 +10,11 @@ use crate::zk::StorageRootHash;
 /// Second part of the Kumquat elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
-pub struct BatchProofCircuitInputV2Part2<'txs, Tx: Clone + BorshSerialize>(
-    pub VecDeque<Vec<(L2Block<'txs, Tx>, PreFork2Witness, PreFork2Witness)>>,
+pub struct BatchProofCircuitInputV2Part2(
+    pub VecDeque<Vec<(L2Block, PreFork2Witness, PreFork2Witness)>>,
 );
 
-impl<'txs, Tx: Clone + BorshSerialize> BorshSerialize for BatchProofCircuitInputV2Part2<'txs, Tx> {
+impl BorshSerialize for BatchProofCircuitInputV2Part2 {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         BorshSerialize::serialize(&(self.0.len() as u32), writer)?;
         for blocks in &self.0 {

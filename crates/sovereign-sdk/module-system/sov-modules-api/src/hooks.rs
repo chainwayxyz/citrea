@@ -6,9 +6,8 @@ use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::SoftConfirmationError;
 use sov_rollup_interface::stf::SoftConfirmationHookError;
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
-
-use crate::transaction::Transaction;
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -211,11 +210,7 @@ impl HookSoftConfirmationInfo {
 }
 
 impl HookSoftConfirmationInfo {
-    pub fn new<Tx: Clone + BorshSerialize>(
-        l2_block: &L2Block<Tx>,
-        pre_state_root: StorageRootHash,
-        current_spec: SpecId,
-    ) -> Self {
+    pub fn new(l2_block: &L2Block, pre_state_root: StorageRootHash, current_spec: SpecId) -> Self {
         if current_spec >= SpecId::Fork2 {
             return HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
                 l2_height: l2_block.l2_height(),

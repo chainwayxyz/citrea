@@ -33,10 +33,9 @@ use soft_confirmation_rule_enforcer::CallMessage as RuleEnforcerCallMessage;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::{HookSoftConfirmationInfo, HookSoftConfirmationInfoV2};
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     EncodeCall, L2Block, PrivateKey, SlotData, SoftConfirmationModuleCallError, Spec, SpecId,
     StateDiff, StateValueAccessor, WorkingSet,
@@ -48,6 +47,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
 use sov_rollup_interface::stf::{SoftConfirmationResult, StateTransitionError};
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -499,14 +499,7 @@ where
             None,
             None,
         )?;
-        let l2_block = L2Block::new(
-            signed_header,
-            txs.into(),
-            deposit_data,
-            0,
-            [0u8; 32],
-            [0u8; 32],
-        );
+        let l2_block = L2Block::new(signed_header, txs, deposit_data, 0, [0u8; 32], [0u8; 32]);
 
         info!(
             "Saving block #{}, Tx count: #{}",
@@ -530,7 +523,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn save_l2_block(
         &mut self,
-        l2_block: L2Block<Transaction>,
+        l2_block: L2Block,
         soft_confirmation_result: SoftConfirmationResult<
             ProverStorage,
             sov_state::Witness,

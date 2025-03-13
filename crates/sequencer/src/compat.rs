@@ -11,8 +11,8 @@ use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use reth_transaction_pool::{BestTransactions, EthPooledTransaction, ValidPoolTransaction};
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::{HookSoftConfirmationInfo, HookSoftConfirmationInfoV1};
 use sov_modules_api::{EncodeCall, L2Block, PrivateKey, SlotData, SpecId, StateDiff, WorkingSet};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -368,7 +368,7 @@ where
         )?;
         let l2_block = L2Block::new(
             signed_header,
-            txs.into(),
+            txs,
             deposit_data,
             da_header.height(),
             da_header.hash().into(),

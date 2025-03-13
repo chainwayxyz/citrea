@@ -1,15 +1,17 @@
+#![allow(missing_docs)]
 use std::io::Read;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
-use sov_modules_core::PrivateKey;
-use sov_modules_core::Signature;
-
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 #[cfg(feature = "native")]
-use crate::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::private_key::DefaultPrivateKey;
+use sov_keys::default_signature::{
+    DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
+};
 #[cfg(feature = "native")]
-use crate::default_signature::private_key::DefaultPrivateKey;
-use crate::default_signature::{DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature};
+use sov_keys::PrivateKey;
+use sov_keys::Signature;
 
 const EXTEND_MESSAGE_LEN: usize = 2 * core::mem::size_of::<u64>();
 
@@ -81,7 +83,7 @@ pub struct TransactionV1 {
 
 impl TransactionV1 {
     #[cfg(feature = "native")]
-    fn new(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
+    pub fn new(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
         let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
         message.extend_from_slice(&runtime_msg);
         message.extend_from_slice(&chain_id.to_le_bytes());

@@ -9,6 +9,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::soft_confirmation::StoredTransaction;
 use sov_modules_api::L2Block;
 use sov_rollup_interface::soft_confirmation::{L2Header, SignedL2Header};
+use sov_rollup_interface::transaction::Transaction;
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -39,9 +40,13 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
     }
 }
 
-fn populate_ledger(ledger_db: &mut LedgerDB, l2_blocks: Vec<L2Block<'_, [u8; 32]>>) {
+fn populate_ledger(ledger_db: &mut LedgerDB, l2_blocks: Vec<L2Block>) {
     for block in l2_blocks {
-        let tx_hashes = block.txs.to_vec();
+        let tx_hashes = block
+            .txs
+            .iter()
+            .map(|tx| tx.compute_digest::<sha2::Sha256>().into())
+            .collect();
         let tx_bodies = block
             .txs
             .iter()
@@ -53,7 +58,7 @@ fn populate_ledger(ledger_db: &mut LedgerDB, l2_blocks: Vec<L2Block<'_, [u8; 32]
     }
 }
 
-fn test_helper(test_queries: Vec<TestExpect>, l2_blocks: Vec<L2Block<'_, [u8; 32]>>) {
+fn test_helper(test_queries: Vec<TestExpect>, l2_blocks: Vec<L2Block>) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
         .enable_time()
@@ -90,24 +95,39 @@ fn test_helper(test_queries: Vec<TestExpect>, l2_blocks: Vec<L2Block<'_, [u8; 32
     });
 }
 
-fn batch2_tx_receipts() -> (Vec<StoredTransaction>, Vec<Vec<u8>>) {
-    let receipts = (0..260u64)
-        .map(|i| StoredTransaction {
-            hash: sha2::Sha256::digest(i.to_string()).into(),
-            body: Some(b"tx body".to_vec()),
+fn batch2_tx_receipts() -> Vec<(StoredTransaction, Transaction)> {
+    let private_key =
+        hex::decode("1212121212121212121212121212121212121212121212121212121212121212").unwrap();
+
+    (0..255)
+        .map(|i| {
+            let tx = Transaction::new_signed_tx(&private_key, vec![i], 0, i as u64, true);
+
+            (
+                StoredTransaction {
+                    hash: tx.compute_digest::<sha2::Sha256>().into(),
+                    body: Some(borsh::to_vec(&tx).unwrap()),
+                },
+                tx,
+            )
         })
-        .collect();
-    let bodies = (0..260u64).map(|_| b"tx body".to_vec()).collect();
-    (receipts, bodies)
+        .collect()
 }
 
 fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value) {
-    let (batch_2_receipts, _) = batch2_tx_receipts();
+    let batch_2_receipts = batch2_tx_receipts();
 
-    let tx_hashes_1 = vec![
-        ::sha2::Sha256::digest(b"tx1").into(),
-        ::sha2::Sha256::digest(b"tx2").into(),
+    let private_key =
+        hex::decode("1212121212121212121212121212121212121212121212121212121212121212").unwrap();
+    let txs = vec![
+        Transaction::new_signed_tx(&private_key, vec![1], 0, 1, true),
+        Transaction::new_signed_tx(&private_key, vec![2], 0, 2, true),
     ];
+
+    let tx_hashes_1 = txs
+        .iter()
+        .map(|tx| tx.compute_digest::<sha2::Sha256>().into())
+        .collect::<Vec<_>>();
 
     let header1 = L2Header::new(
         1,
@@ -123,8 +143,13 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
         [1; 32],
         0,
-        compute_tx_merkle_root(&batch_2_receipts.iter().map(|r| r.hash).collect::<Vec<_>>())
-            .unwrap(),
+        compute_tx_merkle_root(
+            &batch_2_receipts
+                .iter()
+                .map(|(r, _)| r.hash)
+                .collect::<Vec<_>>(),
+        )
+        .unwrap(),
         0,
     );
 
@@ -143,9 +168,9 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
     );
 
     let l2_blocks = vec![
-        L2Block::<[u8; 32]>::new(
+        L2Block::new(
             signed_header1,
-            tx_hashes_1.into(),
+            txs,
             vec![
                 "aaaaab".as_bytes().to_vec(),
                 "eeeeeeeeee".as_bytes().to_vec(),
@@ -154,13 +179,12 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             [0u8; 32],
             [1u8; 32],
         ),
-        L2Block::<[u8; 32]>::new(
+        L2Block::new(
             signed_header2,
             batch_2_receipts
-                .iter()
-                .map(|r| r.hash)
-                .collect::<Vec<_>>()
-                .into(),
+                .into_iter()
+                .map(|(_, tx)| tx)
+                .collect::<Vec<_>>(),
             vec!["c44444".as_bytes().to_vec()],
             1,
             [2u8; 32],
@@ -229,15 +253,13 @@ fn test_get_soft_confirmation() {
     // Get the second soft confirmation by number
     let payload = jsonrpc_req!("ledger_getSoftConfirmationByNumber", [2]);
     let txs = batch2_tx_receipts()
-        .0
         .into_iter()
-        .map(|r| borsh::to_vec(&r.hash).unwrap().encode_hex::<String>())
+        .map(|(r, _)| borsh::to_vec(&r.hash).unwrap().encode_hex::<String>())
         .collect::<Vec<String>>();
 
     let tx_hashes = batch2_tx_receipts()
-        .0
         .iter()
-        .map(|r| r.hash)
+        .map(|(r, _)| r.hash)
         .collect::<Vec<_>>();
     let tx_merkle_root = compute_tx_merkle_root(&tx_hashes).unwrap();
     let expected = jsonrpc_result!(
@@ -256,15 +278,13 @@ fn test_get_soft_confirmation() {
     let payload = jsonrpc_req!("ledger_getSoftConfirmationRange", [1, 2]);
 
     let txs = batch2_tx_receipts()
-        .0
         .into_iter()
-        .map(|r| borsh::to_vec(&r.hash).unwrap().encode_hex::<String>())
+        .map(|(r, _)| borsh::to_vec(&r.hash).unwrap().encode_hex::<String>())
         .collect::<Vec<String>>();
 
     let tx_hashes = batch2_tx_receipts()
-        .0
         .iter()
-        .map(|r| r.hash)
+        .map(|(r, _)| r.hash)
         .collect::<Vec<_>>();
     let tx_merkle_root = compute_tx_merkle_root(&tx_hashes).unwrap();
     let expected = jsonrpc_result!(

@@ -7,19 +7,17 @@ use citrea_primitives::EMPTY_TX_ROOT;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::default_signature::{
+use sov_keys::default_signature::{
     DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
 };
+use sov_keys::Signature;
+use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    native_debug, Context, DaSpec, DispatchCall, Genesis, Signature, Spec, WorkingSet,
-};
+use sov_modules_api::{native_debug, Context, DaSpec, DispatchCall, Genesis, Spec, WorkingSet};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::soft_confirmation::{L2Block, SignedL2Header};
@@ -27,6 +25,7 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationResult, StateTransitionError,
 };
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::{ReadWriteLog, Storage, Witness};
@@ -174,7 +173,7 @@ where
     pub fn verify_soft_confirmation_pre_fork2(
         &self,
         current_spec: SpecId,
-        l2_block: &L2Block<Transaction>,
+        l2_block: &L2Block,
         sequencer_public_key: &[u8],
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
@@ -247,7 +246,7 @@ where
     pub fn verify_soft_confirmation(
         &self,
         current_spec: SpecId,
-        l2_block: &L2Block<Transaction>,
+        l2_block: &L2Block,
         sequencer_public_key: &[u8],
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
@@ -404,7 +403,7 @@ where
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
-        l2_block: &L2Block<Transaction>,
+        l2_block: &L2Block,
     ) -> Result<SoftConfirmationResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError>
     {
         let soft_confirmation_info =
@@ -467,7 +466,7 @@ where
         cumulative_offchain_log: Option<ReadWriteLog>,
         state_witness: Witness,
         offchain_witness: Witness,
-        l2_block: &L2Block<Transaction>,
+        l2_block: &L2Block,
     ) -> Result<SoftConfirmationResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError>
     {
         let soft_confirmation_info =
@@ -577,7 +576,7 @@ where
                     .unwrap();
 
                 let (l2_block, state_witness, offchain_witness) =
-                    guest.read_from_host::<(L2Block<Transaction>, Witness, Witness)>();
+                    guest.read_from_host::<(L2Block, Witness, Witness)>();
 
                 assert_eq!(
                     l2_block.l2_height(),
@@ -738,7 +737,7 @@ fn verify_genesis_signature(
 
 fn verify_tx_merkle_root<C: Context + Spec>(
     current_spec: SpecId,
-    l2_block: &L2Block<'_, Transaction>,
+    l2_block: &L2Block,
 ) -> Result<(), StateTransitionError> {
     let tx_hashes: Vec<[u8; 32]> = if current_spec >= SpecId::Kumquat {
         l2_block

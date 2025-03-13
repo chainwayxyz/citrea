@@ -1,10 +1,8 @@
-use borsh::BorshDeserialize;
-use sov_modules_core::{Address, PrivateKey, Signature};
+use sov_keys::default_signature::private_key::DefaultPrivateKey;
+use sov_keys::{PrivateKey, Signature};
+use sov_modules_core::Address;
 
 use crate::default_context::DefaultContext;
-use crate::default_signature::k256_private_key::K256PrivateKey;
-use crate::default_signature::private_key::DefaultPrivateKey;
-use crate::default_signature::{DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature};
 use crate::ModuleInfo;
 
 #[test]
@@ -15,72 +13,6 @@ fn test_account_bech32m_display() {
         account.to_string(),
         "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"
     );
-}
-
-#[test]
-fn test_k256_pub_key_serialization() {
-    let pub_key = K256PrivateKey::generate().pub_key();
-    let serialized_pub_key = borsh::to_vec(&pub_key).unwrap();
-
-    let deserialized_pub_key: K256PublicKey =
-        BorshDeserialize::try_from_slice(&serialized_pub_key).unwrap();
-    assert_eq!(pub_key, deserialized_pub_key)
-}
-
-#[test]
-fn test_pub_key_serialization() {
-    let pub_key = DefaultPrivateKey::generate().pub_key();
-    let serialized_pub_key = borsh::to_vec(&pub_key).unwrap();
-
-    let deserialized_pub_key: DefaultPublicKey =
-        BorshDeserialize::try_from_slice(&serialized_pub_key).unwrap();
-    assert_eq!(pub_key, deserialized_pub_key)
-}
-
-#[test]
-fn test_k256_signature_serialization() {
-    let msg = [1; 32];
-    let priv_key = K256PrivateKey::generate();
-
-    let sig = priv_key.sign(&msg);
-    let serialized_sig = borsh::to_vec(&sig).unwrap();
-    let deserialized_sig: K256Signature =
-        BorshDeserialize::try_from_slice(&serialized_sig).unwrap();
-    assert_eq!(sig, deserialized_sig);
-
-    let pub_key = priv_key.pub_key();
-    deserialized_sig.verify(&pub_key, &msg).unwrap()
-}
-
-#[test]
-fn test_signature_serialization() {
-    let msg = [1; 32];
-    let priv_key = DefaultPrivateKey::generate();
-
-    let sig = priv_key.sign(&msg);
-    let serialized_sig = borsh::to_vec(&sig).unwrap();
-    let deserialized_sig: DefaultSignature =
-        BorshDeserialize::try_from_slice(&serialized_sig).unwrap();
-    assert_eq!(sig, deserialized_sig);
-
-    let pub_key = priv_key.pub_key();
-    deserialized_sig.verify(&pub_key, &msg).unwrap()
-}
-
-#[test]
-fn test_k256_hex_conversion() {
-    let priv_key = K256PrivateKey::generate();
-    let hex = priv_key.as_hex();
-    let deserialized_pub_key = K256PrivateKey::from_hex(&hex).unwrap().pub_key();
-    assert_eq!(priv_key.pub_key(), deserialized_pub_key)
-}
-
-#[test]
-fn test_hex_conversion() {
-    let priv_key = DefaultPrivateKey::generate();
-    let hex = priv_key.as_hex();
-    let deserialized_pub_key = DefaultPrivateKey::from_hex(&hex).unwrap().pub_key();
-    assert_eq!(priv_key.pub_key(), deserialized_pub_key)
 }
 
 struct Module {

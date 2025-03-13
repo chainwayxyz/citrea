@@ -34,6 +34,7 @@ members = [
   "crates/sovereign-sdk/module-system/sov-modules-macros",
   "crates/sovereign-sdk/module-system/sov-modules-core",
   "crates/sovereign-sdk/module-system/sov-state",
+  "crates/sovereign-sdk/module-system/sov-keys",
   "crates/sovereign-sdk/module-system/sov-modules-api",
   "crates/sovereign-sdk/module-system/module-implementations/sov-accounts",
   "crates/sovereign-sdk/module-system/module-implementations/integration-tests",

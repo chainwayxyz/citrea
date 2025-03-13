@@ -1,7 +1,7 @@
 //! Defines rpc queries exposed by the accounts module, along with the relevant types
 use borsh::BorshDeserialize;
 use jsonrpsee::core::RpcResult;
-use sov_modules_api::default_signature::DefaultPublicKey;
+use sov_keys::default_signature::DefaultPublicKey;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{AddressBech32, SpecId, StateMapAccessor, WorkingSet};
 

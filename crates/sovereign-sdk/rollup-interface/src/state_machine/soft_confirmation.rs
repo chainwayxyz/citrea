@@ -1,13 +1,13 @@
 //! Defines traits and types used by the rollup to verify claims about the
-//! soft confirmation
-
-use std::borrow::Cow;
+//! L2 block
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::{Digest, Output};
 use serde::{Deserialize, Serialize};
 
-/// Soft confirmation header
+use super::transaction::Transaction;
+
+/// L2 header
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 pub struct L2Header {
     l2_height: u64,
@@ -128,12 +128,12 @@ impl SignedL2Header {
 /// Signed L2 block
 /// `blobs`, `deposit_data`, `da_slot_height` and `da_slot_hash` are kept for compatibility reason
 /// and hash checking against PreFork2 *SoftConfirmations structs.
-#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
+#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone, Debug)]
+pub struct L2Block {
     /// Header
     pub header: SignedL2Header,
     /// Txs of signed batch
-    pub txs: Cow<'txs, [Tx]>,
+    pub txs: Vec<Transaction>,
     /// Deposit data
     /// TODO remove before mainnet
     pub deposit_data: Vec<Vec<u8>>,
@@ -148,11 +148,11 @@ pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
     pub da_slot_txs_commitment: [u8; 32],
 }
 
-impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
+impl L2Block {
     /// New L2Block from headers and txs
     pub fn new(
         header: SignedL2Header,
-        txs: Cow<'txs, [Tx]>,
+        txs: Vec<Transaction>,
         deposit_data: Vec<Vec<u8>>,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],

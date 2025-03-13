@@ -22,7 +22,7 @@ pub mod v3;
 // StateTransitionFunction, DA, and Zkvm traits.
 /// Data required to verify a state transition.
 /// This is more like a glue type to create V1/V2 batch proof circuit inputs later in the program
-pub struct BatchProofCircuitInput<'txs, Da: DaSpec, Tx: Clone + BorshSerialize> {
+pub struct BatchProofCircuitInput<Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
@@ -40,7 +40,7 @@ pub struct BatchProofCircuitInput<'txs, Da: DaSpec, Tx: Clone + BorshSerialize> 
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
     /// The L2 blocks that are inside the sequencer commitments.
-    pub l2_blocks: VecDeque<Vec<L2Block<'txs, Tx>>>,
+    pub l2_blocks: VecDeque<Vec<L2Block>>,
     /// Corresponding witness for the soft confirmations.
     pub state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>>,
     /// DA block headers the L2 block was constructed on.
@@ -66,17 +66,16 @@ pub struct BatchProofCircuitInput<'txs, Da: DaSpec, Tx: Clone + BorshSerialize> 
     pub last_l1_hash_witness: Witness,
 }
 
-impl<'txs, Da, Tx> BatchProofCircuitInput<'txs, Da, Tx>
+impl<Da> BatchProofCircuitInput<Da>
 where
     Da: DaSpec,
-    Tx: Clone + BorshSerialize,
 {
     /// Into Kumquat expected inputs
     pub fn into_v2_parts(
         self,
     ) -> (
         BatchProofCircuitInputV2Part1<Da>,
-        BatchProofCircuitInputV2Part2<'txs, Tx>,
+        BatchProofCircuitInputV2Part2,
     ) {
         assert_eq!(self.l2_blocks.len(), self.state_transition_witnesses.len());
         let mut x = VecDeque::with_capacity(self.l2_blocks.len());
@@ -120,7 +119,7 @@ where
         self,
     ) -> (
         BatchProofCircuitInputV3Part1<Da>,
-        BatchProofCircuitInputV3Part2<'txs, Tx>,
+        BatchProofCircuitInputV3Part2,
     ) {
         assert_eq!(self.l2_blocks.len(), self.state_transition_witnesses.len());
         let mut x = VecDeque::with_capacity(self.l2_blocks.len());

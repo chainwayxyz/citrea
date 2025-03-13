@@ -24,13 +24,14 @@ use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_stf::runtime::DefaultContext;
+use sov_keys::default_signature::K256PublicKey;
+use sov_keys::PublicKey;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::default_signature::K256PublicKey;
 use sov_modules_api::fork::ForkManager;
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{PublicKey, Spec, SpecId};
+use sov_modules_api::{Spec, SpecId};
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::Network;
 use tokio::time::sleep;
 

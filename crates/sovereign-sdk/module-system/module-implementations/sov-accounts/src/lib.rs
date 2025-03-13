@@ -10,7 +10,7 @@ pub use query::*;
 mod tests;
 
 pub use hooks::AccountsTxHook;
-use sov_modules_api::default_signature::DefaultPublicKey;
+use sov_keys::default_signature::DefaultPublicKey;
 use sov_modules_api::{Address, Context, ModuleInfo, SoftConfirmationModuleCallError, WorkingSet};
 use sov_state::codec::BorshCodec;
 use sov_state::storage::StateValueCodec;

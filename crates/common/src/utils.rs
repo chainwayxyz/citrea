@@ -12,7 +12,6 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::digest::Digest;
@@ -20,6 +19,7 @@ use sov_rollup_interface::rpc::{SoftConfirmationResponse, SoftConfirmationStatus
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::transaction::Transaction;
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map: HashMap<Arc<[u8]>, Option<Arc<[u8]>>> = HashMap::from_iter(old_diff);

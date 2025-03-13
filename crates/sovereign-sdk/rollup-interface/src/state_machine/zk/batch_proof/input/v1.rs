@@ -9,7 +9,7 @@ use crate::witness::PreFork2Witness;
 use crate::zk::StorageRootHash;
 
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInputV1<'txs, Da: DaSpec, Tx: BorshSerialize + Clone> {
+pub struct BatchProofCircuitInputV1<Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
@@ -27,7 +27,7 @@ pub struct BatchProofCircuitInputV1<'txs, Da: DaSpec, Tx: BorshSerialize + Clone
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
     /// The soft confirmations that are inside the sequencer commitments.
-    pub soft_confirmations: VecDeque<Vec<L2Block<'txs, Tx>>>,
+    pub soft_confirmations: VecDeque<Vec<L2Block>>,
     /// Corresponding witness for the soft confirmations.
     pub state_transition_witnesses: VecDeque<Vec<PreFork2Witness>>,
     /// DA block headers the L2 blocks were constructed on.
@@ -40,9 +40,7 @@ pub struct BatchProofCircuitInputV1<'txs, Da: DaSpec, Tx: BorshSerialize + Clone
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
 }
-impl<'txs, Da: DaSpec, Tx: BorshSerialize + Clone> BorshSerialize
-    for BatchProofCircuitInputV1<'txs, Da, Tx>
-{
+impl<Da: DaSpec> BorshSerialize for BatchProofCircuitInputV1<Da> {
     /// Pre fork 1 serialization
     /// An additional [u8; 32] is added to the end of the bitcoin da header
     /// So the genesis fork guest fails to deserialize the header
@@ -95,13 +93,11 @@ impl<'txs, Da: DaSpec, Tx: BorshSerialize + Clone> BorshSerialize
     }
 }
 
-impl<'txs, Da, Tx> From<BatchProofCircuitInput<'txs, Da, Tx>>
-    for BatchProofCircuitInputV1<'txs, Da, Tx>
+impl<Da> From<BatchProofCircuitInput<Da>> for BatchProofCircuitInputV1<Da>
 where
     Da: DaSpec,
-    Tx: Clone + BorshSerialize,
 {
-    fn from(input: BatchProofCircuitInput<'txs, Da, Tx>) -> Self {
+    fn from(input: BatchProofCircuitInput<Da>) -> Self {
         BatchProofCircuitInputV1 {
             initial_state_root: input.initial_state_root,
             final_state_root: input.final_state_root,

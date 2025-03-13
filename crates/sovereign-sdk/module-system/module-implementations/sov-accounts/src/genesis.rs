@@ -3,10 +3,9 @@ use core::result::Result;
 use borsh::BorshDeserialize;
 use hex::FromHex;
 use serde::{Deserialize, Deserializer};
-use sov_modules_api::default_signature::{DefaultPublicKey, K256PublicKey};
-use sov_modules_api::{
-    Address, PublicKey, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet,
-};
+use sov_keys::default_signature::{DefaultPublicKey, K256PublicKey};
+use sov_keys::PublicKey;
+use sov_modules_api::{Address, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -66,7 +65,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
                 .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
             pub_key.to_address()
         } else {
-            let pub_key = C::PublicKey::try_from_slice(pub_key)
+            let pub_key = DefaultPublicKey::try_from_slice(pub_key)
                 // TODO: Update error handling
                 .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
             pub_key.to_address()
@@ -121,8 +120,8 @@ impl<C: sov_modules_api::Context> Accounts<C> {
 
 #[cfg(all(test, feature = "native"))]
 mod tests {
-    use sov_modules_api::default_signature::DefaultPublicKey;
-    use sov_modules_api::PublicKeyHex;
+    use sov_keys::default_signature::DefaultPublicKey;
+    use sov_keys::PublicKeyHex;
 
     use super::*;
 

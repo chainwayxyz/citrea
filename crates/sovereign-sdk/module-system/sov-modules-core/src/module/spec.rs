@@ -5,10 +5,10 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::typenum::U32;
 use digest::Digest;
+use sov_keys::{PrivateKey, Signature};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
 
-use crate::common::{PublicKey, Signature};
 use crate::storage::Storage;
 use crate::Address;
 
@@ -54,25 +54,22 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
 
     /// The public key used for digital signatures
     #[cfg(feature = "native")]
-    type PrivateKey: crate::common::PrivateKey<
-        PublicKey = Self::PublicKey,
-        Signature = Self::Signature,
-    >;
+    type PrivateKey: PrivateKey;
 
-    /// The public key used for digital signatures
-    #[cfg(all(feature = "native", feature = "std"))]
-    type PublicKey: PublicKey + ::schemars::JsonSchema + alloc::str::FromStr<Err = anyhow::Error>;
+    // /// The public key used for digital signatures
+    // #[cfg(all(feature = "native", feature = "std"))]
+    // type PublicKey: PublicKey + ::schemars::JsonSchema + alloc::str::FromStr<Err = anyhow::Error>;
 
-    /// The public key used for digital signatures
-    #[cfg(not(all(feature = "native", feature = "std")))]
-    type PublicKey: PublicKey;
+    // /// The public key used for digital signatures
+    // #[cfg(not(all(feature = "native", feature = "std")))]
+    // type PublicKey: PublicKey;
 
     /// The hasher preferred by the rollup, such as Sha256 or Poseidon.
     type Hasher: Digest<OutputSize = U32>;
 
     /// The digital signature scheme used by the rollup
     #[cfg(all(feature = "native", feature = "std"))]
-    type Signature: Signature<PublicKey = Self::PublicKey>
+    type Signature: Signature
         + alloc::str::FromStr<Err = anyhow::Error>
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>
@@ -80,13 +77,11 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
 
     /// The digital signature scheme used by the rollup
     #[cfg(all(not(all(feature = "native", feature = "std")), not(feature = "serde")))]
-    type Signature: Signature<PublicKey = Self::PublicKey>;
+    type Signature: Signature;
 
     /// The digital signature scheme used by the rollup
     #[cfg(all(not(all(feature = "native", feature = "std")), feature = "serde"))]
-    type Signature: Signature<PublicKey = Self::PublicKey>
-        + serde::Serialize
-        + for<'a> serde::Deserialize<'a>;
+    type Signature: Signature + serde::Serialize + for<'a> serde::Deserialize<'a>;
 }
 
 /// A context contains information which is passed to modules during

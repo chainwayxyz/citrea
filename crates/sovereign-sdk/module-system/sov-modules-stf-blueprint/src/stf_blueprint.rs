@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{native_debug, native_error, Context, DaSpec, WorkingSet};
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationHookError, StateTransitionError,
 };
+use sov_rollup_interface::transaction::Transaction;
 #[cfg(feature = "native")]
 use tracing::instrument;
 

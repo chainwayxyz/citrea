@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::rpc::{HexTx, SoftConfirmationResponse};
 use sov_rollup_interface::soft_confirmation::{L2Block, L2Header, SignedL2Header};
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use super::DbHash;
@@ -41,10 +42,7 @@ pub struct StoredSoftConfirmation {
     pub tx_merkle_root: [u8; 32],
 }
 
-impl<'txs, Tx> TryFrom<StoredSoftConfirmation> for L2Block<'txs, Tx>
-where
-    Tx: Clone + BorshDeserialize + BorshSerialize,
-{
+impl TryFrom<StoredSoftConfirmation> for L2Block {
     type Error = borsh::io::Error;
     fn try_from(val: StoredSoftConfirmation) -> Result<Self, Self::Error> {
         let parsed_txs = val
@@ -52,7 +50,7 @@ where
             .iter()
             .map(|tx| {
                 let body = tx.body.as_ref().unwrap();
-                borsh::from_slice::<Tx>(body)
+                borsh::from_slice::<Transaction>(body)
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
 
@@ -73,7 +71,7 @@ where
 
         let res = L2Block::new(
             signed_header,
-            parsed_txs.into(),
+            parsed_txs,
             val.deposit_data,
             val.da_slot_height,
             val.da_slot_hash,
