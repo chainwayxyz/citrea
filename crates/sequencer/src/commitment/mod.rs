@@ -131,7 +131,7 @@ where
                     let index = self.next_commitment_index;
                     self.next_commitment_index += 1;
 
-                    if let Err(e) = self.commit(index, commitment_info, false).await {
+                    if let Err(e) = self.commit(index, commitment_info).await {
                         error!("Could not submit commitment: {:?}", e);
                     }
                 }
@@ -143,7 +143,6 @@ where
         &mut self,
         commitment_index: u32,
         commitment_info: CommitmentRange,
-        wait_for_da_response: bool,
     ) -> anyhow::Result<()> {
         let l2_start = *commitment_info.start();
         let l2_end = *commitment_info.end();
@@ -179,55 +178,32 @@ where
 
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
-        let commitment_c = commitment.clone();
-        let handle_da_response = async move {
-            let result: anyhow::Result<()> = async move {
-                let _tx_id = rx
-                    .await
-                    .map_err(|_| anyhow!("DA service is dead!"))?
-                    .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-                SEQUENCER_METRICS.send_commitment_execution.record(
-                    Instant::now()
-                        .saturating_duration_since(start)
-                        .as_secs_f64(),
-                );
+        ledger_db
+            .put_commitment_by_index(&commitment)
+            .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
+        ledger_db.put_pending_commitment(&commitment).map_err(|_| {
+            anyhow!("Sequencer: Failed to store sequencer commitment in pending commitments")
+        })?;
 
-                ledger_db
-                    .put_commitment_by_index(&commitment_c)
-                    .map_err(|_| {
-                        anyhow!("Sequencer: Failed to store sequencer commitment by index")
-                    })?;
+        let _tx_id = rx
+            .await
+            .map_err(|_| anyhow!("DA service is dead!"))?
+            .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-                ledger_db.set_last_commitment(&commitment_c).map_err(|_| {
-                    anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
-                })?;
+        SEQUENCER_METRICS.send_commitment_execution.record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
 
-                ledger_db.delete_pending_commitment(commitment_c.index)?;
+        ledger_db.delete_pending_commitment(commitment.index)?;
+        ledger_db
+            .set_last_commitment(&commitment)
+            .map_err(|_| anyhow!("Sequencer: Failed to set last sequencer commitment L2 height"))?;
 
-                info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
-                Ok(())
-            }
-            .await;
+        info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
-            if let Err(err) = result {
-                error!(
-                    "Error in spawned task for handling commitment result: {}",
-                    err
-                );
-            }
-        };
-
-        if wait_for_da_response {
-            // Handle DA response blocking
-            handle_da_response.await;
-        } else {
-            // Add commitment to pending commitments
-            self.ledger_db.put_pending_commitment(&commitment)?;
-
-            // Handle DA response non-blocking
-            tokio::spawn(handle_da_response);
-        }
         Ok(())
     }
 
@@ -291,7 +267,7 @@ where
                 let range = SoftConfirmationNumber(l2_start_block_number)
                     ..=SoftConfirmationNumber(pending_db_comm.l2_end_block_number);
 
-                self.commit(pending_db_comm.index, range, true).await?;
+                self.commit(pending_db_comm.index, range).await?;
             }
         }
 
