@@ -73,7 +73,6 @@ Let's consider a batch of 1 block with the following transactions:
     If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
 */
 /// Nonce and balance are stored together so we use single constant
-const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
 const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
@@ -553,20 +552,10 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
 
     let mut diff_size = 0usize;
 
-    // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
-    // thus we increment the diff size by 20 (coinbase address) + 32 (coinbase balance change)
-    // notice, we don't add to diff size when an address explicitly sends funds to coinbase
-    if !account_changes.contains_key(&env.block.coinbase) {
-        diff_size += size_of::<Address>() + size_of::<U256>();
-    }
-
     for (addr, account) in account_changes {
         if account.created {
             diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
         }
-
-        // Apply size of address of changed account
-        diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
 
         // Apply size of account_info
         if account.account_info_changed || account.code_changed {
@@ -581,7 +570,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
             diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
+                (db_account_size + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
         }
 
         // Apply size of changed slots
@@ -642,5 +631,5 @@ fn decrease_caller_balance<EXT, DB: Database>(
 #[cfg(feature = "native")]
 pub(crate) fn diff_size_send_eth_eoa() -> usize {
     DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
-        + (DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100
+        + (DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
 }
