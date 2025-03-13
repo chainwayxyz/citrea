@@ -334,9 +334,17 @@ impl TestCase for SoftConfirmationsDifferentBlocksTest {
                 .get_soft_confirmation_by_number(U64::from(i))
                 .await?
                 .unwrap();
+            let hash = full_soft_conf.hash;
+            let full_soft_conf_by_hash = full_node
+                .client
+                .http_client()
+                .get_soft_confirmation_by_hash(hash.into())
+                .await?
+                .unwrap();
 
             assert_eq!(seq_soft_conf.da_slot_height, full_soft_conf.da_slot_height);
             assert_eq!(seq_soft_conf.state_root, full_soft_conf.state_root);
+            assert_eq!(seq_soft_conf, full_soft_conf_by_hash);
         }
 
         Ok(())
