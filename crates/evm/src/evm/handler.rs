@@ -26,18 +26,24 @@ use tracing::instrument;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
+/// 6 bytes of prefix ("Evm/i/") + 20 bytes of address = 26 bytes
+const ACCOUNT_IDX_KEY_SIZE: usize = 26;
+
+/// Account index is 64 bit integer
+const ACCOUNT_IDX_VALUE_SIZE: usize = 8;
+
 /// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak  internally for evm operations
 const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
-/// Normally db account key is: 6 bytes of prefix ("Evm/a/") + 1 byte for size of remaining data + 20 bytes of address = 27 bytes
-const DB_ACCOUNT_KEY_SIZE: usize = 27;
+/// 6 bytes of prefix ("Evm/a/") + 8 bytes of account id = 14 bytes
+const DB_ACCOUNT_KEY_SIZE: usize = 14;
 
-/// Storage key is 59 bytes because of sov sdk prefix ("Evm/s/")
-const STORAGE_KEY_SIZE: usize = 59;
+/// 6 bytes of prefix ("Evm/S/") + 32 bytes of storage hash = 38 bytes
+const STORAGE_KEY_SIZE: usize = 38;
 
-/// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
-const STORAGE_VALUE_SIZE: usize = 33;
+/// Storage value is 32 bytes
+const STORAGE_VALUE_SIZE: usize = 32;
 
 /// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, l2_block_rule_enforcer and sov_accounts
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
@@ -555,6 +561,10 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     }
 
     for (addr, account) in account_changes {
+        if account.created {
+            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_VALUE_SIZE;
+        }
+
         // Apply size of address of changed account
         diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
 
