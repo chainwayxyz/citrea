@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_keys::default_signature::private_key::DefaultPrivateKey;
-use sov_keys::default_signature::DefaultSignature;
+use sov_keys::default_signature::{DefaultPublicKey, DefaultSignature};
 use sov_modules_core::{Address, Context, Spec};
 use sov_rollup_interface::spec::SpecId;
 #[cfg(feature = "native")]
@@ -27,7 +27,7 @@ impl Spec for DefaultContext {
     type Address = Address;
     type Storage = ProverStorage;
     type PrivateKey = DefaultPrivateKey;
-    // type PublicKey = DefaultPublicKey;
+    type PublicKey = DefaultPublicKey;
     type Hasher = sha2::Sha256;
     type Signature = DefaultSignature;
 }
@@ -75,7 +75,7 @@ impl Spec for ZkDefaultContext {
     type Storage = ZkStorage;
     #[cfg(feature = "native")]
     type PrivateKey = DefaultPrivateKey;
-    // type PublicKey = DefaultPublicKey;
+    type PublicKey = DefaultPublicKey;
     type Hasher = sha2::Sha256;
     type Signature = DefaultSignature;
 }
