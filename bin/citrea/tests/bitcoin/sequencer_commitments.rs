@@ -100,7 +100,6 @@ impl TestCase for LedgerGetCommitmentsProverTest {
 
         assert_eq!(commitments.len(), 1);
 
-        assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
         assert_eq!(
             commitments[0].l2_end_block_number.to::<u64>(),
             min_soft_confirmations_per_commitment
@@ -177,7 +176,6 @@ impl TestCase for LedgerGetCommitmentsTest {
 
         assert_eq!(commitments.len(), 1);
 
-        assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
         assert_eq!(
             commitments[0].l2_end_block_number.to::<u64>(),
             min_soft_confirmations_per_commitment
@@ -339,7 +337,6 @@ impl SequencerSendCommitmentsToDaTest {
                 .as_slice(),
         );
 
-        assert_eq!(commitment.l2_start_block_number, start_l2_block);
         assert_eq!(commitment.l2_end_block_number, end_l2_block);
         assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
         Ok(())

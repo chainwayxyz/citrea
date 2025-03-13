@@ -62,9 +62,9 @@ enum Commands {
         /// The target L1 block number to rollback to (non-inclusive)
         #[arg(long)]
         l1_target: u64,
-        /// The L2 block number at which there was a sequencer commitment that was sent.
+        /// The target sequencer commitment index to rollback to
         #[arg(long)]
-        sequencer_commitment_l2_height: u64,
+        sequencer_commitment_index: u32,
     },
     /// Backup DBs
     RestoreBackup {
@@ -104,14 +104,14 @@ async fn main() -> anyhow::Result<()> {
             db_path,
             l2_target,
             l1_target,
-            sequencer_commitment_l2_height,
+            sequencer_commitment_index,
         } => {
             commands::rollback(
                 node_type,
                 db_path.clone(),
                 l2_target,
                 l1_target,
-                sequencer_commitment_l2_height,
+                sequencer_commitment_index,
             )
             .await?;
         }

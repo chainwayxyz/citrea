@@ -87,3 +87,21 @@ const _CHECK_FORKS: () = {
         panic!("FORKS order is invalid")
     }
 };
+
+// If fork2 activation height is 0, return 1
+// Because in tests when the first l2 block for the first sequencer commitment is needed
+// Fork2 activation height should be sent
+// If it is 0, it errors out because l2 block 0 is not valid
+// So for only in tests, if fork2 activation height is 0, return 1
+// In production, it will return whatever the activation height is
+pub fn get_fork2_activation_height_non_zero() -> u64 {
+    let forks = get_forks();
+    let fork = forks
+        .iter()
+        .find(|f| f.spec_id == SpecId::Fork2)
+        .expect("Fork2 should exist");
+    if fork.activation_height == 0 {
+        return 1;
+    }
+    fork.activation_height
+}

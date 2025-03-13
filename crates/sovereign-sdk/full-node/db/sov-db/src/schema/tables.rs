@@ -53,7 +53,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
+    PendingSequencerCommitment::table_name(),
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
@@ -69,6 +69,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     // ########
     #[cfg(test)]
     TestTableOld::table_name(),
@@ -93,6 +94,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     VerifiedBatchProofsBySlotNumber::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -118,6 +120,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -151,7 +154,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
     LightClientProofBySlotNumber::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
+    PendingSequencerCommitment::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     SoftConfirmationStatus::table_name(),
@@ -165,6 +168,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -372,12 +376,13 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source for in progress sequencer commitments
-    (PendingSequencerCommitmentL2Range) L2HeightRange => ()
+    /// This table is used to store the pending sequencer commitments indexes
+    (PendingSequencerCommitment) () => Vec<u32>
 );
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SoftConfirmationNumber
+    (LastSequencerCommitmentSent) () => u32
 );
 
 define_table_with_seek_key_codec!(
@@ -391,6 +396,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Check whether a block is finalized
     (SoftConfirmationStatus) SoftConfirmationNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
+);
+
+define_table_with_seek_key_codec!(
+    /// Index to sequencer commitment mapping
+    (SequencerCommitmentByIndex) u32 => SequencerCommitment
 );
 
 define_table_without_codec!(

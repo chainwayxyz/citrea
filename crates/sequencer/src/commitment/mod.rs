@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::anyhow;
+use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -22,11 +23,8 @@ use crate::metrics::SEQUENCER_METRICS;
 
 mod controller;
 
-#[derive(Clone, Debug)]
-pub struct CommitmentInfo {
-    /// L2 heights to commit
-    pub l2_height_range: RangeInclusive<SoftConfirmationNumber>,
-}
+/// L2 heights to commit
+type CommitmentRange = RangeInclusive<SoftConfirmationNumber>;
 
 pub struct CommitmentService<Da, Db>
 where
@@ -36,8 +34,29 @@ where
     ledger_db: Db,
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
+    next_commitment_index: u32,
     soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
     commitment_controller: Arc<RwLock<CommitmentController<Db>>>,
+}
+
+fn load_next_commitment_index<Db: SequencerLedgerOps>(db: &Db) -> u32 {
+    // max index from pending:
+    let max_pending = db
+        .get_pending_commitments()
+        .unwrap()
+        .into_iter()
+        .map(|s| s.index)
+        .max();
+    // max index from last commitment:
+    let max_last = db.get_last_commitment().unwrap().map(|s| s.index);
+    // maximum of pending and last:
+    let max_db = max_pending.max(max_last);
+    if let Some(max_db) = max_db {
+        max_db + 1
+    } else {
+        // if comms are empty, then index is 0
+        0
+    }
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -56,10 +75,12 @@ where
             ledger_db.clone(),
             min_soft_confirmations,
         )));
+        let next_commitment_index = load_next_commitment_index(&ledger_db);
         Self {
             ledger_db,
             da_service,
             sequencer_da_pub_key,
+            next_commitment_index,
             soft_confirmation_rx,
             commitment_controller,
         }
@@ -107,7 +128,10 @@ where
                         }
                     };
 
-                    if let Err(e) = self.commit(commitment_info, false).await {
+                    let index = self.next_commitment_index;
+                    self.next_commitment_index += 1;
+
+                    if let Err(e) = self.commit(index, commitment_info).await {
                         error!("Could not submit commitment: {:?}", e);
                     }
                 }
@@ -116,16 +140,16 @@ where
     }
 
     pub async fn commit(
-        &self,
-        commitment_info: CommitmentInfo,
-        wait_for_da_response: bool,
+        &mut self,
+        commitment_index: u32,
+        commitment_info: CommitmentRange,
     ) -> anyhow::Result<()> {
-        let l2_start = *commitment_info.l2_height_range.start();
-        let l2_end = *commitment_info.l2_height_range.end();
+        let l2_start = *commitment_info.start();
+        let l2_end = *commitment_info.end();
 
         let soft_confirmation_hashes = self
             .ledger_db
-            .get_soft_confirmation_range(&(l2_start..=l2_end))?
+            .get_soft_confirmation_range(&commitment_info)?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
@@ -134,11 +158,12 @@ where
             .commitment_blocks_count
             .set(soft_confirmation_hashes.len() as f64);
 
-        let commitment = self.get_commitment(commitment_info, soft_confirmation_hashes)?;
+        let commitment =
+            self.get_commitment(commitment_index, commitment_info, soft_confirmation_hashes)?;
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
-        let tx_request = DaTxRequest::SequencerCommitment(commitment);
+        let tx_request = DaTxRequest::SequencerCommitment(commitment.clone());
         let (notify, rx) = oneshot::channel();
         let request = TxRequestWithNotifier { tx_request, notify };
         self.da_service
@@ -147,57 +172,38 @@ where
             .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
 
         info!(
-            "Sent commitment to DA queue. L2 range: #{}-{}",
-            l2_start.0, l2_end.0,
+            "Sent commitment to DA queue. L2 range: #{}-{}, index: {}",
+            l2_start.0, l2_end.0, commitment_index,
         );
 
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
-        let handle_da_response = async move {
-            let result: anyhow::Result<()> = async move {
-                let _tx_id = rx
-                    .await
-                    .map_err(|_| anyhow!("DA service is dead!"))?
-                    .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-                SEQUENCER_METRICS.send_commitment_execution.record(
-                    Instant::now()
-                        .saturating_duration_since(start)
-                        .as_secs_f64(),
-                );
+        ledger_db
+            .put_commitment_by_index(&commitment)
+            .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
+        ledger_db.put_pending_commitment(&commitment).map_err(|_| {
+            anyhow!("Sequencer: Failed to store sequencer commitment in pending commitments")
+        })?;
 
-                ledger_db
-                    .set_last_commitment_l2_height(l2_end)
-                    .map_err(|_| {
-                        anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
-                    })?;
+        let _tx_id = rx
+            .await
+            .map_err(|_| anyhow!("DA service is dead!"))?
+            .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-                ledger_db.delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
+        SEQUENCER_METRICS.send_commitment_execution.record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
 
-                info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
-                Ok(())
-            }
-            .await;
+        ledger_db.delete_pending_commitment(commitment.index)?;
+        ledger_db
+            .set_last_commitment(&commitment)
+            .map_err(|_| anyhow!("Sequencer: Failed to set last sequencer commitment L2 height"))?;
 
-            if let Err(err) = result {
-                error!(
-                    "Error in spawned task for handling commitment result: {}",
-                    err
-                );
-            }
-        };
+        info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
-        if wait_for_da_response {
-            // Handle DA response blocking
-            handle_da_response.await;
-        } else {
-            // Add commitment to pending commitments
-            self.ledger_db
-                .put_pending_commitment_l2_range(&(l2_start, l2_end))?;
-
-            // Handle DA response non-blocking
-            tokio::spawn(handle_da_response);
-        }
         Ok(())
     }
 
@@ -205,7 +211,7 @@ where
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
         info!("Resubmitting pending commitments");
 
-        let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
+        let pending_db_commitments = self.ledger_db.get_pending_commitments()?;
         info!("Pending db commitments: {:?}", pending_db_commitments);
 
         let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
@@ -230,28 +236,38 @@ where
         pending_commitments_to_remove.extend(pending_mempool_commitments);
         pending_commitments_to_remove.extend(mined_commitments);
 
-        for (l2_start, l2_end) in pending_db_commitments {
-            if pending_commitments_to_remove.iter().any(|commitment| {
-                commitment.l2_start_block_number == l2_start.0
-                    && commitment.l2_end_block_number == l2_end.0
-            }) {
+        for pending_db_comm in pending_db_commitments {
+            if pending_commitments_to_remove
+                .iter()
+                .any(|commitment| commitment.index == pending_db_comm.index)
+            {
                 // Update last sequencer commitment l2 height
-                match self.ledger_db.get_last_commitment_l2_height()? {
-                    Some(last_commitment_l2_height) if last_commitment_l2_height >= l2_end => {}
+                match self.ledger_db.get_last_commitment()? {
+                    Some(last_commitment_l2_height)
+                        if last_commitment_l2_height.index >= pending_db_comm.index => {}
                     _ => {
-                        self.ledger_db.set_last_commitment_l2_height(l2_end)?;
+                        self.ledger_db.set_last_commitment(&pending_db_comm)?;
                     }
                 };
 
                 // Delete from pending db if it is already in DA mempool or mined
                 self.ledger_db
-                    .delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
+                    .delete_pending_commitment(pending_db_comm.index)?;
             } else {
                 // Submit commitment
-                let commitment_info = CommitmentInfo {
-                    l2_height_range: l2_start..=l2_end,
+                let l2_start_block_number = if pending_db_comm.index == 0 {
+                    get_fork2_activation_height_non_zero()
+                } else {
+                    self.ledger_db
+                        .get_commitment_by_index(pending_db_comm.index - 1)?
+                        .unwrap()
+                        .l2_end_block_number
+                        + 1
                 };
-                self.commit(commitment_info, true).await?;
+                let range = SoftConfirmationNumber(l2_start_block_number)
+                    ..=SoftConfirmationNumber(pending_db_comm.l2_end_block_number);
+
+                self.commit(pending_db_comm.index, range).await?;
             }
         }
 
@@ -261,25 +277,24 @@ where
     #[instrument(level = "debug", skip_all, err)]
     pub fn get_commitment(
         &self,
-        commitment_info: CommitmentInfo,
+        commitment_index: u32,
+        commitment_info: CommitmentRange,
         soft_confirmation_hashes: Vec<[u8; 32]>,
     ) -> anyhow::Result<SequencerCommitment> {
         // sanity check
         assert_eq!(
-            commitment_info.l2_height_range.end().0 - commitment_info.l2_height_range.start().0
-                + 1u64,
+            commitment_info.end().0 - commitment_info.start().0 + 1u64,
             soft_confirmation_hashes.len() as u64,
             "Sequencer: Soft confirmation hashes length does not match the commitment info"
         );
-
         // build merkle tree over soft confirmations
         let merkle_root = MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice())
             .root()
             .ok_or(anyhow!("Couldn't compute merkle root"))?;
         Ok(SequencerCommitment {
             merkle_root,
-            l2_start_block_number: commitment_info.l2_height_range.start().0,
-            l2_end_block_number: commitment_info.l2_height_range.end().0,
+            index: commitment_index,
+            l2_end_block_number: commitment_info.end().0,
         })
     }
 

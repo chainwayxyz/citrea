@@ -473,6 +473,10 @@ impl TestCase for TestProverTransactionChaining {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
@@ -595,6 +599,7 @@ impl TestCase for TestProverTransactionChaining {
             .await?;
         let txs = &block.txdata;
 
+        // TODO: Why is this very flaky now?
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
 
         let _coinbase = &txs[0];

@@ -14,6 +14,7 @@ repository.workspace = true
 # Sov SDK deps
 jmt = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface" }
 sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 
 # 3rd-party dependencies
