@@ -250,14 +250,12 @@ where
             .map_err(to_eth_rpc_error)
     }
 
-    // For account for fork1 we return:
-    //  fork1, account_proof, account_exists (y/n)
-    // For account for fork2 we return one of:
-    //  - fork2, index_proof, n
-    //  - fork2, index_proof, index (little endian, 8 bytes), account_proof, account_exists (y)
+    // For account we return one of:
+    //  - index_proof, 'n' (account_exists)
+    //  - index_proof, index (little endian, 8 bytes), account_proof, 'y' (account_exists)
     //
     // For storages we return:
-    //  fork1/fork2, value_proof, value_exists (y/n)
+    //  value_proof, value_exists (y/n)
     fn eth_get_proof(
         &self,
         address: Address,
@@ -296,7 +294,7 @@ where
         let nonce = account.nonce;
         let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
 
-        fn generate_account_proof_postfork2<C>(
+        fn generate_account_proof<C>(
             evm: &Evm<C>,
             account: &Address,
             version: u64,
@@ -306,8 +304,6 @@ where
             C: sov_modules_api::Context,
             C::Storage: NativeStorage,
         {
-            let fork = Bytes::from("fork2"); // Remove before mainet
-
             let index_key = StorageKey::new(
                 evm.account_idxs.prefix(),
                 account,
@@ -342,21 +338,15 @@ where
                 let account_proof =
                     borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
                 let account_proof = Bytes::from(account_proof);
-                vec![
-                    fork,
-                    index_proof,
-                    index_bytes,
-                    account_proof,
-                    account_exists,
-                ]
+                vec![index_proof, index_bytes, account_proof, account_exists]
             } else {
                 let index_exists = Bytes::from("n");
 
-                vec![fork, index_proof, index_exists]
+                vec![index_proof, index_exists]
             }
         }
 
-        fn generate_storage_proof_postfork2<C>(
+        fn generate_storage_proof<C>(
             evm: &Evm<C>,
             account: &Address,
             key: &U256,
@@ -375,7 +365,6 @@ where
             );
             let value = evm.storage_get(account, key, working_set);
             let proof = working_set.get_with_proof(storage_key, version);
-            let fork = Bytes::from("fork2"); // Remove before mainet
             let value_exists = if proof.value.is_some() {
                 Bytes::from("y")
             } else {
@@ -386,20 +375,17 @@ where
             EIP1186StorageProof {
                 key: JsonStorageKey(key.to_le_bytes().into()),
                 value: value.unwrap_or_default(),
-                proof: vec![fork, value_proof, value_exists],
+                proof: vec![value_proof, value_exists],
             }
         }
 
-        let account_proof =
-            generate_account_proof_postfork2(&evm, &address, version, &mut working_set);
+        let account_proof = generate_account_proof(&evm, &address, version, &mut working_set);
 
         let mut storage_proof = vec![];
         for key in keys {
             let key: U256 = key.0.into();
 
-            let proof = {
-                generate_storage_proof_postfork2(&evm, &address, &key, version, &mut working_set)
-            };
+            let proof = generate_storage_proof(&evm, &address, &key, version, &mut working_set);
             storage_proof.push(proof);
         }
 

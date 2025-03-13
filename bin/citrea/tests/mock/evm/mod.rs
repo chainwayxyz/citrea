@@ -267,21 +267,21 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
     let account_key = [b"Evm/i/", account_address.as_slice()].concat();
     let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
 
-    if acc_proof.account_proof.len() == 3 {
+    if acc_proof.account_proof.len() == 2 {
         // Neither account index nor account exist
-        assert_eq!(acc_proof.account_proof[2], Bytes::from("n"));
+        assert_eq!(acc_proof.account_proof[1], Bytes::from("n"));
 
         let acc_storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-            borsh::from_slice(&acc_proof.account_proof[1]).unwrap();
+            borsh::from_slice(&acc_proof.account_proof[0]).unwrap();
 
         acc_storage_proof
             .verify(expected_root_hash, account_hash, None::<Vec<u8>>)
             .expect("Account proof must be valid");
     } else {
-        // fork, index_proof, index_bytes, account_proof, account_exists
-        assert_eq!(acc_proof.account_proof.len(), 5);
+        // index_proof, index_bytes, account_proof, account_exists
+        assert_eq!(acc_proof.account_proof.len(), 4);
 
-        let proved_index_value = acc_proof.account_proof[2].to_vec();
+        let proved_index_value = acc_proof.account_proof[1].to_vec();
         let account_idx = usize::from_le_bytes(
             proved_index_value
                 .clone()
@@ -290,13 +290,13 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
         );
 
         let acc_index_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-            borsh::from_slice(&acc_proof.account_proof[1]).unwrap();
+            borsh::from_slice(&acc_proof.account_proof[0]).unwrap();
 
         acc_index_proof
             .verify(expected_root_hash, account_hash, Some(proved_index_value))
             .expect("Account proof index must be valid");
 
-        let proved_account = if acc_proof.account_proof[4] == Bytes::from("y") {
+        let proved_account = if acc_proof.account_proof[3] == Bytes::from("y") {
             dbg!("acc exists");
             // Account exists and it's serialized form is:
             let code_hash_bytes = if acc_proof.code_hash != KECCAK_EMPTY {
@@ -323,7 +323,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
         let index_hash = KeyHash::with::<sha2::Sha256>(index_key.clone());
 
         let acc_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-            borsh::from_slice(&acc_proof.account_proof[3]).unwrap();
+            borsh::from_slice(&acc_proof.account_proof[2]).unwrap();
 
         acc_proof
             .verify(expected_root_hash, index_hash, proved_account)
@@ -341,7 +341,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
         let storage_key = [b"Evm/S/".as_slice(), kaddr.as_le_slice()].concat();
         let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
 
-        let proved_value = if storage_proof.proof[2] == Bytes::from("y") {
+        let proved_value = if storage_proof.proof[1] == Bytes::from("y") {
             dbg!("storage exists");
             // Storage value exists and it's serialized form is:
             let bytes = storage_proof.value.as_le_bytes().to_vec();
@@ -353,7 +353,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
         };
 
         let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-            borsh::from_slice(&storage_proof.proof[1]).unwrap();
+            borsh::from_slice(&storage_proof.proof[0]).unwrap();
 
         storage_proof
             .verify(expected_root_hash, key_hash, proved_value)
