@@ -83,7 +83,7 @@ pub struct TransactionV1 {
 
 impl TransactionV1 {
     #[cfg(feature = "native")]
-    pub fn new(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
+    fn new(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
         let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
         message.extend_from_slice(&runtime_msg);
         message.extend_from_slice(&chain_id.to_le_bytes());

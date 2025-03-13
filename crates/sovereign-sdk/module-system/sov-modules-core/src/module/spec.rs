@@ -5,12 +5,12 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::typenum::U32;
 use digest::Digest;
+use sov_keys::{PublicKey, Signature};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
 
 use crate::storage::Storage;
 use crate::Address;
-use sov_keys::{PublicKey, Signature};
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
 /// `Spec` is almost always implemented on a Context object; since all Modules are generic
