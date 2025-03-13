@@ -173,8 +173,8 @@ where
             .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
 
         info!(
-            "Sent commitment to DA queue. L2 range: #{}-{}",
-            l2_start.0, l2_end.0,
+            "Sent commitment to DA queue. L2 range: #{}-{}, index: {}",
+            l2_start.0, l2_end.0, commitment_index,
         );
 
         let start = Instant::now();
