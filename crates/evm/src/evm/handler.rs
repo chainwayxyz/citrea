@@ -66,13 +66,12 @@ Let's consider a batch of 1 block with the following transactions:
         Transaction 1: Account A transfers balance to Account C
         Transaction 2: Account B transfers balance to Account C
 
-    In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
+    In this account A and B pays for the account info diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
     So A and B should share that cost
     So the ratio would be something like this in this simple scenario:
-    3 unique balance slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
-    If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
+    3 unique account info slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
+    If every user pays 0.75 of the account info state diff they created, the total state diff will be covered
 */
-/// Nonce and balance are stored together so we use single constant
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
 const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
