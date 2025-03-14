@@ -317,7 +317,7 @@ where
     pub fn apply_l2_blocks_from_sequencer_commitments(
         &mut self,
         guest: &impl ZkvmGuest,
-        sequencer_k256_public_key: &[u8],
+        sequencer_public_key: &[u8],
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
@@ -437,7 +437,7 @@ where
                     "L2 block heights not sequential"
                 );
 
-                let sequencer_pub_key = sequencer_k256_public_key;
+                let sequencer_pub_key = sequencer_public_key;
                 let result = self
                     .apply_l2_block(
                         fork_manager.active_fork().spec_id,

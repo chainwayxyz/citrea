@@ -59,7 +59,6 @@ pub(crate) async fn data_to_prove<Da, DB>(
     ledger: DB,
     storage_manager: &ProverStorageManager,
     sequencer_pub_key: Vec<u8>,
-    sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     l1_block: &<Da as DaService>::FilteredBlock,
     group_commitments: Option<GroupCommitments>,
@@ -182,7 +181,6 @@ where
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &ledger,
             storage_manager,
-            &sequencer_k256_pub_key,
             &sequencer_pub_key,
         )
         .await
@@ -344,7 +342,6 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     sequencer_commitments: &[SequencerCommitment],
     ledger_db: &DB,
     storage_manager: &ProverStorageManager,
-    sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> Result<CommitmentStateTransitionData, anyhow::Error> {
     let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
@@ -393,7 +390,6 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         &committed_l2_blocks,
         ledger_db,
         storage_manager,
-        sequencer_k256_pub_key,
         sequencer_pub_key,
     )
     .await?;
@@ -411,7 +407,6 @@ async fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     committed_l2_blocks: &VecDeque<Vec<L2Block>>,
     ledger_db: &DB,
     storage_manager: &ProverStorageManager,
-    sequencer_k256_pub_key: &[u8],
     sequencer_pub_key: &[u8],
 ) -> anyhow::Result<(
     VecDeque<Vec<(Witness, Witness)>>,
@@ -455,17 +450,11 @@ async fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
             let pre_state = storage_manager.create_storage_for_l2_height(l2_height);
             let current_spec = fork_from_block_number(l2_height).spec_id;
 
-            let sequencer_public_key = if current_spec >= SpecId::Fork2 {
-                sequencer_k256_pub_key
-            } else {
-                sequencer_pub_key
-            };
-
             let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
             let l2_block_result = tracing::subscriber::with_default(silent_subscriber, || {
                 stf.apply_l2_block(
                     current_spec,
-                    sequencer_public_key,
+                    sequencer_pub_key,
                     &init_state_root,
                     pre_state,
                     cumulative_state_log.take(),

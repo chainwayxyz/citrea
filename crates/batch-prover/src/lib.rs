@@ -70,7 +70,6 @@ where
         storage_manager.clone(),
         public_keys.sequencer_da_pub_key.clone(),
         public_keys.sequencer_public_key.clone(),
-        public_keys.sequencer_k256_public_key.clone(),
         l1_block_cache,
         code_commitments.clone(),
         elfs.clone(),
