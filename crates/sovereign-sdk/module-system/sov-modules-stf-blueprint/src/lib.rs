@@ -468,7 +468,7 @@ where
         //
         // Again, since the zk circuit verify the state transition, the prover can not leave out any commitments or change the ordering of
         // rollup state transitions.
-        sequencer_commitments.sort();
+        sequencer_commitments.sort_by_key(|c| c.l2_start_block_number);
 
         // The preproven indices are sorted by the prover when originally passed.
         // Therefore, we can iterate of sequencer commitments and filter out
