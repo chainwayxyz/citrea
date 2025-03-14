@@ -131,7 +131,7 @@ where
 
     // Make sure all sequencer commitments are stored in ascending order.
     // We sort before checking ranges to prevent substraction errors.
-    sequencer_commitments.sort_by_key(|c| c.index);
+    sequencer_commitments.sort();
 
     sequencer_commitments
 }

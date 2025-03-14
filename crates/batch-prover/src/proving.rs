@@ -136,7 +136,7 @@ where
         return Err(L1ProcessingError::DuplicateCommitments { l1_height });
     }
 
-    sequencer_commitments.sort_by_key(|c| c.index);
+    sequencer_commitments.sort();
 
     let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
         l1_block.header().clone();
