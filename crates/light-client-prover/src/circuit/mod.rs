@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use accessors::{BlockHashAccessor, ChunkAccessor};
+use accessors::{BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor};
 use borsh::BorshDeserialize;
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
@@ -283,9 +283,17 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         batch_proof_method_ids.push((activation_l2_height, method_id));
                     }
                 }
-                DataOnDa::SequencerCommitment(_) => {
+                DataOnDa::SequencerCommitment(commitment) => {
                     println!("Found sequencer commitment");
-                    // TODO
+                    if SequencerCommitmentAccessor::<S>::get(commitment.index, &mut working_set)
+                        .is_none()
+                    {
+                        SequencerCommitmentAccessor::<S>::insert(
+                            commitment.index,
+                            borsh::to_vec(&commitment).expect("Commitment serialize must not fail"),
+                            &mut working_set,
+                        )
+                    }
                 }
             }
         }
