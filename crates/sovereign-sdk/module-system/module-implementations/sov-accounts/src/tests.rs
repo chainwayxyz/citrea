@@ -1,7 +1,8 @@
 use borsh::BorshSerialize;
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::{PrivateKey, PublicKey};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
-use sov_modules_api::{AddressBech32, PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{AddressBech32, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::query::{self, Response};

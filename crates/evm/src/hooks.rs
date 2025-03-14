@@ -97,8 +97,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let parent_block = self
             .head_rlp
             .get(working_set)
-            .expect("Head block should always be set")
-            .seal();
+            .expect("Head block should always be set");
+
+        let parent_block_hash = self
+            .latest_block_hashes
+            .get(&parent_block.header.number, working_set)
+            .expect("Should have parent block hash");
 
         let expected_block_number = parent_block.header.number + 1;
         assert_eq!(
@@ -128,7 +132,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .collect();
 
         let header = AlloyHeader {
-            parent_hash: parent_block.header.hash(),
+            parent_hash: parent_block_hash,
             timestamp: self.block_env.timestamp.saturating_to(),
             number: self.block_env.number.saturating_to(),
             ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,

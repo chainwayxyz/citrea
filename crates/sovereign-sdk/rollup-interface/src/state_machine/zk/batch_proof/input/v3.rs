@@ -7,15 +7,13 @@ use crate::da::SequencerCommitment;
 use crate::witness::Witness;
 use crate::zk::StorageRootHash;
 
-type InputV3Part2<'txs, Tx, Witness> = VecDeque<Vec<(u64, L2Block<'txs, Tx>, Witness, Witness)>>;
+type InputV3Part2<Witness> = VecDeque<Vec<(u64, L2Block, Witness, Witness)>>;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 /// Second part of the Fork2 elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
-pub struct BatchProofCircuitInputV3Part2<'txs, Tx: Clone + BorshSerialize>(
-    pub InputV3Part2<'txs, Tx, Witness>,
-);
+pub struct BatchProofCircuitInputV3Part2(pub InputV3Part2<Witness>);
 
 #[derive(BorshDeserialize, BorshSerialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
@@ -46,13 +44,13 @@ pub struct BatchProofCircuitInputV3Part1 {
 // StateTransitionFunction, DA, and Zkvm traits.
 /// Data required to verify a state transition.
 /// This is more like a glue type to create V1/V2 batch proof circuit inputs later in the program
-pub struct BatchProofCircuitInputV3<'txs, Tx: Clone + BorshSerialize> {
+pub struct BatchProofCircuitInputV3 {
     /// The state root before the state transition
     pub initial_state_root: StorageRootHash,
     /// The state root after the state transition
     pub final_state_root: StorageRootHash,
     /// The L2 blocks that are inside the sequencer commitments.
-    pub l2_blocks: VecDeque<Vec<L2Block<'txs, Tx>>>,
+    pub l2_blocks: VecDeque<Vec<L2Block>>,
     /// Corresponding witness for the l2 blocks.
     pub state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>>,
     /// Short header proofs for verifying system transactions
@@ -71,17 +69,9 @@ pub struct BatchProofCircuitInputV3<'txs, Tx: Clone + BorshSerialize> {
     pub previous_sequencer_commitment: Option<SequencerCommitment>,
 }
 
-impl<'txs, Tx> BatchProofCircuitInputV3<'txs, Tx>
-where
-    Tx: Clone + BorshSerialize,
-{
+impl BatchProofCircuitInputV3 {
     /// Into Kumquat expected inputs
-    pub fn into_v3_parts(
-        self,
-    ) -> (
-        BatchProofCircuitInputV3Part1,
-        BatchProofCircuitInputV3Part2<'txs, Tx>,
-    ) {
+    pub fn into_v3_parts(self) -> (BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2) {
         assert_eq!(self.l2_blocks.len(), self.state_transition_witnesses.len());
         let mut x = VecDeque::with_capacity(self.l2_blocks.len());
 

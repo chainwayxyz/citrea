@@ -55,6 +55,7 @@ reth-trie = { workspace = true }
 # Sovereign SDK deps
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-keys = { path = "../sovereign-sdk/module-system/sov-keys" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }

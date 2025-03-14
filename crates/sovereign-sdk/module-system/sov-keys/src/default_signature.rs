@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::hash::Hash;
 #[cfg(feature = "native")]
 use std::str::FromStr;
@@ -7,17 +8,34 @@ use ed25519_dalek::{
     Signature as DalekSignature, SigningKey, VerifyingKey as DalekPublicKey, KEYPAIR_LENGTH,
     PUBLIC_KEY_LENGTH,
 };
-use sov_modules_core::{SigVerificationError, Signature, StateKeyCodec, StateValueCodec};
-use sov_state::codec::BorshCodec;
+use sha2::Digest;
+
+use crate::{PublicKey, Signature};
+
+/// Representation of a signature verification error.
+#[derive(Debug)]
+#[cfg_attr(feature = "native", derive(thiserror::Error))]
+pub enum SigVerificationError {
+    /// The signature is invalid for the provided public key.
+    #[cfg_attr(feature = "native", error("Bad signature {0}"))]
+    BadSignature(String),
+}
+
+#[cfg(not(feature = "native"))]
+impl core::fmt::Display for SigVerificationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        <SigVerificationError as core::fmt::Debug>::fmt(self, f)
+    }
+}
 
 #[cfg(feature = "native")]
 pub mod k256_private_key {
     use k256::ecdsa::signature::Signer;
     use k256::ecdsa::SigningKey;
     use rand::rngs::OsRng;
-    use sov_modules_core::{Address, PrivateKey, PublicKey};
 
     use super::{K256PublicKey, K256Signature};
+    use crate::PrivateKey;
 
     #[derive(Clone)]
     pub struct K256PrivateKey {
@@ -57,7 +75,7 @@ pub mod k256_private_key {
             }
         }
 
-        fn pub_key(&self) -> Self::PublicKey {
+        fn pub_key(&self) -> K256PublicKey {
             K256PublicKey {
                 pub_key: *self.key_pair.verifying_key(),
             }
@@ -79,10 +97,6 @@ pub mod k256_private_key {
             let bytes = hex::decode(hex)?;
             Self::try_from(&bytes[..])
         }
-
-        pub fn default_address(&self) -> Address {
-            self.pub_key().to_address::<Address>()
-        }
     }
 }
 
@@ -90,10 +104,10 @@ pub mod k256_private_key {
 pub mod private_key {
     use ed25519_dalek::{Signer, SigningKey, KEYPAIR_LENGTH, SECRET_KEY_LENGTH};
     use rand::rngs::OsRng;
-    use sov_modules_core::{Address, PrivateKey, PublicKey};
     use thiserror::Error;
 
     use super::{DefaultPublicKey, DefaultSignature};
+    use crate::PrivateKey;
 
     #[derive(Error, Debug)]
     pub enum DefaultPrivateKeyDeserializationError {
@@ -201,10 +215,6 @@ pub mod private_key {
             let bytes = hex::decode(hex)?;
             Self::try_from(&bytes[..])
         }
-
-        pub fn default_address(&self) -> Address {
-            self.pub_key().to_address::<Address>()
-        }
     }
 }
 
@@ -212,7 +222,7 @@ pub mod private_key {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct K256PublicKey {
     #[cfg_attr(feature = "native", schemars(with = "&[u8]", length(equal = 33)))]
-    pub(crate) pub_key: k256::ecdsa::VerifyingKey,
+    pub pub_key: k256::ecdsa::VerifyingKey,
 }
 
 impl Hash for K256PublicKey {
@@ -308,7 +318,7 @@ pub struct DefaultPublicKey {
         feature = "native",
         schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))
     )]
-    pub(crate) pub_key: DalekPublicKey,
+    pub pub_key: DalekPublicKey,
 }
 
 impl Hash for DefaultPublicKey {
@@ -334,25 +344,25 @@ impl BorshSerialize for DefaultPublicKey {
     }
 }
 
-impl StateKeyCodec<DefaultPublicKey> for BorshCodec {
-    fn encode_key(&self, value: &DefaultPublicKey) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(32);
-        BorshSerialize::serialize(value, &mut buf).unwrap();
-        buf
+impl PublicKey for DefaultPublicKey {
+    fn to_address<A: From<[u8; 32]>>(&self) -> A {
+        let pub_key_hash = {
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(self.pub_key);
+            hasher.finalize().into()
+        };
+        A::from(pub_key_hash)
     }
 }
 
-impl StateValueCodec<DefaultPublicKey> for BorshCodec {
-    type Error = std::io::Error;
-
-    fn encode_value(&self, value: &DefaultPublicKey) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(32);
-        BorshSerialize::serialize(value, &mut buf).unwrap();
-        buf
-    }
-
-    fn try_decode_value(&self, bytes: &[u8]) -> Result<DefaultPublicKey, Self::Error> {
-        borsh::from_slice(bytes)
+impl PublicKey for K256PublicKey {
+    fn to_address<A: From<[u8; 32]>>(&self) -> A {
+        let pub_key_hash = {
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(self.pub_key.to_sec1_bytes());
+            hasher.finalize().into()
+        };
+        A::from(pub_key_hash)
     }
 }
 
@@ -501,57 +511,129 @@ impl FromStr for K256Signature {
     }
 }
 
-#[test]
-#[cfg(feature = "native")]
-fn test_privatekey_serde_bincode() {
-    use self::private_key::DefaultPrivateKey;
-    use crate::PrivateKey;
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
 
-    let key_pair = DefaultPrivateKey::generate();
-    let serialized = bincode::serialize(&key_pair).expect("Serialization to vec is infallible");
-    let output = bincode::deserialize::<DefaultPrivateKey>(&serialized)
-        .expect("SigningKey is serialized correctly");
+    use borsh::BorshDeserialize;
 
-    assert_eq!(key_pair.as_hex(), output.as_hex());
-}
+    use super::k256_private_key::K256PrivateKey;
+    use crate::default_signature::private_key::DefaultPrivateKey;
+    use crate::default_signature::{
+        DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
+    };
+    use crate::{PrivateKey, Signature};
 
-#[test]
-#[cfg(feature = "native")]
-fn test_privatekey_serde_json() {
-    use self::private_key::DefaultPrivateKey;
-    use crate::PrivateKey;
+    #[test]
+    #[cfg(feature = "native")]
+    fn test_privatekey_serde_bincode() {
+        let key_pair = DefaultPrivateKey::generate();
+        let serialized = bincode::serialize(&key_pair).expect("Serialization to vec is infallible");
+        let output = bincode::deserialize::<DefaultPrivateKey>(&serialized)
+            .expect("SigningKey is serialized correctly");
 
-    let key_pair = DefaultPrivateKey::generate();
-    let serialized = serde_json::to_vec(&key_pair).expect("Serialization to vec is infallible");
-    let output = serde_json::from_slice::<DefaultPrivateKey>(&serialized)
-        .expect("Keypair is serialized correctly");
+        assert_eq!(key_pair.as_hex(), output.as_hex());
+    }
 
-    assert_eq!(key_pair.as_hex(), output.as_hex());
-}
+    #[test]
+    #[cfg(feature = "native")]
+    fn test_privatekey_serde_json() {
+        let key_pair = DefaultPrivateKey::generate();
+        let serialized = serde_json::to_vec(&key_pair).expect("Serialization to vec is infallible");
+        let output = serde_json::from_slice::<DefaultPrivateKey>(&serialized)
+            .expect("Keypair is serialized correctly");
 
-#[test]
-fn test_k256_signature_operations() {
-    use k256_private_key::K256PrivateKey;
-    use sov_modules_core::PrivateKey;
-    let sequ_pk = K256PrivateKey::from_hex(
-        "1212121212121212121212121212121212121212121212121212121212121212",
-    )
-    .unwrap();
+        assert_eq!(key_pair.as_hex(), output.as_hex());
+    }
 
-    let sequ_pub_key = sequ_pk.pub_key();
-    let sequ_pub_key_sec1 = sequ_pub_key.pub_key.to_sec1_bytes();
-    println!("sequ_pub_key_sec1: {:?}", sequ_pub_key_sec1.to_vec());
-    let sequ_pub_key_sec1_hex = hex::encode(sequ_pub_key_sec1.clone());
+    #[test]
+    fn test_k256_signature_operations() {
+        let sequ_pk = K256PrivateKey::from_hex(
+            "1212121212121212121212121212121212121212121212121212121212121212",
+        )
+        .unwrap();
 
-    let sequ_pub_key = K256PublicKey::try_from(sequ_pub_key_sec1.to_vec().as_slice()).unwrap();
+        let sequ_pub_key = sequ_pk.pub_key();
+        let sequ_pub_key_sec1 = sequ_pub_key.pub_key.to_sec1_bytes();
+        println!("sequ_pub_key_sec1: {:?}", sequ_pub_key_sec1.to_vec());
+        let sequ_pub_key_sec1_hex = hex::encode(sequ_pub_key_sec1.clone());
 
-    let sequ_pub_key_from_hex = K256PublicKey::from_str(&sequ_pub_key_sec1_hex).unwrap();
+        let sequ_pub_key = K256PublicKey::try_from(sequ_pub_key_sec1.to_vec().as_slice()).unwrap();
 
-    assert_eq!(sequ_pub_key, sequ_pk.pub_key());
-    assert_eq!(sequ_pub_key_from_hex, sequ_pk.pub_key());
+        let sequ_pub_key_from_hex = K256PublicKey::from_str(&sequ_pub_key_sec1_hex).unwrap();
 
-    let msg = b"hello world";
-    let sig = sequ_pk.sign(msg);
+        assert_eq!(sequ_pub_key, sequ_pk.pub_key());
+        assert_eq!(sequ_pub_key_from_hex, sequ_pk.pub_key());
 
-    assert!(sig.verify(&sequ_pub_key, msg).is_ok());
+        let msg = b"hello world";
+        let sig = sequ_pk.sign(msg);
+
+        assert!(sig.verify(&sequ_pub_key, msg).is_ok());
+    }
+
+    #[test]
+    fn test_k256_pub_key_serialization() {
+        let pub_key = K256PrivateKey::generate().pub_key();
+        let serialized_pub_key = borsh::to_vec(&pub_key).unwrap();
+
+        let deserialized_pub_key: K256PublicKey =
+            BorshDeserialize::try_from_slice(&serialized_pub_key).unwrap();
+        assert_eq!(pub_key, deserialized_pub_key)
+    }
+
+    #[test]
+    fn test_pub_key_serialization() {
+        let pub_key = DefaultPrivateKey::generate().pub_key();
+        let serialized_pub_key = borsh::to_vec(&pub_key).unwrap();
+
+        let deserialized_pub_key: DefaultPublicKey =
+            BorshDeserialize::try_from_slice(&serialized_pub_key).unwrap();
+        assert_eq!(pub_key, deserialized_pub_key)
+    }
+
+    #[test]
+    fn test_k256_signature_serialization() {
+        let msg = [1; 32];
+        let priv_key = K256PrivateKey::generate();
+
+        let sig = priv_key.sign(&msg);
+        let serialized_sig = borsh::to_vec(&sig).unwrap();
+        let deserialized_sig: K256Signature =
+            BorshDeserialize::try_from_slice(&serialized_sig).unwrap();
+        assert_eq!(sig, deserialized_sig);
+
+        let pub_key = priv_key.pub_key();
+        deserialized_sig.verify(&pub_key, &msg).unwrap()
+    }
+
+    #[test]
+    fn test_signature_serialization() {
+        let msg = [1; 32];
+        let priv_key = DefaultPrivateKey::generate();
+
+        let sig = priv_key.sign(&msg);
+        let serialized_sig = borsh::to_vec(&sig).unwrap();
+        let deserialized_sig: DefaultSignature =
+            BorshDeserialize::try_from_slice(&serialized_sig).unwrap();
+        assert_eq!(sig, deserialized_sig);
+
+        let pub_key = priv_key.pub_key();
+        deserialized_sig.verify(&pub_key, &msg).unwrap()
+    }
+
+    #[test]
+    fn test_k256_hex_conversion() {
+        let priv_key = K256PrivateKey::generate();
+        let hex = priv_key.as_hex();
+        let deserialized_pub_key = K256PrivateKey::from_hex(&hex).unwrap().pub_key();
+        assert_eq!(priv_key.pub_key(), deserialized_pub_key)
+    }
+
+    #[test]
+    fn test_hex_conversion() {
+        let priv_key = DefaultPrivateKey::generate();
+        let hex = priv_key.as_hex();
+        let deserialized_pub_key = DefaultPrivateKey::from_hex(&hex).unwrap().pub_key();
+        assert_eq!(priv_key.pub_key(), deserialized_pub_key)
+    }
 }

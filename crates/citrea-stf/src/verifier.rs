@@ -43,7 +43,7 @@ where
         &mut self,
         guest: &impl ZkvmGuest,
         pre_state: C::Storage,
-        sequencer_k256_public_key: &[u8],
+        sequencer_public_key: &[u8],
         forks: &[Fork],
     ) -> BatchProofCircuitOutput {
         println!("Running sequencer commitments in DA slot");
@@ -73,7 +73,7 @@ where
             cumulative_state_log,
         } = self.app.apply_l2_blocks_from_sequencer_commitments(
             guest,
-            sequencer_k256_public_key,
+            sequencer_public_key,
             &data.initial_state_root,
             pre_state.clone(),
             data.previous_sequencer_commitment,

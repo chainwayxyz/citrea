@@ -13,8 +13,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{L2Block, SpecId, StateDiff};
+use sov_modules_api::{L2Block, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
@@ -53,7 +52,6 @@ where
     l2_block_hash: L2BlockHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
-    sequencer_k256_pub_key: Vec<u8>,
     include_tx_body: bool,
     _l1_block_cache: Arc<Mutex<L1BlockCache<DA>>>,
     sync_blocks_count: u64,
@@ -103,7 +101,6 @@ where
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
-            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             include_tx_body,
             sync_blocks_count: runner_config.sync_blocks_count,
             _l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
@@ -218,16 +215,12 @@ where
         self.fork_manager.register_block(l2_height)?;
         let current_spec = self.fork_manager.active_fork().spec_id;
 
-        let l2_block: L2Block<Transaction> = l2_block_response
+        let l2_block: L2Block = l2_block_response
             .clone()
             .try_into()
             .context("Failed to parse transactions")?;
 
-        let sequencer_pub_key = if current_spec >= SpecId::Fork2 {
-            self.sequencer_k256_pub_key.as_slice()
-        } else {
-            self.sequencer_pub_key.as_slice()
-        };
+        let sequencer_pub_key = self.sequencer_pub_key.as_slice();
 
         let l2_block_result = {
             // Since Post fork2 we do not have the slot hash in l2 blocks we inspect the txs and get the slot hashes from set block infos

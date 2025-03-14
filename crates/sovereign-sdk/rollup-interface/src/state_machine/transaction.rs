@@ -1,15 +1,17 @@
+#![allow(missing_docs)]
 use std::io::Read;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
-use sov_modules_core::PrivateKey;
-use sov_modules_core::Signature;
-
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 #[cfg(feature = "native")]
-use crate::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::private_key::DefaultPrivateKey;
+use sov_keys::default_signature::{
+    DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
+};
 #[cfg(feature = "native")]
-use crate::default_signature::private_key::DefaultPrivateKey;
-use crate::default_signature::{DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature};
+use sov_keys::PrivateKey;
+use sov_keys::Signature;
 
 const EXTEND_MESSAGE_LEN: usize = 2 * core::mem::size_of::<u64>();
 

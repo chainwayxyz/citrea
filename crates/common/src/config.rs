@@ -189,12 +189,9 @@ impl FromEnv for StorageConfig {
 /// Important public keys for the rollup
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RollupPublicKeys {
-    /// L2 block signing public key of the Sequencer
-    #[serde(with = "hex::serde")]
-    pub sequencer_public_key: Vec<u8>,
     /// L2 block signing k256 public key of the Sequencer
     #[serde(with = "hex::serde")]
-    pub sequencer_k256_public_key: Vec<u8>,
+    pub sequencer_public_key: Vec<u8>,
     /// DA Signing Public Key of the Sequencer
     /// serialized as hex
     #[serde(with = "hex::serde")]
@@ -209,7 +206,6 @@ impl FromEnv for RollupPublicKeys {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             sequencer_public_key: hex::decode(std::env::var("SEQUENCER_PUBLIC_KEY")?)?,
-            sequencer_k256_public_key: hex::decode(std::env::var("SEQUENCER_K256_PUBLIC_KEY")?)?,
             sequencer_da_pub_key: hex::decode(std::env::var("SEQUENCER_DA_PUB_KEY")?)?,
             prover_da_pub_key: hex::decode(std::env::var("PROVER_DA_PUB_KEY")?)?,
         })
@@ -498,7 +494,7 @@ mod tests {
             r#"
             [public_keys]
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
-            sequencer_k256_public_key = "000000000000000000000000000000000000000000000000000000000000000000"
+            sequencer_public_key = "000000000000000000000000000000000000000000000000000000000000000000"
             sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
             prover_da_pub_key = ""
 
@@ -561,8 +557,7 @@ mod tests {
                 api_key: None,
             },
             public_keys: RollupPublicKeys {
-                sequencer_public_key: vec![0; 32],
-                sequencer_k256_public_key: vec![0; 33],
+                sequencer_public_key: vec![0; 33],
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
@@ -701,10 +696,6 @@ mod tests {
     fn test_correct_full_node_config_from_env() {
         std::env::set_var(
             "SEQUENCER_PUBLIC_KEY",
-            "0000000000000000000000000000000000000000000000000000000000000000",
-        );
-        std::env::set_var(
-            "SEQUENCER_K256_PUBLIC_KEY",
             "000000000000000000000000000000000000000000000000000000000000000000",
         );
         std::env::set_var(
@@ -767,8 +758,7 @@ mod tests {
                 db_path: "/tmp/da".into(),
             },
             public_keys: RollupPublicKeys {
-                sequencer_public_key: vec![0; 32],
-                sequencer_k256_public_key: vec![0; 33],
+                sequencer_public_key: vec![0; 33],
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },

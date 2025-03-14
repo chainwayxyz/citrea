@@ -22,23 +22,6 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
     None => Network::Nightly,
 };
 
-const SEQUENCER_PUBLIC_KEY: [u8; 32] = {
-    let hex_pub_key = match NETWORK {
-        Network::Mainnet => "4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1",
-        Network::Testnet => "4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1",
-        Network::Devnet => "52f41a5076498d1ae8bdfa57d19e91e3c2c94b6de21985d099cd48cfa7aef174",
-        Network::Nightly => match option_env!("SEQUENCER_PUBLIC_KEY") {
-            Some(hex_pub_key) => hex_pub_key,
-            None => "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21",
-        },
-    };
-
-    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_PUBLIC_KEY must be valid 32-byte hex string"),
-    }
-};
-
 const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
@@ -56,13 +39,13 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
-const SEQUENCER_K256_PUBLIC_KEY: [u8; 33] = {
+const SEQUENCER_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364",
         Network::Devnet => "03745871636b11562a7f2d7c0e883a960b54c7e2c0a5427d4b99ac403588530589",
         Network::Nightly | Network::TestNetworkWithForks => {
-            match option_env!("SEQUENCER_K256_PUBLIC_KEY") {
+            match option_env!("SEQUENCER_PUBLIC_KEY") {
                 Some(hex_pub_key) => hex_pub_key,
                 None => "036360e856310ce5d294e8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f7",
             }
@@ -71,7 +54,7 @@ const SEQUENCER_K256_PUBLIC_KEY: [u8; 33] = {
 
     match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
         Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_K256_PUBLIC_KEY must be valid 33-byte hex string"),
+        Err(_) => panic!("SEQUENCER_PUBLIC_KEY must be valid 33-byte hex string"),
     }
 };
 
@@ -99,7 +82,7 @@ pub fn main() {
         .run_sequencer_commitments_in_da_slot(
             &guest,
             storage,
-            &SEQUENCER_K256_PUBLIC_KEY,
+            &SEQUENCER_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
             FORKS,
         )

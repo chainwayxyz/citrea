@@ -38,8 +38,6 @@ use tracing::{debug, error, info, instrument};
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
 
 mod cli;
-#[cfg(test)]
-mod test_rpc;
 
 /// Main runner. Initializes a DA service, and starts a node using the provided arguments.
 #[tokio::main]
