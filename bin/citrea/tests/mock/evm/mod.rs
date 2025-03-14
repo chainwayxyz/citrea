@@ -298,7 +298,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
             .expect("Account proof must be valid");
     } else if acc_proof.account_proof[0] == Bytes::from("fork2") {
         dbg!("verify proof acc fork2");
-        let account_key = [b"Evm/i/", account_address.as_slice()].concat();
+        let account_key = [b"E/i/", account_address.as_slice()].concat();
         let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
 
         if acc_proof.account_proof.len() == 3 {
@@ -352,7 +352,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
                 None
             };
 
-            let index_key = [b"Evm/t/", account_idx.to_le_bytes().as_slice()].concat();
+            let index_key = [b"E/a/", account_idx.to_le_bytes().as_slice()].concat();
             let index_hash = KeyHash::with::<sha2::Sha256>(index_key.clone());
 
             let acc_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
@@ -403,7 +403,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
                 let arr = hasher.finalize();
                 U256::from_le_slice(&arr)
             };
-            let storage_key = [b"Evm/S/".as_slice(), kaddr.as_le_slice()].concat();
+            let storage_key = [b"E/S/".as_slice(), kaddr.as_le_slice()].concat();
             let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
 
             let proved_value = if storage_proof.proof[2] == Bytes::from("y") {
