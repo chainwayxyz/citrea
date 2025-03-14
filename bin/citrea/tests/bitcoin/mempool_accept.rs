@@ -27,18 +27,18 @@ impl TestCase for MempoolAcceptTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let min_soft_conf_per_commitment = sequencer
+        let min_l2_block_per_commitment = sequencer
             .sequencer
             .config
             .node
-            .min_soft_confirmations_per_commitment;
+            .min_l2_blocks_per_commitment;
 
-        // publish min_soft_conf_per_commitment - 1 confirmations, no commitments should be sent
-        for _ in 0..min_soft_conf_per_commitment {
+        // publish min_l2_block_per_commitment - 1 confirmations, no commitments should be sent
+        for _ in 0..min_l2_block_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(min_soft_conf_per_commitment, None)
+            .wait_for_l2_height(min_l2_block_per_commitment, None)
             .await;
 
         da.generate(FINALITY_DEPTH).await?;

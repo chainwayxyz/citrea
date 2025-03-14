@@ -18,7 +18,7 @@ members = [
   "crates/risc0",
   "crates/sequencer",
   "crates/short-header-proof-provider",
-  "crates/soft-confirmation-rule-enforcer",
+  "crates/l2-block-rule-enforcer",
   # "crates/sp1",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
@@ -161,7 +161,7 @@ alloy-eips = { version = "0.4.2", default-features = false }
 alloy-consensus = { version = "0.4.2", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.4.2", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "d1ba17118cfafcf579c6ed6b0295f97667f11a62" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "4bd7c3e" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }

@@ -35,13 +35,10 @@ async fn getters_succeed() {
     let (_server_handle, addr) = rpc_server().await;
     let rpc_client = rpc_client(addr).await;
     let hash = HexHash([0; 32]);
-    rpc_client
-        .get_soft_confirmation_by_hash(hash)
-        .await
-        .unwrap();
+    rpc_client.get_l2_block_by_hash(hash).await.unwrap();
 
     rpc_client
-        .get_soft_confirmation_by_number(U64::from(0))
+        .get_l2_block_by_number(U64::from(0))
         .await
         .unwrap();
 
@@ -65,12 +62,9 @@ async fn getters_succeed() {
         .await
         .unwrap();
 
-    rpc_client
-        .get_head_soft_confirmation_height()
-        .await
-        .unwrap();
+    rpc_client.get_head_l2_block_height().await.unwrap();
 
-    rpc_client.get_head_soft_confirmation().await.unwrap();
+    rpc_client.get_head_l2_block().await.unwrap();
 
     rpc_client
         .get_verified_batch_proofs_by_slot_height(U64::from(0))

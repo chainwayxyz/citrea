@@ -15,7 +15,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
     ledger_db: LedgerDB,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,
-    soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+    l2_block_rx: Option<broadcast::Receiver<u64>>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         EthRpcConfig {
@@ -30,7 +30,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
         storage,
         ledger_db,
         sequencer_client_url,
-        soft_confirmation_rx,
+        l2_block_rx,
     );
     methods
         .merge(ethereum_rpc)

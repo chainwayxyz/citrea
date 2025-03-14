@@ -17,8 +17,7 @@ use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
 use crate::common::{
-    make_test_client, TEST_DATA_GENESIS_PATH,
-    TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -37,8 +36,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment:
-            TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        min_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
     let seq_task = tokio::spawn(async {

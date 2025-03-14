@@ -7,7 +7,6 @@ use citrea_primitives::forks::{DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, TESTN
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_sp1::guest::SP1Guest;
 use citrea_stf::runtime::Runtime;
-
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::DaVerifier;
@@ -100,7 +99,6 @@ pub fn main() {
         .run_sequencer_commitments_in_da_slot(
             &guest,
             storage,
-            &SEQUENCER_PUBLIC_KEY,
             &SEQUENCER_K256_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
             FORKS,

@@ -28,7 +28,7 @@ pub(crate) fn create_mock_batch_proof(
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        final_soft_confirmation_hash: [4; 32],
+        final_l2_block_hash: [4; 32],
         state_diff: BTreeMap::new(),
         last_l2_height,
         // TODO: Update this
@@ -75,7 +75,7 @@ pub(crate) fn create_serialized_mock_proof(
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        final_soft_confirmation_hash: [4; 32],
+        final_l2_block_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
         last_l2_height,
         // TODO: Update this

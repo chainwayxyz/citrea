@@ -6,7 +6,6 @@ use citrea_primitives::forks::{
 use citrea_risc0_adapter::guest::Risc0Guest;
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_stf::verifier::StateTransitionVerifier;
-
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -114,7 +113,6 @@ pub fn main() {
     let out = stf_verifier.run_sequencer_commitments_in_da_slot(
         &guest,
         storage,
-        &SEQUENCER_PUBLIC_KEY,
         &SEQUENCER_K256_PUBLIC_KEY,
         get_forks(),
     );

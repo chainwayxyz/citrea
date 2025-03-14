@@ -43,21 +43,21 @@ pub struct StateRootTransition {
     pub final_root: StorageRootHash,
 }
 
-/// Result of applying a soft confirmation to current state
+/// Result of applying a l2 block to current state
 /// Where:
 /// - S - generic for state root
 /// - Cs - generic for change set
 /// - T - generic for transaction receipt contents
 /// - W - generic for witness
 /// - Da - generic for DA layer
-pub struct SoftConfirmationResult<Cs, W, SL> {
+pub struct L2BlockResult<Cs, W, SL> {
     /// Contains state root before and after applying txs
     pub state_root_transition: StateRootTransition,
     /// Cache of the read and writes happened on the state.
     pub state_log: SL,
     /// Cache of the read and writes happened on the offchain state.
     pub offchain_log: SL,
-    /// Container for all state alterations that happened during soft confirmation execution
+    /// Container for all state alterations that happened during l2 block execution
     pub change_set: Cs,
     /// Witness after applying the whole block
     pub witness: W,
@@ -68,50 +68,50 @@ pub struct SoftConfirmationResult<Cs, W, SL> {
 }
 
 #[derive(Debug, PartialEq)]
-/// Error in the soft confirmation itself
-pub enum SoftConfirmationError {
+/// Error in the l2 block itself
+pub enum L2BlockError {
     /// The public key of the sequencer (known by a full node or prover) does not match
-    /// the public key in the soft confirmation
+    /// the public key in the l2 block
     SequencerPublicKeyMismatch,
-    /// The DA hash in the soft confirmation does not match the hash of the DA block provided
+    /// The DA hash in the l2 block does not match the hash of the DA block provided
     InvalidDaHash,
-    /// The DA tx commitment in the soft confirmation does not match the tx commitment of the DA block provided
+    /// The DA tx commitment in the l2 block does not match the tx commitment of the DA block provided
     InvalidDaTxsCommitment,
-    /// The hash of the soft confirmation is incorrect
-    InvalidSoftConfirmationHash,
-    /// The soft confirmation signature is incorret
-    InvalidSoftConfirmationSignature,
-    /// The soft confirmation includes a non-serializable sov-tx
+    /// The hash of the l2 block is incorrect
+    InvalidL2BlockHash,
+    /// The l2 block signature is incorret
+    InvalidL2BlockSignature,
+    /// The l2 block includes a non-serializable sov-tx
     NonSerializableSovTx,
-    /// The soft confirmation includes a sov-tx that can not be signature verified
+    /// The l2 block includes a sov-tx that can not be signature verified
     InvalidSovTxSignature,
-    /// The soft confirmation includes a sov-tx that can not be runtime decoded
+    /// The l2 block includes a sov-tx that can not be runtime decoded
     SovTxCantBeRuntimeDecoded,
-    /// The soft confirmation includes an invalid tx merkle root
+    /// The l2 block includes an invalid tx merkle root
     InvalidTxMerkleRoot,
-    /// Any other error that can occur during the application of a soft confirmation
+    /// Any other error that can occur during the application of a l2 block
     /// These can come from runtime hooks etc.
     Other(String),
 }
 
 #[derive(Debug, PartialEq)]
-/// Error that can occur during the runtime hook of a soft confirmation
-pub enum SoftConfirmationHookError {
+/// Error that can occur during the runtime hook of a l2 block
+pub enum L2BlockHookError {
     /// The nonce of the sov-tx is incorrect
     SovTxBadNonce,
     /// The account for the sov-tx does not exist
     SovTxAccountNotFound,
     /// The account for the sov-tx already exists
     SovTxAccountAlreadyExists,
-    /// There are too many soft confirmations on a DA slot
-    TooManySoftConfirmationsOnDaSlot,
-    /// The timestamp of the soft confirmation is incorrect
+    /// There are too many l2 blocks on a DA slot
+    TooManyL2BlocksOnDaSlot,
+    /// The timestamp of the l2 block is incorrect
     TimestampShouldBeGreater,
 }
 
 #[derive(Debug, PartialEq)]
-/// Error that can occur during a module call of a soft confirmation
-pub enum SoftConfirmationModuleCallError {
+/// Error that can occur during a module call of a l2 block
+pub enum L2BlockModuleCallError {
     /// The EVM gas used exceeds the block gas limit
     EvmGasUsedExceedsBlockGasLimit {
         /// The cumulative gas used in the block
@@ -129,7 +129,7 @@ pub enum SoftConfirmationModuleCallError {
     EvmMisplacedSystemTx,
     /// Address does not have enough funds to pay for L1 fee
     EvmNotEnoughFundsForL1Fee,
-    /// An EVM transaction in the soft confirmation was not serializable
+    /// An EVM transaction in the l2 block was not serializable
     EvmTxNotSerializable,
     /// The sov-tx was not sent by the rule enforcer authority
     RuleEnforcerUnauthorized,
@@ -150,48 +150,48 @@ pub enum SoftConfirmationModuleCallError {
 #[derive(Debug, PartialEq)]
 /// Error that can occur during the state transition
 pub enum StateTransitionError {
-    /// An error in the soft confirmation itself
-    SoftConfirmationError(SoftConfirmationError),
+    /// An error in the l2 block itself
+    L2BlockError(L2BlockError),
     /// An error in the runtime hook
-    HookError(SoftConfirmationHookError),
+    HookError(L2BlockHookError),
     /// An error in the module call
-    ModuleCallError(SoftConfirmationModuleCallError),
+    ModuleCallError(L2BlockModuleCallError),
 }
 
 #[cfg(feature = "native")]
-impl std::error::Error for SoftConfirmationError {}
+impl std::error::Error for L2BlockError {}
 
 #[cfg(feature = "native")]
-impl std::error::Error for SoftConfirmationHookError {}
+impl std::error::Error for L2BlockHookError {}
 
 #[cfg(feature = "native")]
-impl std::error::Error for SoftConfirmationModuleCallError {}
+impl std::error::Error for L2BlockModuleCallError {}
 
 #[cfg(feature = "native")]
 impl std::error::Error for StateTransitionError {}
 
 #[cfg(feature = "native")]
-impl std::fmt::Display for SoftConfirmationError {
+impl std::fmt::Display for L2BlockError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SoftConfirmationError::SequencerPublicKeyMismatch => {
+            L2BlockError::SequencerPublicKeyMismatch => {
                 write!(f, "Sequencer public key mismatch")
             }
-            SoftConfirmationError::InvalidDaHash => write!(f, "Invalid DA hash"),
-            SoftConfirmationError::InvalidDaTxsCommitment => write!(f, "Invalid DA txs commitment"),
-            SoftConfirmationError::InvalidSoftConfirmationHash => {
-                write!(f, "Invalid soft confirmation hash")
+            L2BlockError::InvalidDaHash => write!(f, "Invalid DA hash"),
+            L2BlockError::InvalidDaTxsCommitment => write!(f, "Invalid DA txs commitment"),
+            L2BlockError::InvalidL2BlockHash => {
+                write!(f, "Invalid l2 block hash")
             }
-            SoftConfirmationError::InvalidSoftConfirmationSignature => {
-                write!(f, "Invalid soft confirmation signature")
+            L2BlockError::InvalidL2BlockSignature => {
+                write!(f, "Invalid l2 block signature")
             }
-            SoftConfirmationError::Other(s) => write!(f, "Other error: {}", s),
-            SoftConfirmationError::NonSerializableSovTx => write!(f, "Non serializable sov tx"),
-            SoftConfirmationError::InvalidSovTxSignature => write!(f, "Invalid sov tx signature"),
-            SoftConfirmationError::SovTxCantBeRuntimeDecoded => {
+            L2BlockError::Other(s) => write!(f, "Other error: {}", s),
+            L2BlockError::NonSerializableSovTx => write!(f, "Non serializable sov tx"),
+            L2BlockError::InvalidSovTxSignature => write!(f, "Invalid sov tx signature"),
+            L2BlockError::SovTxCantBeRuntimeDecoded => {
                 write!(f, "Sov tx can't be runtime decoded")
             }
-            SoftConfirmationError::InvalidTxMerkleRoot => {
+            L2BlockError::InvalidTxMerkleRoot => {
                 write!(f, "Invalid tx merkle root")
             }
         }
@@ -199,18 +199,18 @@ impl std::fmt::Display for SoftConfirmationError {
 }
 
 #[cfg(feature = "native")]
-impl std::fmt::Display for SoftConfirmationHookError {
+impl std::fmt::Display for L2BlockHookError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SoftConfirmationHookError::SovTxBadNonce => write!(f, "SovTx bad nonce"),
-            SoftConfirmationHookError::SovTxAccountNotFound => write!(f, "SovTx account not found"),
-            SoftConfirmationHookError::SovTxAccountAlreadyExists => {
+            L2BlockHookError::SovTxBadNonce => write!(f, "SovTx bad nonce"),
+            L2BlockHookError::SovTxAccountNotFound => write!(f, "SovTx account not found"),
+            L2BlockHookError::SovTxAccountAlreadyExists => {
                 write!(f, "SovTx account already exists")
             }
-            SoftConfirmationHookError::TooManySoftConfirmationsOnDaSlot => {
-                write!(f, "Too many soft confirmations on DA slot")
+            L2BlockHookError::TooManyL2BlocksOnDaSlot => {
+                write!(f, "Too many l2 blocks on DA slot")
             }
-            SoftConfirmationHookError::TimestampShouldBeGreater => {
+            L2BlockHookError::TimestampShouldBeGreater => {
                 write!(f, "Timestamp should be greater")
             }
         }
@@ -218,10 +218,10 @@ impl std::fmt::Display for SoftConfirmationHookError {
 }
 
 #[cfg(feature = "native")]
-impl std::fmt::Display for SoftConfirmationModuleCallError {
+impl std::fmt::Display for L2BlockModuleCallError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+            L2BlockModuleCallError::EvmGasUsedExceedsBlockGasLimit {
                 cumulative_gas,
                 tx_gas_used,
                 block_gas_limit,
@@ -232,37 +232,37 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
                             cumulative_gas, tx_gas_used, block_gas_limit
                         )
             }
-            SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
+            L2BlockModuleCallError::EvmTransactionExecutionError => {
                 write!(f, "EVM transaction execution error")
             }
-            SoftConfirmationModuleCallError::EvmMisplacedSystemTx => {
+            L2BlockModuleCallError::EvmMisplacedSystemTx => {
                 write!(f, "EVM misplaced system tx")
             }
-            SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
+            L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee => {
                 write!(f, "EVM not enough funds for L1 fee")
             }
-            SoftConfirmationModuleCallError::EvmTxTypeNotSupported(msg) => {
+            L2BlockModuleCallError::EvmTxTypeNotSupported(msg) => {
                 write!(f, "EVM tx type {} is not supported", msg)
             }
-            SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => {
+            L2BlockModuleCallError::RuleEnforcerUnauthorized => {
                 write!(f, "Rule enforcer unauthorized")
             }
-            SoftConfirmationModuleCallError::EvmTxNotSerializable => {
+            L2BlockModuleCallError::EvmTxNotSerializable => {
                 write!(f, "EVM tx not serializable")
             }
-            SoftConfirmationModuleCallError::ShortHeaderProofNotFound => {
+            L2BlockModuleCallError::ShortHeaderProofNotFound => {
                 write!(f, "Short header proof not found")
             }
-            SoftConfirmationModuleCallError::ShortHeaderProofVerificationError => {
+            L2BlockModuleCallError::ShortHeaderProofVerificationError => {
                 write!(f, "Short header proof verification error")
             }
-            SoftConfirmationModuleCallError::EvmSystemTransactionPlacedAfterUserTx => {
+            L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx => {
                 write!(f, "EVM system transaction placed after user tx")
             }
-            SoftConfirmationModuleCallError::EvmSystemTxParseError => {
+            L2BlockModuleCallError::EvmSystemTxParseError => {
                 write!(f, "EVM system transaction parse error")
             }
-            SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2 => {
+            L2BlockModuleCallError::EvmSystemTxNotAllowedAfterFork2 => {
                 write!(f, "EVM system transaction not allowed after fork2")
             }
         }
@@ -273,7 +273,7 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
 impl std::fmt::Display for StateTransitionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StateTransitionError::SoftConfirmationError(e) => write!(f, "{}", e),
+            StateTransitionError::L2BlockError(e) => write!(f, "{}", e),
             StateTransitionError::HookError(e) => write!(f, "{}", e),
             StateTransitionError::ModuleCallError(e) => write!(f, "{}", e),
         }

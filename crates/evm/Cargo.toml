@@ -54,6 +54,7 @@ revm-precompile = { workspace = true }
 
 [dev-dependencies]
 alloy = { workspace = true, features = ["consensus", "providers", "signers", "signer-local"] }
+alloy-eips = { workspace = true }
 bcs = { workspace = true }
 bytes = { workspace = true }
 citrea-primitives = { path = "../primitives", features = ["testing"] }

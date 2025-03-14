@@ -6,7 +6,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use tokio::sync::{Mutex, MutexGuard};
@@ -24,7 +24,7 @@ pub struct BackupConfig {
 impl BackupConfig {
     fn new() -> Self {
         let backup_dirs = vec![
-            LEDGER_DB_PATH_SUFFIX.to_string(),
+            LedgerDB::DB_PATH_SUFFIX.to_string(),
             StateDB::DB_PATH_SUFFIX.to_string(),
             NativeDB::DB_PATH_SUFFIX.to_string(),
         ];
@@ -157,9 +157,7 @@ impl BackupManager {
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
 
-        let l2_height = ledger_db
-            .get_head_soft_confirmation_height()?
-            .unwrap_or_default();
+        let l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or_default();
 
         let start_time = Instant::now();
         info!("Starting database backup process...");

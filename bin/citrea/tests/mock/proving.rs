@@ -5,7 +5,7 @@ use citrea_batch_prover::GroupCommitments;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
-use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::DaService;
 
 use crate::common::helpers::{
@@ -184,32 +184,29 @@ async fn full_node_verify_proof_and_store() {
 
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
-    let proof_height = full_node_proof[0]
-        .proof_output
-        .last_l2_height
-        .expect("V2 proof should have field");
-    let soft_confirmation = full_node_test_client
-        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(proof_height.to())
+    let proof_height = full_node_proof[0].proof_output.last_l2_height;
+    let l2_block = full_node_test_client
+        .ledger_get_l2_block_by_number::<MockDaSpec>(proof_height.to())
         .await
-        .expect("should get soft confirmation");
+        .expect("should get l2 block");
 
     assert_eq!(
         full_node_proof[0].proof_output.final_state_root,
-        soft_confirmation.state_root
+        l2_block.header.state_root
     );
 
     full_node_test_client
-        .ledger_get_soft_confirmation_status(5)
+        .ledger_get_l2_block_status(5)
         .await
         .unwrap();
 
     for i in 1..=4 {
         let status = full_node_test_client
-            .ledger_get_soft_confirmation_status(i)
+            .ledger_get_l2_block_status(i)
             .await
             .unwrap();
 
-        assert_eq!(status, SoftConfirmationStatus::Proven);
+        assert_eq!(status, L2BlockStatus::Proven);
     }
 
     seq_task.abort();
@@ -391,17 +388,17 @@ async fn test_batch_prover_prove_rpc() {
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
     full_node_test_client
-        .ledger_get_soft_confirmation_status(5)
+        .ledger_get_l2_block_status(5)
         .await
         .unwrap();
 
     for i in 1..=4 {
         let status = full_node_test_client
-            .ledger_get_soft_confirmation_status(i)
+            .ledger_get_l2_block_status(i)
             .await
             .unwrap();
 
-        assert_eq!(status, SoftConfirmationStatus::Proven);
+        assert_eq!(status, L2BlockStatus::Proven);
     }
 
     seq_task.abort();

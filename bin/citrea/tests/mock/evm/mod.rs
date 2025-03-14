@@ -22,8 +22,7 @@ use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
 use crate::common::{
-    make_test_client, TEST_DATA_GENESIS_PATH,
-    TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
 };
 
 mod archival_state;
@@ -109,8 +108,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment:
-            TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        min_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
     let rollup_task = tokio::spawn(async {
@@ -197,7 +195,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 123456,
+        min_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
     let seq_task = tokio::spawn(async {
@@ -446,7 +444,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 123456,
+        min_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
     let seq_task = tokio::spawn(async move {

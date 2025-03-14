@@ -6,7 +6,6 @@ use alloy_primitives::{
 };
 use alloy_rpc_types::{AnyNetworkBlock, BlockTransactions};
 use citrea_evm::{Evm, EvmChainConfig};
-use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
 use reth_chainspec::{ChainInfo, ChainSpec};
@@ -77,15 +76,10 @@ impl AccountReader for DbProvider {
     #[doc = r""]
     #[doc = r" Returns `None` if the account doesn't exist."]
     fn basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
-        let mut working_set = WorkingSet::new(self.storage.clone());
-        let last_block = self.evm.last_sealed_header(&mut working_set);
-        let block_number = last_block.number;
-        let citrea_spec = fork_from_block_number(block_number).spec_id;
-
         let account = {
             let mut working_set = WorkingSet::new(self.storage.clone());
             self.evm
-                .account_info(&address, citrea_spec, &mut working_set)
+                .account_info(&address, &mut working_set)
                 .map(Into::into)
         };
         Ok(account)

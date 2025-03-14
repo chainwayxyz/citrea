@@ -6,9 +6,8 @@ use alloy_primitives::U64;
 use anyhow::anyhow;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::http_client::HttpClient;
 use metrics::Histogram;
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -18,7 +17,6 @@ use tokio::time::sleep;
 use tracing::{debug, error, info};
 
 use crate::cache::L1BlockCache;
-use crate::FullNodeConfig;
 
 #[allow(clippy::mut_range_bound)]
 pub async fn sync_l1<Da>(
@@ -148,8 +146,13 @@ pub async fn extract_zk_proofs<Da: DaService>(
 
 pub async fn get_initial_slot_height(client: &HttpClient) -> u64 {
     loop {
-        match client.get_soft_confirmation_by_number(U64::from(1)).await {
-            Ok(Some(batch)) => return batch.da_slot_height,
+        match client.get_l2_block_by_number(U64::from(1)).await {
+            Ok(Some(_batch)) => {
+                // TODO determine how to fetch l1 height
+                let l1_height = 0;
+                return l1_height;
+                // return batch.da_slot_height,
+            }
             _ => {
                 // sleep 1
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -157,25 +160,4 @@ pub async fn get_initial_slot_height(client: &HttpClient) -> u64 {
             }
         }
     }
-}
-
-pub async fn get_start_l1_height<Da>(
-    rollup_config: &FullNodeConfig<Da>,
-    ledger_db: &LedgerDB,
-) -> anyhow::Result<u64> {
-    let last_scanned_l1_height = ledger_db.get_last_scanned_l1_height()?;
-
-    let height = match last_scanned_l1_height {
-        Some(height) => height.0,
-        None => {
-            let runner_config = rollup_config
-                .runner
-                .clone()
-                .expect("Runner config should be set");
-            let sequencer_client =
-                HttpClientBuilder::default().build(runner_config.sequencer_client_url)?;
-            get_initial_slot_height(&sequencer_client).await
-        }
-    };
-    Ok(height + 1)
 }

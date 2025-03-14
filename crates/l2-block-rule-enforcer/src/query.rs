@@ -2,10 +2,10 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{Context, DaSpec, StateValueAccessor, WorkingSet};
 
-use crate::SoftConfirmationRuleEnforcer;
+use crate::L2BlockRuleEnforcer;
 
-#[rpc_gen(client, server, namespace = "softConfirmationRuleEnforcer")]
-impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
+#[rpc_gen(client, server, namespace = "L2BlockRuleEnforcer")]
+impl<C: Context, Da: DaSpec> L2BlockRuleEnforcer<C, Da> {
     #[rpc_method(name = "getMaxL2BlocksPerL1")]
     /// Get the account corresponding to the given public key.
     pub fn get_max_l2_blocks_per_l1(

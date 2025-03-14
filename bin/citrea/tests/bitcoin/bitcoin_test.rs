@@ -40,18 +40,17 @@ impl TestCase for BitcoinReorgTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
         // Disconnect nodes before generating commitment
         f.bitcoin_nodes.disconnect_nodes().await?;
 
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         sequencer
-            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(min_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for the sequencer commitments to hit the mempool
@@ -156,10 +155,9 @@ impl TestCase for DaMonitoringTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -206,7 +204,7 @@ impl TestCase for DaMonitoringTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Finalized { .. })));
 
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -265,10 +263,9 @@ impl TestCase for CpfpFeeBumpingTest {
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
         // Generate seqcommitments
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -346,7 +343,7 @@ impl TestCase for CpfpFeeBumpingTest {
         da.generate(1).await?;
 
         // Generate another seqcommitments to assert that it spends from cpfp output
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 

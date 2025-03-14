@@ -4,7 +4,7 @@ use std::sync::Arc;
 use alloy_sol_types::SolCall;
 use anyhow::{anyhow, Context as _};
 use borsh::BorshDeserialize;
-use citrea_evm::system_contracts::PostFork2SetBlockInfoCall;
+use citrea_evm::system_contracts::BitcoinLightClientContract;
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
 use citrea_primitives::EMPTY_TX_ROOT;
 use reth_primitives::TransactionSignedEcRecovered;
@@ -12,8 +12,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_modules_api::{Context, DaSpec, Spec};
-use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::rpc::SoftConfirmationResponse;
+use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateDiff;
@@ -28,7 +27,7 @@ pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff 
 
 pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64) -> bool {
     let Some(head_l2_height) = ledger_db
-        .get_head_soft_confirmation_height()
+        .get_head_l2_block_height()
         .expect("Ledger db read must not fail")
     else {
         return false;
@@ -37,19 +36,10 @@ pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64
     head_l2_height >= l2_height
 }
 
-pub fn compute_tx_hashes<C: Context>(txs: &[Transaction], current_spec: SpecId) -> Vec<[u8; 32]> {
-    if current_spec >= SpecId::Kumquat {
-        txs.iter()
-            .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
-            .collect()
-    } else {
-        txs.iter()
-            .map(|tx| {
-                let serialized = borsh::to_vec(tx).expect("Tx serialization shouldn't fail");
-                <C as Spec>::Hasher::digest(&serialized).into()
-            })
-            .collect()
-    }
+pub fn compute_tx_hashes<C: Context>(txs: &[Transaction], _current_spec: SpecId) -> Vec<[u8; 32]> {
+    txs.iter()
+        .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
+        .collect()
 }
 
 pub fn compute_tx_merkle_root(tx_hashes: &[[u8; 32]]) -> anyhow::Result<[u8; 32]> {
@@ -69,7 +59,7 @@ async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOp
 ) -> anyhow::Result<()> {
     let function_selector: [u8; 4] = tx.input()[0..4].try_into()?;
 
-    if function_selector == PostFork2SetBlockInfoCall::SELECTOR {
+    if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36].try_into()?;
         // Check if shp exists for this l1 block hash
         if ledger_db
@@ -97,11 +87,11 @@ async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOp
 
 /// This does not check for misplaced sys txs etc. but they will be rejected by the stf if they are misplaced when the transactions are run
 pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: SharedLedgerOps>(
-    soft_confirmation_response: &SoftConfirmationResponse,
+    l2_block_response: &L2BlockResponse,
     ledger_db: &DB,
     da_service: Arc<Da>,
 ) -> anyhow::Result<()> {
-    if let Some(txs) = &soft_confirmation_response.txs {
+    if let Some(txs) = &l2_block_response.txs {
         for tx in txs {
             let tx = &tx.tx;
             let tx = Transaction::try_from_slice(tx).expect("Should deserialize transaction");

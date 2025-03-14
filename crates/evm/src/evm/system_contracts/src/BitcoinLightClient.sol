@@ -38,21 +38,6 @@ contract BitcoinLightClient is IBitcoinLightClient {
         blockNumber = _blockNumber;
     }
 
-    /// @notice Kept for backwards compatibility. Don't call after fork2!
-    /// @notice Sets the block hash and witness root for a given block
-    /// @notice Can only be called after the initial block number is set
-    /// @dev Block number is incremented by the contract as no block info should be overwritten or skipped
-    /// @param _blockHash Hash of the current L1 block
-    /// @param _witnessRoot Witness root of the current L1 block, must be in little endian 
-    function setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot) external onlySystem {
-        uint256 _blockNumber = blockNumber;
-        require(_blockNumber != 0, "Not initialized");
-        blockHashes[_blockNumber] = _blockHash;
-        blockNumber = _blockNumber + 1;
-        witnessRoots[_blockHash] = _witnessRoot;
-        emit BlockInfoAddedOld(_blockNumber, _blockHash, _witnessRoot);
-    }
-
     /// @notice Sets the block hash and witness root for a given block
     /// @notice Can only be called after the initial block number is set
     /// @dev Block number is incremented by the contract as no block info should be overwritten or skipped

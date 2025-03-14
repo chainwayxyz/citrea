@@ -12,7 +12,7 @@ pub use query::*;
 #[cfg(all(test, feature = "native"))]
 mod tests;
 
-// "Given DA slot hasn't been used for more than N soft confirmation blocks."
+// "Given DA slot hasn't been used for more than N l2 block blocks."
 use sov_modules_api::{Address, Context, DaSpec, ModuleInfo, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;
 
@@ -29,8 +29,8 @@ struct RuleEnforcerData {
 }
 
 #[derive(ModuleInfo, Clone)]
-pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
-    /// Address of the SoftConfirmationRuleEnforcer module.
+pub struct L2BlockRuleEnforcer<C: Context, Da: DaSpec> {
+    /// Address of the L2BlockRuleEnforcer module.
     #[address]
     address: C::Address,
     #[state]
@@ -46,10 +46,10 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     pub(crate) phantom: StateValue<Da::SlotHash, BcsCodec>,
 }
 
-impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnforcer<C, Da> {
+impl<C: Context, Da: DaSpec> sov_modules_api::Module for L2BlockRuleEnforcer<C, Da> {
     type Context = C;
 
-    type Config = SoftConfirmationRuleEnforcerConfig;
+    type Config = L2BlockRuleEnforcerConfig;
 
     type CallMessage = CallMessage;
 
@@ -58,8 +58,7 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
         message: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
-    {
+    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::L2BlockModuleCallError> {
         match message {
             CallMessage::ChangeAuthority { new_authority } => {
                 Ok(self.change_authority(new_authority, context, working_set)?)

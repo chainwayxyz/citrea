@@ -193,7 +193,7 @@ where
     let Dependencies {
         da_service,
         mut task_manager,
-        soft_confirmation_channel,
+        l2_block_channel,
     } = rollup_blueprint
         .setup_dependencies(
             &rollup_config,
@@ -206,9 +206,9 @@ where
         .runner
         .clone()
         .map(|runner| runner.sequencer_client_url);
-    let soft_confirmation_rx = match node_type {
+    let l2_block_rx = match node_type {
         NodeType::Sequencer(_) | NodeType::BatchProver(_) | NodeType::FullNode => {
-            soft_confirmation_channel.1
+            l2_block_channel.1
         }
         _ => None,
     };
@@ -227,7 +227,7 @@ where
         ledger_db.clone(),
         da_service.clone(),
         sequencer_client_url,
-        soft_confirmation_rx,
+        l2_block_rx,
         &backup_manager,
     )?;
 
@@ -241,7 +241,7 @@ where
                     da_service,
                     ledger_db,
                     storage_manager,
-                    soft_confirmation_channel.0,
+                    l2_block_channel.0,
                     rpc_module,
                     backup_manager,
                 )
@@ -270,7 +270,7 @@ where
                     da_service,
                     ledger_db.clone(),
                     storage_manager,
-                    soft_confirmation_channel.0,
+                    l2_block_channel.0,
                     rpc_module,
                     backup_manager,
                 )
@@ -359,7 +359,7 @@ where
                     da_service,
                     ledger_db.clone(),
                     storage_manager,
-                    soft_confirmation_channel.0,
+                    l2_block_channel.0,
                     backup_manager,
                 )
                 .await

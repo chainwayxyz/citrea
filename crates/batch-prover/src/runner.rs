@@ -2,7 +2,7 @@ use core::panic;
 
 use citrea_common::l2::{L2BlockSignal, L2SyncWorker};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::schema::types::L2BlockNumber;
 use sov_rollup_interface::services::da::DaService;
 use tokio::select;
 use tokio::sync::mpsc;
@@ -54,13 +54,13 @@ where
                     if let Some(state_diff) = l2_block.state_diff {
                         // Save state diff to ledger DB
                         self.ledger_db.set_l2_state_diff(
-                            SoftConfirmationNumber(l2_block.height),
+                            L2BlockNumber(l2_block.height),
                             state_diff,
                         )?;
                     }
 
                     BATCH_PROVER_METRICS.current_l2_block.set(l2_block.height as f64);
-                    BATCH_PROVER_METRICS.process_soft_confirmation.record(l2_block.process_duration);
+                    BATCH_PROVER_METRICS.process_l2_block.record(l2_block.process_duration);
                 }
                 _ = cancellation_token.cancelled() => {
                     info!("Shutting down fullnode");

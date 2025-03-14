@@ -1,37 +1,29 @@
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_rollup_interface::rpc::{HexTx, SoftConfirmationResponse};
-use sov_rollup_interface::soft_confirmation::{L2Block, L2Header, SignedL2Header};
+use sov_rollup_interface::block::{L2Block, L2Header, SignedL2Header};
+use sov_rollup_interface::rpc::block::{L2BlockResponse, L2HeaderResponse};
 use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 
 use super::DbHash;
 
-/// The on-disk format for a batch. Stores the hash and identifies the range of transactions
+/// The on-disk format for a L2 block. Stores the hash and identifies the range of transactions
 /// included in the batch.
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct StoredSoftConfirmation {
-    /// The l2 height of the soft confirmation
-    pub l2_height: u64,
-    /// The number of the batch
-    pub da_slot_height: u64,
-    /// The da hash of the batch
-    pub da_slot_hash: [u8; 32],
-    /// The da transactions commitment of the batch
-    pub da_slot_txs_commitment: [u8; 32],
+pub struct StoredL2Block {
+    /// The l2 height of the l2 block
+    pub height: u64,
     /// The hash of the batch
     pub hash: DbHash,
     /// The hash of the previous batch
     pub prev_hash: DbHash,
     /// The transactions which occurred in this batch.
     pub txs: Vec<StoredTransaction>,
-    /// Deposit data coming from the L1 chain
-    pub deposit_data: Vec<Vec<u8>>,
     /// State root
     pub state_root: StorageRootHash,
     /// Sequencer signature
-    pub soft_confirmation_signature: Vec<u8>,
+    pub signature: Vec<u8>,
     /// Sequencer public key
     pub pub_key: Vec<u8>,
     /// L1 fee rate
@@ -42,9 +34,10 @@ pub struct StoredSoftConfirmation {
     pub tx_merkle_root: [u8; 32],
 }
 
-impl TryFrom<StoredSoftConfirmation> for L2Block {
+impl TryFrom<StoredL2Block> for L2Block {
     type Error = borsh::io::Error;
-    fn try_from(val: StoredSoftConfirmation) -> Result<Self, Self::Error> {
+
+    fn try_from(val: StoredL2Block) -> Result<Self, Self::Error> {
         let parsed_txs = val
             .txs
             .iter()
@@ -55,42 +48,37 @@ impl TryFrom<StoredSoftConfirmation> for L2Block {
             .collect::<Result<Vec<_>, Self::Error>>()?;
 
         let header = L2Header::new(
-            val.l2_height,
+            val.height,
             val.prev_hash,
             val.state_root,
             val.l1_fee_rate,
             val.tx_merkle_root,
             val.timestamp,
         );
-        let signed_header = SignedL2Header::new(
-            header,
-            val.hash,
-            val.soft_confirmation_signature,
-            val.pub_key,
-        );
+        let signed_header = SignedL2Header::new(header, val.hash, val.signature, val.pub_key);
 
-        let res = L2Block::new(
-            signed_header,
-            parsed_txs,
-            val.deposit_data,
-            val.da_slot_height,
-            val.da_slot_hash,
-            val.da_slot_txs_commitment,
-        );
+        let res = L2Block::new(signed_header, parsed_txs);
         Ok(res)
     }
 }
 
-impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
+impl TryFrom<StoredL2Block> for L2BlockResponse {
     type Error = anyhow::Error;
-    fn try_from(value: StoredSoftConfirmation) -> Result<Self, Self::Error> {
-        Ok(Self {
-            da_slot_hash: value.da_slot_hash,
-            l2_height: value.l2_height,
-            da_slot_height: value.da_slot_height,
-            da_slot_txs_commitment: value.da_slot_txs_commitment,
+
+    fn try_from(value: StoredL2Block) -> Result<Self, Self::Error> {
+        let header = L2HeaderResponse {
+            height: value.height,
             hash: value.hash,
             prev_hash: value.prev_hash,
+            state_root: value.state_root,
+            signature: value.signature,
+            pub_key: value.pub_key,
+            l1_fee_rate: value.l1_fee_rate,
+            timestamp: value.timestamp,
+            tx_merkle_root: value.tx_merkle_root,
+        };
+        Ok(Self {
+            header,
             txs: Some(
                 value
                     .txs
@@ -98,17 +86,6 @@ impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
                     .filter_map(|tx| tx.body.map(Into::into))
                     .collect(),
             ), // Rollup full nodes don't store tx bodies
-            state_root: value.state_root,
-            soft_confirmation_signature: value.soft_confirmation_signature,
-            pub_key: value.pub_key,
-            deposit_data: value
-                .deposit_data
-                .into_iter()
-                .map(|tx_vec| HexTx { tx: tx_vec })
-                .collect(),
-            l1_fee_rate: value.l1_fee_rate,
-            timestamp: value.timestamp,
-            tx_merkle_root: value.tx_merkle_root,
         })
     }
 }

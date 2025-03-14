@@ -1,6 +1,6 @@
-## Soft Confirmation Rule Enforcer
+## L2 block Rule Enforcer
 
-Implementation of Citrea's soft confirmaiton rules as a Sovereign SDK Module.
+Implementation of Citrea's l2 block rules as a Sovereign SDK Module.
 
 This module can be used in any [`State Transition Function`](../citrea-stf/README.md) to enforce two rules:
 

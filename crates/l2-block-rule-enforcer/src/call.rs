@@ -2,11 +2,10 @@ use core::result::Result;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::{
-    Address, CallResponse, Context, DaSpec, SoftConfirmationModuleCallError, StateValueAccessor,
-    WorkingSet,
+    Address, CallResponse, Context, DaSpec, L2BlockModuleCallError, StateValueAccessor, WorkingSet,
 };
 
-use crate::SoftConfirmationRuleEnforcer;
+use crate::L2BlockRuleEnforcer;
 
 #[derive(
     Debug,
@@ -19,7 +18,7 @@ use crate::SoftConfirmationRuleEnforcer;
     serde::Deserialize,
 )]
 pub enum CallMessage {
-    /// Change the authority of soft confirmation rule enforcing.
+    /// Change the authority of l2 block rule enforcing.
     ChangeAuthority {
         /// The sov address of the new authority.
         new_authority: Address,
@@ -31,7 +30,7 @@ pub enum CallMessage {
     },
 }
 
-impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
+impl<C: Context, Da: DaSpec> L2BlockRuleEnforcer<C, Da> {
     /// Returns the address of authority.
     fn get_authority(&self, working_set: &mut WorkingSet<C::Storage>) -> Address {
         self.authority
@@ -44,9 +43,9 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         address: Address,
         context: &C,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<CallResponse, L2BlockModuleCallError> {
         if *context.sender() != self.get_authority(working_set) {
-            return Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized);
+            return Err(L2BlockModuleCallError::RuleEnforcerUnauthorized);
         }
 
         self.authority.set(&address, working_set);
@@ -58,9 +57,9 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         max_l2_blocks_per_l1: u32,
         context: &C,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<CallResponse, L2BlockModuleCallError> {
         if *context.sender() != self.get_authority(working_set) {
-            return Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized);
+            return Err(L2BlockModuleCallError::RuleEnforcerUnauthorized);
         }
 
         let mut data = self.data.get(working_set).expect("Data must be set");

@@ -45,7 +45,7 @@ impl From<AccountInfo> for reth_primitives::Account {
     }
 }
 
-pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, spec_id: SpecId) -> TxEnv {
+pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, _spec_id: SpecId) -> TxEnv {
     let to = match tx.to() {
         Some(addr) => TransactTo::Call(addr),
         None => TransactTo::Create,
@@ -69,16 +69,14 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, spec_id: SpecId) 
         authorization_list: None,
     };
 
-    if spec_id >= SpecId::CANCUN {
-        // A bug was found before activating cancun
-        // Access list supplied with txs were ignored
-        // that's why we can only use the access list if spec >= cancun
-        tx_env.access_list = tx.access_list().cloned().unwrap_or_default().0;
+    // A bug was found before activating cancun
+    // Access list supplied with txs were ignored
+    // that's why we can only use the access list if spec >= cancun
+    tx_env.access_list = tx.access_list().cloned().unwrap_or_default().0;
 
-        // EIP-4844 related fields
-        tx_env.blob_hashes = tx.blob_versioned_hashes().unwrap_or_default();
-        tx_env.max_fee_per_blob_gas = tx.max_fee_per_blob_gas().map(U256::from);
-    }
+    // EIP-4844 related fields
+    tx_env.blob_hashes = tx.blob_versioned_hashes().unwrap_or_default();
+    tx_env.max_fee_per_blob_gas = tx.max_fee_per_blob_gas().map(U256::from);
 
     tx_env
 }
@@ -145,11 +143,8 @@ impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
 #[cfg(feature = "native")]
 pub(crate) fn sealed_block_to_block_env(
     sealed_header: &reth_primitives::SealedHeader,
-    fork_fn: &impl Fn(u64) -> sov_modules_api::fork::Fork,
 ) -> revm::primitives::BlockEnv {
     use revm::primitives::BlobExcessGasAndPrice;
-
-    use crate::citrea_spec_id_to_evm_spec_id;
 
     revm::primitives::BlockEnv {
         number: U256::from(sealed_header.number),
@@ -161,15 +156,7 @@ pub(crate) fn sealed_block_to_block_env(
         difficulty: U256::from(0),
         blob_excess_gas_and_price: sealed_header
             .excess_blob_gas
-            .or_else(|| {
-                if citrea_spec_id_to_evm_spec_id(fork_fn(sealed_header.number).spec_id)
-                    >= SpecId::CANCUN
-                {
-                    Some(0)
-                } else {
-                    None
-                }
-            })
+            .or(Some(0))
             .map(BlobExcessGasAndPrice::new),
     }
 }

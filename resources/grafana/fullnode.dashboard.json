@@ -341,7 +341,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "fullnode_process_soft_confirmation",
+          "expr": "fullnode_process_l2_block",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -350,7 +350,7 @@
           "useBackend": false
         }
       ],
-      "title": "Process soft confirmation",
+      "title": "Process l2 block",
       "type": "timeseries"
     }
   ],
