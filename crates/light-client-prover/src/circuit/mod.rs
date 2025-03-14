@@ -285,7 +285,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     }
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
-                    println!("Found sequencer commitment");
+                    println!("Found sequencer commitment with index {}", commitment.index);
                     if SequencerCommitmentAccessor::<S>::get(commitment.index, &mut working_set)
                         .is_none()
                     {
