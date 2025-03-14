@@ -64,12 +64,12 @@ pub(crate) enum DaTxs {
     },
 }
 
-fn hex_serialize_tx(tx: &Transaction) -> String {
-    hex::encode(serialize(tx))
-}
-
 impl TxListWithReveal for DaTxs {
     fn write_to_file(&self, mut path: PathBuf) -> Result<(), anyhow::Error> {
+        fn hex_serialize_tx(tx: &Transaction) -> String {
+            hex::encode(serialize(tx))
+        }
+
         match self {
             Self::Complete { commit, reveal } => {
                 path.push(format!(
