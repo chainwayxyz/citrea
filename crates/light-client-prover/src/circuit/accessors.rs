@@ -92,7 +92,7 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
     /// Returns sequencer commitment if it exists
     pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<RefCount<[u8]>> {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
-        let mut key = [0u8; 33]; // 1 prefix + 32 hash
+        let mut key = [0u8; 5]; // 1 prefix + 4 bytes
 
         key[0] = Self::PREFIX;
         key[1..].copy_from_slice(&index.to_be_bytes());
@@ -107,7 +107,7 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
     /// Insert a new sequencer commitment to the LCP state
     pub fn insert(index: u32, commitment: Vec<u8>, working_set: &mut WorkingSet<S>) {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
-        let mut key = [0u8; 33]; // 1 prefix + 32 hash
+        let mut key = [0u8; 5]; // 1 prefix + 4 bytes
 
         key[0] = Self::PREFIX;
         key[1..].copy_from_slice(&index.to_be_bytes());
