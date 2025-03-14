@@ -68,5 +68,9 @@ citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer", features = ["native"] }
 
+# Reorg syncer deps
+alloy-sol-types = { workspace = true }
+serde = { workspace = true }
+
 [features]
 default = []

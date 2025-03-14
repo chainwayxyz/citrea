@@ -235,32 +235,62 @@ where
 
     match node_type {
         NodeType::Sequencer(sequencer_config) => {
-            let (mut sequencer, rpc_module) = rollup_blueprint
-                .create_sequencer(
-                    genesis_config,
-                    rollup_config.clone(),
-                    sequencer_config,
-                    da_service,
-                    ledger_db,
-                    storage_manager,
-                    l2_block_channel.0,
+            let is_reorg_sequencer: bool = std::env::var("REORG").is_ok();
+
+            if is_reorg_sequencer {
+                let (mut sequencer, rpc_module) = rollup_blueprint
+                    .create_reorg_sequencer(
+                        genesis_config,
+                        rollup_config.clone(),
+                        sequencer_config,
+                        da_service,
+                        ledger_db,
+                        storage_manager,
+                        rpc_module,
+                        l2_block_channel.0,
+                    )
+                    .expect("Could not start sequencer");
+
+                start_rpc_server(
+                    rollup_config.rpc.clone(),
+                    &mut task_manager,
                     rpc_module,
-                    backup_manager,
-                )
-                .expect("Could not start sequencer");
+                    None,
+                );
 
-            start_rpc_server(
-                rollup_config.rpc.clone(),
-                &mut task_manager,
-                rpc_module,
-                None,
-            );
+                task_manager.spawn(|cancellation_token| async move {
+                    if let Err(e) = sequencer.run(cancellation_token).await {
+                        error!("Error: {}", e);
+                    }
+                });
+            } else {
+                let (mut sequencer, rpc_module) = rollup_blueprint
+                    .create_sequencer(
+                        genesis_config,
+                        rollup_config.clone(),
+                        sequencer_config,
+                        da_service,
+                        ledger_db,
+                        storage_manager,
+                        l2_block_channel.0,
+                        rpc_module,
+                        backup_manager,
+                    )
+                    .expect("Could not start sequencer");
 
-            task_manager.spawn(|cancellation_token| async move {
-                if let Err(e) = sequencer.run(cancellation_token).await {
-                    error!("Error: {}", e);
-                }
-            });
+                start_rpc_server(
+                    rollup_config.rpc.clone(),
+                    &mut task_manager,
+                    rpc_module,
+                    None,
+                );
+
+                task_manager.spawn(|cancellation_token| async move {
+                    if let Err(e) = sequencer.run(cancellation_token).await {
+                        error!("Error: {}", e);
+                    }
+                });
+            }
         }
         NodeType::BatchProver(batch_prover_config) => {
             let (prover, l1_block_handler, rpc_module) =
