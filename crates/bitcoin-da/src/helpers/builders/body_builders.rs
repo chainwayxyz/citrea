@@ -64,6 +64,10 @@ pub(crate) enum DaTxs {
     },
 }
 
+fn hex_serialize_tx(tx: &Transaction) -> String {
+    hex::encode(serialize(tx))
+}
+
 impl TxListWithReveal for DaTxs {
     fn write_to_file(&self, mut path: PathBuf) -> Result<(), anyhow::Error> {
         match self {
@@ -74,8 +78,9 @@ impl TxListWithReveal for DaTxs {
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
@@ -92,11 +97,14 @@ impl TxListWithReveal for DaTxs {
                 let file = File::create(path)?;
                 let mut writer = BufWriter::new(&file);
                 for (commit_chunk, reveal_chunk) in commit_chunks.iter().zip(reveal_chunks.iter()) {
-                    writer.write_all(&serialize(commit_chunk))?;
-                    writer.write_all(&serialize(reveal_chunk))?;
+                    writer.write_all(hex_serialize_tx(commit_chunk).as_bytes())?;
+                    writer.write_all(b"\n")?;
+                    writer.write_all(hex_serialize_tx(reveal_chunk).as_bytes())?;
+                    writer.write_all(b"\n")?;
                 }
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
@@ -107,8 +115,9 @@ impl TxListWithReveal for DaTxs {
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
@@ -119,8 +128,9 @@ impl TxListWithReveal for DaTxs {
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
