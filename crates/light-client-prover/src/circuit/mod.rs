@@ -173,8 +173,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             });
 
         'blob_loop: for blob in da_txs {
-            let full_data = blob.full_data();
-            let Ok(data) = DataOnDa::try_from_slice(full_data) else {
+            let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {
                 println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
                 continue;
             };
@@ -291,7 +290,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     {
                         SequencerCommitmentAccessor::<S>::insert(
                             commitment.index,
-                            full_data.to_vec(),
+                            borsh::to_vec(&commitment)
+                                .expect("Commitment serialization should not fail"),
                             &mut working_set,
                         )
                     }
