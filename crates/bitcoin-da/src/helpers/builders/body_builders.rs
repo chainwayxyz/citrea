@@ -75,8 +75,7 @@ impl TxListWithReveal for DaTxs {
                 let commit_id = commit.compute_txid();
                 path.push(format!(
                     "complete_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id,
-                    reveal.id
+                    commit_id, reveal.id
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
@@ -99,17 +98,24 @@ impl TxListWithReveal for DaTxs {
                 let commit_id = commit.compute_txid();
                 path.push(format!(
                     "chunked_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id,
-                    reveal.id,
+                    commit_id, reveal.id,
                 ));
                 let file = File::create(path)?;
                 let mut writer = BufWriter::new(&file);
-                for (idx, (commit_chunk, reveal_chunk)) in commit_chunks.iter().zip(reveal_chunks.iter()).enumerate() {
-                    writer.write_all(format!("chunk {} commit {}\n", idx+1, commit_chunk.compute_txid()).as_bytes())?;
+                for (idx, (commit_chunk, reveal_chunk)) in
+                    commit_chunks.iter().zip(reveal_chunks.iter()).enumerate()
+                {
+                    writer.write_all(
+                        format!("chunk {} commit {}\n", idx + 1, commit_chunk.compute_txid())
+                            .as_bytes(),
+                    )?;
                     writer.write_all(hex_serialize_tx(commit_chunk).as_bytes())?;
                     writer.write_all(b"\n")?;
 
-                    writer.write_all(format!("chunk {} reveal {}\n", idx+1, reveal_chunk.compute_txid()).as_bytes())?;
+                    writer.write_all(
+                        format!("chunk {} reveal {}\n", idx + 1, reveal_chunk.compute_txid())
+                            .as_bytes(),
+                    )?;
                     writer.write_all(hex_serialize_tx(reveal_chunk).as_bytes())?;
                     writer.write_all(b"\n")?;
                 }
@@ -126,8 +132,7 @@ impl TxListWithReveal for DaTxs {
                 let commit_id = commit.compute_txid();
                 path.push(format!(
                     "batch_proof_method_id_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id,
-                    reveal.id
+                    commit_id, reveal.id
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
@@ -145,8 +150,7 @@ impl TxListWithReveal for DaTxs {
                 let commit_id = commit.compute_txid();
                 path.push(format!(
                     "sequencer_commitment_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id,
-                    reveal.id
+                    commit_id, reveal.id
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
