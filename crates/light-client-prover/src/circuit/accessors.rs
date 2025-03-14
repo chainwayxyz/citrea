@@ -82,6 +82,46 @@ impl<S: Storage> ChunkAccessor<S> {
     }
 }
 
+pub struct SequencerCommitmentAccessor<S: Storage> {
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SequencerCommitmentAccessor<S> {
+    const PREFIX: u8 = b's';
+
+    /// Returns sequencer commitment if it exists
+    pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<RefCount<[u8]>> {
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
+        let mut key = [0u8; 33]; // 1 prefix + 32 hash
+
+        key[0] = Self::PREFIX;
+        key[1..].copy_from_slice(&index.to_be_bytes());
+
+        let p = Prefix::from_slice(&key);
+
+        let key = StorageKey::singleton_owned(p);
+
+        working_set.get(&key).map(|v| v.into())
+    }
+
+    /// Insert a new sequencer commitment to the LCP state
+    pub fn insert(index: u32, commitment: Vec<u8>, working_set: &mut WorkingSet<S>) {
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
+        let mut key = [0u8; 33]; // 1 prefix + 32 hash
+
+        key[0] = Self::PREFIX;
+        key[1..].copy_from_slice(&index.to_be_bytes());
+
+        let p = Prefix::from_slice(&key);
+
+        let key = StorageKey::singleton_owned(p);
+
+        let value: StorageValue = commitment.into();
+
+        working_set.set(&key, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use sov_modules_api::WorkingSet;
