@@ -1,6 +1,7 @@
 mod call;
 mod genesis;
 mod hooks;
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
 pub use genesis::*;
 
@@ -14,9 +15,10 @@ mod tests;
 
 // "Given DA slot hasn't been used for more than N l2 block blocks."
 use sov_modules_api::{Address, Context, DaSpec, ModuleInfo, StateValue, WorkingSet};
-use sov_state::codec::BcsCodec;
+use sov_state::codec::{BcsCodec, BorshCodec};
+use sov_state::storage::StateValueCodec;
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, BorshSerialize, BorshDeserialize)]
 struct RuleEnforcerData {
     ///  Maximum number of L2 blocks per L1 slot.
     max_l2_blocks_per_l1: u32,
@@ -28,6 +30,20 @@ struct RuleEnforcerData {
     last_timestamp: u64,
 }
 
+impl StateValueCodec<RuleEnforcerData> for BorshCodec {
+    type Error = std::io::Error;
+
+    fn encode_value(&self, value: &RuleEnforcerData) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + 32 + 4 + 8);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
+    }
+
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<RuleEnforcerData, Self::Error> {
+        borsh::from_slice(bytes)
+    }
+}
+
 #[derive(ModuleInfo, Clone)]
 #[module(rename = "L")]
 pub struct L2BlockRuleEnforcer<C: Context, Da: DaSpec> {
@@ -35,11 +51,11 @@ pub struct L2BlockRuleEnforcer<C: Context, Da: DaSpec> {
     #[address]
     address: C::Address,
     #[state]
-    pub(crate) data: StateValue<RuleEnforcerData, BcsCodec>,
+    pub(crate) data: StateValue<RuleEnforcerData, BorshCodec>,
     /// Authority address. Address of the sequencer.
     /// This address is allowed to modify the max L2 blocks per L1.
     #[state]
-    pub(crate) authority: StateValue<Address, BcsCodec>,
+    pub(crate) authority: StateValue<Address, BorshCodec>,
     /// Phantom state using the da type.
     /// This is used to make sure that the state is generic over the DA type.
     #[allow(dead_code)]

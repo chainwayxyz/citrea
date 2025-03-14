@@ -34,6 +34,20 @@ impl StateKeyCodec<ModuleAddress> for BorshCodec {
     }
 }
 
+impl StateValueCodec<ModuleAddress> for BorshCodec {
+    type Error = std::io::Error;
+
+    fn encode_value(&self, value: &ModuleAddress) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(32);
+        BorshSerialize::serialize(value, &mut buf).unwrap();
+        buf
+    }
+
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<ModuleAddress, Self::Error> {
+        borsh::from_slice(bytes)
+    }
+}
+
 impl StateValueCodec<AlloyU256> for BorshCodec {
     type Error = std::io::Error;
 
