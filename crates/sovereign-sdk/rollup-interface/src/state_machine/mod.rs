@@ -3,6 +3,7 @@
 pub mod block;
 pub mod da;
 pub mod stf;
+pub mod transaction;
 pub mod witness;
 pub mod zk;
 

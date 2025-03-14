@@ -1,11 +1,11 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! l2 block
 
-use std::borrow::Cow;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::{Digest, Output};
 use serde::{Deserialize, Serialize};
+
+use super::transaction::Transaction;
 
 /// L2 block header
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
@@ -53,7 +53,7 @@ impl L2Header {
 }
 
 /// Signed L2 header
-#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
+#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct SignedL2Header {
     /// L2 header
     pub inner: L2Header,
@@ -61,36 +61,31 @@ pub struct SignedL2Header {
     pub hash: [u8; 32],
     /// Header signature
     pub signature: Vec<u8>,
-    /// Sequencer pub key
-    pub pub_key: Vec<u8>,
 }
 
 impl SignedL2Header {
     /// Crate new L2Block from header, hash and signature
-    pub fn new(header: L2Header, hash: [u8; 32], signature: Vec<u8>, pub_key: Vec<u8>) -> Self {
+    pub fn new(header: L2Header, hash: [u8; 32], signature: Vec<u8>) -> Self {
         Self {
             inner: header,
             hash,
             signature,
-            pub_key,
         }
     }
 }
 
 /// Signed L2 block
-/// `blobs`, `deposit_data`, `da_slot_height` and `da_slot_hash` are kept for compatibility reason
-/// and hash checking against PreFork2 *L2Blocks structs.
-#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-pub struct L2Block<'txs, Tx: Clone + BorshSerialize> {
+#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone, Debug)]
+pub struct L2Block {
     /// Header
     pub header: SignedL2Header,
     /// Txs of signed batch
-    pub txs: Cow<'txs, [Tx]>,
+    pub txs: Vec<Transaction>,
 }
 
-impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
+impl L2Block {
     /// New L2Block from headers and txs
-    pub fn new(header: SignedL2Header, txs: Cow<'txs, [Tx]>) -> Self {
+    pub fn new(header: SignedL2Header, txs: Vec<Transaction>) -> Self {
         Self { header, txs }
     }
 
@@ -109,11 +104,6 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
         self.header.inner.prev_hash
     }
 
-    /// Public key of signer
-    pub fn sequencer_pub_key(&self) -> &[u8] {
-        self.header.pub_key.as_ref()
-    }
-
     /// Signature of the sequencer
     pub fn signature(&self) -> &[u8] {
         self.header.signature.as_slice()
@@ -122,11 +112,6 @@ impl<'txs, Tx: Clone + BorshSerialize> L2Block<'txs, Tx> {
     /// L1 fee rate
     pub fn l1_fee_rate(&self) -> u128 {
         self.header.inner.l1_fee_rate
-    }
-
-    /// Public key of sequencer
-    pub fn pub_key(&self) -> &[u8] {
-        self.header.pub_key.as_slice()
     }
 
     /// Sequencer block timestamp

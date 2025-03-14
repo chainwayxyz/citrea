@@ -1,6 +1,6 @@
 use sov_modules_api::hooks::TxHooks;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, Context, L2BlockHookError, SpecId, StateMapAccessor, WorkingSet};
+use sov_rollup_interface::transaction::Transaction;
 
 use crate::{Account, Accounts};
 

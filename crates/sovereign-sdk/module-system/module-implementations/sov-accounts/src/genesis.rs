@@ -3,8 +3,9 @@ use core::result::Result;
 use borsh::BorshDeserialize;
 use hex::FromHex;
 use serde::{Deserialize, Deserializer};
-use sov_modules_api::default_signature::K256PublicKey;
-use sov_modules_api::{Address, L2BlockHookError, PublicKey, StateMapAccessor, WorkingSet};
+use sov_keys::default_signature::K256PublicKey;
+use sov_keys::PublicKey;
+use sov_modules_api::{Address, L2BlockHookError, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -83,8 +84,8 @@ impl<C: sov_modules_api::Context> Accounts<C> {
 
 #[cfg(all(test, feature = "native"))]
 mod tests {
-    use sov_modules_api::default_signature::DefaultPublicKey;
-    use sov_modules_api::PublicKeyHex;
+    use sov_keys::default_signature::DefaultPublicKey;
+    use sov_keys::PublicKeyHex;
 
     use super::*;
 

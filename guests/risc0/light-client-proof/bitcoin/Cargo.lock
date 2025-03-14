@@ -792,6 +792,7 @@ dependencies = [
  "platforms",
  "rustc_version",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -919,6 +920,7 @@ version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
+ "pkcs8",
  "serde",
  "signature",
 ]
@@ -930,9 +932,11 @@ source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.2-ris
 dependencies = [
  "curve25519-dalek",
  "ed25519",
+ "rand_core",
  "serde",
  "sha2",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -2019,6 +2023,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-keys"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derive_more",
+ "digest",
+ "ed25519-dalek",
+ "hex",
+ "k256",
+ "rand",
+ "schemars",
+ "serde",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "sov-modules-api"
 version = "0.6.0"
 dependencies = [
@@ -2030,9 +2052,9 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "jmt",
- "k256",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-rollup-interface",
  "sov-state",
@@ -2053,6 +2075,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-rollup-interface",
  "thiserror",
  "tinyvec",
@@ -2070,6 +2093,7 @@ dependencies = [
  "jmt",
  "rs_merkle",
  "serde",
+ "sov-keys",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -2086,6 +2110,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
 ]
 
 [[package]]
@@ -2101,6 +2126,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-rollup-interface",
 ]

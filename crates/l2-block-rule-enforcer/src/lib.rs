@@ -29,6 +29,7 @@ struct RuleEnforcerData {
 }
 
 #[derive(ModuleInfo, Clone)]
+#[module(rename = "L")]
 pub struct L2BlockRuleEnforcer<C: Context, Da: DaSpec> {
     /// Address of the L2BlockRuleEnforcer module.
     #[address]

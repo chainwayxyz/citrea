@@ -1,22 +1,23 @@
-//! Asymmetric cryptography primitive definitions
+//! Cryptographic primitives for the Sovereign SDK.
 
-use core::fmt::Debug;
-use core::hash::Hash;
+use std::fmt::Debug;
+use std::hash::Hash;
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
-use sov_rollup_interface::RollupAddress;
+use default_signature::SigVerificationError;
 
-use crate::common::SigVerificationError;
+pub mod default_signature;
+mod pub_key_hex;
+mod serde_pub_key;
 
-/// Signature used in the Module System.
+pub use pub_key_hex::PublicKeyHex;
+
 pub trait Signature:
-    BorshDeserialize
-    + BorshSerialize
+    borsh::BorshDeserialize
+    + borsh::BorshSerialize
     + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
     + Eq
     + Clone
-    + Debug
+    + std::fmt::Debug
     + Send
     + Sync
 {
@@ -29,8 +30,8 @@ pub trait Signature:
 
 /// PublicKey used in the Module System.
 pub trait PublicKey:
-    BorshDeserialize
-    + BorshSerialize
+    borsh::BorshDeserialize
+    + borsh::BorshSerialize
     + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
     + Eq
     + Hash
@@ -38,11 +39,11 @@ pub trait PublicKey:
     + Debug
     + Send
     + Sync
-    + Serialize
-    + for<'a> Deserialize<'a>
+    + serde::Serialize
+    + for<'a> serde::Deserialize<'a>
 {
     /// Returns a representation of the public key that can be represented as a rollup address.
-    fn to_address<A: RollupAddress>(&self) -> A;
+    fn to_address<A: From<[u8; 32]>>(&self) -> A;
 }
 
 /// A PrivateKey used in the Module System.
@@ -66,7 +67,7 @@ pub trait PrivateKey:
     fn sign(&self, msg: &[u8]) -> Self::Signature;
 
     /// Returns a representation of the public key that can be represented as a rollup address.
-    fn to_address<A: RollupAddress>(&self) -> A {
+    fn to_address<A: From<[u8; 32]>>(&self) -> A {
         self.pub_key().to_address::<A>()
     }
 }

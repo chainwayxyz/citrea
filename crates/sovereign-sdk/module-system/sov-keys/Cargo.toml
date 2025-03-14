@@ -1,0 +1,39 @@
+[package]
+name = "sov-keys"
+description = "Keys primitives for the Sovereign SDK"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+resolver = "2"
+
+[dependencies]
+borsh = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"], optional = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+schemars = { workspace = true, optional = true, features = [] }
+rand = { workspace = true, optional = true }
+derive_more = { workspace = true, default-features = true }
+
+ed25519-dalek = { workspace = true }
+k256 = { workspace = true, features = ["ecdsa", "serde", "pem"]}
+hex = { workspace = true }
+digest = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+bincode = { workspace = true }
+
+[features]
+default = ["native"]
+native = [
+    "serde", "rand",
+    "schemars",
+    "ed25519-dalek/default",
+    "ed25519-dalek/rand_core",
+]
+testing = []
