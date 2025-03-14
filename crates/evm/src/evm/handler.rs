@@ -25,20 +25,20 @@ use tracing::instrument;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
-/// 6 bytes of prefix ("Evm/i/") + 20 bytes of address = 26 bytes
+/// 4 bytes of prefix ("E/i/") + 20 bytes of address = 24 bytes
 const ACCOUNT_IDX_KEY_SIZE: usize = 26;
 
 /// Account index is 64 bit integer
 const ACCOUNT_IDX_SIZE: usize = 8;
 
-/// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak  internally for evm operations
+/// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak internally for evm operations
 const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
-/// 6 bytes of prefix ("Evm/a/") + 8 bytes of account id = 14 bytes
+/// 4 bytes of prefix ("E/a/") + 8 bytes of account id = 12 bytes
 const DB_ACCOUNT_KEY_SIZE: usize = 14;
 
-/// 6 bytes of prefix ("Evm/S/") + 32 bytes of storage hash = 38 bytes
+/// 4 bytes of prefix ("E/S/") + 32 bytes of storage hash = 36 bytes
 const STORAGE_KEY_SIZE: usize = 38;
 
 /// Storage value is 32 bytes
