@@ -24,8 +24,6 @@ pub struct StoredL2Block {
     pub state_root: StorageRootHash,
     /// Sequencer signature
     pub signature: Vec<u8>,
-    /// Sequencer public key
-    pub pub_key: Vec<u8>,
     /// L1 fee rate
     pub l1_fee_rate: u128,
     /// Sequencer's block timestamp
@@ -55,7 +53,7 @@ impl TryFrom<StoredL2Block> for L2Block {
             val.tx_merkle_root,
             val.timestamp,
         );
-        let signed_header = SignedL2Header::new(header, val.hash, val.signature, val.pub_key);
+        let signed_header = SignedL2Header::new(header, val.hash, val.signature);
 
         let res = L2Block::new(signed_header, parsed_txs);
         Ok(res)
@@ -72,7 +70,6 @@ impl TryFrom<StoredL2Block> for L2BlockResponse {
             prev_hash: value.prev_hash,
             state_root: value.state_root,
             signature: value.signature,
-            pub_key: value.pub_key,
             l1_fee_rate: value.l1_fee_rate,
             timestamp: value.timestamp,
             tx_merkle_root: value.tx_merkle_root,

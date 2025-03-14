@@ -109,7 +109,6 @@ pub fn test_pruning_ledger_db_l2_blocks() {
 
             state_root: [i as u8; 32],
             signature: vec![],
-            pub_key: vec![0; 32],
             tx_merkle_root: [0; 32],
             l1_fee_rate: 0,
             timestamp: i,
@@ -220,7 +219,6 @@ pub fn test_pruning_ledger_db_batch_prover_l2_blocks() {
 
             state_root: [i as u8; 32],
             signature: vec![],
-            pub_key: vec![0; 32],
             tx_merkle_root: [0; 32],
             l1_fee_rate: 0,
             timestamp: i,
