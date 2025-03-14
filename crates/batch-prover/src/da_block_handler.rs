@@ -449,7 +449,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
                 sequencer_commitments[index - 1].l2_end_block_number,
                 sequencer_commitment.l2_start_block_number
             );
-            result_range.push(*range.start()..=(index - 1));
+            result_range.push(range);
             // Reset the cumulative state diff to be equal to the current commitment state diff
             cumulative_state_diff = sequencer_commitment_state_diff;
             range = index..=index;
