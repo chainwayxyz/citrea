@@ -48,6 +48,7 @@ impl StateValueCodec<Account> for BorshCodec {
 /// A module responsible for managing accounts on the rollup.
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
+#[module(rename = "A")]
 pub struct Accounts<C: Context> {
     /// The address of the sov-accounts module.
     #[address]

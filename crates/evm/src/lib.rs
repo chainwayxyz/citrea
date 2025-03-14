@@ -73,6 +73,7 @@ type AccountId = u64;
 /// The citrea-evm module provides compatibility with the EVM.
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
+#[module(rename = "E")]
 pub struct Evm<C: sov_modules_api::Context> {
     /// The address of the evm module.
     #[address]
