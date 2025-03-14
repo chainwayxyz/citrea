@@ -132,11 +132,11 @@ where
         });
     }
 
-    sequencer_commitments.sort();
-
     if sequencer_commitments.is_empty() {
         return Err(L1ProcessingError::DuplicateCommitments { l1_height });
     }
+
+    sequencer_commitments.sort_by_key(|c| c.index);
 
     let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
         l1_block.header().clone();
