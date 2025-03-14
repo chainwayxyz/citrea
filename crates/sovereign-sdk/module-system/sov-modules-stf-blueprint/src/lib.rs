@@ -277,7 +277,12 @@ where
         offchain_witness: Witness,
         l2_block: &L2Block,
     ) -> Result<L2BlockResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError> {
-        let l2_block_info = HookL2BlockInfo::new(l2_block, *pre_state_root, current_spec);
+        let l2_block_info = HookL2BlockInfo::new(
+            l2_block,
+            *pre_state_root,
+            current_spec,
+            sequencer_public_key.to_vec(),
+        );
 
         let mut working_set = if let Some(state_log) = cumulative_state_log {
             WorkingSet::with_witness_and_log(
@@ -304,9 +309,8 @@ where
         let res = self.finalize_l2_block(current_spec, working_set, pre_state);
 
         native_debug!(
-            "l2 block with hash: {:?} from sequencer {:?} has been successfully applied",
+            "l2 block with hash: {:?} has been successfully applied",
             hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
         );
 
         Ok(res)

@@ -61,18 +61,15 @@ pub struct SignedL2Header {
     pub hash: [u8; 32],
     /// Header signature
     pub signature: Vec<u8>,
-    /// Sequencer pub key
-    pub pub_key: Vec<u8>,
 }
 
 impl SignedL2Header {
     /// Crate new L2Block from header, hash and signature
-    pub fn new(header: L2Header, hash: [u8; 32], signature: Vec<u8>, pub_key: Vec<u8>) -> Self {
+    pub fn new(header: L2Header, hash: [u8; 32], signature: Vec<u8>) -> Self {
         Self {
             inner: header,
             hash,
             signature,
-            pub_key,
         }
     }
 }
@@ -107,11 +104,6 @@ impl L2Block {
         self.header.inner.prev_hash
     }
 
-    /// Public key of signer
-    pub fn sequencer_pub_key(&self) -> &[u8] {
-        self.header.pub_key.as_ref()
-    }
-
     /// Signature of the sequencer
     pub fn signature(&self) -> &[u8] {
         self.header.signature.as_slice()
@@ -120,11 +112,6 @@ impl L2Block {
     /// L1 fee rate
     pub fn l1_fee_rate(&self) -> u128 {
         self.header.inner.l1_fee_rate
-    }
-
-    /// Public key of sequencer
-    pub fn pub_key(&self) -> &[u8] {
-        self.header.pub_key.as_slice()
     }
 
     /// Sequencer block timestamp

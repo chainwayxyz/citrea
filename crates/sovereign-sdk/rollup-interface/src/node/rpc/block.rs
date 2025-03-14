@@ -21,9 +21,6 @@ pub struct L2HeaderResponse {
     /// Signature of the batch
     #[serde(with = "hex::serde")]
     pub signature: Vec<u8>,
-    /// Public key of the signer
-    #[serde(with = "hex::serde")]
-    pub pub_key: Vec<u8>,
     /// Base layer fee rate sats/wei etc. per byte.
     pub l1_fee_rate: u128,
     /// Sequencer's block timestamp.
@@ -64,12 +61,7 @@ impl TryFrom<L2BlockResponse> for L2Block {
             val.header.tx_merkle_root,
             val.header.timestamp,
         );
-        let signed_header = SignedL2Header::new(
-            header,
-            val.header.hash,
-            val.header.signature,
-            val.header.pub_key,
-        );
+        let signed_header = SignedL2Header::new(header, val.header.hash, val.header.signature);
 
         let res = L2Block::new(signed_header, parsed_txs);
         Ok(res)

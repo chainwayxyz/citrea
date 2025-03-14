@@ -214,7 +214,6 @@ impl SharedLedgerOps for LedgerDB {
             txs,
             state_root: l2_block.state_root(),
             signature: l2_block.signature().to_vec(),
-            pub_key: l2_block.pub_key().to_vec(),
             l1_fee_rate: l2_block.l1_fee_rate(),
             timestamp: l2_block.timestamp(),
             tx_merkle_root: l2_block.tx_merkle_root(),

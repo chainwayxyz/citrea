@@ -504,9 +504,8 @@ where
         blobs: Vec<Vec<u8>>,
     ) -> anyhow::Result<StateDiff> {
         debug!(
-            "Saving L2 block with hash: {:?} from sequencer {:?}",
+            "Saving L2 block with hash: {:?}",
             hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
         );
 
         let state_root_transition = l2_block_result.state_root_transition;
@@ -779,10 +778,8 @@ where
         let priv_key = K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
 
         let signature = priv_key.sign(&hash);
-        let pub_key = priv_key.pub_key();
         let signature = borsh::to_vec(&signature)?;
-        let pub_key = borsh::to_vec(&pub_key)?;
-        Ok(SignedL2Header::new(header, hash, signature, pub_key))
+        Ok(SignedL2Header::new(header, hash, signature))
     }
 
     /// Fetches nonce from state
