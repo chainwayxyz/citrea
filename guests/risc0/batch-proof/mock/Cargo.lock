@@ -3131,8 +3131,27 @@ dependencies = [
  "borsh",
  "hex",
  "serde",
+ "sov-keys",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-keys"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derive_more",
+ "digest 0.10.7",
+ "hex",
+ "k256",
+ "rand",
+ "schemars",
+ "serde",
+ "sha2",
  "thiserror",
 ]
 
@@ -3162,9 +3181,9 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "jmt",
- "k256",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-modules-macros",
  "sov-rollup-interface",
@@ -3186,6 +3205,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-rollup-interface",
  "thiserror",
  "tinyvec",
@@ -3213,6 +3233,7 @@ dependencies = [
  "jmt",
  "rs_merkle",
  "serde",
+ "sov-keys",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -3229,6 +3250,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
 ]
 
 [[package]]
@@ -3244,6 +3266,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-rollup-interface",
 ]

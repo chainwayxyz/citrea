@@ -1,8 +1,7 @@
 use derive_more::Display;
-use ed25519_dalek::{VerifyingKey as DalekPublicKey, PUBLIC_KEY_LENGTH};
 
 /// A hexadecimal representation of a PublicKey.
-use crate::default_signature::{DefaultPublicKey, K256PublicKey};
+use crate::default_signature::K256PublicKey;
 
 #[derive(
     serde::Serialize,
@@ -57,30 +56,6 @@ impl From<PublicKeyHex> for String {
     }
 }
 
-impl From<&DefaultPublicKey> for PublicKeyHex {
-    fn from(pub_key: &DefaultPublicKey) -> Self {
-        let hex = hex::encode(pub_key.pub_key.as_bytes());
-        Self { hex }
-    }
-}
-
-impl TryFrom<&PublicKeyHex> for DefaultPublicKey {
-    type Error = anyhow::Error;
-
-    fn try_from(pub_key: &PublicKeyHex) -> Result<Self, Self::Error> {
-        let bytes = hex::decode(&pub_key.hex)?;
-
-        let bytes: [u8; PUBLIC_KEY_LENGTH] = bytes
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid public key size"))?;
-
-        let pub_key = DalekPublicKey::from_bytes(&bytes)
-            .map_err(|_| anyhow::anyhow!("Invalid public key"))?;
-
-        Ok(DefaultPublicKey { pub_key })
-    }
-}
-
 impl From<&K256PublicKey> for PublicKeyHex {
     fn from(pub_key: &K256PublicKey) -> Self {
         let hex = hex::encode(pub_key.pub_key.to_sec1_bytes());
@@ -109,7 +84,6 @@ impl TryFrom<&PublicKeyHex> for K256PublicKey {
 mod tests {
     use super::*;
     use crate::default_signature::k256_private_key::K256PrivateKey;
-    use crate::default_signature::private_key::DefaultPrivateKey;
     use crate::PrivateKey;
 
     #[test]
@@ -121,14 +95,6 @@ mod tests {
     }
 
     #[test]
-    fn test_pub_key_hex() {
-        let pub_key = DefaultPrivateKey::generate().pub_key();
-        let pub_key_hex = PublicKeyHex::from(&pub_key);
-        let converted_pub_key = DefaultPublicKey::try_from(&pub_key_hex).unwrap();
-        assert_eq!(pub_key, converted_pub_key);
-    }
-
-    #[test]
     fn test_k256_pub_key_hex_str() {
         let key = "0300c27ad8a28f9e69f72984612c435edef385907101315f0317f0632a73aa706a";
         let pub_key_hex_lower: PublicKeyHex = key.try_into().unwrap();
@@ -136,18 +102,6 @@ mod tests {
 
         let pub_key_lower = K256PublicKey::try_from(&pub_key_hex_lower).unwrap();
         let pub_key_upper = K256PublicKey::try_from(&pub_key_hex_upper).unwrap();
-
-        assert_eq!(pub_key_lower, pub_key_upper)
-    }
-
-    #[test]
-    fn test_pub_key_hex_str() {
-        let key = "022e229198d957bf0c0a504e7d7bcec99a1d62cccc7861ed2452676ad0323ad8";
-        let pub_key_hex_lower: PublicKeyHex = key.try_into().unwrap();
-        let pub_key_hex_upper: PublicKeyHex = key.to_uppercase().try_into().unwrap();
-
-        let pub_key_lower = DefaultPublicKey::try_from(&pub_key_hex_lower).unwrap();
-        let pub_key_upper = DefaultPublicKey::try_from(&pub_key_hex_upper).unwrap();
 
         assert_eq!(pub_key_lower, pub_key_upper)
     }

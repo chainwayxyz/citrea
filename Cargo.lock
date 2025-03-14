@@ -8245,7 +8245,6 @@ dependencies = [
  "borsh",
  "derive_more",
  "digest 0.10.7",
- "ed25519-dalek",
  "hex",
  "k256",
  "rand",

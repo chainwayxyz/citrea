@@ -1908,6 +1908,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-keys"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derive_more",
+ "digest",
+ "hex",
+ "k256",
+ "rand",
+ "schemars",
+ "serde",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "sov-mock-da"
 version = "0.6.0"
 dependencies = [
@@ -1933,9 +1950,9 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "jmt",
- "k256",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-rollup-interface",
  "sov-state",
@@ -1956,6 +1973,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-rollup-interface",
  "thiserror",
  "tinyvec",
@@ -1973,6 +1991,7 @@ dependencies = [
  "jmt",
  "rs_merkle",
  "serde",
+ "sov-keys",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -1989,6 +2008,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
 ]
 
 [[package]]
@@ -2004,6 +2024,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-rollup-interface",
 ]

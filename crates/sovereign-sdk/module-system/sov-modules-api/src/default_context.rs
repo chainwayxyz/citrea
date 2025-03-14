@@ -3,9 +3,8 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "native")]
-use sov_keys::default_signature::private_key::DefaultPrivateKey;
-use sov_keys::default_signature::{DefaultPublicKey, DefaultSignature};
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::{K256PublicKey, K256Signature};
 use sov_modules_core::{Address, Context, Spec};
 use sov_rollup_interface::spec::SpecId;
 #[cfg(feature = "native")]
@@ -26,10 +25,10 @@ pub struct DefaultContext {
 impl Spec for DefaultContext {
     type Address = Address;
     type Storage = ProverStorage;
-    type PrivateKey = DefaultPrivateKey;
-    type PublicKey = DefaultPublicKey;
+    type PrivateKey = K256PrivateKey;
+    type PublicKey = K256PublicKey;
     type Hasher = sha2::Sha256;
-    type Signature = DefaultSignature;
+    type Signature = K256Signature;
 }
 
 #[cfg(feature = "native")]
@@ -74,10 +73,10 @@ impl Spec for ZkDefaultContext {
     type Address = Address;
     type Storage = ZkStorage;
     #[cfg(feature = "native")]
-    type PrivateKey = DefaultPrivateKey;
-    type PublicKey = DefaultPublicKey;
+    type PrivateKey = K256PrivateKey;
+    type PublicKey = K256PublicKey;
     type Hasher = sha2::Sha256;
-    type Signature = DefaultSignature;
+    type Signature = K256Signature;
 }
 
 impl Context for ZkDefaultContext {

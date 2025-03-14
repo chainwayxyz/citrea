@@ -1,6 +1,5 @@
 use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
 use borsh::BorshSerialize;
-use sov_keys::default_signature::DefaultPublicKey;
 use sov_modules_core::{Address as ModuleAddress, EncodeKeyLike};
 
 use super::{StateCodec, StateKeyCodec};
@@ -77,28 +76,6 @@ impl StateValueCodec<Vec<u8>> for BorshCodec {
     }
 
     fn try_decode_value(&self, bytes: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        borsh::from_slice(bytes)
-    }
-}
-
-impl StateKeyCodec<DefaultPublicKey> for BorshCodec {
-    fn encode_key(&self, value: &DefaultPublicKey) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(32);
-        BorshSerialize::serialize(value, &mut buf).unwrap();
-        buf
-    }
-}
-
-impl StateValueCodec<DefaultPublicKey> for BorshCodec {
-    type Error = std::io::Error;
-
-    fn encode_value(&self, value: &DefaultPublicKey) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(32);
-        BorshSerialize::serialize(value, &mut buf).unwrap();
-        buf
-    }
-
-    fn try_decode_value(&self, bytes: &[u8]) -> Result<DefaultPublicKey, Self::Error> {
         borsh::from_slice(bytes)
     }
 }

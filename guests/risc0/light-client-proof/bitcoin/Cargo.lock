@@ -792,7 +792,6 @@ dependencies = [
  "platforms",
  "rustc_version",
  "subtle",
- "zeroize",
 ]
 
 [[package]]
@@ -920,7 +919,6 @@ version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
- "pkcs8",
  "serde",
  "signature",
 ]
@@ -932,11 +930,9 @@ source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.2-ris
 dependencies = [
  "curve25519-dalek",
  "ed25519",
- "rand_core",
  "serde",
  "sha2",
  "subtle",
- "zeroize",
 ]
 
 [[package]]
@@ -2030,7 +2026,6 @@ dependencies = [
  "borsh",
  "derive_more",
  "digest",
- "ed25519-dalek",
  "hex",
  "k256",
  "rand",
