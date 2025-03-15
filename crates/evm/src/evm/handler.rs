@@ -26,7 +26,7 @@ use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 /// 4 bytes of prefix ("E/i/") + 20 bytes of address = 24 bytes
-const ACCOUNT_IDX_KEY_SIZE: usize = 26;
+const ACCOUNT_IDX_KEY_SIZE: usize = 24;
 
 /// Account index is 64 bit integer
 const ACCOUNT_IDX_SIZE: usize = 8;
@@ -36,10 +36,10 @@ const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
 /// 4 bytes of prefix ("E/a/") + 8 bytes of account id = 12 bytes
-const DB_ACCOUNT_KEY_SIZE: usize = 14;
+const DB_ACCOUNT_KEY_SIZE: usize = 12;
 
 /// 4 bytes of prefix ("E/S/") + 32 bytes of storage hash = 36 bytes
-const STORAGE_KEY_SIZE: usize = 38;
+const STORAGE_KEY_SIZE: usize = 36;
 
 /// Storage value is 32 bytes
 const STORAGE_VALUE_SIZE: usize = 32;
