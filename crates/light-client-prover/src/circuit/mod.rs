@@ -290,8 +290,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     {
                         SequencerCommitmentAccessor::<S>::insert(
                             commitment.index,
-                            borsh::to_vec(&commitment)
-                                .expect("Commitment serialization should not fail"),
+                            commitment,
                             &mut working_set,
                         )
                     }

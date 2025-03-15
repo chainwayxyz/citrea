@@ -3,6 +3,7 @@
 /// don't want the serialization overhead.
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_modules_core::{Prefix, Storage, StorageKey, StorageValue};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::RefCount;
 
 pub struct BlockHashAccessor<S: Storage> {
@@ -101,16 +102,21 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
     }
 
     /// Returns sequencer commitment if it exists
-    pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<RefCount<[u8]>> {
+    pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<SequencerCommitment> {
         let key = Self::key(index);
 
-        working_set.get(&key).map(|v| v.into())
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes).expect("Commitment deserialization should not fail")
+        })
     }
 
     /// Insert a new sequencer commitment to the LCP state
-    pub fn insert(index: u32, commitment: Vec<u8>, working_set: &mut WorkingSet<S>) {
+    pub fn insert(index: u32, commitment: SequencerCommitment, working_set: &mut WorkingSet<S>) {
         let key = Self::key(index);
-        let value: StorageValue = commitment.into();
+        let value: StorageValue = borsh::to_vec(&commitment)
+            .expect("Commitment serialization should not fail")
+            .into();
         working_set.set(&key, value);
     }
 }
