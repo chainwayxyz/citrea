@@ -20,7 +20,7 @@ use crate::circuit::utils::{collect_unchained_outputs, recursive_match_state_roo
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
-mod accessors;
+pub(crate) mod accessors;
 /// Initial values that are used to initialize the light client proof circuit.
 pub mod initial_values;
 pub(crate) mod utils;
