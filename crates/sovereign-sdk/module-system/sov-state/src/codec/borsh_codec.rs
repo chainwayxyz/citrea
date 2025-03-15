@@ -73,7 +73,7 @@ impl StateValueCodec<AlloyB256> for BorshCodec {
     type Error = std::io::Error;
 
     fn encode_value(&self, value: &AlloyB256) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(32);
+        let mut buf = vec![0; 32];
 
         buf.copy_from_slice(value.as_slice());
         buf
