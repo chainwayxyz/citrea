@@ -126,7 +126,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Removes the oldest blockhash in `finalize_hook`
     /// Used by the EVM to calculate the `blockhash` opcode.
     #[state(rename = "h")]
-    pub(crate) latest_block_hashes: sov_modules_api::StateMap<u64, B256, BcsCodec>,
+    pub(crate) latest_block_hashes: sov_modules_api::StateMap<u64, B256, BorshCodec>,
 
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
@@ -144,7 +144,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: block_hash => block_number mapping,
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) block_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
+    pub(crate) block_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BorshCodec>,
 
     #[cfg(feature = "native")]
     #[state]
@@ -154,7 +154,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) transaction_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
+    pub(crate) transaction_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BorshCodec>,
 
     #[cfg(feature = "native")]
     #[state]

@@ -1,4 +1,4 @@
-use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
+use alloy_primitives::{Address as AlloyAddress, B256 as AlloyB256, U256 as AlloyU256};
 use borsh::BorshSerialize;
 use sov_keys::default_signature::DefaultPublicKey;
 use sov_modules_core::{Address as ModuleAddress, EncodeKeyLike};
@@ -15,6 +15,12 @@ impl StateKeyCodec<AlloyU256> for BorshCodec {
         let mut buf = Vec::with_capacity(32);
         BorshSerialize::serialize(value.as_limbs(), &mut buf).unwrap();
         buf
+    }
+}
+
+impl StateKeyCodec<AlloyB256> for BorshCodec {
+    fn encode_key(&self, value: &AlloyB256) -> Vec<u8> {
+        value.as_slice().to_vec()
     }
 }
 
@@ -60,6 +66,29 @@ impl StateValueCodec<AlloyU256> for BorshCodec {
     fn try_decode_value(&self, bytes: &[u8]) -> Result<AlloyU256, Self::Error> {
         let s: [u64; 4] = borsh::from_slice(bytes)?;
         Ok(AlloyU256::from_limbs(s))
+    }
+}
+
+impl StateValueCodec<AlloyB256> for BorshCodec {
+    type Error = std::io::Error;
+
+    fn encode_value(&self, value: &AlloyB256) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(32);
+
+        buf.copy_from_slice(value.as_slice());
+        buf
+    }
+
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<AlloyB256, Self::Error> {
+        // from slice panics if the length is not 32
+        if bytes.len() != 32 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid B256 length",
+            ));
+        }
+
+        Ok(AlloyB256::from_slice(bytes))
     }
 }
 
