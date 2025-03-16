@@ -172,7 +172,7 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
 /// MockDA MockZkvm native context circuit runner implementation
 pub struct NativeCircuitRunner {
     circuit: LightClientProofCircuit<ProverStorage, MockDaSpec, MockZkvm>,
-    prover_storage_manager: ProverStorageManager,
+    pub(crate) prover_storage_manager: ProverStorageManager,
 }
 
 impl NativeCircuitRunner {
