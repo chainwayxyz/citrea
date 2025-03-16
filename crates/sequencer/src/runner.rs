@@ -263,11 +263,11 @@ where
                                 block_gas_limit
                             } => {
                                 if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
-                                break;
+                                    break;
                                 } else {
-                                invalid_senders.insert(evm_tx.transaction_id.sender);
-                                working_set_to_discard = working_set.revert().to_revertable();
-                                continue;
+                                    invalid_senders.insert(evm_tx.transaction_id.sender);
+                                    working_set_to_discard = working_set.revert().to_revertable();
+                                    continue;
                                 }
                             },
                             SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
@@ -686,10 +686,6 @@ where
             tokio::select! {
                 // Receive updates from DA layer worker.
                 l1_data = da_height_update_rx.recv() => {
-                    // Stop receiving updates from DA layer until we have caught up.
-                    if missed_da_blocks_count > 0 {
-                        continue;
-                    }
                     if let Some(l1_data) = l1_data {
                         (last_finalized_block, l1_fee_rate) = l1_data;
                         last_finalized_height = last_finalized_block.header().height();
