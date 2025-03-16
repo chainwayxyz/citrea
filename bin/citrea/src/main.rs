@@ -50,11 +50,8 @@ async fn main() -> anyhow::Result<()> {
         args.verbose = 0;
     }
     let logging_level = match args.verbose {
-        0 => tracing::Level::ERROR,
-        1 => tracing::Level::WARN,
-        2 => tracing::Level::INFO,
-        3 => tracing::Level::DEBUG,
-        4 => tracing::Level::TRACE,
+        1 => tracing::Level::DEBUG,
+        2 => tracing::Level::TRACE,
         _ => tracing::Level::INFO,
     };
     initialize_logging(logging_level);
