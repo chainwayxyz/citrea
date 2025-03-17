@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{address, b256, hex, LogData, TxKind, U64};
+use alloy_primitives::{address, b256, hex, FixedBytes, LogData, TxKind, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{BlockNumberOrTag, Log};
@@ -22,7 +22,7 @@ use crate::evm::primitive_types::Receipt;
 use crate::evm::system_contracts::BitcoinLightClient;
 use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
-use crate::system_contracts::{BridgeWrapper, ProxyAdmin};
+use crate::system_contracts::{BridgeWrapper, ProxyAdmin, WCBTC};
 use crate::system_events::{create_system_transactions, SystemEvent};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
@@ -65,7 +65,7 @@ fn initial_system_txs(
         init_block_txs_commitment,
         initial_coinbase_depth,
         init_block_num,
-        BRIDE_INITIALIZE_PARAMS.to_vec(),
+        BRIDGE_INITIALIZE_PARAMS.to_vec(),
     );
 
     let sys_signer_nonce = evm
@@ -1037,7 +1037,146 @@ fn test_change_upgrade_owner() {
     );
 }
 
-const BRIDE_INITIALIZE_PARAMS: &[u8; 256] = &[
+#[test]
+fn test_wcbtc() {
+    let (mut config, signer, _) = get_evm_config_starting_base_fee(
+        U256::from_str("1000000000000000000000").unwrap(),
+        None,
+        1,
+    );
+
+    config_push_contracts(&mut config, None);
+
+    let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
+    let l1_fee_rate = 1;
+    let mut l2_height = 2;
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Fork2,
+        sequencer_pub_key: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let signer_account = evm
+        .account_info(&signer.address(), &mut working_set)
+        .unwrap();
+
+    let signer_old_balance = signer_account.balance;
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    let deposit_amount = 100000000000000;
+
+    let deposit_tx = signer
+        .sign_default_transaction(
+            TxKind::Call(WCBTC::address()),
+            WCBTC::deposit().to_vec(),
+            0,
+            deposit_amount,
+        )
+        .unwrap();
+
+    evm.call(
+        CallMessage {
+            txs: vec![deposit_tx],
+        },
+        &context,
+        &mut working_set,
+    )
+    .unwrap();
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let balance : Bytes = evm
+        .get_call_inner(
+            TransactionRequest {
+                to: Some(TxKind::Call(WCBTC::address())),
+                input: TransactionInput::new(WCBTC::balance_of(signer.address())),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+            get_fork_fn_only_fork2(),
+        )
+        .unwrap();
+
+    let signer_account = evm
+        .account_info(&signer.address(), &mut working_set)
+        .unwrap();
+
+    let fixed: FixedBytes<32> = FixedBytes::from_slice(&balance);
+    assert_eq!(U256::from_be_bytes(fixed.into()), U256::from(deposit_amount));
+    
+    let signer_new_balance = signer_account.balance;
+    assert!(signer_new_balance <= signer_old_balance - U256::from(deposit_amount));
+
+    l2_height += 1;
+    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Fork2,
+        sequencer_pub_key: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    let withdraw_tx = signer
+        .sign_default_transaction(
+            TxKind::Call(WCBTC::address()),
+            WCBTC::withdraw(U256::from(deposit_amount)).to_vec(),
+            1,
+            0,
+        )
+        .unwrap();
+
+    evm.call(
+            CallMessage {
+                txs: vec![withdraw_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+    .unwrap();
+    
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let balance : Bytes = evm
+    .get_call_inner(
+        TransactionRequest {
+            to: Some(TxKind::Call(WCBTC::address())),
+            input: TransactionInput::new(WCBTC::balance_of(signer.address())),
+            ..Default::default()
+        },
+        None,
+        None,
+        None,
+        &mut working_set,
+        get_fork_fn_only_fork2(),
+    )
+    .unwrap();
+
+    let fixed : FixedBytes<32> = FixedBytes::from_slice(&balance);
+
+    assert_eq!(U256::from_be_bytes(fixed.into()), U256::ZERO);
+
+    let signer_account = evm
+        .account_info(&signer.address(), &mut working_set)
+        .unwrap();
+
+    assert!(signer_account.balance > signer_new_balance);
+}
+
+const BRIDGE_INITIALIZE_PARAMS: &[u8; 256] = &[
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 192, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 138, 199, 35,
