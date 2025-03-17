@@ -148,7 +148,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     fn create_reorg_sequencer(
         &self,
         genesis_config: GenesisParams<Self>,
-        rollup_config: FullNodeConfig<Self::DaConfig>,
         sequencer_config: SequencerConfig,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
@@ -176,7 +175,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             sequencer_config,
             init_params,
             native_stf,
-            rollup_config.runner.expect("Runner config is missing"),
             da_service,
             ledger_db,
             storage_manager,

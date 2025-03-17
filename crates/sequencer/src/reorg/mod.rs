@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use citrea_common::InitParams;
 pub use citrea_common::SequencerConfig;
-use citrea_common::{InitParams, RunnerConfig};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
@@ -31,18 +31,17 @@ pub fn build_reorg_services<Da, DB>(
         <Da as DaService>::Spec,
         CitreaRuntime<DefaultContext, <Da as DaService>::Spec>,
     >,
-    runner_config: RunnerConfig,
     da_service: Arc<Da>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
     rpc_module: RpcModule<()>,
-    l2_block_tx: broadcast::Sender<u64>,
+    _l2_block_tx: broadcast::Sender<u64>,
 ) -> Result<(CitreaReorgSequencer<Da, DB>, RpcModule<()>)>
 where
     Da: DaService,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
-    let (l2_force_block_tx, l2_force_block_rx) = unbounded_channel();
+    let (l2_force_block_tx, _) = unbounded_channel();
     // used as client of reth's mempool
     let db_provider_storage = storage_manager.create_final_view_storage();
     let db_provider = DbProvider::new(db_provider_storage);
@@ -67,7 +66,6 @@ where
         da_service,
         ledger_db,
         sequencer_config,
-        runner_config,
         native_stf,
         storage_manager,
     );

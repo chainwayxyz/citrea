@@ -9,8 +9,9 @@ use alloy_primitives::U256;
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
+use citrea_common::cache::L1BlockCache;
 use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
-use citrea_common::{InitParams, RunnerConfig, SequencerConfig};
+use citrea_common::{InitParams, SequencerConfig};
 use citrea_evm::system_events::{create_system_transactions, SystemEvent};
 use citrea_evm::{
     create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
@@ -19,12 +20,12 @@ use citrea_evm::{
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use jsonrpsee::core::client::{ClientT, Error as JsonrpseeError};
-use jsonrpsee::http_client::HttpClientBuilder;
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use reth_primitives::TransactionSignedEcRecovered;
-use reth_transaction_pool::PoolTransaction;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::schema::types::SlotNumber;
 use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::transaction::Transaction;
@@ -47,6 +48,10 @@ use tracing::{debug, info, trace, warn};
 use super::types::SoftConfirmationResponse;
 use super::utils::collect_user_txs;
 
+/// This block's txs are ignored because this block contains BitcoinLightClient contract upgrade tx which actually downgrades the current contract
+/// There are no other txs other than that in this block
+const BLOCK_TO_IGNORE: u64 = 59387;
+
 // This sequencer's purpose is to get all pre fork2 blocks including genesis and convert all of them to post fork2 blocks
 // This sequencer will only run up to fork2 activation height, will not produce any blocks and will create the storage for the fork2 sequencer
 pub struct CitreaReorgSequencer<Da, DB>
@@ -62,7 +67,9 @@ where
     pub state_root: StorageRootHash,
     pub l2_block_hash: L2BlockHash,
     pub sequencer_config: SequencerConfig,
-    pub runner_config: RunnerConfig,
+    pub sequencer_client: Arc<HttpClient>,
+    pub sync_blocks_count: u64,
+    pub l1_block_cache: L1BlockCache<Da>,
 }
 
 impl<Da, DB> CitreaReorgSequencer<Da, DB>
@@ -75,7 +82,6 @@ where
         da_service: Arc<Da>,
         ledger_db: DB,
         sequencer_config: SequencerConfig,
-        runner_config: RunnerConfig,
         stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         storage_manager: ProverStorageManager,
     ) -> Self {
@@ -85,33 +91,60 @@ where
                 .as_slice(),
         )
         .unwrap();
+        let sequencer_client_url = std::env::var("SEQUENCER_CLIENT_URL").unwrap_or_else(|_| {
+            panic!("Sequencer client url is not set. Please set SEQUENCER_CLIENT_URL")
+        });
+        let sequencer_client = Arc::new(
+            HttpClientBuilder::default()
+                .build(&sequencer_client_url)
+                .expect("Failed to create sequencer client"),
+        );
+        let sync_blocks_count = std::env::var("SYNC_BLOCKS_COUNT")
+            .unwrap_or_else(|_| {
+                panic!("Sync blocks count is not set. Please set SYNC_BLOCKS_COUNT")
+            })
+            .parse::<u64>()
+            .unwrap();
+        let l1_block_cache = L1BlockCache::new();
         Self {
             da_service,
             sov_tx_signer_priv_key,
             ledger_db,
             sequencer_config,
-            runner_config,
             stf,
             storage_manager,
             state_root: init_params.prev_state_root,
             l2_block_hash: init_params.prev_l2_block_hash,
+            sequencer_client,
+            sync_blocks_count,
+            l1_block_cache,
         }
     }
     pub async fn run(
         &mut self,
         cancellation_token: CancellationToken,
     ) -> Result<(), anyhow::Error> {
-        let start_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
-        let sequencer_client =
-            HttpClientBuilder::default().build(&self.runner_config.sequencer_client_url)?;
-        let last_processed_l1_height = 0;
+        tracing::info!("running");
+        let mut start_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
+
+        let mut last_processed_l1_height = match self.ledger_db.get_last_scanned_l1_height()? {
+            Some(height) => height.0,
+            None => 0,
+        };
 
         loop {
-            let sequencer_client = &sequencer_client;
-            let range = (
+            if cancellation_token.is_cancelled() {
+                tracing::info!("Cancellation token is cancelled, stopping reorg sequencer");
+                return Ok(());
+            }
+            let end_l2_height = start_l2_height + self.sync_blocks_count - 1;
+            tracing::info!(
+                "Syncing blocks from {} to {}",
                 start_l2_height,
-                start_l2_height + self.runner_config.sync_blocks_count,
+                end_l2_height
             );
+            let sequencer_client = &self.sequencer_client.clone();
+            let range = (start_l2_height, end_l2_height);
             let exponential_backoff = ExponentialBackoffBuilder::new()
                 .with_initial_interval(Duration::from_secs(1))
                 .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
@@ -127,6 +160,7 @@ where
                             [range.0, range.1],
                         )
                         .await;
+
                     match soft_confirmation_responses {
                         Ok(soft_confirmation_responses) => Ok(soft_confirmation_responses
                             .into_iter()
@@ -159,7 +193,10 @@ where
             };
 
             for soft_confirmation_response in soft_confirmation_responses {
-                // create new sys txs
+                tracing::info!(
+                    "Processing soft confirmation response for L2 height: {}, DA slot height: {}  last_processed_l1_height: {}",
+                    soft_confirmation_response.l2_height, soft_confirmation_response.da_slot_height, last_processed_l1_height
+                );
 
                 let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())?;
 
@@ -174,6 +211,30 @@ where
 
                 let prestate = self.storage_manager.create_storage_for_next_l2_height();
 
+                let mut reversed_slot_hash = soft_confirmation_response.da_slot_hash.clone();
+                reversed_slot_hash.reverse();
+
+                let da_block = if let Some(da_block) = self
+                    .l1_block_cache
+                    .get(&soft_confirmation_response.da_slot_height)
+                {
+                    da_block.clone()
+                } else {
+                    let da_block = self
+                        .da_service
+                        .get_block_by_hash(soft_confirmation_response.da_slot_hash.clone().into())
+                        .await
+                        .unwrap();
+                    let short_header_proof = Da::block_to_short_header_proof(da_block.clone());
+                    self.ledger_db.put_short_header_proof_by_l1_hash(
+                        &da_block.header().hash().into(),
+                        borsh::to_vec(&short_header_proof).expect("Serialization fail infallible"),
+                    )?;
+                    self.l1_block_cache
+                        .put(soft_confirmation_response.da_slot_height, da_block.clone());
+                    da_block
+                };
+
                 let user_txs = collect_user_txs(&soft_confirmation_response);
                 let deposit_data = soft_confirmation_response
                     .deposit_data
@@ -182,11 +243,6 @@ where
                     .collect::<Vec<_>>();
                 let txs_to_run =
                     if soft_confirmation_response.da_slot_height > last_processed_l1_height {
-                        let da_block = self
-                            .da_service
-                            .get_block_at(soft_confirmation_response.da_slot_height)
-                            .await
-                            .unwrap();
                         self.dry_run_transactions_post_fork2(
                             user_txs,
                             &pub_key,
@@ -235,7 +291,14 @@ where
                 // so sticking to fetching from state makes sense
                 let nonce = self.get_nonce(&mut working_set)?;
 
-                let evm_txs_count = txs_to_run.len();
+                let mut evm_txs_count = txs_to_run.len();
+                if l2_block_info.l2_height() == BLOCK_TO_IGNORE {
+                    tracing::warn!(
+                        "Skipping block txs with height: {} as it contains contract upgrade",
+                        BLOCK_TO_IGNORE
+                    );
+                    evm_txs_count = 0;
+                }
                 if evm_txs_count > 0 {
                     let call_txs = CallMessage { txs: txs_to_run };
                     let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
@@ -284,9 +347,13 @@ where
                 );
 
                 self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
+                last_processed_l1_height = soft_confirmation_response.da_slot_height;
+                self.ledger_db.set_last_scanned_l1_height(SlotNumber(
+                    soft_confirmation_response.da_slot_height,
+                ))?;
             }
+            start_l2_height = end_l2_height + 1;
         }
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -469,13 +536,8 @@ where
         let chain_id = cfg.chain_id;
 
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for sys_tx in sys_txs {
-            let sys_tx = sys_tx.into_signed();
 
-            // Cannot do into_ecrecovered here because we don't have a valid signature
-            let sys_tx_ec_recovered =
-                TransactionSignedEcRecovered::from_signed_transaction(sys_tx, SYSTEM_SIGNER);
-
+        for sys_tx_ec_recovered in sys_txs {
             let mut buf = vec![];
             sys_tx_ec_recovered.encode_2718(&mut buf);
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };

@@ -42,7 +42,8 @@ pub struct SoftConfirmationResponse {
     /// Sequencer's block timestamp.
     pub timestamp: u64,
     /// Tx merkle root.
-    pub tx_merkle_root: [u8; 32],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tx_merkle_root: Option<[u8; 32]>,
 }
 
 /// A Transaction object that is compatible with the module-system/sov-default-stf.

@@ -238,10 +238,9 @@ where
             let is_reorg_sequencer: bool = std::env::var("REORG").is_ok();
 
             if is_reorg_sequencer {
-                let (mut sequencer, rpc_module) = rollup_blueprint
+                let (mut reorg_sequencer, rpc_module) = rollup_blueprint
                     .create_reorg_sequencer(
                         genesis_config,
-                        rollup_config.clone(),
                         sequencer_config,
                         da_service,
                         ledger_db,
@@ -259,7 +258,7 @@ where
                 );
 
                 task_manager.spawn(|cancellation_token| async move {
-                    if let Err(e) = sequencer.run(cancellation_token).await {
+                    if let Err(e) = reorg_sequencer.run(cancellation_token).await {
                         error!("Error: {}", e);
                     }
                 });
