@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use alloy_primitives::U64;
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
@@ -33,20 +32,20 @@ pub enum TxStatus {
     #[serde(rename_all = "camelCase")]
     Pending {
         in_mempool: bool,
-        base_fee: U64,
-        timestamp: U64,
+        base_fee: u64,
+        timestamp: u64,
     },
     #[serde(rename_all = "camelCase")]
     Confirmed {
         block_hash: BlockHash,
-        block_height: U64,
-        confirmations: U64,
+        block_height: u64,
+        confirmations: u64,
     },
     #[serde(rename_all = "camelCase")]
     Finalized {
         block_hash: BlockHash,
-        block_height: U64,
-        confirmations: U64,
+        block_height: u64,
+        confirmations: u64,
     },
     #[serde(rename_all = "camelCase")]
     Replaced {
@@ -80,7 +79,7 @@ impl MonitoredTx {
         let confirmations = match self.status {
             TxStatus::Pending { .. } => 0,
             TxStatus::Confirmed { confirmations, .. }
-            | TxStatus::Finalized { confirmations, .. } => confirmations.to(),
+            | TxStatus::Finalized { confirmations, .. } => confirmations,
             _ => return None,
         };
 
@@ -494,7 +493,7 @@ impl MonitoringService {
 
         for (txid, tx) in txs.iter_mut() {
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
-                if confirmations.to::<u64>() <= depth {
+                if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     tx.status = self.determine_tx_status(&tx_result).await?;
 
@@ -551,29 +550,27 @@ impl MonitoringService {
             if confirmations >= FINALITY_DEPTH {
                 TxStatus::Finalized {
                     block_hash,
-                    block_height: U64::from(block_height),
-                    confirmations: U64::from(confirmations),
+                    block_height,
+                    confirmations,
                 }
             } else {
                 TxStatus::Confirmed {
                     block_hash,
-                    block_height: U64::from(block_height),
-                    confirmations: U64::from(confirmations),
+                    block_height,
+                    confirmations,
                 }
             }
         } else {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
                 Ok(entry) => {
-                    let base_fee = U64::from(entry.fees.base.to_sat());
+                    let base_fee = entry.fees.base.to_sat();
                     TxStatus::Pending {
                         in_mempool: true,
                         base_fee,
-                        timestamp: U64::from(
-                            SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs(),
-                        ),
+                        timestamp: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
                     }
                 }
                 Err(_) => TxStatus::Evicted,
