@@ -37,22 +37,21 @@ impl<C: sov_modules_api::Context> Accounts<C> {
     ) {
         for pub_key in config.pub_keys.iter() {
             // Called only in genesis so spec id should be Genesis
-            self.create_default_account(pub_key, working_set)
-                .expect("Accounts should create account in init_module");
+            self.create_default_account(
+                &K256PublicKey::try_from_slice(pub_key)
+                    .expect("K256PublicKey should be created from slice"),
+                working_set,
+            )
+            .expect("Accounts should create account in init_module");
         }
     }
 
     pub(crate) fn create_default_account(
         &self,
-        pub_key: &[u8],
+        pub_key: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<Account, L2BlockHookError> {
-        let default_address: Address = {
-            let pub_key: K256PublicKey = K256PublicKey::try_from_slice(pub_key)
-                // TODO: Update error handling
-                .map_err(|_| L2BlockHookError::SovTxAccountNotFound)?;
-            pub_key.to_address()
-        };
+        let default_address = pub_key.to_address();
 
         self.exit_if_address_exists(&default_address, working_set)?;
 
@@ -63,8 +62,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
 
         self.accounts.set(pub_key, &new_account, working_set);
 
-        self.public_keys
-            .set(&default_address, &pub_key.to_vec(), working_set);
+        self.public_keys.set(&default_address, pub_key, working_set);
 
         Ok(new_account)
     }

@@ -10,6 +10,7 @@ pub use query::*;
 mod tests;
 
 pub use hooks::AccountsTxHook;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{Address, Context, L2BlockModuleCallError, ModuleInfo, WorkingSet};
 use sov_state::codec::BorshCodec;
 use sov_state::storage::StateValueCodec;
@@ -56,11 +57,11 @@ pub struct Accounts<C: Context> {
 
     /// Mapping from an account address to a corresponding public key.
     #[state(rename = "p")]
-    pub(crate) public_keys: sov_modules_api::StateMap<Address, Vec<u8>, BorshCodec>,
+    pub(crate) public_keys: sov_modules_api::StateMap<Address, K256PublicKey, BorshCodec>,
 
     /// Mapping from a public key to a corresponding account.
     #[state(rename = "a")]
-    pub(crate) accounts: sov_modules_api::StateMap<Vec<u8>, Account, BorshCodec>,
+    pub(crate) accounts: sov_modules_api::StateMap<K256PublicKey, Account, BorshCodec>,
 }
 
 impl<C: Context> sov_modules_api::Module for Accounts<C> {

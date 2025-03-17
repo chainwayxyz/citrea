@@ -1,3 +1,4 @@
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::{Address, Context, L2BlockHookError, SpecId, StateMapAccessor, WorkingSet};
 use sov_rollup_interface::transaction::Transaction;
@@ -13,7 +14,7 @@ pub struct AccountsTxHook {
 impl<C: Context> Accounts<C> {
     fn get_or_create_default(
         &self,
-        pubkey: &[u8],
+        pubkey: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<Account, L2BlockHookError> {
         self.accounts
