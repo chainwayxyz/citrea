@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bitcoin::Txid;
+use bitcoin::{Transaction, Txid};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
@@ -21,6 +21,7 @@ pub struct MonitoredTxResponse {
     pub prev_txid: Option<Txid>,
     pub next_txid: Option<Txid>,
     pub status: TxStatus,
+    pub transaction: Transaction,
 }
 
 impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
@@ -40,6 +41,7 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
             prev_txid: tx.prev_txid,
             next_txid: tx.next_txid,
             status: tx.status,
+            transaction: tx.tx,
         }
     }
 }
