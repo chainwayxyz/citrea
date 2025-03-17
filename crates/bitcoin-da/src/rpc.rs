@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bitcoin::{Transaction, Txid};
+use bitcoin::Txid;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
