@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};
 use sov_modules_core::{Address, Context, Spec};

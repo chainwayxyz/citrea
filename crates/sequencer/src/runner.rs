@@ -776,10 +776,7 @@ where
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
 
         match accounts
-            .get_account(
-                borsh::to_vec(&pub_key).expect("Should serialize"),
-                working_set,
-            )
+            .get_account(pub_key, working_set)
             .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),
