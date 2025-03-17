@@ -14,6 +14,7 @@ use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::smart_contracts::SimpleStorageContract;
+use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::get_fork_fn_only_fork2;
@@ -83,7 +84,7 @@ fn test_state_change() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
     };

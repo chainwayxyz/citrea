@@ -167,6 +167,12 @@ impl BorshSerialize for K256Signature {
     }
 }
 
+impl std::fmt::Display for K256PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self.pub_key.to_sec1_bytes()))
+    }
+}
+
 impl TryFrom<&[u8]> for K256Signature {
     type Error = anyhow::Error;
 

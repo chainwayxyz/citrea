@@ -16,6 +16,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{ProverStorage, Storage};
 
+use super::get_test_seq_pub_key;
 use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction, PRIORITY_FEE_VAULT};
@@ -70,7 +71,7 @@ pub(crate) fn get_evm_with_spec(
         l2_height: 1,
         pre_state_root: root,
         current_spec: spec_id,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 0,
         timestamp: 0,
     };

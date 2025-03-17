@@ -15,6 +15,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use prover_services::ParallelProverService;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
@@ -43,7 +44,7 @@ where
     pub ledger: DB,
     pub storage_manager: ProverStorageManager,
     pub sequencer_da_pub_key: Vec<u8>,
-    pub sequencer_pub_key: Vec<u8>,
+    pub sequencer_pub_key: K256PublicKey,
     pub l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pub code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     pub elfs_by_spec: HashMap<SpecId, Vec<u8>>,
@@ -58,7 +59,7 @@ pub fn create_rpc_context<Da, Vm, DB>(
     ledger: DB,
     storage_manager: ProverStorageManager,
     sequencer_da_pub_key: Vec<u8>,
-    sequencer_pub_key: Vec<u8>,
+    sequencer_pub_key: K256PublicKey,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,

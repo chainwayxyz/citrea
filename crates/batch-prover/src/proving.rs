@@ -13,6 +13,7 @@ use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use sov_db::schema::types::L2BlockNumber;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -58,7 +59,7 @@ pub(crate) async fn data_to_prove<Da, DB>(
     da_service: Arc<Da>,
     ledger: DB,
     storage_manager: &ProverStorageManager,
-    sequencer_pub_key: Vec<u8>,
+    sequencer_pub_key: K256PublicKey,
     sequencer_da_pub_key: Vec<u8>,
     l1_block: &<Da as DaService>::FilteredBlock,
     group_commitments: Option<GroupCommitments>,
@@ -342,7 +343,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     sequencer_commitments: &[SequencerCommitment],
     ledger_db: &DB,
     storage_manager: &ProverStorageManager,
-    sequencer_pub_key: &[u8],
+    sequencer_pub_key: &K256PublicKey,
 ) -> Result<CommitmentStateTransitionData, anyhow::Error> {
     let mut committed_l2_blocks = VecDeque::with_capacity(sequencer_commitments.len());
 
@@ -407,7 +408,7 @@ async fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     committed_l2_blocks: &VecDeque<Vec<L2Block>>,
     ledger_db: &DB,
     storage_manager: &ProverStorageManager,
-    sequencer_pub_key: &[u8],
+    sequencer_pub_key: &K256PublicKey,
 ) -> anyhow::Result<(
     VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,

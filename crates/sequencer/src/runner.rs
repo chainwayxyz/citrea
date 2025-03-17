@@ -33,6 +33,7 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
     EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, StateDiff,
@@ -79,7 +80,7 @@ where
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool>,
     // TODO: Use k256 private key here before mainnet
-    pub(crate) sov_tx_signer_priv_key: Vec<u8>,
+    pub(crate) sov_tx_signer_priv_key: K256PrivateKey,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider,
     pub(crate) ledger_db: DB,
@@ -89,7 +90,6 @@ where
     pub(crate) storage_manager: ProverStorageManager,
     pub(crate) state_root: StorageRootHash,
     pub(crate) l2_block_hash: L2BlockHash,
-    _sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     pub(crate) fork_manager: ForkManager<'static>,
     l2_block_tx: broadcast::Sender<u64>,
@@ -118,7 +118,8 @@ where
         backup_manager: Arc<BackupManager>,
         l2_force_block_rx: UnboundedReceiver<()>,
     ) -> anyhow::Result<Self> {
-        let sov_tx_signer_priv_key = hex::decode(&config.private_key)?;
+        let sov_tx_signer_priv_key =
+            K256PrivateKey::try_from(hex::decode(&config.private_key)?.as_slice())?;
 
         Ok(Self {
             da_service,
@@ -133,7 +134,6 @@ where
             storage_manager,
             state_root: init_params.prev_state_root,
             l2_block_hash: init_params.prev_l2_block_hash,
-            _sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
             l2_block_tx,
@@ -147,7 +147,7 @@ where
         mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
-        pub_key: &[u8],
+        pub_key: &K256PublicKey,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Vec<u8>],
@@ -373,11 +373,7 @@ where
             .lock()
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
-        let pub_key = borsh::to_vec(
-            &K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice())
-                .unwrap()
-                .pub_key(),
-        )?;
+        let pub_key = self.sov_tx_signer_priv_key.pub_key();
 
         let l2_block_info = HookL2BlockInfo {
             l2_height,
@@ -764,9 +760,8 @@ where
     fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
         let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
-        let priv_key = K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
 
-        let signature = priv_key.sign(&hash);
+        let signature = self.sov_tx_signer_priv_key.sign(&hash);
         let signature = borsh::to_vec(&signature)?;
         Ok(SignedL2Header::new(header, hash, signature))
     }
@@ -778,14 +773,13 @@ where
     ) -> anyhow::Result<u64> {
         let accounts = Accounts::<DefaultContext>::default();
 
-        let pub_key = borsh::to_vec(
-            &K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice())
-                .unwrap()
-                .pub_key(),
-        )?;
+        let pub_key = self.sov_tx_signer_priv_key.pub_key();
 
         match accounts
-            .get_account(pub_key, working_set)
+            .get_account(
+                borsh::to_vec(&pub_key).expect("Should serialize"),
+                working_set,
+            )
             .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),

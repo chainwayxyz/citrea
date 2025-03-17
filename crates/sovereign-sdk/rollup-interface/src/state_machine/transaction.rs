@@ -29,13 +29,12 @@ pub struct TransactionV1 {
 
 impl TransactionV1 {
     #[cfg(feature = "native")]
-    fn new(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
+    fn new(priv_key: &K256PrivateKey, runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
         let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
         message.extend_from_slice(&runtime_msg);
         message.extend_from_slice(&chain_id.to_le_bytes());
         message.extend_from_slice(&nonce.to_le_bytes());
 
-        let priv_key = K256PrivateKey::try_from(priv_key).unwrap();
         let pub_key = priv_key.pub_key();
         let signature = priv_key.sign(&message);
 
@@ -129,7 +128,12 @@ impl Transaction {
     }
 
     #[cfg(feature = "native")]
-    pub fn new_signed_tx(priv_key: &[u8], runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
+    pub fn new_signed_tx(
+        priv_key: &K256PrivateKey,
+        runtime_msg: Vec<u8>,
+        chain_id: u64,
+        nonce: u64,
+    ) -> Self {
         Self::V1(TransactionV1::new(priv_key, runtime_msg, chain_id, nonce))
     }
 

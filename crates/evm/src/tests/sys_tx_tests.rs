@@ -24,6 +24,7 @@ use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
 use crate::system_contracts::{BridgeWrapper, ProxyAdmin};
 use crate::system_events::{create_system_transactions, SystemEvent};
+use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
@@ -150,7 +151,7 @@ fn test_sys_bitcoin_light_client() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
     };
@@ -290,7 +291,7 @@ fn test_sys_bitcoin_light_client() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
     };
@@ -435,7 +436,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
     };
@@ -462,7 +463,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -544,7 +545,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -651,7 +652,7 @@ fn test_bridge() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
     };
@@ -683,7 +684,7 @@ fn test_bridge() {
         l2_height,
         pre_state_root: [11u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
     };
@@ -801,7 +802,7 @@ fn test_upgrade_light_client() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -924,7 +925,7 @@ fn test_change_upgrade_owner() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -959,7 +960,7 @@ fn test_change_upgrade_owner() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };

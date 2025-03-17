@@ -113,7 +113,7 @@ where
         native_debug!(
             "Beginning l2 block #{} from sequencer: 0x{}",
             l2_block_info.l2_height(),
-            hex::encode(l2_block_info.sequencer_pub_key())
+            l2_block_info.sequencer_pub_key()
         );
 
         // ApplyL2BlockHook: begin

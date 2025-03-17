@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+use borsh::BorshDeserialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -104,7 +105,7 @@ where
     /// There are no slot hash comparisons with l2 blocks
     pub fn begin_l2_block(
         &mut self,
-        sequencer_public_key: &[u8],
+        sequencer_public_key: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
         l2_block_info: &HookL2BlockInfo,
     ) -> Result<(), StateTransitionError> {
@@ -134,7 +135,7 @@ where
     pub fn verify_l2_block(
         &self,
         l2_block: &L2Block,
-        sequencer_public_key: &[u8],
+        sequencer_public_key: &K256PublicKey,
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
@@ -268,7 +269,7 @@ where
     pub fn apply_l2_block(
         &mut self,
         current_spec: SpecId,
-        sequencer_public_key: &[u8],
+        sequencer_public_key: &K256PublicKey,
         pre_state_root: &StorageRootHash,
         pre_state: C::Storage,
         cumulative_state_log: Option<ReadWriteLog>,
@@ -281,7 +282,7 @@ where
             l2_block,
             *pre_state_root,
             current_spec,
-            sequencer_public_key.to_vec(),
+            sequencer_public_key.clone(),
         );
 
         let mut working_set = if let Some(state_log) = cumulative_state_log {
@@ -329,6 +330,9 @@ where
         cache_prune_l2_heights: &[u64],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput {
+        let sequencer_public_key = K256PublicKey::try_from_slice(sequencer_public_key)
+            .expect("Sequencer public key must be valid");
+
         let mut state_diff = CumulativeStateDiff::default();
 
         let sequencer_commitment_hashes = sequencer_commitments
@@ -441,11 +445,10 @@ where
                     "L2 block heights not sequential"
                 );
 
-                let sequencer_pub_key = sequencer_public_key;
                 let result = self
                     .apply_l2_block(
                         fork_manager.active_fork().spec_id,
-                        sequencer_pub_key,
+                        &sequencer_public_key,
                         &current_state_root,
                         pre_state.clone(),
                         cumulative_state_log,
@@ -516,14 +519,11 @@ where
 
 fn verify_signature(
     header: &SignedL2Header,
-    sequencer_public_key: &[u8],
+    sequencer_public_key: &K256PublicKey,
 ) -> Result<(), anyhow::Error> {
     let signature = K256Signature::try_from(header.signature.as_slice())?;
 
-    signature.verify(
-        &K256PublicKey::try_from(sequencer_public_key)?,
-        &header.hash,
-    )?;
+    signature.verify(sequencer_public_key, &header.hash)?;
 
     Ok(())
 }

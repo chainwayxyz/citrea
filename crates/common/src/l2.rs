@@ -6,11 +6,13 @@ use alloy_primitives::U64;
 use anyhow::{bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
+use borsh::BorshDeserialize;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::SharedLedgerOps;
+use sov_keys::default_signature::K256PublicKey;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{L2Block, StateDiff};
@@ -51,7 +53,7 @@ where
     state_root: StorageRootHash,
     l2_block_hash: L2BlockHash,
     sequencer_client: HttpClient,
-    sequencer_pub_key: Vec<u8>,
+    sequencer_pub_key: K256PublicKey,
     include_tx_body: bool,
     _l1_block_cache: Arc<Mutex<L1BlockCache<DA>>>,
     sync_blocks_count: u64,
@@ -100,7 +102,7 @@ where
             l2_block_hash: init_params.prev_l2_block_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
-            sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_pub_key: K256PublicKey::try_from_slice(&public_keys.sequencer_public_key)?,
             include_tx_body,
             sync_blocks_count: runner_config.sync_blocks_count,
             _l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
@@ -220,8 +222,6 @@ where
             .try_into()
             .context("Failed to parse transactions")?;
 
-        let sequencer_pub_key = self.sequencer_pub_key.as_slice();
-
         let l2_block_result = {
             // Since Post fork2 we do not have the slot hash in l2 blocks we inspect the txs and get the slot hashes from set block infos
 
@@ -236,7 +236,7 @@ where
 
             self.stf.apply_l2_block(
                 current_spec,
-                sequencer_pub_key,
+                &self.sequencer_pub_key,
                 &self.state_root,
                 pre_state,
                 None,
