@@ -18,7 +18,6 @@ schemars = { workspace = true, optional = true, features = [] }
 rand = { workspace = true, optional = true }
 derive_more = { workspace = true, default-features = true }
 
-ed25519-dalek = { workspace = true }
 k256 = { workspace = true, features = ["ecdsa", "serde", "pem"]}
 hex = { workspace = true }
 digest = { workspace = true }
@@ -31,9 +30,8 @@ bincode = { workspace = true }
 [features]
 default = ["native"]
 native = [
-    "serde", "rand",
-    "schemars",
-    "ed25519-dalek/default",
-    "ed25519-dalek/rand_core",
+    "serde",
+    "rand",
+    "schemars"
 ]
 testing = []

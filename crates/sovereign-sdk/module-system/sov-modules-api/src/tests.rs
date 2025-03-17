@@ -1,4 +1,4 @@
-use sov_keys::default_signature::private_key::DefaultPrivateKey;
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::{PrivateKey, Signature};
 use sov_modules_core::Address;
 
@@ -142,7 +142,7 @@ fn test_sorting_modules_duplicate() {
 
 #[test]
 fn test_default_signature_roundtrip() {
-    let key = DefaultPrivateKey::generate();
+    let key = K256PrivateKey::generate();
     let msg = b"hello, world";
     let sig = key.sign(msg);
     sig.verify(&key.pub_key(), msg)

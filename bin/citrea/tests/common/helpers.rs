@@ -27,7 +27,7 @@ use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,
 };
-use sov_keys::default_signature::private_key::DefaultPrivateKey;
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
@@ -204,7 +204,7 @@ pub async fn start_rollup(
     if let Some(sequencer_config) = sequencer_config {
         warn!(
             "Starting sequencer node pub key: {:?}",
-            DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
+            K256PrivateKey::from_hex(TEST_PRIVATE_KEY)
                 .unwrap()
                 .pub_key()
         );

@@ -32,7 +32,6 @@ hex = { workspace = true }
 clap = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true, features = [] }
 
-ed25519-dalek = { workspace = true }
 rand = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -54,8 +53,6 @@ native = [
     "rand",
     "schemars",
     "serde",
-    "ed25519-dalek/default",
-    "ed25519-dalek/rand_core",
     "clap",
     "jsonrpsee",
     "macros",
