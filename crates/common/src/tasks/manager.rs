@@ -95,7 +95,7 @@ impl<T: Send + 'static> TaskManager<T> {
                     return;
                 }
                 _ = handles_check.tick() => {
-                    let all_handles_finished = self.handles.iter().fold(true, |acc, t| acc && t.is_finished());
+                    let all_handles_finished = self.handles.iter().all(|t| t.is_finished());
                     if all_handles_finished {
                         info!("All tasks finished, stopping node");
                         self.abort().await;
