@@ -48,6 +48,7 @@ impl StateValueCodec<Account> for BorshCodec {
 /// A module responsible for managing accounts on the rollup.
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
+#[module(rename = "A")]
 pub struct Accounts<C: Context> {
     /// The address of the sov-accounts module.
     #[address]
@@ -55,11 +56,11 @@ pub struct Accounts<C: Context> {
 
     /// Mapping from an account address to a corresponding public key.
     #[state(rename = "p")]
-    pub(crate) public_keys: sov_modules_api::StateMap<Address, Vec<u8>>,
+    pub(crate) public_keys: sov_modules_api::StateMap<Address, Vec<u8>, BorshCodec>,
 
     /// Mapping from a public key to a corresponding account.
     #[state(rename = "a")]
-    pub(crate) accounts: sov_modules_api::StateMap<Vec<u8>, Account>,
+    pub(crate) accounts: sov_modules_api::StateMap<Vec<u8>, Account, BorshCodec>,
 }
 
 impl<C: Context> sov_modules_api::Module for Accounts<C> {

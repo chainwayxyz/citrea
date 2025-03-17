@@ -32,11 +32,10 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId, StateDiff,
+    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, StateDiff,
     StateValueAccessor, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -46,6 +45,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{L2BlockResult, StateTransitionError};
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -90,7 +90,6 @@ where
     pub(crate) state_root: StorageRootHash,
     pub(crate) l2_block_hash: L2BlockHash,
     _sequencer_pub_key: Vec<u8>,
-    _sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     pub(crate) fork_manager: ForkManager<'static>,
     l2_block_tx: broadcast::Sender<u64>,
@@ -135,7 +134,6 @@ where
             state_root: init_params.prev_state_root,
             l2_block_hash: init_params.prev_l2_block_hash,
             _sequencer_pub_key: public_keys.sequencer_public_key,
-            _sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
             l2_block_tx,
@@ -221,7 +219,7 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx = self.sign_tx(raw_message, l2_block_info.current_spec(), nonce)?;
+                let signed_tx = self.sign_tx(raw_message, nonce)?;
                 nonce += 1;
 
                 let txs = vec![signed_tx];
@@ -444,7 +442,7 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(raw_message, l2_block_info.current_spec(), nonce)?;
+            let signed_tx = self.sign_tx(raw_message, nonce)?;
 
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
@@ -477,7 +475,7 @@ where
 
         let signed_header = self.sign_l2_block_header(header)?;
         // TODO: cleanup l2 block structure once we decide how to pull data from the running sequencer in the existing form
-        let l2_block = L2Block::new(signed_header, txs.into());
+        let l2_block = L2Block::new(signed_header, txs);
 
         info!(
             "Saving block #{}, Tx count: #{}",
@@ -500,15 +498,14 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn save_l2_block(
         &mut self,
-        l2_block: L2Block<Transaction>,
+        l2_block: L2Block,
         l2_block_result: L2BlockResult<ProverStorage, sov_state::Witness, sov_state::ReadWriteLog>,
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
     ) -> anyhow::Result<StateDiff> {
         debug!(
-            "Saving L2 block with hash: {:?} from sequencer {:?}",
+            "Saving L2 block with hash: {:?}",
             hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
         );
 
         let state_root_transition = l2_block_result.state_root_transition;
@@ -756,22 +753,11 @@ where
         Ok(best_txs_with_base_fee)
     }
 
-    pub(crate) fn sign_tx(
-        &self,
-        raw_message: Vec<u8>,
-        spec_id: SpecId,
-        nonce: u64,
-    ) -> anyhow::Result<Transaction> {
+    pub(crate) fn sign_tx(&self, raw_message: Vec<u8>, nonce: u64) -> anyhow::Result<Transaction> {
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let tx = Transaction::new_signed_tx(
-            &self.sov_tx_signer_priv_key,
-            raw_message,
-            0,
-            nonce,
-            spec_id >= SpecId::Fork2,
-        );
+        let tx = Transaction::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
         Ok(tx)
     }
 
@@ -781,10 +767,8 @@ where
         let priv_key = K256PrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
 
         let signature = priv_key.sign(&hash);
-        let pub_key = priv_key.pub_key();
         let signature = borsh::to_vec(&signature)?;
-        let pub_key = borsh::to_vec(&pub_key)?;
-        Ok(SignedL2Header::new(header, hash, signature, pub_key))
+        Ok(SignedL2Header::new(header, hash, signature))
     }
 
     /// Fetches nonce from state
@@ -1020,7 +1004,7 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(raw_message, l2_block_info.current_spec(), *nonce)?;
+            let signed_tx = self.sign_tx(raw_message, *nonce)?;
             *nonce += 1;
 
             let txs = vec![signed_tx];

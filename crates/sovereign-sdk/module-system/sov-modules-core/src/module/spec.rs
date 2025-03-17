@@ -5,10 +5,10 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::typenum::U32;
 use digest::Digest;
+use sov_keys::{PublicKey, Signature};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
 
-use crate::common::{PublicKey, Signature};
 use crate::storage::Storage;
 use crate::Address;
 
@@ -54,10 +54,7 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
 
     /// The public key used for digital signatures
     #[cfg(feature = "native")]
-    type PrivateKey: crate::common::PrivateKey<
-        PublicKey = Self::PublicKey,
-        Signature = Self::Signature,
-    >;
+    type PrivateKey: sov_keys::PrivateKey<PublicKey = Self::PublicKey, Signature = Self::Signature>;
 
     /// The public key used for digital signatures
     #[cfg(all(feature = "native", feature = "std"))]

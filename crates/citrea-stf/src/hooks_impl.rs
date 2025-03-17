@@ -2,10 +2,10 @@ use sov_accounts::AccountsTxHook;
 use sov_modules_api::hooks::{
     ApplyL2BlockHooks, FinalizeHook, HookL2BlockInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, L2BlockHookError, SpecId, WorkingSet};
 use sov_modules_stf_blueprint::RuntimeTxHook;
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;

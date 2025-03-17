@@ -2,7 +2,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use borsh::BorshSerialize;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
@@ -33,9 +32,9 @@ pub trait SharedLedgerOps {
     ) -> Result<()>;
 
     /// Commits a l2 block to the database by inserting its transactions and batches before
-    fn commit_l2_block<Tx: Clone + BorshSerialize>(
+    fn commit_l2_block(
         &self,
-        l2_block: L2Block<'_, Tx>,
+        l2_block: L2Block,
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<()>;

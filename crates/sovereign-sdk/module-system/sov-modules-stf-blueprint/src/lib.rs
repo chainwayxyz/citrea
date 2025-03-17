@@ -4,20 +4,19 @@
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_modules_api::default_signature::{K256PublicKey, K256Signature};
+use sov_keys::default_signature::{K256PublicKey, K256Signature};
+use sov_keys::Signature;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplyL2BlockHooks, FinalizeHook, HookL2BlockInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    native_debug, Context, DaSpec, DispatchCall, Genesis, Signature, Spec, WorkingSet,
-};
+use sov_modules_api::{native_debug, Context, DaSpec, DispatchCall, Genesis, Spec, WorkingSet};
 use sov_rollup_interface::block::{L2Block, SignedL2Header};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{L2BlockError, L2BlockResult, StateTransitionError};
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::{ReadWriteLog, Storage, Witness};
@@ -134,7 +133,7 @@ where
     /// No da slot hash, height and txs commitment checks are done here
     pub fn verify_l2_block(
         &self,
-        l2_block: &L2Block<Transaction>,
+        l2_block: &L2Block,
         sequencer_public_key: &[u8],
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
@@ -276,9 +275,14 @@ where
         cumulative_offchain_log: Option<ReadWriteLog>,
         state_witness: Witness,
         offchain_witness: Witness,
-        l2_block: &L2Block<Transaction>,
+        l2_block: &L2Block,
     ) -> Result<L2BlockResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError> {
-        let l2_block_info = HookL2BlockInfo::new(l2_block, *pre_state_root, current_spec);
+        let l2_block_info = HookL2BlockInfo::new(
+            l2_block,
+            *pre_state_root,
+            current_spec,
+            sequencer_public_key.to_vec(),
+        );
 
         let mut working_set = if let Some(state_log) = cumulative_state_log {
             WorkingSet::with_witness_and_log(
@@ -305,9 +309,8 @@ where
         let res = self.finalize_l2_block(current_spec, working_set, pre_state);
 
         native_debug!(
-            "l2 block with hash: {:?} from sequencer {:?} has been successfully applied",
+            "l2 block with hash: {:?} has been successfully applied",
             hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
         );
 
         Ok(res)
@@ -318,7 +321,7 @@ where
     pub fn apply_l2_blocks_from_sequencer_commitments(
         &mut self,
         guest: &impl ZkvmGuest,
-        sequencer_k256_public_key: &[u8],
+        sequencer_public_key: &[u8],
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
@@ -416,7 +419,7 @@ where
                 fork_manager.register_block(l2_block_l2_height).unwrap();
 
                 let (l2_block, state_witness, offchain_witness) =
-                    guest.read_from_host::<(L2Block<Transaction>, Witness, Witness)>();
+                    guest.read_from_host::<(L2Block, Witness, Witness)>();
 
                 assert_eq!(
                     l2_block.height(),
@@ -438,7 +441,7 @@ where
                     "L2 block heights not sequential"
                 );
 
-                let sequencer_pub_key = sequencer_k256_public_key;
+                let sequencer_pub_key = sequencer_public_key;
                 let result = self
                     .apply_l2_block(
                         fork_manager.active_fork().spec_id,
@@ -526,7 +529,7 @@ fn verify_signature(
 }
 
 fn verify_tx_merkle_root<C: Context + Spec>(
-    l2_block: &L2Block<'_, Transaction>,
+    l2_block: &L2Block,
 ) -> Result<(), StateTransitionError> {
     let tx_hashes: Vec<[u8; 32]> = l2_block
         .txs

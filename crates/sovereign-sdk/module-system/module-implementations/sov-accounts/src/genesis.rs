@@ -3,8 +3,9 @@ use core::result::Result;
 use borsh::BorshDeserialize;
 use hex::FromHex;
 use serde::{Deserialize, Deserializer};
-use sov_modules_api::default_signature::K256PublicKey;
-use sov_modules_api::{Address, L2BlockHookError, PublicKey, StateMapAccessor, WorkingSet};
+use sov_keys::default_signature::K256PublicKey;
+use sov_keys::PublicKey;
+use sov_modules_api::{Address, L2BlockHookError, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -83,30 +84,30 @@ impl<C: sov_modules_api::Context> Accounts<C> {
 
 #[cfg(all(test, feature = "native"))]
 mod tests {
-    use sov_modules_api::default_signature::DefaultPublicKey;
-    use sov_modules_api::PublicKeyHex;
+    use sov_keys::default_signature::K256PublicKey;
+    use sov_keys::PublicKeyHex;
 
     use super::*;
 
     #[test]
     fn test_config_serialization() {
         let pub_key_hex = PublicKeyHex::try_from(
-            "1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf",
+            "0300c27ad8a28f9e69f72984612c435edef385907101315f0317f0632a73aa706a",
         )
         .unwrap();
 
-        let _ = DefaultPublicKey::try_from(&pub_key_hex).unwrap();
+        let _ = K256PublicKey::try_from(&pub_key_hex).unwrap();
 
         let config = AccountConfig {
             pub_keys: vec![hex::decode(
-                "1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf",
+                "0300c27ad8a28f9e69f72984612c435edef385907101315f0317f0632a73aa706a",
             )
             .unwrap()],
         };
 
         let data = r#"
         {
-            "pub_keys":["1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf"]
+            "pub_keys":["0300c27ad8a28f9e69f72984612c435edef385907101315f0317f0632a73aa706a"]
         }"#;
 
         let parsed_config: AccountConfig = serde_json::from_str(data).unwrap();

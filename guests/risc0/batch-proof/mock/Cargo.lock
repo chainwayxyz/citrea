@@ -1115,33 +1115,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve25519-dalek"
-version = "4.1.2"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.2-risczero.0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "crypto-bigint",
- "curve25519-dalek-derive",
- "digest 0.10.7",
- "fiat-crypto",
- "hex",
- "platforms",
- "rustc_version 0.4.1",
- "subtle",
-]
-
-[[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.1"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.2-risczero.0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.98",
-]
-
-[[package]]
 name = "darling"
 version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1296,28 +1269,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ed25519"
-version = "2.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
-dependencies = [
- "serde",
- "signature",
-]
-
-[[package]]
-name = "ed25519-dalek"
-version = "2.1.1"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.2-risczero.0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"
-dependencies = [
- "curve25519-dalek",
- "ed25519",
- "serde",
- "sha2",
- "subtle",
-]
-
-[[package]]
 name = "either"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1426,12 +1377,6 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
-
-[[package]]
-name = "fiat-crypto"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fixed-hash"
@@ -2150,12 +2095,6 @@ dependencies = [
  "der",
  "spki",
 ]
-
-[[package]]
-name = "platforms"
-version = "3.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d43467300237085a4f9e864b937cf0bc012cef7740be12be1a48b10d2c8a3701"
 
 [[package]]
 name = "powerfmt"
@@ -3131,8 +3070,27 @@ dependencies = [
  "borsh",
  "hex",
  "serde",
+ "sov-keys",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-keys"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derive_more",
+ "digest 0.10.7",
+ "hex",
+ "k256",
+ "rand",
+ "schemars",
+ "serde",
+ "sha2",
  "thiserror",
 ]
 
@@ -3159,12 +3117,11 @@ dependencies = [
  "borsh",
  "derive_more",
  "digest 0.10.7",
- "ed25519-dalek",
  "hex",
  "jmt",
- "k256",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-modules-macros",
  "sov-rollup-interface",
@@ -3186,6 +3143,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-rollup-interface",
  "thiserror",
  "tinyvec",
@@ -3213,6 +3171,7 @@ dependencies = [
  "jmt",
  "rs_merkle",
  "serde",
+ "sov-keys",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -3229,6 +3188,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
 ]
 
 [[package]]
@@ -3244,6 +3204,7 @@ dependencies = [
  "jmt",
  "serde",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-rollup-interface",
 ]
@@ -3845,3 +3806,8 @@ dependencies = [
  "quote",
  "syn 2.0.98",
 ]
+
+[[patch.unused]]
+name = "ed25519-dalek"
+version = "2.1.1"
+source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.2-risczero.0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"
