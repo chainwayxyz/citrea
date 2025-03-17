@@ -1093,7 +1093,7 @@ fn test_wcbtc() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let balance : Bytes = evm
+    let balance: Bytes = evm
         .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(WCBTC::address())),
@@ -1113,8 +1113,11 @@ fn test_wcbtc() {
         .unwrap();
 
     let fixed: FixedBytes<32> = FixedBytes::from_slice(&balance);
-    assert_eq!(U256::from_be_bytes(fixed.into()), U256::from(deposit_amount));
-    
+    assert_eq!(
+        U256::from_be_bytes(fixed.into()),
+        U256::from(deposit_amount)
+    );
+
     let signer_new_balance = signer_account.balance;
     assert!(signer_new_balance <= signer_old_balance - U256::from(deposit_amount));
 
@@ -1139,33 +1142,33 @@ fn test_wcbtc() {
         .unwrap();
 
     evm.call(
-            CallMessage {
-                txs: vec![withdraw_tx],
-            },
-            &context,
-            &mut working_set,
-        )
-    .unwrap();
-    
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    let balance : Bytes = evm
-    .get_call_inner(
-        TransactionRequest {
-            to: Some(TxKind::Call(WCBTC::address())),
-            input: TransactionInput::new(WCBTC::balance_of(signer.address())),
-            ..Default::default()
+        CallMessage {
+            txs: vec![withdraw_tx],
         },
-        None,
-        None,
-        None,
+        &context,
         &mut working_set,
-        get_fork_fn_only_fork2(),
     )
     .unwrap();
 
-    let fixed : FixedBytes<32> = FixedBytes::from_slice(&balance);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let balance: Bytes = evm
+        .get_call_inner(
+            TransactionRequest {
+                to: Some(TxKind::Call(WCBTC::address())),
+                input: TransactionInput::new(WCBTC::balance_of(signer.address())),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+            get_fork_fn_only_fork2(),
+        )
+        .unwrap();
+
+    let fixed: FixedBytes<32> = FixedBytes::from_slice(&balance);
 
     assert_eq!(U256::from_be_bytes(fixed.into()), U256::ZERO);
 

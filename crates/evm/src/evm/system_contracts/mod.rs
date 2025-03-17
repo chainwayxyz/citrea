@@ -162,7 +162,9 @@ impl WCBTC {
     }
 
     pub fn balance_of(account: Address) -> Bytes {
-        WCBTC9Contract::balanceOfCall { _0: account }.abi_encode().into()
+        WCBTC9Contract::balanceOfCall { _0: account }
+            .abi_encode()
+            .into()
     }
 
     pub fn deposit() -> Bytes {
@@ -170,6 +172,8 @@ impl WCBTC {
     }
 
     pub fn withdraw(amount: U256) -> Bytes {
-        WCBTC9Contract::withdrawCall { wad: amount }.abi_encode().into()
+        WCBTC9Contract::withdrawCall { wad: amount }
+            .abi_encode()
+            .into()
     }
 }
