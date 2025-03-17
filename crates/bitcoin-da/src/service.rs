@@ -508,6 +508,11 @@ impl BitcoinService {
                 .client
                 .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
                 .await?;
+
+            if let Some(errors) = signed_raw_commit_tx.errors {
+                bail!("Failed to sign commit transaction: {:?}", errors);
+            }
+
             raw_txs.push(signed_raw_commit_tx.hex);
 
             let serialized_reveal_tx = encode::serialize(&reveal);
@@ -533,6 +538,13 @@ impl BitcoinService {
             .client
             .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
             .await?;
+
+        if let Some(errors) = signed_raw_commit_tx.errors {
+            bail!(
+                "Failed to sign the aggregate commit transaction: {:?}",
+                errors
+            );
+        }
 
         raw_txs.push(signed_raw_commit_tx.hex);
 
@@ -572,6 +584,11 @@ impl BitcoinService {
             .client
             .sign_raw_transaction_with_wallet(&commit, None, None)
             .await?;
+
+        if let Some(errors) = signed_raw_commit_tx.errors {
+            bail!("Failed to sign commit transaction: {:?}", errors);
+        }
+
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         let raw_txs = [signed_raw_commit_tx.hex, serialized_reveal_tx];
 
