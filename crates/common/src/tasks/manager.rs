@@ -6,6 +6,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 const WAIT_DURATION: u64 = 5; // 5 seconds
 
@@ -60,6 +61,9 @@ impl<T: Send + 'static> TaskManager<T> {
 
     /// Wait for a termination signal and cancel all running tasks
     pub async fn wait_shutdown(&self) {
+        let mut handles_check = tokio::time::interval(Duration::from_secs(1));
+        handles_check.tick().await;
+
         let mut term_signal =
             signal(SignalKind::terminate()).expect("Failed to create termination signal");
         let mut interrupt_signal =
@@ -74,6 +78,18 @@ impl<T: Send + 'static> TaskManager<T> {
             },
             _ = interrupt_signal.recv() => {
                 self.abort().await;
+            }
+            _ = handles_check.tick() => {
+                let mut all_handles_finished = true;
+                for handle in self.handles.iter() {
+                    if !handle.is_finished() {
+                        all_handles_finished = false;
+                    }
+                }
+                if all_handles_finished {
+                    info!("All tasks finished, stopping node");
+                    self.abort().await;
+                }
             }
         }
     }
