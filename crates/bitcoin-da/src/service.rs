@@ -355,12 +355,15 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
-                match inscription_txs {
+                match inscription_txs.clone() {
                     DaTxs::Complete { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
                     DaTxs::Chunked {
                         commit_chunks,
@@ -368,8 +371,15 @@ impl BitcoinService {
                         commit,
                         reveal,
                     } => {
-                        self.send_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
-                            .await
+                        self.send_chunked_transaction(
+                            commit_chunks,
+                            reveal_chunks,
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
                     _ => panic!("ZKProof tx must be either complete or chunked"),
                 }
@@ -397,12 +407,15 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
-                match inscription_txs {
+                match inscription_txs.clone() {
                     DaTxs::SequencerCommitment { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
                     _ => panic!("Tx must be SequencerCommitment"),
                 }
@@ -431,12 +444,15 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
-                match inscription_txs {
+                match inscription_txs.clone() {
                     DaTxs::BatchProofMethodId { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
                     _ => panic!("Tx must be BatchProofMethodId"),
                 }
@@ -444,12 +460,14 @@ impl BitcoinService {
         }
     }
 
-    pub async fn send_chunked_transaction(
+    async fn send_chunked_transaction(
         &self,
         commit_chunks: Vec<Transaction>,
         reveal_chunks: Vec<Transaction>,
         commit: Transaction,
         reveal: TxWithId,
+        back_up_txs: DaTxs,
+        back_up_path: PathBuf,
     ) -> Result<Vec<Txid>> {
         assert!(!commit_chunks.is_empty(), "Received empty chunks");
         assert_eq!(
@@ -523,6 +541,9 @@ impl BitcoinService {
 
         self.test_mempool_accept(&raw_txs).await?;
 
+        // backup tx only if it passes mempool accept test
+        back_up_txs.write_to_file(back_up_path)?;
+
         // Track the sum of all chunked transactions sizes
         let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
         histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
@@ -540,10 +561,12 @@ impl BitcoinService {
         Ok(txids)
     }
 
-    pub async fn send_complete_transaction(
+    async fn send_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
+        back_up_txs: DaTxs,
+        back_up_path: PathBuf,
     ) -> Result<Vec<Txid>> {
         let signed_raw_commit_tx = self
             .client
@@ -557,6 +580,9 @@ impl BitcoinService {
         histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
 
         self.test_mempool_accept(&raw_txs).await?;
+
+        // backup tx only if it passes mempool accept test
+        back_up_txs.write_to_file(back_up_path)?;
 
         let txids = self.send_raw_transactions(&raw_txs).await?;
         info!("Blob inscribe tx sent. Hash: {}", txids[1]);
