@@ -44,7 +44,7 @@ where
             .l2_sync_worker
             .take()
             .expect("L2 sync worker should be set");
-        let worker = l2_sync_worker.run(cancellation_token.child_token());
+        let worker = l2_sync_worker.run(cancellation_token.clone());
         tokio::pin!(worker);
 
         loop {
