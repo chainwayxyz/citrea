@@ -21,7 +21,6 @@ pub struct MonitoredTxResponse {
     pub prev_txid: Option<Txid>,
     pub next_txid: Option<Txid>,
     pub status: TxStatus,
-    pub transaction: Transaction,
     pub hex: String,
 }
 
@@ -45,7 +44,6 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
             prev_txid: tx.prev_txid,
             next_txid: tx.next_txid,
             status: tx.status,
-            transaction: tx.tx,
             hex,
         }
     }
