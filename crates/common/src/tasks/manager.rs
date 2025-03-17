@@ -69,26 +69,27 @@ impl<T: Send + 'static> TaskManager<T> {
         let mut interrupt_signal =
             signal(SignalKind::interrupt()).expect("Failed to create interrupt signal");
 
-        tokio::select! {
-            _ = signal::ctrl_c() => {
-                self.abort().await;
-            }
-            _ = term_signal.recv() => {
-                self.abort().await;
-            },
-            _ = interrupt_signal.recv() => {
-                self.abort().await;
-            }
-            _ = handles_check.tick() => {
-                let mut all_handles_finished = true;
-                for handle in self.handles.iter() {
-                    if !handle.is_finished() {
-                        all_handles_finished = false;
-                    }
-                }
-                if all_handles_finished {
-                    info!("All tasks finished, stopping node");
+        loop {
+            tokio::select! {
+                _ = signal::ctrl_c() => {
                     self.abort().await;
+                    return;
+                }
+                _ = term_signal.recv() => {
+                    self.abort().await;
+                    return;
+                },
+                _ = interrupt_signal.recv() => {
+                    self.abort().await;
+                    return;
+                }
+                _ = handles_check.tick() => {
+                    let all_handles_finished = self.handles.iter().fold(true, |acc, t| acc && t.is_finished());
+                    if all_handles_finished {
+                        info!("All tasks finished, stopping node");
+                        self.abort().await;
+                        return;
+                    }
                 }
             }
         }
