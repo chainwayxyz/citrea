@@ -10,6 +10,7 @@ use citrea::{
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::tasks::manager::TaskType;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
@@ -256,7 +257,7 @@ where
                 None,
             );
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = sequencer.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
@@ -298,13 +299,13 @@ where
                 }
             };
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(l1_start_height, cancellation_token)
                     .await
             });
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 if let Err(e) = prover.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
@@ -340,13 +341,13 @@ where
                 None,
             );
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(starting_block, cancellation_token)
                     .await
             });
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = prover.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
@@ -386,7 +387,7 @@ where
                 }
             };
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(l1_start_height, cancellation_token)
                     .await
@@ -394,14 +395,14 @@ where
 
             // Spawn pruner if configs are set
             if let Some(pruner_service) = pruner_service {
-                task_manager.spawn(|cancellation_token| async move {
+                task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                     pruner_service
                         .run(StorageNodeType::FullNode, cancellation_token)
                         .await
                 });
             }
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = full_node.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
