@@ -10,6 +10,13 @@ use tracing::info;
 
 const WAIT_DURATION: u64 = 5; // 5 seconds
 
+/// Task type distinguishes between a primary and secondary tasks.
+/// A primary task when finished is able cancel all secondary tasks.
+pub enum TaskType {
+    Primary,
+    Secondary,
+}
+
 /// TaskManager manages tasks spawned using tokio and keeps
 /// track of handles so that these tasks are cancellable.
 /// This provides a way to implement graceful shutdown of our
@@ -34,12 +41,16 @@ impl<T: Send + 'static> TaskManager<T> {
     ///
     /// Tasks are forced to accept a cancellation token so that they can be notified
     /// about the cancellation using the passed token.
-    pub fn spawn<F, Fut>(&mut self, callback: F)
+    pub fn spawn<F, Fut>(&mut self, task_type: TaskType, callback: F)
     where
         F: FnOnce(CancellationToken) -> Fut,
         Fut: Future<Output = T> + Send + 'static,
     {
-        let handle = tokio::spawn(callback(self.child_token()));
+        let cancellation_token = match task_type {
+            TaskType::Primary => self.cancellation_token.clone(),
+            TaskType::Secondary => self.child_token(),
+        };
+        let handle = tokio::spawn(callback(cancellation_token));
         self.handles.push(handle);
     }
 
