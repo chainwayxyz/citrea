@@ -10,7 +10,7 @@ use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::GroupCommitments;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig,
@@ -544,8 +544,9 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .unwrap(),
         );
 
-        self.task_manager
-            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -786,8 +787,9 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .unwrap(),
         );
 
-        self.task_manager
-            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -1007,8 +1009,9 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             .unwrap(),
         );
 
-        self.task_manager
-            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;

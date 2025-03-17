@@ -12,7 +12,7 @@ use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::transaction::TransactionWrapper;
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
@@ -69,7 +69,9 @@ pub async fn get_service(
     .expect("Error initializing BitcoinService");
 
     let da_service = Arc::new(da_service);
-    task_manager.spawn(|tk| da_service.clone().run_da_queue(rx, tk));
+    task_manager.spawn(TaskType::Secondary, |tk| {
+        da_service.clone().run_da_queue(rx, tk)
+    });
 
     da_service
 }
