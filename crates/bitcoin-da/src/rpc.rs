@@ -22,6 +22,7 @@ pub struct MonitoredTxResponse {
     pub next_txid: Option<Txid>,
     pub status: TxStatus,
     pub transaction: Transaction,
+    pub hex: String,
 }
 
 impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
@@ -31,6 +32,9 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
         } else {
             None
         };
+
+        let raw_tx_bytes = bitcoin::consensus::encode::serialize(&tx.tx);
+        let hex = hex::encode(&raw_tx_bytes);
 
         MonitoredTxResponse {
             txid,
@@ -42,6 +46,7 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
             next_txid: tx.next_txid,
             status: tx.status,
             transaction: tx.tx,
+            hex,
         }
     }
 }
