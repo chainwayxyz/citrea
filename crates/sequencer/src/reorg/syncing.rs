@@ -667,6 +667,11 @@ where
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;
                             }
+                            L2BlockModuleCallError::EvmTransactionExecutionError2(e) => {
+                                tracing::error!("EVM transaction execution error: {:?}", e);
+                                working_set_to_discard = working_set.revert().to_revertable();
+                                continue;
+                            }
                             L2BlockModuleCallError::EvmMisplacedSystemTx => {
                                 panic!("tried to execute system transaction")
                             }

@@ -125,6 +125,8 @@ pub enum L2BlockModuleCallError {
     },
     /// There was an error during EVM transaction execution
     EvmTransactionExecutionError,
+    /// So we can see the error
+    EvmTransactionExecutionError2(String),
     /// There is a system transaction where it should not be
     EvmMisplacedSystemTx,
     /// Address does not have enough funds to pay for L1 fee
@@ -234,6 +236,9 @@ impl std::fmt::Display for L2BlockModuleCallError {
             }
             L2BlockModuleCallError::EvmTransactionExecutionError => {
                 write!(f, "EVM transaction execution error")
+            }
+            L2BlockModuleCallError::EvmTransactionExecutionError2(e) => {
+                write!(f, "EVM transaction execution error: {:?}", e)
             }
             L2BlockModuleCallError::EvmMisplacedSystemTx => {
                 write!(f, "EVM misplaced system tx")
