@@ -656,7 +656,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env,
             block_env,
             tx_env,
-            TracingInspector::new(TracingInspectorConfig::all()),
+            TracingInspector::new(TracingInspectorConfig::none()),
         ) {
             Ok(result) => result.result,
             Err(err) => {
