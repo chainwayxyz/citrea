@@ -90,6 +90,7 @@ impl TestCase for L2StatusTest {
             with_sequencer: true,
             with_batch_prover: true,
             with_full_node: true,
+            with_citrea_cli: true,
             ..Default::default()
         }
     }
@@ -98,7 +99,8 @@ impl TestCase for L2StatusTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -216,31 +218,37 @@ impl TestCase for L2StatusTest {
         assert_eq!(proven_height2.height, min_soft_confirmations_per_commitment);
         assert_eq!(proven_height2.commitment_index, 0);
 
-        for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+        full_node.wait_until_stopped().await?;
 
-        da.wait_mempool_len(2, None).await?;
-
-        da.generate(FINALITY_DEPTH).await?;
-        let second_commitment_l1_height = da.get_finalized_height(None).await?;
-
-        full_node
-            .wait_for_l1_height(second_commitment_l1_height, None)
+        // Rollback to genesis and check that committed and proven height are correctly resetted
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "full-node",
+                    "--db-path",
+                    full_node.config.rollup.storage.path.to_str().unwrap(),
+                    "--l2-target",
+                    "0",
+                    "--l1-target",
+                    "0",
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
             .await?;
 
-        let committed_height2 = full_node
+        full_node.start(None, None).await?;
+
+        let proven_height = full_node
             .client
             .http_client()
-            .get_last_committed_l2_height()
-            .await?
-            .unwrap();
+            .get_last_proven_l2_height()
+            .await?;
 
-        assert_eq!(
-            committed_height2.height,
-            min_soft_confirmations_per_commitment * 3
-        );
-        assert_eq!(committed_height2.commitment_index, 2);
+        assert!(proven_height.is_none());
+
         Ok(())
     }
 }

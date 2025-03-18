@@ -1,8 +1,8 @@
 use sov_db::schema::tables::{
-    CommitmentsByNumber, LightClientProofBySlotNumber, ShortHeaderProofBySlotHash, SlotByHash,
-    VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, L2StatusHeights, LightClientProofBySlotNumber, ShortHeaderProofBySlotHash,
+    SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::{L2HeightStatus, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::pruning::types::StorageNodeType;
@@ -115,6 +115,7 @@ fn rollback_verified_proofs_by_slot_number(
         )?;
     verified_proofs_by_number.seek_to_last();
 
+    println!("slot_number : {:?}", slot_number);
     for record in verified_proofs_by_number {
         let Ok(record) = record else {
             continue;
@@ -125,6 +126,15 @@ fn rollback_verified_proofs_by_slot_number(
         }
 
         ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
+
+        let proofs = record.value;
+
+        println!("proofs : {:?}", proofs);
+        for proof in proofs.into_iter().rev() {
+            let output = proof.proof_output;
+            ledger_db
+                .delete::<L2StatusHeights>(&(L2HeightStatus::Proven, output.last_l2_height()))?;
+        }
     }
 
     Ok(())
