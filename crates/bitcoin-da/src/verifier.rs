@@ -173,7 +173,7 @@ impl DaVerifier for BitcoinVerifier {
                 if block_header.tx_count == 1 && block_header.txs_commitment != [0; 32] {
                     return Err(ValidationError::InvalidSegWitCommitment);
                 }
-                // If there is more than one txs in a non segwit block, then the witness root should be the header merkle root
+                // If there are more than one txs in a non segwit block, then the witness root should be the header merkle root
                 if block_header.tx_count > 1
                     && block_header.merkle_root() != block_header.txs_commitment
                 {

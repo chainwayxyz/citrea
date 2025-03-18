@@ -84,7 +84,7 @@ impl HeaderWrapper {
     }
 
     pub fn merkle_root(&self) -> [u8; 32] {
-        self.header.merkle_root.to_byte_array()
+        self.header.merkle_root.to_raw_hash().to_byte_array()
     }
 
     pub fn inner(&self) -> &BitcoinHeader {
