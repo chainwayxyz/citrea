@@ -64,8 +64,7 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
 
         match commitment_idx {
             None => {
-                // If non-segwit block, and has only coinbase tx
-                //  claimed tx commitment should equal to [0u8; 32]
+                // If  has only coinbase tx claimed tx commitment should equal to [0u8; 32]
                 if self.header.tx_count == 1 && self.header.txs_commitment != [0u8; 32] {
                     return Err(ShortHeaderProofVerificationError::WrongTxCommitment {
                         expected: [0u8; 32],
