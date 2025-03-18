@@ -49,7 +49,7 @@ use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::verifier::BitcoinVerifier;
+use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 #[cfg(feature = "testing")]
@@ -1170,11 +1170,12 @@ impl DaService for BitcoinService {
                     .map(|transaction| transaction.into())
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        let tx_count = txs.len();
 
-        let witness_root = calculate_witness_root(&txs);
+        let witness_root = calculate_witness_root(&txs, tx_count);
 
         Ok(BitcoinBlock {
-            header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
+            header: HeaderWrapper::new(header, tx_count as u32, block.height, witness_root),
             txdata: txs,
         })
     }
@@ -1325,14 +1326,29 @@ fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     }
 }
 
-fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
+fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8; 32] {
+    // If there is only one transaction in the block, the witness root is all zeros
+    // So the merkle root is all zeros as well
+    if tx_count == 1 {
+        return [0u8; 32];
+    }
+
     let hashes = txdata
         .iter()
         .enumerate()
         .map(|(i, t)| {
             if i == 0 {
-                // Replace the first hash with zeroes.
-                Wtxid::all_zeros().to_raw_hash().to_byte_array()
+                let commitment_idx = t.output.iter().rev().position(|output| {
+                    output
+                        .script_pubkey
+                        .as_bytes()
+                        .starts_with(WITNESS_COMMITMENT_PREFIX)
+                });
+                // If non-segwit block, the coinbase tx should also use the txid instead of all zeros
+                match commitment_idx {
+                    Some(_) => Wtxid::all_zeros().to_raw_hash().to_byte_array(),
+                    None => t.compute_wtxid().to_raw_hash().to_byte_array(),
+                }
             } else {
                 t.compute_wtxid().to_raw_hash().to_byte_array()
             }
