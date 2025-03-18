@@ -9,6 +9,7 @@ use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
+use jsonrpsee::RpcModule;
 pub use runner::*;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
@@ -23,6 +24,7 @@ use tokio::sync::{broadcast, mpsc, Mutex};
 pub mod da_block_handler;
 pub mod db_migrations;
 mod metrics;
+pub mod rpc;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
@@ -41,17 +43,22 @@ pub fn build_services<DA, DB, Vm>(
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
+    rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
     CitreaFullnode<DA, DB>,
     L1BlockHandler<Vm, DA, DB>,
     Option<PrunerService>,
+    RpcModule<()>,
 )>
 where
     DA: DaService<Error = anyhow::Error>,
     DB: NodeLedgerOps + Send + Sync + Clone + 'static,
     Vm: ZkvmHost + Zkvm,
 {
+    let rpc_context = rpc::create_rpc_context(ledger_db.clone());
+    let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
+
     let last_pruned_block = ledger_db.get_last_pruned_l2_height()?.unwrap_or(0);
     let pruner = runner_config.pruning_config.as_ref().map(|pruning_config| {
         let pruner = Pruner::new(
@@ -93,5 +100,5 @@ where
         backup_manager,
     );
 
-    Ok((runner, l1_block_handler, pruner))
+    Ok((runner, l1_block_handler, pruner, rpc_module))
 }

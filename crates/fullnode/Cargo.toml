@@ -27,6 +27,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 # 3rd-party deps
 alloy-primitives = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 backoff = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }

@@ -353,7 +353,7 @@ where
             });
         }
         _ => {
-            let (full_node, l1_block_handler, pruner_service) =
+            let (full_node, l1_block_handler, pruner_service, rpc_module) =
                 CitreaRollupBlueprint::create_full_node(
                     &rollup_blueprint,
                     genesis_config,
@@ -362,6 +362,7 @@ where
                     ledger_db.clone(),
                     storage_manager,
                     soft_confirmation_channel.0,
+                    rpc_module,
                     backup_manager,
                 )
                 .await

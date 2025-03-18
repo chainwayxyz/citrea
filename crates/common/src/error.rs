@@ -1,4 +1,5 @@
 use citrea_primitives::types::BlockNumber;
+use sov_db::schema::types::L2HeightAndIndex;
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -6,6 +7,7 @@ pub enum SyncError {
     // Should not retry in this case
     SequencerCommitmentNotFound([u8; 32]),
     SequencerCommitmentWithIndexNotFound(u32),
+    ProvenHeightExceedsCommittedHeight(L2HeightAndIndex, L2HeightAndIndex),
     Error(anyhow::Error),
 }
 

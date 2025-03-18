@@ -8,7 +8,7 @@ use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
+use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
@@ -16,11 +16,12 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot,
-    L2RangeByL1Height, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
-    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
-    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LastSequencerCommitmentSent,
+    LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
+    PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs,
+    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, SoftConfirmationByHash,
+    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -29,7 +30,9 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::soft_confirmation::{StoredSoftConfirmation, StoredTransaction};
-use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
+use crate::schema::types::{
+    L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, SoftConfirmationNumber,
+};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -815,6 +818,41 @@ impl NodeLedgerOps for LedgerDB {
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
         self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
+    }
+
+    fn get_highest_l2_height_for_status(
+        &self,
+        status: L2HeightStatus,
+    ) -> anyhow::Result<Option<L2HeightAndIndex>> {
+        println!("get_highest_l2_height_for_status status : {:?}", status);
+        let mut iter = self
+            .db
+            .iter_with_direction::<L2StatusHeights>(Default::default(), ScanDirection::Backward)?;
+        iter.seek_for_prev(&(status, u64::MAX))?;
+
+        match iter.next() {
+            Some(Ok(item)) if item.key.0 == status => {
+                let ((_, height), commitment_index) = item.into_tuple();
+
+                Ok(Some(L2HeightAndIndex {
+                    height,
+                    commitment_index,
+                }))
+            }
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
+
+    fn set_l2_height_status(
+        &self,
+        status: L2HeightStatus,
+        val: L2HeightAndIndex,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2StatusHeights>(&(status, val.height), &val.commitment_index)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
     }
 }
 

@@ -14,7 +14,9 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::soft_confirmation::StoredSoftConfirmation;
-use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
+use crate::schema::types::{
+    L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, SoftConfirmationNumber,
+};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
@@ -160,7 +162,7 @@ pub trait SharedLedgerOps {
 }
 
 /// Node ledger operations
-pub trait NodeLedgerOps: SharedLedgerOps {
+pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     /// Stores proof related data on disk, accessible via l1 slot height
     fn update_verified_proof_data(
         &self,
@@ -171,6 +173,14 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
+
+    /// Get L2 height by status
+    fn get_highest_l2_height_for_status(
+        &self,
+        status: L2HeightStatus,
+    ) -> Result<Option<L2HeightAndIndex>>;
+    /// Set L2 height by status
+    fn set_l2_height_status(&self, status: L2HeightStatus, height: L2HeightAndIndex) -> Result<()>;
 }
 
 /// Prover ledger operations

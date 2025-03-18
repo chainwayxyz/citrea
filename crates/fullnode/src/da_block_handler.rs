@@ -13,7 +13,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::{L2HeightAndIndex, L2HeightStatus, SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -162,6 +162,12 @@ where
                     SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
                         error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
                     }
+                    SyncError::ProvenHeightExceedsCommittedHeight(
+                        proven_height,
+                        committed_height,
+                    ) => {
+                        error!("Could not process ZK proofs: L2 status proven height {proven_height:?} above committed height {committed_height:?}")
+                    }
                 }
             }
         }
@@ -179,8 +185,13 @@ where
                     SyncError::Error(e) => {
                         error!("Could not process sequencer commitments: {}... skipping", e);
                     }
-                    SyncError::SequencerCommitmentNotFound(_) => unreachable!("Error irrelevant!"),
+                    SyncError::SequencerCommitmentNotFound(_) => {
+                        unreachable!("Error irrelevant!")
+                    }
                     SyncError::SequencerCommitmentWithIndexNotFound(_) => {
+                        unreachable!("Error irrelevant!")
+                    }
+                    SyncError::ProvenHeightExceedsCommittedHeight(_, _) => {
                         unreachable!("Error irrelevant!")
                     }
                 }
@@ -224,6 +235,24 @@ where
             end_l2_height,
             l1_block.header().height(),
         );
+
+        let committed_height = self
+            .ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed)?
+            .unwrap_or_default();
+
+        // Only proceed if the commitment height and index are higher than the stored one
+        if end_l2_height <= committed_height.height
+            && sequencer_commitment.index <= committed_height.commitment_index
+        {
+            tracing::info!(
+                    "Skipping sequencer commitment with height {end_l2_height} and index {} as we already have commitment with height {} and index {}",
+                    sequencer_commitment.index,
+                    committed_height.height,
+                    committed_height.commitment_index
+                );
+            return Ok(());
+        }
 
         // Traverse each item's field of vector of transactions, put them in merkle tree
         // and compare the root with the one from the ledger
@@ -289,6 +318,14 @@ where
 
         self.ledger_db.set_last_commitment(sequencer_commitment)?;
 
+        self.ledger_db.set_l2_height_status(
+            L2HeightStatus::Committed,
+            L2HeightAndIndex {
+                height: end_l2_height,
+                commitment_index: sequencer_commitment.index,
+            },
+        )?;
+
         Ok(())
     }
 
@@ -330,6 +367,39 @@ where
     ) -> Result<(), SyncError> {
         let sequencer_commitment_index_range =
             batch_proof_output.sequencer_commitment_index_range();
+
+        let proven_height = self
+            .ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Proven)?
+            .unwrap_or_default();
+
+        let end_l2_height = batch_proof_output.last_l2_height();
+
+        if end_l2_height <= proven_height.height
+            && sequencer_commitment_index_range.1 <= proven_height.commitment_index
+        {
+            tracing::info!(
+                "Skipping proof with height {} and index {} as we already have proof with height {} and index {}",
+                end_l2_height,
+                sequencer_commitment_index_range.1,
+                proven_height.height,
+                proven_height.commitment_index
+            );
+            return Ok(());
+        }
+
+        let committed_height = self
+            .ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed)?
+            .unwrap_or_default();
+
+        if proven_height > committed_height {
+            return Err(SyncError::ProvenHeightExceedsCommittedHeight(
+                proven_height,
+                committed_height,
+            ));
+        }
+
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
         let mut l2_start_height = match batch_proof_output.previous_commitment_index() {
             Some(idx) => {
@@ -410,6 +480,14 @@ where
             l1_block.header().height(),
             raw_proof,
             batch_proof_output.into(),
+        )?;
+
+        self.ledger_db.set_l2_height_status(
+            L2HeightStatus::Proven,
+            L2HeightAndIndex {
+                height: end_l2_height,
+                commitment_index: sequencer_commitment_index_range.1,
+            },
         )?;
 
         Ok(())

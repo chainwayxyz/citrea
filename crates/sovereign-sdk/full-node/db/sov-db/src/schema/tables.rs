@@ -22,7 +22,7 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::soft_confirmation::StoredSoftConfirmation;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2HeightRange, SlotNumber,
+    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2HeightRange, L2HeightStatus, SlotNumber,
     SoftConfirmationNumber, StateKey,
 };
 
@@ -99,6 +99,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     TestTableOld::table_name(),
     #[cfg(test)]
     TestTableNew::table_name(),
+    L2StatusHeights::table_name(),
 ];
 
 /// A list of all tables used by BatchProver LedgerDB
@@ -472,6 +473,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Stores merkle hash of seuencer commitment => l2 range
     (CommitmentMerkleRoots) [u8; 32] => L2HeightRange
+);
+
+define_table_with_seek_key_codec!(
+    /// Stores L2 height and index per status
+    (L2StatusHeights) (L2HeightStatus, u64) => u32
 );
 
 #[cfg(test)]
