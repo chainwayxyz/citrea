@@ -355,6 +355,24 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
         let commitment_spec =
             fork_from_block_number(sequencer_commitment.l2_end_block_number).spec_id;
 
+        // If commitment indices are not consecutive, split them into separate groups
+        // The check is done here so that the current commitment's state diff is still calculated
+        // as the new commulative diff as part of the new group, that is, in case the commitments are not
+        // consecutive.
+        if index != 0 && sequencer_commitment.index != sequencer_commitments[index - 1].index + 1 {
+            tracing::info!(
+                "Adding range: {:?} due to non consecutive commitments. Prev index = {}, current index = {}",
+                range,
+                sequencer_commitments[index - 1].index,
+                sequencer_commitment.index
+            );
+            result_range.push(range);
+            // Reset the cumulative state diff to be equal to the current commitment state diff
+            cumulative_state_diff = sequencer_commitment_state_diff;
+            range = index..=index;
+            continue;
+        }
+
         if commitment_spec != current_spec || state_diff_threshold_reached {
             tracing::info!(
                 "Adding range: {:?} due to spec change: {} due to state diff threshold: {}",

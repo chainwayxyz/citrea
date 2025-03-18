@@ -154,6 +154,11 @@ impl DaVerifier for BitcoinVerifier {
             }
         }
 
+        // If there is only coinbase tx in a block, then the witness root should be 0
+        if block_header.tx_count == 1 && block_header.txs_commitment != [0; 32] {
+            return Err(ValidationError::InvalidSegWitCommitment);
+        }
+
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the commitment of witness data.
         let coinbase_tx = &inclusion_proof.coinbase_tx;
@@ -169,10 +174,12 @@ impl DaVerifier for BitcoinVerifier {
         match commitment_idx {
             // If commitment does not exist
             None => {
-                // TODO: add this here? PR #1822
-                // if block_header.merkle_root() != block_header.txs_commitment() {
-                //     return Err()
-                // }
+                // If there are more than one txs in a non segwit block, then the witness root should be the header merkle root
+                if block_header.tx_count > 1
+                    && block_header.merkle_root() != block_header.txs_commitment
+                {
+                    return Err(ValidationError::InvalidSegWitCommitment);
+                }
 
                 // Relevant txs should be empty if there is no witness data because data is inscribed in the witness
                 if !blobs.is_empty() {
@@ -200,6 +207,10 @@ impl DaVerifier for BitcoinVerifier {
                 let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
                 if script_pubkey[6..38] != commitment {
                     return Err(ValidationError::IncorrectInclusionProof);
+                }
+
+                if merkle_root != block_header.txs_commitment {
+                    return Err(ValidationError::InvalidSegWitCommitment);
                 }
             }
         }

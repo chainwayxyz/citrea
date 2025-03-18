@@ -42,7 +42,7 @@ pub(crate) enum RawTxData {
 }
 
 /// This is a list of txs we need to send to DA
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub(crate) enum DaTxs {
     Complete {
         commit: Transaction, // unsigned
@@ -66,16 +66,26 @@ pub(crate) enum DaTxs {
 
 impl TxListWithReveal for DaTxs {
     fn write_to_file(&self, mut path: PathBuf) -> Result<(), anyhow::Error> {
+        fn hex_serialize_tx(tx: &Transaction) -> String {
+            hex::encode(serialize(tx))
+        }
+
         match self {
             Self::Complete { commit, reveal } => {
+                let commit_id = commit.compute_txid();
                 path.push(format!(
-                    "complete_inscription_with_reveal_id_{}.txs",
-                    reveal.id
+                    "complete_inscription_commit_id_{}_reveal_id_{}.txs",
+                    commit_id, reveal.id
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+
+                writer.write_all(format!("commit {}\n", commit_id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+
+                writer.write_all(format!("reveal {}\n", reveal.id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
@@ -85,42 +95,72 @@ impl TxListWithReveal for DaTxs {
                 commit,
                 reveal,
             } => {
+                let commit_id = commit.compute_txid();
                 path.push(format!(
-                    "chunked_inscription_with_reveal_id_{}.txs",
-                    reveal.id
+                    "chunked_inscription_commit_id_{}_reveal_id_{}.txs",
+                    commit_id, reveal.id,
                 ));
                 let file = File::create(path)?;
                 let mut writer = BufWriter::new(&file);
-                for (commit_chunk, reveal_chunk) in commit_chunks.iter().zip(reveal_chunks.iter()) {
-                    writer.write_all(&serialize(commit_chunk))?;
-                    writer.write_all(&serialize(reveal_chunk))?;
+                for (idx, (commit_chunk, reveal_chunk)) in
+                    commit_chunks.iter().zip(reveal_chunks.iter()).enumerate()
+                {
+                    writer.write_all(
+                        format!("chunk {} commit {}\n", idx + 1, commit_chunk.compute_txid())
+                            .as_bytes(),
+                    )?;
+                    writer.write_all(hex_serialize_tx(commit_chunk).as_bytes())?;
+                    writer.write_all(b"\n")?;
+
+                    writer.write_all(
+                        format!("chunk {} reveal {}\n", idx + 1, reveal_chunk.compute_txid())
+                            .as_bytes(),
+                    )?;
+                    writer.write_all(hex_serialize_tx(reveal_chunk).as_bytes())?;
+                    writer.write_all(b"\n")?;
                 }
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+                writer.write_all(format!("aggregate commit {}\n", commit_id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+
+                writer.write_all(format!("aggregate reveal {}\n", reveal.id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
             Self::BatchProofMethodId { commit, reveal } => {
+                let commit_id = commit.compute_txid();
                 path.push(format!(
-                    "batch_proof_method_id_inscription_with_reveal_id_{}.txs",
-                    reveal.id
+                    "batch_proof_method_id_inscription_commit_id_{}_reveal_id_{}.txs",
+                    commit_id, reveal.id
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+
+                writer.write_all(format!("commit {}\n", commit_id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+
+                writer.write_all(format!("reveal {}\n", reveal.id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
             Self::SequencerCommitment { commit, reveal } => {
+                let commit_id = commit.compute_txid();
                 path.push(format!(
-                    "sequencer_commitment_inscription_with_reveal_id_{}.txs",
-                    reveal.id
+                    "sequencer_commitment_inscription_commit_id_{}_reveal_id_{}.txs",
+                    commit_id, reveal.id
                 ));
                 let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
-                writer.write_all(&serialize(commit))?;
-                writer.write_all(&serialize(&reveal.tx))?;
+
+                writer.write_all(format!("commit {}\n", commit_id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
+                writer.write_all(b"\n")?;
+
+                writer.write_all(format!("reveal {}\n", reveal.id).as_bytes())?;
+                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
                 writer.flush()?;
                 Ok(())
             }
