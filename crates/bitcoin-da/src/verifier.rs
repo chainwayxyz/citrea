@@ -189,10 +189,6 @@ impl DaVerifier for BitcoinVerifier {
                 let merkle_root =
                     merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
-                if merkle_root != block_header.txs_commitment {
-                    return Err(ValidationError::InvalidSegWitCommitment);
-                }
-
                 let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
@@ -210,6 +206,10 @@ impl DaVerifier for BitcoinVerifier {
                 let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
                 if script_pubkey[6..38] != commitment {
                     return Err(ValidationError::IncorrectInclusionProof);
+                }
+
+                if merkle_root != block_header.txs_commitment {
+                    return Err(ValidationError::InvalidSegWitCommitment);
                 }
             }
         }
