@@ -38,8 +38,10 @@ contract Bridge is Ownable2StepUpgradeable {
     address public operator;
     uint256 public depositAmount;
     uint256 currentDepositId;
-    bytes public scriptPrefix;
-    bytes public scriptSuffix;
+    bytes public depositPrefix;
+    bytes public depositSuffix;
+    bytes public replacePrefix;
+    bytes public replaceSuffix;
 
     UTXO[] public withdrawalUTXOs;
     bytes32[] public depositTxIds;
@@ -48,7 +50,9 @@ contract Bridge is Ownable2StepUpgradeable {
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
-    event DepositScriptUpdate(bytes scriptPrefix, bytes scriptSuffix);
+    event DepositScriptUpdate(bytes depositPrefix, bytes depositSuffix);
+    event ReplaceScriptUpdate(bytes replacePrefix, bytes replaceSuffix);
+    event DepositReplaced(uint256 index, bytes32 oldTxId, bytes32 newTxId);
     event OperatorUpdated(address oldOperator, address newOperator);
 
     modifier onlySystem() {
@@ -62,37 +66,46 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Initializes the bridge contract and sets the deposit script
-    /// @param _scriptPrefix First part of the deposit script expected in the witness field for all L1 deposits 
-    /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
+    /// @param _depositPrefix First part of the deposit script expected in the witness field for all L1 deposits 
+    /// @param _depositSuffix The suffix of the deposit script that follows the receiver address
     /// @param _depositAmount The CBTC amount that can be deposited and withdrawn
-    function initialize(bytes calldata _scriptPrefix, bytes calldata _scriptSuffix, uint256 _depositAmount) external onlySystem {
+    function initialize(bytes calldata _depositPrefix, bytes calldata _depositSuffix, uint256 _depositAmount) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
-        require(_scriptPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
 
         initialized = true;
-        scriptPrefix = _scriptPrefix;
-        scriptSuffix = _scriptSuffix;
+        depositPrefix = _depositPrefix;
+        depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
         
         // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
         operator = SYSTEM_CALLER;
 
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
-        emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);
+        emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
     /// @dev Deposit script contains a fixed script that checks signatures of verifiers and pushes EVM address of the receiver
-    /// @param _scriptPrefix The new deposit script prefix
-    /// @param _scriptSuffix The part of the deposit script that succeeds the receiver address
-    function setDepositScript(bytes calldata _scriptPrefix, bytes calldata _scriptSuffix) external onlyOwner {
-        require(_scriptPrefix.length != 0, "Deposit script cannot be empty");
+    /// @param _depositPrefix The new deposit script prefix
+    /// @param _depositSuffix The part of the deposit script that succeeds the receiver address
+    function setDepositScript(bytes calldata _depositPrefix, bytes calldata _depositSuffix) external onlyOwner {
+        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
 
-        scriptPrefix = _scriptPrefix;
-        scriptSuffix = _scriptSuffix;
+        depositPrefix = _depositPrefix;
+        depositSuffix = _depositSuffix;
 
-        emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);
+        emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
+    }
+
+    function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
+        require(_replacePrefix.length != 0, "Replace script cannot be empty");
+
+        replacePrefix = _replacePrefix;
+        replaceSuffix = _replaceSuffix;
+
+        emit ReplaceScriptUpdate(_replacePrefix, _replaceSuffix);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
@@ -117,11 +130,11 @@ contract Bridge is Ownable2StepUpgradeable {
         require(nItems == 3, "Invalid witness items"); // musig + script + witness script
 
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
-        uint256 len = scriptPrefix.length;
-        bytes memory _scriptPrefix = script.slice(0, len);
-        require(isBytesEqual(_scriptPrefix, scriptPrefix), "Invalid deposit script");
-        bytes memory _scriptSuffix = script.slice(script.length - scriptSuffix.length, scriptSuffix.length);
-        require(isBytesEqual(_scriptSuffix, scriptSuffix), "Invalid script suffix");
+        uint256 len = depositPrefix.length;
+        bytes memory _depositPrefix = script.slice(0, len);
+        require(isBytesEqual(_depositPrefix, depositPrefix), "Invalid deposit script");
+        bytes memory _depositSuffix = script.slice(script.length - depositSuffix.length, depositSuffix.length);
+        require(isBytesEqual(_depositSuffix, depositSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
         emit Deposit(wtxId, txId, recipient, block.timestamp, currentDepositId);
@@ -174,6 +187,30 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
+    function replaceDeposit(TransactionParams calldata replaceTp, uint256 index) external {
+        validateAndCheckInclusion(replaceTp);
+        require(index < depositTxIds.length, "Invalid index");
+        bytes32 txIdToReplace = depositTxIds[index];
+
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
+
+        uint256 len = replacePrefix.length;
+        bytes memory _replacePrefix = script.slice(0, len);
+        require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid script prefix");
+        bytes memory _replaceSuffix = script.slice(script.length - replaceSuffix.length, replaceSuffix.length);
+        require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid script suffix");
+
+        bytes32 txId = extractTxId(script);
+        require(txId == txIdToReplace, "Invalid txId to replace provided");
+
+        bytes32 newTxId = ValidateSPV.calculateTxId(replaceTp.version, replaceTp.vin, replaceTp.vout, replaceTp.locktime);
+        depositTxIds[index] = newTxId;
+        processedTxIds[newTxId] = true;
+
+        emit DepositReplaced(index, txId, newTxId);
+    }
+
     function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
         bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
         require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
@@ -189,9 +226,15 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
-        uint256 offset = scriptPrefix.length;
+        uint256 offset = depositPrefix.length;
         bytes20 _addr = bytes20(_script.slice(offset, 20));
         return address(uint160(_addr));
+    }
+
+    function extractTxId(bytes memory _script) internal view returns (bytes32) {
+        uint256 offset = replacePrefix.length;
+        bytes32 txId = bytesToBytes32(_script.slice(offset, 32));
+        return txId;
     }
 
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes

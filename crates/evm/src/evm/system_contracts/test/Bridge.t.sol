@@ -41,8 +41,8 @@ contract BridgeTest is Test {
     bytes vout = hex"0285c79a3b00000000225120984c99c0ed8f91a0e9f70c1ab451e9e78107ecf73a12500ecd0760bea016cdfb4a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
     bytes4 locktime = hex"00000000";
     bytes witness = hex"0340abce0ec04f05a22e2bf811b824d91fda4ff6ec94f055d5715cf4384036dd157392cfab47ee808e2ddf97650e420dc848de08699f9184e2ee35da77ed05c9276e4a207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51b540e929d1a8f60137e49aaf57049ce593639353871a9ce9cb176070827a09dd";
-    bytes scriptPrefix = hex"4a207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ac00630663697472656114";
-    bytes scriptSuffix = hex"08000000003b9aca0068";
+    bytes depositPrefix = hex"4a207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ac00630663697472656114";
+    bytes depositSuffix = hex"08000000003b9aca0068";
     bytes intermediate_nodes = hex"00000000000000000000000000000000000000000000000000000000000000005d0b2d694672fc17e41b10278477709b500fed59aae67dba417d442e2c7f4c6900a1c64882d54993fc008ab1e9ae150a78cc08aac6bbbb41db77f55134cb6198";
     uint256 index = 1;
 
@@ -78,7 +78,7 @@ contract BridgeTest is Test {
         vm.store(address(bridge), OWNER_SLOT, bytes32(uint256(uint160(owner))));
 
         vm.prank(SYSTEM_CALLER);
-        bridge.initialize(scriptPrefix, scriptSuffix, 10 ether);
+        bridge.initialize(depositPrefix, depositSuffix, 10 ether);
         vm.deal(address(bridge), 21_000_000 ether);
         address lightClient_impl = address(new BitcoinLightClient());
         bitcoinLightClient = bridge.LIGHT_CLIENT();
@@ -223,7 +223,7 @@ contract BridgeTest is Test {
     function testCannotReinitialize() public {
         vm.expectRevert("Contract is already initialized");
         vm.prank(SYSTEM_CALLER);
-        bridge.initialize(scriptPrefix, scriptSuffix, 5);
+        bridge.initialize(depositPrefix, depositSuffix, 5);
     }
 
     function testCanChangeOperatorAndDeposit() public {
@@ -286,9 +286,9 @@ contract BridgeTest is Test {
 
     function testSetDepositScript() public {
         vm.prank(owner);
-        bridge.setDepositScript(scriptPrefix, scriptSuffix);
-        assert(bridge.isBytesEqual_(scriptPrefix, bridge.scriptPrefix()));
-        assert(bridge.isBytesEqual_(scriptSuffix, bridge.scriptSuffix()));
+        bridge.setDepositScript(depositPrefix, depositSuffix);
+        assert(bridge.isBytesEqual_(depositPrefix, bridge.depositPrefix()));
+        assert(bridge.isBytesEqual_(depositSuffix, bridge.depositSuffix()));
     }
 
     function testUpgrade() public {
