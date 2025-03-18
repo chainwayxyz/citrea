@@ -1,9 +1,9 @@
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2RangeByL1Height, L2Witness, LightClientProofBySlotNumber,
-    ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus,
+    CommitmentsByNumber, L2RangeByL1Height, L2StatusHeights, L2Witness,
+    LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs,
+    SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
 };
-use sov_db::schema::types::{DbHash, SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::{DbHash, L2HeightStatus, SlotNumber, SoftConfirmationNumber};
 use sov_schema_db::DB;
 
 use crate::pruning::types::StorageNodeType;
@@ -26,6 +26,11 @@ pub(crate) fn delete_soft_confirmations_by_number(
     if matches!(node_type, StorageNodeType::BatchProver) {
         ledger_db.delete::<L2Witness>(&soft_confirmation_number)?;
         ledger_db.delete::<ProverStateDiffs>(&soft_confirmation_number)?;
+    }
+
+    if matches!(node_type, StorageNodeType::FullNode) {
+        ledger_db
+            .delete::<L2StatusHeights>(&(L2HeightStatus::Committed, soft_confirmation_number.0))?;
     }
 
     Ok(())

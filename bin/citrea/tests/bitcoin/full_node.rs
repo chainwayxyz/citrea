@@ -249,6 +249,14 @@ impl TestCase for L2StatusTest {
 
         assert!(proven_height.is_none());
 
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+
+        assert!(committed_height.is_none());
+
         Ok(())
     }
 }
