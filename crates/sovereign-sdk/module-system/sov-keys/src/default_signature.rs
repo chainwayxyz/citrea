@@ -132,11 +132,8 @@ impl TryFrom<&[u8]> for K256PublicKey {
     type Error = anyhow::Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut public = [0u8; 33];
-        public.copy_from_slice(value);
         Ok(Self {
-            pub_key: k256::ecdsa::VerifyingKey::from_sec1_bytes(&public)
-                .map_err(anyhow::Error::msg)?,
+            pub_key: k256::ecdsa::VerifyingKey::from_sec1_bytes(value)?,
         })
     }
 }
