@@ -189,25 +189,25 @@ where
 
     pub(crate) async fn produce_l2_block_pre_fork2(
         &mut self,
-        da_block: Da::FilteredBlock,
+        current_l1_block: Da::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: &L2BlockMode,
         last_used_l1_height: &mut u64,
     ) -> anyhow::Result<(u64, StateDiff)> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
-        let da_height = da_block.header().height();
-        let (l2_height, l1_height) = match self
+        let current_l1_height = current_l1_block.header().height();
+        let (soft_confirmation_l2_height, soft_confirmation_l1_height) = match self
             .ledger_db
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
-            None => (1, da_height),
+            None => (1, current_l1_height),
         };
         anyhow::ensure!(
-            l1_height == da_height || l1_height + 1 == da_height,
-            "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
+            soft_confirmation_l1_height == current_l1_height || soft_confirmation_l1_height + 1 == current_l1_height,
+            "Sequencer: L1 height mismatch, expected {current_l1_height} (or {current_l1_height}-1), got {soft_confirmation_l1_height}",
         );
 
         let timestamp = chrono::Local::now().timestamp() as u64;
@@ -236,13 +236,13 @@ where
 
         debug!(
             "Applying soft confirmation on DA block: {}",
-            hex::encode(da_block.header().hash().into())
+            hex::encode(current_l1_block.header().hash().into())
         );
         let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
-            l2_height,
-            da_slot_height: da_block.header().height(),
-            da_slot_hash: da_block.header().hash().into(),
-            da_slot_txs_commitment: da_block.header().txs_commitment().into(),
+            l2_height: soft_confirmation_l2_height,
+            da_slot_height: current_l1_block.header().height(),
+            da_slot_hash: current_l1_block.header().hash().into(),
+            da_slot_txs_commitment: current_l1_block.header().txs_commitment().into(),
             pre_state_root: self.state_root,
             deposit_data: deposit_data.clone(),
             current_spec: active_fork_spec,
@@ -254,7 +254,7 @@ where
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
 
         let evm_txs = self.get_best_transactions()?;
-        let da_block_height = da_block.header().height();
+        let da_block_height = current_l1_block.header().height();
 
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
@@ -266,20 +266,20 @@ where
                 prestate.clone(),
                 soft_confirmation_info.clone(),
                 l2_block_mode,
-                da_block.clone(),
+                current_l1_block.clone(),
             )
             .await?;
 
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
         assert_eq!(
             prestate.version(),
-            l2_height,
+            soft_confirmation_l2_height,
             "Prover storage version is corrupted"
         );
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        let da_header = da_block.header();
+        let da_header = current_l1_block.header();
         if let Err(err) = self.stf.begin_soft_confirmation_pre_fork2(
             &pub_key,
             &mut working_set,
@@ -348,7 +348,7 @@ where
 
         // create the soft confirmation header
         let header = L2Header::new(
-            l2_height,
+            soft_confirmation_l2_height,
             self.soft_confirmation_hash,
             soft_confirmation_result.state_root_transition.final_root,
             l1_fee_rate,
@@ -356,7 +356,7 @@ where
             timestamp,
         );
 
-        let da_header = da_block.header().clone();
+        let da_header = current_l1_block.header().clone();
         let signed_header = self.sign_soft_confirmation(
             active_fork_spec,
             header,
@@ -388,6 +388,6 @@ where
 
         *last_used_l1_height = da_block_height;
 
-        Ok((l2_height, state_diff))
+        Ok((soft_confirmation_l2_height, state_diff))
     }
 }
