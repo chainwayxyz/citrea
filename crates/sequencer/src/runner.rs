@@ -53,23 +53,18 @@ use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment::CommitmentService;
+use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
-
-/// Represents information about the current DA state.
-///
-/// Contains previous height, latest finalized block and fee rate.
-type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 
@@ -1231,68 +1226,4 @@ where
 
         Ok((all_txs, working_set_to_discard))
     }
-}
-
-async fn da_block_monitor<Da>(
-    da_service: Arc<Da>,
-    sender: mpsc::Sender<L1Data<Da>>,
-    loop_interval: u64,
-    cancellation_token: CancellationToken,
-) where
-    Da: DaService,
-{
-    loop {
-        tokio::select! {
-            biased;
-            _ = cancellation_token.cancelled() => {
-                return;
-            }
-            l1_data = get_da_block_data(da_service.clone()) => {
-                let l1_data = match l1_data {
-                    Ok(l1_data) => l1_data,
-                    Err(e) => {
-                        error!("Could not fetch L1 data, {}", e);
-                        continue;
-                    }
-                };
-
-                let _ = sender.send(l1_data).await;
-
-                sleep(Duration::from_millis(loop_interval)).await;
-            },
-        }
-    }
-}
-
-async fn get_da_block_data<Da>(da_service: Arc<Da>) -> anyhow::Result<L1Data<Da>>
-where
-    Da: DaService,
-{
-    let last_finalized_height = match da_service.get_last_finalized_block_header().await {
-        Ok(header) => header.height(),
-        Err(e) => {
-            return Err(anyhow!("Finalized L1 height: {}", e));
-        }
-    };
-
-    let last_finalized_block = match da_service.get_block_at(last_finalized_height).await {
-        Ok(block) => block,
-        Err(e) => {
-            return Err(anyhow!("Finalized L1 block: {}", e));
-        }
-    };
-
-    debug!(
-        "Sequencer: last finalized L1 height: {:?}",
-        last_finalized_height
-    );
-
-    let l1_fee_rate = match da_service.get_fee_rate().await {
-        Ok(fee_rate) => fee_rate,
-        Err(e) => {
-            return Err(anyhow!("L1 fee rate: {}", e));
-        }
-    };
-
-    Ok((last_finalized_block, l1_fee_rate))
 }
