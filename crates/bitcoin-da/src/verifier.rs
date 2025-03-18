@@ -169,10 +169,16 @@ impl DaVerifier for BitcoinVerifier {
         match commitment_idx {
             // If commitment does not exist
             None => {
-                // TODO: add this here? PR #1822
-                // if block_header.merkle_root() != block_header.txs_commitment() {
-                //     return Err()
-                // }
+                // If there is only coinbase tx in a non segwit block, then the witness root should be 0
+                if block_header.tx_count == 1 && block_header.txs_commitment != [0; 32] {
+                    return Err(ValidationError::InvalidSegWitCommitment);
+                }
+                // If there is more than one txs in a non segwit block, then the witness root should be the header merkle root
+                if block_header.tx_count > 1
+                    && block_header.merkle_root() != block_header.txs_commitment
+                {
+                    return Err(ValidationError::InvalidSegWitCommitment);
+                }
 
                 // Relevant txs should be empty if there is no witness data because data is inscribed in the witness
                 if !blobs.is_empty() {
