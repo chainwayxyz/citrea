@@ -18,7 +18,6 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tokio = { workspace = true, features = ["full"], optional = true }
 tokio-util = { workspace = true, optional = true }
 
-alloy-primitives = { workspace = true, optional = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
 backoff = { workspace = true, optional = true }
@@ -51,7 +50,6 @@ rand = { workspace = true }
 [features]
 default = []
 native = [
-  "dep:alloy-primitives",
   "dep:async-trait",
   "dep:backoff",
   "dep:futures",

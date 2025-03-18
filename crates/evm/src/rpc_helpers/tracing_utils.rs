@@ -44,7 +44,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     let inspector = FourByteInspector::default();
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
-                    let res = inspect_citrea(
+                    let res = trace_citrea(
                         db,
                         config_env,
                         block_env,
@@ -66,7 +66,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                             .set_record_logs(call_config.with_log.unwrap_or_default()),
                     );
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
-                    let res = inspect_citrea(
+                    let res = trace_citrea(
                         db,
                         config_env,
                         block_env,
@@ -106,7 +106,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
 
                 let mut db_ref = EvmDbRef::new(db);
-                let result_and_state = js_inspect_citrea(
+                let result_and_state = js_trace_citrea(
                     &mut db_ref,
                     config_env.clone(),
                     block_env.clone(),
@@ -137,7 +137,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     let inspector = TracingInspector::new(inspector_config);
     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
 
-    let res = inspect_citrea(
+    let res = trace_citrea(
         db,
         config_env,
         block_env,
@@ -157,7 +157,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 }
 
 /// Executes the [Env] against the given [Database] without committing state changes.
-fn inspect_citrea<'a, 'b, C, I>(
+fn trace_citrea<'a, 'b, C, I>(
     db: &'b mut EvmDb<'a, C>,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
@@ -185,7 +185,7 @@ where
     evm.transact()
 }
 
-fn js_inspect_citrea<'a, 'b, 'c, C, I>(
+fn js_trace_citrea<'a, 'b, 'c, C, I>(
     db: &'c mut EvmDbRef<'a, 'b, C>,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
@@ -214,7 +214,7 @@ where
 }
 
 /// Executes the [Env] against the given [Database] without committing state changes.
-pub(crate) fn inspect<DB, I>(
+pub(crate) fn inspect_no_citrea_handle<DB, I>(
     db: DB,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
@@ -238,7 +238,7 @@ where
     evm.transact()
 }
 
-pub(crate) fn inspect_no_tracing<C: sov_modules_api::Context>(
+pub(crate) fn inspect_with_citrea_handle_no_inspectors<C: sov_modules_api::Context>(
     db: EvmDb<'_, C>,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
