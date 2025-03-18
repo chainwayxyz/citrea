@@ -2,17 +2,19 @@ pub mod test_utils;
 
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
-use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa};
+use sov_modules_api::WorkingSet;
+use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::BatchProofInfo;
 use sov_rollup_interface::Network;
-use sov_state::ZkStorage;
+use sov_state::{Witness, ZkStorage};
 use tempfile::tempdir;
 use test_utils::{
     create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
     create_random_state_diff, create_serialized_mock_proof, NativeCircuitRunner,
 };
 
+use crate::circuit::accessors::SequencerCommitmentAccessor;
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
@@ -1243,4 +1245,126 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         }],
     );
     assert_eq!(output_2.last_l2_height, 2);
+}
+
+#[test]
+fn test_light_client_circuit_verify_sequencer_commitment() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let commitment = SequencerCommitment {
+        merkle_root: [1; 32],
+        index: 1,
+        l2_end_block_number: 30,
+    };
+    let commitment_da_data = DataOnDa::SequencerCommitment(commitment);
+    let commitment_serialized = borsh::to_vec(&commitment_da_data).expect("should serialize");
+
+    let blob1 = MockBlob::new(
+        commitment_serialized.clone(),
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        Some([1; 32]),
+    );
+    blob1.full_data();
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+        )
+        .unwrap();
+
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let mock_output_1_serialized = create_prev_lcp_serialized(output, true);
+
+    // resubmit the same comment with same index but different params
+    let commitment = SequencerCommitment {
+        merkle_root: [2; 32],
+        index: 1,
+        l2_end_block_number: 60,
+    };
+    let commitment_da_data = DataOnDa::SequencerCommitment(commitment);
+    let commitment_serialized = borsh::to_vec(&commitment_da_data).expect("should serialize");
+
+    let blob2 = MockBlob::new(
+        commitment_serialized.clone(),
+        MockAddress::new([9u8; 32]),
+        [1u8; 32],
+        Some([2; 32]),
+    );
+    blob2.full_data();
+
+    let input2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(mock_output_1_serialized),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
+    );
+
+    let witness = Witness::default();
+    zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input2,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &method_id_upgrade_authority,
+        )
+        .unwrap();
+
+    let prover_storage = native_circuit_runner
+        .prover_storage_manager
+        .create_storage_for_next_l2_height();
+    let mut working_set = WorkingSet::with_witness(prover_storage, witness, Default::default());
+    let commitment =
+        SequencerCommitmentAccessor::get(1, &mut working_set).expect("Should be available");
+
+    // Make sure that the original commitment with index 1 was not
+    // overwritten by the second block's commitment
+    assert_eq!(commitment.index, 1);
+    assert_eq!(commitment.l2_end_block_number, 30);
+    assert_eq!(commitment.merkle_root, [1; 32]);
 }

@@ -281,8 +281,7 @@ impl TestCase for CpfpFeeBumpingTest {
             .unwrap();
         let parent_txid = &reveal_tx.txid;
         let parent_base_fee = reveal_tx.base_fee.unwrap();
-        let parent_fee_rate =
-            parent_base_fee.to::<u64>() as f64 / reveal_tx.vsize.to::<u64>() as f64;
+        let parent_fee_rate = parent_base_fee as f64 / reveal_tx.vsize as f64;
 
         // Test cpfp not allowed on commit TX
         let reveal_cpfp = sequencer
@@ -356,8 +355,7 @@ impl TestCase for CpfpFeeBumpingTest {
             .unwrap();
         let parent_txid = &reveal_tx.txid;
         let parent_base_fee = reveal_tx.base_fee.unwrap();
-        let parent_fee_rate =
-            parent_base_fee.to::<u64>() as f64 / reveal_tx.vsize.to::<u64>() as f64;
+        let parent_fee_rate = parent_base_fee as f64 / reveal_tx.vsize as f64;
 
         // Try with high fee rate and force child TX to include multiple input to validate input selection
         let target_fee_rate = parent_fee_rate * 100.0;

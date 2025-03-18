@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use accessors::{BlockHashAccessor, ChunkAccessor};
+use accessors::{BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor};
 use borsh::BorshDeserialize;
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
@@ -20,7 +20,7 @@ use crate::circuit::utils::{collect_unchained_outputs, recursive_match_state_roo
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
-mod accessors;
+pub(crate) mod accessors;
 /// Initial values that are used to initialize the light client proof circuit.
 pub mod initial_values;
 pub(crate) mod utils;
@@ -283,9 +283,17 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         batch_proof_method_ids.push((activation_l2_height, method_id));
                     }
                 }
-                DataOnDa::SequencerCommitment(_) => {
-                    println!("Found sequencer commitment");
-                    // TODO
+                DataOnDa::SequencerCommitment(commitment) => {
+                    println!("Found sequencer commitment with index {}", commitment.index);
+                    if SequencerCommitmentAccessor::<S>::get(commitment.index, &mut working_set)
+                        .is_none()
+                    {
+                        SequencerCommitmentAccessor::<S>::insert(
+                            commitment.index,
+                            commitment,
+                            &mut working_set,
+                        )
+                    }
                 }
             }
         }
