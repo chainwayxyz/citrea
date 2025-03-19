@@ -207,10 +207,14 @@ where
             l2_height,
             "Prover storage version is corrupted"
         );
-        let tx_bodies = l2_block_response
-            .txs
-            .clone()
-            .map(|txs| txs.into_iter().map(|tx| tx.tx).collect::<Vec<_>>());
+        let tx_bodies = Some(
+            l2_block_response
+                .txs
+                .clone()
+                .into_iter()
+                .map(|tx| tx.tx)
+                .collect::<Vec<_>>(),
+        );
 
         // Register this new block with the fork manager to active
         // the new fork on the next block.

@@ -76,13 +76,12 @@ impl TryFrom<StoredL2Block> for L2BlockResponse {
         };
         Ok(Self {
             header,
-            txs: Some(
-                value
-                    .txs
-                    .into_iter()
-                    .filter_map(|tx| tx.body.map(Into::into))
-                    .collect(),
-            ), // Rollup full nodes don't store tx bodies
+            txs: value
+                .txs
+                .into_iter()
+                .filter_map(|tx| tx.body.map(Into::into))
+                .collect(),
+            // Rollup full nodes don't store tx bodies
         })
     }
 }

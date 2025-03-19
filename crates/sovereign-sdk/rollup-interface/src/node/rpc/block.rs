@@ -36,8 +36,7 @@ pub struct L2BlockResponse {
     /// The L2 header
     pub header: L2HeaderResponse,
     /// The transactions in this batch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<HexTx>>,
+    pub txs: Vec<HexTx>,
 }
 
 impl TryFrom<L2BlockResponse> for L2Block {
@@ -46,7 +45,6 @@ impl TryFrom<L2BlockResponse> for L2Block {
         let parsed_txs = val
             .txs
             .iter()
-            .flatten()
             .map(|tx| {
                 let body = &tx.tx;
                 borsh::from_slice::<Transaction>(body)

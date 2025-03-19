@@ -91,26 +91,25 @@ pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: Sha
     ledger_db: &DB,
     da_service: Arc<Da>,
 ) -> anyhow::Result<()> {
-    if let Some(txs) = &l2_block_response.txs {
-        for tx in txs {
-            let tx = &tx.tx;
-            let tx = Transaction::try_from_slice(tx).expect("Should deserialize transaction");
-            let runtime_msg = tx.runtime_msg();
-            if runtime_msg[0] == 1 {
-                // This is evm call message
-                let evm_call_message =
-                    EvmCallMessage::try_from_slice(&runtime_msg[1..]).expect("Should be the tx");
-                let evm_txs = evm_call_message.txs;
-                for tx in evm_txs {
-                    let tx = TransactionSignedEcRecovered::try_from(tx)
-                        .expect("Should deserialize evm transaction");
-                    if tx.signer() == SYSTEM_SIGNER {
-                        update_short_header_proof_from_sys_tx(&tx, ledger_db, da_service.clone())
-                            .await?;
-                    }
+    for tx in &l2_block_response.txs {
+        let tx = &tx.tx;
+        let tx = Transaction::try_from_slice(tx).expect("Should deserialize transaction");
+        let runtime_msg = tx.runtime_msg();
+        if runtime_msg[0] == 1 {
+            // This is evm call message
+            let evm_call_message =
+                EvmCallMessage::try_from_slice(&runtime_msg[1..]).expect("Should be the tx");
+            let evm_txs = evm_call_message.txs;
+            for tx in evm_txs {
+                let tx = TransactionSignedEcRecovered::try_from(tx)
+                    .expect("Should deserialize evm transaction");
+                if tx.signer() == SYSTEM_SIGNER {
+                    update_short_header_proof_from_sys_tx(&tx, ledger_db, da_service.clone())
+                        .await?;
                 }
             }
         }
     }
+
     Ok(())
 }
