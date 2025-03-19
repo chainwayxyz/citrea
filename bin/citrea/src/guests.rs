@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
-use citrea_risc0_adapter::Digest;
+use citrea_primitives::types::Digest;
 use lazy_static::lazy_static;
-use risc0_binfmt::compute_image_id;
 use sov_rollup_interface::spec::SpecId;
 
 macro_rules! guest {
     ($a:expr) => {{
         let code = include_bytes!($a).to_vec();
-        let id = compute_image_id(&code).unwrap();
+        let id = risc0_binfmt::compute_image_id(&code).unwrap();
 
-        (id, code)
+        (id.into(), code)
     }};
 }
 
@@ -19,6 +18,7 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
+        #[cfg(feature = "r0")]
         m.insert(
             SpecId::Tangerine,
             (
@@ -31,6 +31,7 @@ lazy_static! {
     pub(crate) static ref LIGHT_CLIENT_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
+        #[cfg(feature = "r0")]
         m.insert(
             SpecId::Tangerine,
             (
@@ -42,31 +43,44 @@ lazy_static! {
     };
 
     pub(crate) static ref BATCH_PROOF_REGTEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
-        HashMap::from(
-            [
-                (SpecId::Tangerine,
-                    (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "r0")] {
+                HashMap::from(
+                    [
+                        (SpecId::Tangerine,
+                            (citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into(),
+                            citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+                        )
+                    ]
                 )
-            ]
-        )
+            } else {
+                HashMap::new()
+            }
+        }
     };
 
     /// The following 2 are used as latest guest builds for tests that use Bitcoin DA.
     pub(crate) static ref BATCH_PROOF_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
-        HashMap::from(
-            [
-                (SpecId::Tangerine,
-                    (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "r0")] {
+                HashMap::from(
+                    [
+                        (SpecId::Tangerine,
+                            (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                            citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+                        )
+                    ]
                 )
-            ]
-        )
+            } else {
+                HashMap::new()
+            }
+        }
     };
 
     pub(crate) static ref LIGHT_CLIENT_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
+        #[cfg(feature = "r0")]
         m.insert(
             SpecId::Tangerine,
             (
@@ -80,12 +94,14 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_MAINNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/mainnet/batch-0.elf"));
         m
     };
     pub(crate) static ref BATCH_PROOF_TESTNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/testnet/batch-0.elf"));
 
         m
@@ -94,9 +110,12 @@ lazy_static! {
         let mut m = HashMap::new();
 
         // won't be used but putting here just in case
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"));
         // won't be used but putting here just in case
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"));
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"));
 
         m
@@ -104,12 +123,14 @@ lazy_static! {
     pub(crate) static ref LIGHT_CLIENT_MAINNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/mainnet/light-0.elf"));
         m
     };
     pub(crate) static ref LIGHT_CLIENT_TESTNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/testnet/light-0.elf"));
 
         m
@@ -118,9 +139,12 @@ lazy_static! {
         let mut m = HashMap::new();
 
         // won't be used but putting here just in case
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"));
         // won't be used but putting here just in case
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"));
+        #[cfg(feature = "r0")]
         m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"));
         m
     };

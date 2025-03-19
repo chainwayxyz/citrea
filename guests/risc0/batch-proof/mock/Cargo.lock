@@ -1167,6 +1167,7 @@ version = "0.7.0-rc.1"
 dependencies = [
  "alloy-eips",
  "brotli",
+ "serde",
  "sov-rollup-interface",
 ]
 
@@ -1176,6 +1177,7 @@ version = "0.7.0-rc.1"
 dependencies = [
  "bincode",
  "borsh",
+ "citrea-primitives",
  "risc0-zkp",
  "risc0-zkvm",
  "serde",

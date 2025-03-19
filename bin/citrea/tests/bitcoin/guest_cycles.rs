@@ -191,3 +191,21 @@ async fn guest_cycles() {
 
     println!("Execution stats: {:?}", stats);
 }
+
+#[cfg(feature = "sp1")]
+#[tokio::test]
+#[ignore]
+async fn guest_cycles_sp1() {
+    use sp1_sdk::{ProverClient, SP1Stdin};
+
+    // Setup the prover client.
+    let client = ProverClient::from_env();
+
+    // Setup the inputs.
+    let mut stdin = SP1Stdin::new();
+
+    let (_output, report) = client.execute(citrea_sp1_host::ELF, &stdin).run().unwrap();
+
+    // Record the number of cycles executed.
+    println!("Number of cycles: {}", report.total_instruction_count());
+}

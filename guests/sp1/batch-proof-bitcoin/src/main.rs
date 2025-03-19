@@ -1,13 +1,15 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::spec::BitcoinSpec;
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_primitives::forks::{DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, TESTNET_FORKS};
 use citrea_primitives::REVEAL_TX_PREFIX;
-use citrea_sp1::guest::SP1Guest;
-use citrea_stf::runtime::Runtime;
+use citrea_sp1_guest::SP1Guest;
+use citrea_stf::runtime::CitreaRuntime;
+use citrea_stf::verifier::StateTransitionVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::fork::Fork;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
@@ -20,23 +22,6 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
         None => panic!("Invalid CITREA_NETWORK value"),
     },
     None => Network::Nightly,
-};
-
-const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
-    let hex_pub_key = match NETWORK {
-        Network::Mainnet => "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
-        Network::Testnet => "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
-        Network::Devnet => "039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
-        Network::Nightly => match option_env!("SEQUENCER_DA_PUBLIC_KEY") {
-            Some(hex_pub_key) => hex_pub_key,
-            None => "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
-        },
-    };
-
-    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
-    }
 };
 
 const SEQUENCER_PUBLIC_KEY: [u8; 33] = {
@@ -58,35 +43,36 @@ const SEQUENCER_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
-const FORKS: &[Fork] = match NETWORK {
-    Network::Mainnet => &MAINNET_FORKS,
-    Network::Testnet => &TESTNET_FORKS,
-    Network::Devnet => &DEVNET_FORKS,
-    Network::Nightly => &NIGHTLY_FORKS,
-};
+const FORKS: &[Fork] = &NIGHTLY_FORKS;
+
+fn get_forks() -> &'static [Fork] {
+    #[cfg(feature = "testing")]
+    {
+        if std::env::var("ALL_FORKS").is_ok() {
+            println!("Enabling ALL_FORKS");
+            return &citrea_primitives::forks::ALL_FORKS;
+        }
+    }
+    FORKS
+}
 
 pub fn main() {
     let guest = SP1Guest::new();
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StateTransitionVerifier<_, ZkDefaultContext, Runtime<_, _>> =
-        StateTransitionVerifier::new(
-            stf,
-            BitcoinVerifier::new(RollupParams {
-                reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-            }),
-        );
+    let mut stf_verifier: StateTransitionVerifier<
+        ZkDefaultContext,
+        BitcoinSpec,
+        CitreaRuntime<_, _>,
+    > = StateTransitionVerifier::new(stf);
 
-    let out = stf_verifier
-        .run_sequencer_commitments_in_da_slot(
-            &guest,
-            storage,
-            &SEQUENCER_PUBLIC_KEY,
-            &SEQUENCER_DA_PUBLIC_KEY,
-            FORKS,
-        )
-        .expect("Prover must be honest");
+    let out = stf_verifier.run_sequencer_commitments_in_da_slot(
+        &guest,
+        storage,
+        &SEQUENCER_PUBLIC_KEY,
+        FORKS,
+    );
 
     guest.commit(&out);
 }

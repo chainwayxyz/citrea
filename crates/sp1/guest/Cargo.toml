@@ -1,0 +1,32 @@
+[package]
+name = "citrea-sp1-guest"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+readme = "README.md"
+resolver = "2"
+
+[dependencies]
+sp1-sdk = { workspace = true, default-features = false, features = ["network"], optional = true }
+sp1-zkvm = { workspace = true, default-features = false, features = ["lib", "verify"] }
+
+anyhow = { workspace = true }
+borsh = { workspace = true }
+serde = { workspace = true, optional = true }
+sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface" }
+sov-db = { path = "../../sovereign-sdk/full-node/db/sov-db", optional = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+native = [
+  "dep:serde",
+  "dep:sov-db",
+  "dep:sp1-sdk",
+  "dep:tokio",
+  "sov-rollup-interface/native",
+]

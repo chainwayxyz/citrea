@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 pub mod batch_prover_test;
+#[cfg(feature = "r0")]
 pub mod light_client_test;
 pub mod rollback;
 mod utils;
