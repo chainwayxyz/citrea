@@ -4,10 +4,10 @@ use std::hash::Hash;
 use std::iter::StepBy;
 use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo};
 
+use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::{Address, BlockHash, Bloom, BloomInput, B256, U64};
 use itertools::EitherOrBoth::*;
 use itertools::Itertools;
-use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_server_types::result::rpc_error_with_code;
 use serde::de::{DeserializeOwned, MapAccess, Visitor};

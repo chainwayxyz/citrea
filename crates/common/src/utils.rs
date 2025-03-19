@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use alloy_consensus::transaction::Transaction as _;
 use alloy_sol_types::SolCall;
 use anyhow::{anyhow, Context as _};
 use borsh::BorshDeserialize;
 use citrea_evm::system_contracts::BitcoinLightClientContract;
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
 use citrea_primitives::EMPTY_TX_ROOT;
-use reth_primitives::TransactionSignedEcRecovered;
+use reth_primitives::{Recovered, TransactionSigned};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
@@ -53,7 +54,7 @@ pub fn compute_tx_merkle_root(tx_hashes: &[[u8; 32]]) -> anyhow::Result<[u8; 32]
 }
 
 async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOps>(
-    tx: &TransactionSignedEcRecovered,
+    tx: &Recovered<TransactionSigned>,
     ledger_db: &DB,
     da_service: Arc<Da>,
 ) -> anyhow::Result<()> {
@@ -101,8 +102,7 @@ pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: Sha
                 EvmCallMessage::try_from_slice(&runtime_msg[1..]).expect("Should be the tx");
             let evm_txs = evm_call_message.txs;
             for tx in evm_txs {
-                let tx = TransactionSignedEcRecovered::try_from(tx)
-                    .expect("Should deserialize evm transaction");
+                let tx = Recovered::try_from(tx).expect("Should deserialize evm transaction");
                 if tx.signer() == SYSTEM_SIGNER {
                     update_short_header_proof_from_sys_tx(&tx, ledger_db, da_service.clone())
                         .await?;

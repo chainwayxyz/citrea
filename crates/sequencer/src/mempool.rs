@@ -92,7 +92,7 @@ impl CitreaMempool {
             .set_block_gas_limit(evm_config.block_gas_limit)
             .set_shanghai(true)
             .with_additional_tasks(0)
-            .build_with_tasks(client, TokioTaskExecutor::default(), blob_store);
+            .build_with_tasks(client, blob_store);
 
         Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
     }
@@ -103,7 +103,7 @@ impl CitreaMempool {
     ) -> PoolResult<TxHash> {
         if transaction.transaction().signer() == SYSTEM_SIGNER {
             return Err(PoolError::other(
-                transaction.transaction().hash(),
+                *transaction.transaction().hash(),
                 "system transactions from rpc are not allowed",
             ));
         }

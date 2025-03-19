@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-use alloy_eips::BlockId;
-use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
+use alloy_consensus::TxReceipt;
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
+use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_primitives::{address, b256, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
-use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::BlockNumberOrTag;
-use revm::primitives::{KECCAK_EMPTY, U256};
+use reth_primitives::{Log, LogData};
+use revm::primitives::{hex, KECCAK_EMPTY, U256};
 use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -627,7 +628,7 @@ fn test_block_hash_in_evm() {
 fn test_block_gas_limit() {
     let (config, dev_signer, contract_addr) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
-        Some(ETHEREUM_BLOCK_GAS_LIMIT),
+        Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
 
     let (mut evm, working_set, _spec_id) = get_evm(&config);
@@ -746,7 +747,7 @@ fn test_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT);
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT_30M);
     assert_eq!(block.header.gas_used, 29997634);
     assert_eq!(block.transactions.hashes().len(), 1130);
 }

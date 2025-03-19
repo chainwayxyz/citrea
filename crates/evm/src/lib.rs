@@ -6,6 +6,7 @@ mod genesis;
 mod hooks;
 mod provider_functions;
 
+use alloy_consensus::TxReceipt;
 pub use alloy_primitives::{keccak256, U256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
@@ -57,13 +58,13 @@ pub struct PendingTransaction {
 
 impl PendingTransaction {
     /// Returns the transaction's hash
-    pub fn hash(&self) -> TxHash {
-        self.transaction.signed_transaction.hash
+    pub fn hash(&self) -> &TxHash {
+        self.transaction.signed_transaction.hash()
     }
 
     /// Returns the cumulative gas used for this transaction
     pub fn cumulative_gas_used(&self) -> u64 {
-        self.receipt.receipt.cumulative_gas_used
+        self.receipt.receipt.cumulative_gas_used()
     }
 }
 

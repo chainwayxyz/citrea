@@ -3,12 +3,12 @@ use alloy_rpc_types_trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
 };
-use reth_primitives::revm_primitives::TxEnv;
-use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
+use revm::primitives::{
+    Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId, TxEnv,
+};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
@@ -27,7 +27,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: &TxHash,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
 ) -> EthResult<(GethTrace, revm::primitives::state::EvmState)> {
@@ -97,7 +97,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 let config = tracer_config.into_json();
                 let transaction_context = TransactionContext {
                     block_hash: None,
-                    tx_hash: Some(tx_hash),
+                    tx_hash: Some(*tx_hash),
                     tx_index: None,
                 };
                 let inspector =
@@ -162,7 +162,7 @@ fn trace_citrea<'a, 'b, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: &TxHash,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -189,7 +189,7 @@ fn js_trace_citrea<'a, 'b, 'c, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: &TxHash,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -245,7 +245,7 @@ pub(crate) fn inspect_with_citrea_handle_no_inspectors<C: sov_modules_api::Conte
 ) -> Result<(ResultAndState, TxInfo), EVMError<DBError>> {
     let tmp_hash: TxHash = b"hash_of_an_ephemeral_transaction".into();
     let mut ext = CitreaExternal::new(l1_fee_rate);
-    ext.set_current_tx_hash(tmp_hash);
+    ext.set_current_tx_hash(&tmp_hash);
 
     let mut evm = revm::Evm::builder()
         .with_db(db)
@@ -260,31 +260,9 @@ pub(crate) fn inspect_with_citrea_handle_no_inspectors<C: sov_modules_api::Conte
     let tx_info = evm
         .context
         .external
-        .get_tx_info(tmp_hash)
+        .get_tx_info(&tmp_hash)
         .unwrap_or_default(); // default 0 in case tx was unsuccessful
     Ok((result_and_state, tx_info))
-}
-
-/// Taken from reth
-/// https://github.com/paradigmxyz/reth/blob/606640285e763b64519213bad34c76fe4d24652f/crates/rpc/rpc/src/eth/revm_utils.rs#L69
-/// Helper type to work with different transaction types when configuring the EVM env.
-///
-/// This makes it easier to handle errors.
-pub(crate) trait FillableTransaction {
-    /// Returns the hash of the transaction.
-    fn hash(&self) -> TxHash;
-}
-
-impl FillableTransaction for TransactionSignedEcRecovered {
-    fn hash(&self) -> TxHash {
-        self.hash
-    }
-}
-
-impl FillableTransaction for TransactionSigned {
-    fn hash(&self) -> TxHash {
-        self.hash
-    }
 }
 
 /// https://github.com/paradigmxyz/reth/blob/332e412a0f8d34ff2bbb7e07921f8cacdcf69d64/crates/rpc/rpc/src/eth/revm_utils.rs#L403

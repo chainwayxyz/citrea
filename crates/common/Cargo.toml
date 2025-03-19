@@ -12,6 +12,7 @@ resolver = "2"
 
 [dependencies]
 # 3rd-party deps
+alloy-consensus = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }

@@ -1,7 +1,8 @@
-use alloy_consensus::Header as AlloyHeader;
+use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
+use alloy_consensus::{proofs, Header as AlloyHeader, TxReceipt};
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
+use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
@@ -11,7 +12,7 @@ use tracing::instrument;
 
 use crate::evm::primitive_types::Block;
 use crate::evm::system_events::SystemEvent;
-use crate::Evm;
+use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
@@ -67,7 +68,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg.base_fee_params,
         );
 
-        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0));
+        let active_evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec());
+        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(
+            0,
+            active_evm_spec.is_enabled_in(SpecId::PRAGUE),
+        ));
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block_number + 1),
@@ -118,34 +123,32 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let gas_used = pending_transactions
             .last()
-            .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
+            .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used());
 
-        let transactions: Vec<&reth_primitives::TransactionSigned> = pending_transactions
+        let transactions: Vec<_> = pending_transactions
             .iter()
-            .map(|tx| &tx.transaction.signed_transaction)
+            .map(|tx| tx.transaction.signed_transaction.clone()) // TODO: https://github.com/alloy-rs/alloy/issues/2214
             .collect();
 
-        let receipts: Vec<reth_primitives::ReceiptWithBloom> = pending_transactions
-            .iter()
-            .map(|tx| tx.receipt.receipt.clone().with_bloom())
+        let receipts: Vec<_> = pending_transactions
+            .into_iter()
+            .map(|tx| tx.receipt.receipt.with_bloom_ref())
             .collect();
 
         let header = AlloyHeader {
             parent_hash: parent_block_hash,
             timestamp: self.block_env.timestamp.saturating_to(),
             number: self.block_env.number.saturating_to(),
-            ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
+            ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook
-            state_root: reth_primitives::constants::KECCAK_EMPTY,
-            transactions_root: reth_primitives::proofs::calculate_transaction_root(
-                transactions.as_slice(),
-            ),
-            receipts_root: reth_primitives::proofs::calculate_receipt_root(receipts.as_slice()),
+            state_root: KECCAK_EMPTY,
+            transactions_root: proofs::calculate_transaction_root(transactions.as_slice()),
+            receipts_root: proofs::calculate_receipt_root(receipts.as_slice()),
             withdrawals_root: None,
             logs_bloom: receipts
                 .iter()
-                .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom),
+                .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom()),
             difficulty: U256::ZERO,
             gas_limit: self.block_env.gas_limit.saturating_to(),
             gas_used,
@@ -160,7 +163,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
-            requests_root: None,
+            requests_hash: None,
         };
 
         let block = Block {
@@ -192,7 +195,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 self.receipts.push(receipt, &mut accessory_state);
 
                 self.transaction_hashes.set(
-                    &transaction.signed_transaction.hash,
+                    transaction.signed_transaction.hash(),
                     &tx_index,
                     &mut accessory_state,
                 );

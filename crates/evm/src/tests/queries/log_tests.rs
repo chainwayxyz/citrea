@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
+use alloy_eips::BlockNumberOrTag;
 use alloy_network::BlockResponse;
-use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -403,7 +403,7 @@ fn test_log_limits() {
     // bigger block is needed to be able to include all the transactions
     let (config, dev_signer, contract_addr) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
-        Some(20 * ETHEREUM_BLOCK_GAS_LIMIT),
+        Some(20 * ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
 
     let (mut evm, mut working_set, _spec_id) = get_evm(&config);

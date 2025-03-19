@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use alloy_consensus::SignableTransaction;
 use alloy_primitives::{Address, B256};
 use reth_primitives::{sign_message, Transaction, TransactionSigned};
 use reth_rpc_eth_types::SignError;
@@ -38,9 +39,6 @@ impl DevSigner {
         let signature = sign_message(B256::from_slice(signer.as_ref()), tx_signature_hash)
             .map_err(|_| SignError::CouldNotSign)?;
 
-        Ok(TransactionSigned::from_transaction_and_signature(
-            transaction,
-            signature,
-        ))
+        Ok(TransactionSigned::new_unhashed(transaction, signature))
     }
 }

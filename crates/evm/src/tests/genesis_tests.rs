@@ -1,9 +1,11 @@
-use alloy_eips::eip1559::BaseFeeParams;
+use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
+use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
+use alloy_eips::eip1559::{BaseFeeParams, ETHEREUM_BLOCK_GAS_LIMIT_30M};
 use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
 use lazy_static::lazy_static;
-use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
-use reth_primitives::{Header, SealedHeader, EMPTY_OMMER_ROOT_HASH};
+use reth_primitives::{Header, SealedHeader};
+use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;
 
 use crate::evm::primitive_types::SealedBlock;
@@ -95,7 +97,7 @@ fn genesis_cfg() {
         cfg,
         EvmChainConfig {
             chain_id: 1000,
-            block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             coinbase: Address::from([3u8; 20]),
             limit_contract_code_size: Some(5000),
             base_fee_params: BaseFeeParams::ethereum(),
@@ -123,7 +125,7 @@ fn genesis_block() {
                     logs_bloom: Bloom::default(),
                     difficulty: U256::ZERO,
                     number: 0,
-                    gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
+                    gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
                     gas_used: 0,
                     timestamp: 0,
                     extra_data: Bytes::default(),
@@ -136,7 +138,7 @@ fn genesis_block() {
                     blob_gas_used: Some(0),
                     excess_blob_gas: Some(0),
                     parent_beacon_block_root: None,
-                    requests_root: None,
+                    requests_hash: None,
                 },
                 *GENESIS_HASH
             ),
@@ -166,7 +168,7 @@ fn genesis_head() {
             logs_bloom: Bloom::default(),
             difficulty: U256::ZERO,
             number: 0,
-            gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
+            gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             gas_used: 0,
             timestamp: 0,
             extra_data: Bytes::default(),
@@ -179,7 +181,7 @@ fn genesis_head() {
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
             parent_beacon_block_root: None,
-            requests_root: None,
+            requests_hash: None,
         }
     );
 

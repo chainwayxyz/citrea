@@ -1,9 +1,6 @@
 use alloy_consensus::TxEip1559;
-use alloy_primitives::{address, Address, TxKind, U256};
-use reth_primitives::{
-    Signature, Transaction, TransactionSigned, TransactionSignedEcRecovered,
-    TransactionSignedNoHash,
-};
+use alloy_primitives::{address, Address, PrimitiveSignature, TxKind, U256};
+use reth_primitives::{Recovered, Transaction, TransactionSigned};
 
 use super::system_contracts::{BitcoinLightClient, BridgeWrapper};
 
@@ -84,19 +81,14 @@ pub(crate) fn signed_system_transaction(
     event: SystemEvent,
     nonce: u64,
     chain_id: u64,
-) -> TransactionSignedEcRecovered {
+) -> Recovered<TransactionSigned> {
     let transaction = system_event_to_transaction(event, nonce, chain_id);
-    let signed_no_hash = TransactionSignedNoHash {
-        // This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
-        signature: Signature::new(
-            U256::ZERO,
-            U256::ZERO,
-            alloy_primitives::Parity::Parity(false),
-        ),
+    let signed_no_hash = TransactionSigned::new_unhashed(
         transaction,
-    };
-    let signed: TransactionSigned = signed_no_hash.into();
-    TransactionSignedEcRecovered::from_signed_transaction(signed, SYSTEM_SIGNER)
+        // This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
+        PrimitiveSignature::new(U256::ZERO, U256::ZERO, false),
+    );
+    Recovered::new_unchecked(signed_no_hash, SYSTEM_SIGNER)
 }
 
 /// Creates a list of system transactions from a list of system events.
@@ -104,7 +96,7 @@ pub fn create_system_transactions<I: IntoIterator<Item = SystemEvent>>(
     events: I,
     mut nonce: u64,
     chain_id: u64,
-) -> Vec<TransactionSignedEcRecovered> {
+) -> Vec<Recovered<TransactionSigned>> {
     events
         .into_iter()
         .map(|event| {

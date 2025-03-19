@@ -1,13 +1,12 @@
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
+use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_network::{AnyTransactionReceipt, TransactionResponse};
 use alloy_primitives::{address, b256, Address, TxKind, B256, U256, U64};
-use alloy_rpc_types::{
-    AnyNetworkBlock, AnyTransactionReceipt, TransactionInput, TransactionRequest,
-};
-use alloy_serde::OtherFields;
-use reth_primitives::{BlockId, BlockNumberOrTag};
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use alloy_rpc_types_eth::Block as AlloyRpcBlock;
+use alloy_serde::WithOtherFields;
 use reth_rpc_eth_types::EthApiError;
 use serde_json::json;
 use sov_modules_api::fork::Fork;
@@ -137,7 +136,7 @@ fn get_transaction_by_block_hash_and_index_test() {
         let result =
             evm.get_transaction_by_block_hash_and_index(hash, U64::from(i), &mut working_set);
 
-        assert_eq!(result.unwrap().unwrap().hash, *tx_hash);
+        assert_eq!(result.unwrap().unwrap().tx_hash(), *tx_hash);
     }
 }
 
@@ -186,7 +185,7 @@ fn get_transaction_by_block_number_and_index_test() {
             &mut working_set,
         );
 
-        assert_eq!(result.unwrap().unwrap().hash, *tx_hash);
+        assert_eq!(result.unwrap().unwrap().tx_hash(), *tx_hash);
     }
 }
 
@@ -479,9 +478,9 @@ fn call_test() {
     // https://github.com/chainwayxyz/citrea/issues/134
 }
 
-fn check_against_third_block(block: &AnyNetworkBlock) {
+fn check_against_third_block(block: &WithOtherFields<AlloyRpcBlock>) {
     // details = false
-    let inner_block = serde_json::from_value::<AnyNetworkBlock>(json!({
+    let inner_block = serde_json::from_value::<WithOtherFields<AlloyRpcBlock>>(json!({
         "hash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
         "parentHash": "0xc2e4cc89bc3817503ec7a406b462c1b38cb7243bd4118ee29a088ac0caa38a6a",
         "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
@@ -513,10 +512,7 @@ fn check_against_third_block(block: &AnyNetworkBlock) {
         "l1FeeRate": "0x1"
       })).unwrap();
 
-    let mut rich_block: AnyNetworkBlock = AnyNetworkBlock {
-        inner: inner_block.inner,
-        other: OtherFields::new(BTreeMap::new()),
-    };
+    let mut rich_block = WithOtherFields::new(inner_block.inner);
 
     rich_block
         .other

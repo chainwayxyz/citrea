@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use alloy_eips::eip2718::Encodable2718;
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
+use alloy_eips::{BlockNumberOrTag, Encodable2718};
 use alloy_primitives::{address, b256, hex, FixedBytes, LogData, TxKind, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
-use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{BlockNumberOrTag, Log};
+use reth_primitives::Log;
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_modules_api::default_context::DefaultContext;
@@ -227,7 +227,7 @@ fn test_sys_bitcoin_light_client() {
                             ).unwrap(),
                         }
                     ]
-                },
+                }.into(),
                 gas_used: 169112,
                 log_index_start: 1,
                 l1_diff_size: 93,
@@ -364,7 +364,7 @@ fn test_sys_bitcoin_light_client() {
                     success: true,
                     cumulative_gas_used: 197557,
                     logs: vec![]
-                },
+                }.into(),
                 gas_used: 114235,
                 log_index_start: 1,
                 l1_diff_size: 23,
@@ -419,7 +419,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
     let (mut config, dev_signer, contract_addr) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
-        Some(ETHEREUM_BLOCK_GAS_LIMIT),
+        Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
     );
 
@@ -622,7 +622,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT);
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT_30M);
     assert!(block.header.gas_used <= block.header.gas_limit);
 
     // In total there should only be 1134 transactions 1 is system tx others are contract calls

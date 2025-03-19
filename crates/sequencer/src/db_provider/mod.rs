@@ -1,5 +1,6 @@
 use core::ops::RangeInclusive;
 
+use alloy_eips::BlockId;
 use alloy_primitives::map::{HashMap, HashSet};
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
@@ -97,17 +98,8 @@ impl RequestsProvider for DbProvider {
 }
 
 impl BlockReaderIdExt for DbProvider {
-    fn block_by_id(
-        &self,
-        _id: reth_primitives::BlockId,
-    ) -> ProviderResult<Option<reth_primitives::Block>> {
+    fn block_by_id(&self, _id: reth_primitives::BlockId) -> ProviderResult<Option<Self::Block>> {
         unimplemented!("block_by_id")
-    }
-    fn block_by_number_or_tag(
-        &self,
-        _id: BlockNumberOrTag,
-    ) -> ProviderResult<Option<reth_primitives::Block>> {
-        unimplemented!("block_by_number_or_tag")
     }
     fn finalized_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
         unimplemented!("finalized_header")
@@ -124,13 +116,6 @@ impl BlockReaderIdExt for DbProvider {
     ) -> ProviderResult<Option<reth_primitives::Header>> {
         unimplemented!("header_by_number_or_tag")
     }
-    fn latest_header(&self) -> ProviderResult<Option<SealedHeader>> {
-        let latest_header = {
-            let mut working_set = WorkingSet::new(self.storage.clone());
-            self.evm.last_sealed_header(&mut working_set)
-        };
-        Ok(Some(latest_header))
-    }
     fn ommers_by_id(
         &self,
         _id: reth_primitives::BlockId,
@@ -145,9 +130,6 @@ impl BlockReaderIdExt for DbProvider {
     }
     fn pending_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
         unimplemented!("pending_header")
-    }
-    fn safe_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
-        unimplemented!("safe_header")
     }
     fn sealed_header_by_id(
         &self,
@@ -164,16 +146,11 @@ impl BlockReaderIdExt for DbProvider {
 }
 
 impl HeaderProvider for DbProvider {
-    fn header(&self, _block_hash: &BlockHash) -> ProviderResult<Option<reth_primitives::Header>> {
+    type Header = reth_primitives::Header;
+    fn header(&self, _block_hash: &BlockHash) -> ProviderResult<Option<Self::Header>> {
         unimplemented!("header")
     }
-    fn header_by_hash_or_number(
-        &self,
-        _hash_or_num: BlockHashOrNumber,
-    ) -> ProviderResult<Option<reth_primitives::Header>> {
-        unimplemented!("header_by_hash_or_number")
-    }
-    fn header_by_number(&self, _num: u64) -> ProviderResult<Option<reth_primitives::Header>> {
+    fn header_by_number(&self, _num: u64) -> ProviderResult<Option<Self::Header>> {
         unimplemented!("header_by_number")
     }
     fn header_td(&self, _hash: &BlockHash) -> ProviderResult<Option<U256>> {
@@ -185,28 +162,19 @@ impl HeaderProvider for DbProvider {
     fn headers_range(
         &self,
         _range: impl std::ops::RangeBounds<BlockNumber>,
-    ) -> ProviderResult<Vec<reth_primitives::Header>> {
+    ) -> ProviderResult<Vec<Self::Header>> {
         unimplemented!("headers_range")
-    }
-    fn is_known(&self, _block_hash: &BlockHash) -> ProviderResult<bool> {
-        unimplemented!("is_known")
     }
     fn sealed_header(
         &self,
         _number: BlockNumber,
-    ) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
+    ) -> ProviderResult<Option<reth_primitives::SealedHeader<Self::Header>>> {
         unimplemented!("sealed_header")
-    }
-    fn sealed_headers_range(
-        &self,
-        _range: impl std::ops::RangeBounds<BlockNumber>,
-    ) -> ProviderResult<Vec<reth_primitives::SealedHeader>> {
-        unimplemented!("sealed_headers_range")
     }
     fn sealed_headers_while(
         &self,
         _range: impl std::ops::RangeBounds<BlockNumber>,
-        _predicate: impl FnMut(&SealedHeader) -> bool,
+        _predicate: impl FnMut(&SealedHeader<Self::Header>) -> bool,
     ) -> ProviderResult<Vec<SealedHeader>> {
         unimplemented!("sealed_headers_while")
     }
@@ -256,16 +224,10 @@ impl BlockNumReader for DbProvider {
 }
 
 impl BlockIdReader for DbProvider {
-    fn block_hash_for_id(
-        &self,
-        _block_id: reth_primitives::BlockId,
-    ) -> ProviderResult<Option<B256>> {
+    fn block_hash_for_id(&self, _block_id: BlockId) -> ProviderResult<Option<B256>> {
         unimplemented!("block_hash_for_id")
     }
-    fn block_number_for_id(
-        &self,
-        _block_id: reth_primitives::BlockId,
-    ) -> ProviderResult<Option<BlockNumber>> {
+    fn block_number_for_id(&self, _block_id: BlockId) -> ProviderResult<Option<BlockNumber>> {
         unimplemented!("block_number_for_id")
     }
     fn convert_block_number(&self, _num: BlockNumberOrTag) -> ProviderResult<Option<BlockNumber>> {
@@ -298,9 +260,6 @@ impl BlockReader for DbProvider {
     fn block(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<reth_primitives::Block>> {
         unimplemented!("block")
     }
-    fn block_body_indices(&self, _num: u64) -> ProviderResult<Option<StoredBlockBodyIndices>> {
-        unimplemented!("block_body_indices")
-    }
     fn block_by_hash(&self, _hash: B256) -> ProviderResult<Option<reth_primitives::Block>> {
         unimplemented!("block_by_hash")
     }
@@ -320,12 +279,6 @@ impl BlockReader for DbProvider {
         _source: reth_provider::BlockSource,
     ) -> ProviderResult<Option<reth_primitives::Block>> {
         unimplemented!("find_block_by_hash")
-    }
-    fn ommers(
-        &self,
-        _id: BlockHashOrNumber,
-    ) -> ProviderResult<Option<Vec<reth_primitives::Header>>> {
-        unimplemented!("ommers")
     }
     fn pending_block(&self) -> ProviderResult<Option<reth_primitives::SealedBlock>> {
         unimplemented!("pending_block")
@@ -370,6 +323,7 @@ impl BlockReader for DbProvider {
 }
 
 impl TransactionsProvider for DbProvider {
+    type Transaction = reth_primitives::TransactionSigned;
     fn senders_by_tx_range(
         &self,
         _range: impl std::ops::RangeBounds<TxNumber>,
@@ -382,7 +336,7 @@ impl TransactionsProvider for DbProvider {
     fn transaction_by_hash(
         &self,
         _hash: TxHash,
-    ) -> ProviderResult<Option<reth_primitives::TransactionSigned>> {
+    ) -> ProviderResult<Option<Self::TransactionSigned>> {
         unimplemented!("transaction_by_hash")
     }
     fn transaction_by_hash_with_meta(
@@ -396,17 +350,14 @@ impl TransactionsProvider for DbProvider {
     > {
         unimplemented!("transaction_by_hash_with_meta")
     }
-    fn transaction_by_id(
-        &self,
-        _id: TxNumber,
-    ) -> ProviderResult<Option<reth_primitives::TransactionSigned>> {
+    fn transaction_by_id(&self, _id: TxNumber) -> ProviderResult<Option<Self::TransactionSigned>> {
         unimplemented!("transaction_by_id")
     }
-    fn transaction_by_id_no_hash(
+    fn transaction_by_id_unhashed(
         &self,
-        _id: TxNumber,
-    ) -> ProviderResult<Option<reth_primitives::TransactionSignedNoHash>> {
-        unimplemented!("transaction_by_id_no_hash")
+        id: TxNumber,
+    ) -> ProviderResult<Option<Self::Transaction>> {
+        unimplemented!("transaction_by_id_unhashed")
     }
     fn transaction_id(&self, _tx_hash: TxHash) -> ProviderResult<Option<TxNumber>> {
         unimplemented!("transaction_id")
@@ -417,13 +368,13 @@ impl TransactionsProvider for DbProvider {
     fn transactions_by_block(
         &self,
         _block: BlockHashOrNumber,
-    ) -> ProviderResult<Option<Vec<reth_primitives::TransactionSigned>>> {
+    ) -> ProviderResult<Option<Vec<Self::TransactionSigned>>> {
         unimplemented!("transactions_by_block")
     }
     fn transactions_by_block_range(
         &self,
         _range: impl std::ops::RangeBounds<BlockNumber>,
-    ) -> ProviderResult<Vec<Vec<reth_primitives::TransactionSigned>>> {
+    ) -> ProviderResult<Vec<Vec<Self::TransactionSigned>>> {
         unimplemented!("transactions_by_block_range")
     }
     fn transactions_by_tx_range(

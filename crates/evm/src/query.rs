@@ -1,37 +1,33 @@
-use std::collections::BTreeMap;
 use std::ops::{Range, RangeInclusive};
 
-use alloy_consensus::Eip658Value;
+use alloy_consensus::{Transaction as AlloyTransaction, TxReceipt};
 use alloy_eips::eip2930::AccessListWithGasUsed;
-use alloy_network::AnyNetwork;
+use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::TxKind::{Call, Create};
 use alloy_primitives::{Address, Bytes, Uint, B256, U256, U64};
-use alloy_rlp::Encodable;
 use alloy_rpc_types::state::StateOverride;
 use alloy_rpc_types::{
-    AnyNetworkBlock, AnyReceiptEnvelope, AnyTransactionReceipt, BlockOverrides, Log,
-    ReceiptWithBloom, TransactionInfo, TransactionReceipt,
+    AnyReceiptEnvelope, BlockOverrides, Header as AlloyHeader, Log, ReceiptWithBloom, Transaction,
+    TransactionInfo, TransactionReceipt,
 };
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, TraceResult};
-use alloy_serde::OtherFields;
+use alloy_serde::{OtherFields, WithOtherFields};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::{
-    Block, BlockBody, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered,
-};
+use reth_primitives::{Recovered, SealedHeader, TransactionSigned};
 use reth_provider::ProviderError;
 use reth_rpc::eth::EthTxBuilder;
-use reth_rpc_eth_api::types::RpcTransaction;
+use reth_rpc_eth_api::TransactionCompat;
 use reth_rpc_eth_types::error::{
     ensure_success, EthApiError, EthResult, RevertError, RpcInvalidTransactionError,
 };
-use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason,
-    InvalidTransaction, TransactTo,
+    InvalidTransaction, SpecId, TransactTo,
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
@@ -131,7 +127,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_hash: B256,
         details: Option<bool>,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<Option<AnyNetworkBlock>> {
+    ) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         // if block hash is not known, return None
         let block_number = match self
             .block_hashes
@@ -155,13 +151,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         details: Option<bool>,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<Option<AnyNetworkBlock>> {
+    ) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         let sealed_block = match self.get_sealed_block_by_number(block_number, working_set)? {
             Some(sealed_block) => sealed_block,
             None => return Ok(None), // if block doesn't exist return null
         };
         // Build rpc header response
-        let mut header = from_primitive_with_hash(sealed_block.header.clone());
+        let mut header = AlloyHeader::new(sealed_block.header.unseal());
         header.total_difficulty = Some(header.difficulty);
         // Collect transactions with ids from db
         let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
@@ -174,21 +170,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             })
             .collect();
 
-        let primitive_block = Block {
-            header: sealed_block.header.header().clone(),
-            body: BlockBody {
-                transactions: transactions
-                    .iter()
-                    .map(|tx| tx.signed_transaction.clone())
-                    .collect(),
-                ommers: Default::default(),
-                withdrawals: Default::default(),
-                requests: None,
-            },
-        };
-
-        let size = primitive_block.length();
-
         // Build rpc transactions response
         let transactions = match details {
             Some(true) => alloy_rpc_types::BlockTransactions::Full(
@@ -197,22 +178,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .enumerate()
                     .map(|(idx, tx)| {
                         let tx_info = TransactionInfo {
-                            hash: Some(tx.signed_transaction.hash),
+                            hash: Some(*tx.signed_transaction.hash()),
                             block_hash: Some(header.hash),
                             block_number: Some(tx.block_number),
-                            base_fee: header.base_fee_per_gas.map(u128::from),
+                            base_fee: header.base_fee_per_gas,
                             index: Some(idx as u64),
                         };
-                        reth_rpc_types_compat::transaction::from_recovered_with_block_context::<
-                            EthTxBuilder,
-                        >(tx.clone().into(), tx_info)
+                        EthTxBuilder::default()
+                            .fill(tx.clone().into(), tx_info)
+                            .expect("EthTxBuilder fill can't fail")
                     })
                     .collect::<Vec<_>>(),
             ),
             _ => alloy_rpc_types::BlockTransactions::Hashes({
                 transactions
                     .iter()
-                    .map(|tx| tx.signed_transaction.hash)
+                    .map(|tx| *tx.signed_transaction.hash())
                     .collect::<Vec<_>>()
             }),
         };
@@ -222,15 +203,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
             uncles: Default::default(),
             transactions,
             withdrawals: Default::default(),
-            size: Some(U256::from(size)),
         };
 
-        let rpc_block = AnyNetworkBlock {
+        let rpc_block = WithOtherFields {
             inner: block,
-            other: OtherFields::new(BTreeMap::<String, _>::from([(
+            other: OtherFields::from_iter([(
                 "l1FeeRate".to_string(),
                 format!("{:#x}", sealed_block.l1_fee_rate).into(),
-            )])),
+            )]),
         };
 
         Ok(Some(rpc_block))
@@ -375,7 +355,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_hash: B256,
         index: U64,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>> {
+    ) -> RpcResult<Option<Transaction>> {
         let mut accessory_state = working_set.accessory_state();
 
         let block_number = match self.block_hashes.get(&block_hash, &mut accessory_state) {
@@ -406,16 +386,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Block number for known transaction must be set");
 
         let tx_info = TransactionInfo {
-            hash: Some(tx.signed_transaction.hash),
+            hash: Some(*tx.signed_transaction.hash()),
             block_hash: Some(block.header.hash()),
             block_number: Some(tx.block_number),
-            base_fee: block.header.base_fee_per_gas.map(u128::from),
+            base_fee: block.header.base_fee_per_gas,
             index: Some(tx_number - block.transactions.start),
         };
 
-        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context::<
-            EthTxBuilder,
-        >(tx.into(), tx_info);
+        let transaction = EthTxBuilder::default()
+            .fill(tx.clone().into(), tx_info)
+            .expect("EthTxBuilder fill can't fail");
 
         Ok(Some(transaction))
     }
@@ -427,7 +407,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: BlockNumberOrTag,
         index: U64,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>> {
+    ) -> RpcResult<Option<Transaction>> {
         let block_number = match self.block_number_for_id(&block_number, working_set) {
             Ok(block_number) => block_number,
             Err(EthApiError::HeaderNotFound(_)) => return Ok(None),
@@ -460,16 +440,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Block number for known transaction must be set");
 
         let tx_info = TransactionInfo {
-            hash: Some(tx.signed_transaction.hash),
+            hash: Some(*tx.signed_transaction.hash()),
             block_hash: Some(block.header.hash()),
             block_number: Some(tx.block_number),
-            base_fee: block.header.base_fee_per_gas.map(u128::from),
+            base_fee: block.header.base_fee_per_gas,
             index: Some(tx_number - block.transactions.start),
         };
 
-        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context::<
-            EthTxBuilder,
-        >(tx.into(), tx_info);
+        let transaction = EthTxBuilder::default()
+            .fill(tx.into(), tx_info)
+            .expect("EthTxBuilder fill can't fail");
 
         Ok(Some(transaction))
     }
@@ -698,17 +678,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;
 
-        let to = if let Some(Call(to)) = request.to {
-            to
-        } else {
-            from.create(account.nonce)
-        };
-
         // can consume the list since we're not using the request anymore
-        let initial = request.access_list.take().unwrap_or_default();
+        let access_list = request.access_list.take().unwrap_or_default();
 
-        let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
-        let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
+        let mut inspector = AccessListInspector::new(access_list);
 
         let result = inspect_no_citrea_handle(
             &mut evm_db,
@@ -1167,7 +1140,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         hash: B256,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>> {
+    ) -> RpcResult<Option<Transaction>> {
         let mut accessory_state = working_set.accessory_state();
 
         let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
@@ -1186,21 +1159,20 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(tx.block_number as usize, &mut accessory_state)
                 .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
                     tx.block_number,
-                    tx.signed_transaction.hash));
+                    tx.signed_transaction.hash()));
 
                     let tx_info = TransactionInfo {
-                        hash: Some(tx.signed_transaction.hash),
+                        hash: Some(*tx.signed_transaction.hash()),
                         block_hash: Some(block.header.hash()),
                         block_number: Some(block.header.number),
-                        base_fee: block.header.base_fee_per_gas.map(u128::from),
+                        base_fee: block.header.base_fee_per_gas,
                         index: Some(number - block.transactions.start),
                     };
 
 
-
-            reth_rpc_types_compat::transaction::from_recovered_with_block_context::<
-                        EthTxBuilder,
-                    >(tx.into(), tx_info)
+            EthTxBuilder::default()
+                .fill(tx.into(), tx_info)
+                .expect("EthTxBuilder fill can't fail")
         });
 
         Ok(transaction)
@@ -1223,7 +1195,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if tx_range.is_empty() {
             return Ok(Vec::new());
         }
-        let block_txs: Vec<TransactionSignedEcRecovered> = tx_range
+        let block_txs: Vec<Recovered<TransactionSigned>> = tx_range
             .clone()
             .map(|id| {
                 self.transactions
@@ -1266,7 +1238,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 &mut evm_db,
                 l1_fee_rate,
             )?;
-            traces.push(TraceResult::new_success(trace, Some(tx.hash())));
+            traces.push(TraceResult::new_success(trace, Some(*tx.hash())));
 
             if limit == index {
                 break;
@@ -1437,9 +1409,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .transactions
                 .get(i as usize, &mut working_set.accessory_state())
                 .unwrap();
-            let logs = receipt.receipt.logs;
 
-            for log in logs.into_iter() {
+            for log in receipt.receipt.logs() {
                 if log_matches_filter(&log, filter, &block.header.hash(), &block.header.number) {
                     let log = LogResponse {
                         address: log.address,
@@ -1447,7 +1418,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         data: log.data.data.to_vec().into(),
                         block_hash: Some(block.header.hash()),
                         block_number: Some(U256::from(block.header.number)),
-                        transaction_hash: Some(tx.signed_transaction.hash),
+                        transaction_hash: Some(*tx.signed_transaction.hash()),
                         transaction_index: Some(U256::from(i)),
                         log_index: Some(U256::from(log_index)),
                         removed,
@@ -1679,10 +1650,10 @@ pub(crate) fn build_rpc_receipt(
     tx_number: u64,
     receipt: Receipt,
 ) -> AnyTransactionReceipt {
-    let transaction: TransactionSignedEcRecovered = tx.into();
+    let transaction: Recovered<TransactionSigned> = tx.into();
     let transaction_kind = transaction.kind();
 
-    let transaction_hash = transaction.hash;
+    let transaction_hash = *transaction.hash();
     let transaction_index = tx_number - block.transactions.start;
     let block_hash = block.header.hash();
     let block_number = block.header.number;
@@ -1703,9 +1674,12 @@ pub(crate) fn build_rpc_receipt(
         .collect(),
     );
 
-    let mut logs = Vec::with_capacity(receipt.receipt.logs.len());
-    for (tx_log_idx, log) in receipt.receipt.logs.iter().enumerate() {
-        let rpclog = Log {
+    let logs = receipt
+        .receipt
+        .logs()
+        .into_iter()
+        .enumerate()
+        .map(|(tx_log_idx, log)| Log {
             inner: log.clone(),
             block_hash: Some(block_hash),
             block_number: Some(block_number),
@@ -1714,13 +1688,12 @@ pub(crate) fn build_rpc_receipt(
             transaction_index: Some(transaction_index),
             log_index: Some(receipt.log_index_start + tx_log_idx as u64),
             removed: false,
-        };
-        logs.push(rpclog);
-    }
+        })
+        .collect();
 
     let rpc_receipt = alloy_rpc_types::Receipt {
-        status: Eip658Value::Eip658(receipt.receipt.success),
-        cumulative_gas_used: receipt.receipt.cumulative_gas_used as u128,
+        status: receipt.receipt.status_or_post_state(),
+        cumulative_gas_used: receipt.receipt.cumulative_gas_used(),
         logs,
     };
 
@@ -1728,9 +1701,9 @@ pub(crate) fn build_rpc_receipt(
         inner: AnyReceiptEnvelope {
             inner: ReceiptWithBloom {
                 receipt: rpc_receipt,
-                logs_bloom: receipt.receipt.bloom_slow(),
+                logs_bloom: receipt.receipt.bloom(),
             },
-            r#type: transaction.transaction.tx_type().into(),
+            r#type: transaction.tx_type().into(),
         },
         transaction_hash,
         transaction_index: Some(transaction_index),
@@ -1741,19 +1714,19 @@ pub(crate) fn build_rpc_receipt(
             Create => None,
             Call(addr) => Some(addr),
         },
-        gas_used: receipt.gas_used,
+        gas_used: receipt.gas_used as u64, // TODO Receipt::gas_used u64?
         contract_address: match transaction_kind {
             Create => Some(transaction.signer().create(transaction.nonce())),
             Call(_) => None,
         },
         effective_gas_price: transaction.effective_gas_price(block_base_fee),
-        state_root: None,
+        // state_root: None
         // EIP-4844 related
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         // None because eip-4844 txs are not accepted
         blob_gas_price: None,
         blob_gas_used: None,
-        authorization_list: None,
+        // authorization_list: None,
     };
     AnyTransactionReceipt {
         inner: res_receipt,
@@ -1914,7 +1887,12 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         latest_block.header.base_fee_per_gas.unwrap_or_default(),
         cfg.base_fee_params,
     ));
-    block_env.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0));
+    let citrea_spec_id = fork_from_block_number(block_env.number.saturating_to()).spec_id;
+    let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+    block_env.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(
+        0,
+        evm_spec_id.is_enabled_in(SpecId::PRAGUE),
+    ));
 
     block_env
 }

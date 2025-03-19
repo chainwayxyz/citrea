@@ -1,6 +1,7 @@
 use core::panic;
 
-use reth_primitives::TransactionSignedEcRecovered;
+use alloy_consensus::TxReceipt;
+use reth_primitives::{Recovered, TransactionSigned};
 use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, L2BlockModuleCallError, WorkingSet};
@@ -39,7 +40,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<CallResponse, L2BlockModuleCallError> {
         // use of `self.block_env` is allowed here
 
-        let users_txs: Vec<TransactionSignedEcRecovered> = txs
+        let users_txs: Vec<Recovered<TransactionSigned>> = txs
             .into_iter()
             .map(|tx| tx.try_into())
             .collect::<Result<Vec<_>, ConversionError>>()
@@ -57,8 +58,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut log_index_start = 0;
 
         if let Some(tx) = self.pending_transactions.last() {
-            cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
-            log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
+            cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used();
+            log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs().len() as u64;
         }
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
@@ -106,7 +107,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let pending_transaction = PendingTransaction {
                 transaction: TransactionSignedAndRecovered {
                     signer: evm_tx_recovered.signer(),
-                    signed_transaction: evm_tx_recovered.into(),
+                    signed_transaction: evm_tx_recovered.into_tx(),
                     block_number: block_number.saturating_to(),
                 },
                 receipt,
