@@ -330,17 +330,25 @@ impl TestCase for L2BlocksDifferentBlocksTest {
                 .get_l2_block_by_number(U64::from(i))
                 .await?
                 .unwrap();
-            let full_l2_block = full_node
+            let full_node_l2_block = full_node
                 .client
                 .http_client()
                 .get_l2_block_by_number(U64::from(i))
                 .await?
                 .unwrap();
+            let hash = full_node_l2_block.header.hash;
+            let full_node_l2_block_by_hash = full_node
+                .client
+                .http_client()
+                .get_l2_block_by_hash(hash.into())
+                .await?
+                .unwrap();
 
             assert_eq!(
                 seq_l2_block.header.state_root,
-                full_l2_block.header.state_root
+                full_node_l2_block.header.state_root
             );
+            assert_eq!(seq_l2_block, full_node_l2_block_by_hash);
         }
 
         Ok(())

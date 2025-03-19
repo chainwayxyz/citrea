@@ -1954,12 +1954,12 @@ dependencies = [
  "risc0-zkvm",
  "rs_merkle",
  "rustc_version_runtime",
- "secp256k1",
  "serde",
  "serde_json",
  "sha2",
  "short-header-proof-provider",
  "sov-db",
+ "sov-keys",
  "sov-ledger-rpc",
  "sov-mock-da",
  "sov-modules-api",
@@ -2005,6 +2005,7 @@ dependencies = [
  "serde",
  "short-header-proof-provider",
  "sov-db",
+ "sov-keys",
  "sov-ledger-rpc",
  "sov-modules-api",
  "sov-modules-core",
@@ -2059,6 +2060,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-db",
+ "sov-keys",
  "sov-ledger-rpc",
  "sov-mock-da",
  "sov-modules-api",
@@ -2079,7 +2081,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=4bd7c3e#4bd7c3e758ccfa26ed6b94bfdd9e772c3245108f"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=1e2259c#1e2259c28402ae039bcebbc56b417aea4a151bc1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2145,6 +2147,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "short-header-proof-provider",
+ "sov-keys",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
@@ -2307,6 +2310,7 @@ dependencies = [
  "serde",
  "sov-accounts",
  "sov-db",
+ "sov-keys",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
@@ -2664,33 +2668,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve25519-dalek"
-version = "4.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "curve25519-dalek-derive",
- "digest 0.10.7",
- "fiat-crypto",
- "rustc_version 0.4.1",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.98",
-]
-
-[[package]]
 name = "darling"
 version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2920,32 +2897,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ed25519"
-version = "2.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
-dependencies = [
- "pkcs8",
- "serde",
- "signature",
-]
-
-[[package]]
-name = "ed25519-dalek"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a3daa8e81a3963a60642bcc1f90a670680bd4a77535faa384e9d1c79d620871"
-dependencies = [
- "curve25519-dalek",
- "ed25519",
- "rand_core",
- "serde",
- "sha2",
- "subtle",
- "zeroize",
-]
-
-[[package]]
 name = "either"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3136,12 +3087,6 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
-
-[[package]]
-name = "fiat-crypto"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "filetime"
@@ -4475,9 +4420,11 @@ dependencies = [
  "borsh",
  "chrono",
  "citrea-evm",
+ "hex",
  "jsonrpsee",
  "lazy_static",
  "serde",
+ "sov-keys",
  "sov-mock-da",
  "sov-modules-api",
  "sov-prover-storage-manager",
@@ -8203,8 +8150,10 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sov-keys",
  "sov-modules-api",
  "sov-prover-storage-manager",
+ "sov-rollup-interface",
  "sov-state",
  "tempfile",
  "thiserror",
@@ -8231,6 +8180,25 @@ dependencies = [
  "sov-schema-db",
  "tempfile",
  "tracing",
+]
+
+[[package]]
+name = "sov-keys"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "borsh",
+ "derive_more",
+ "digest 0.10.7",
+ "hex",
+ "k256",
+ "rand",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]
@@ -8292,17 +8260,16 @@ dependencies = [
  "clap",
  "derive_more",
  "digest 0.10.7",
- "ed25519-dalek",
  "hex",
  "jmt",
  "jsonrpsee",
- "k256",
  "rand",
  "schemars",
  "serde",
  "serde_json",
  "sha2",
  "sov-db",
+ "sov-keys",
  "sov-modules-api",
  "sov-modules-core",
  "sov-modules-macros",
@@ -8329,6 +8296,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sov-keys",
  "sov-modules-core",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
@@ -8389,6 +8357,7 @@ dependencies = [
  "jsonrpsee",
  "rs_merkle",
  "serde",
+ "sov-keys",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -8427,6 +8396,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sov-keys",
  "thiserror",
  "tokio",
  "tracing",
@@ -8464,6 +8434,7 @@ dependencies = [
  "serde",
  "sha2",
  "sov-db",
+ "sov-keys",
  "sov-modules-core",
  "sov-rollup-interface",
  "sov-schema-db",

@@ -33,6 +33,8 @@ thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
+sov-keys = { path = "../module-system/sov-keys" }
+
 [dev-dependencies]
 serde_json = { workspace = true }
 

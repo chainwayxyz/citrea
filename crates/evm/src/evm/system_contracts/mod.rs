@@ -143,3 +143,37 @@ impl ProxyAdmin {
         ProxyAdminContract::ownerCall {}.abi_encode().into()
     }
 }
+
+sol!(
+    #[sol(abi)]
+    #[allow(missing_docs)]
+    WCBTC9Contract,
+    "./src/evm/system_contracts/out/WCBTC9.sol/WCBTC9.json"
+);
+
+/// WCBTC wrapper.
+
+pub struct WCBTC {}
+
+impl WCBTC {
+    /// Return the address of the WCBTC contract.
+    pub fn address() -> Address {
+        address!("3100000000000000000000000000000000000006")
+    }
+
+    pub fn balance_of(account: Address) -> Bytes {
+        WCBTC9Contract::balanceOfCall { _0: account }
+            .abi_encode()
+            .into()
+    }
+
+    pub fn deposit() -> Bytes {
+        WCBTC9Contract::depositCall {}.abi_encode().into()
+    }
+
+    pub fn withdraw(amount: U256) -> Bytes {
+        WCBTC9Contract::withdrawCall { wad: amount }
+            .abi_encode()
+            .into()
+    }
+}

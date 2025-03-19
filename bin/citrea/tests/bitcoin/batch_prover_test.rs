@@ -685,7 +685,7 @@ async fn parallel_proving_test() -> Result<()> {
 //                 .config()
 //                 .rollup
 //                 .public_keys
-//                 .sequencer_k256_public_key
+//                 .sequencer_public_key
 //                 .as_slice(),
 //         )
 //         .unwrap();

@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
-use std::mem::size_of;
 use std::sync::Arc;
 
 use reth_primitives::KECCAK_EMPTY;
@@ -26,18 +25,24 @@ use tracing::instrument;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
-/// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak  internally for evm operations
+/// 4 bytes of prefix ("E/i/") + 20 bytes of address = 24 bytes
+const ACCOUNT_IDX_KEY_SIZE: usize = 24;
+
+/// Account index is 64 bit integer
+const ACCOUNT_IDX_SIZE: usize = 8;
+
+/// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak internally for evm operations
 const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
-/// Normally db account key is: 6 bytes of prefix ("Evm/a/") + 1 byte for size of remaining data + 20 bytes of address = 27 bytes
-const DB_ACCOUNT_KEY_SIZE: usize = 27;
+/// 4 bytes of prefix ("E/a/") + 8 bytes of account id = 12 bytes
+const DB_ACCOUNT_KEY_SIZE: usize = 12;
 
-/// Storage key is 59 bytes because of sov sdk prefix ("Evm/s/")
-const STORAGE_KEY_SIZE: usize = 59;
+/// 4 bytes of prefix ("E/S/") + 32 bytes of storage hash = 36 bytes
+const STORAGE_KEY_SIZE: usize = 36;
 
-/// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
-const STORAGE_VALUE_SIZE: usize = 33;
+/// Storage value is 32 bytes
+const STORAGE_VALUE_SIZE: usize = 32;
 
 /// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, l2_block_rule_enforcer and sov_accounts
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
@@ -60,14 +65,12 @@ Let's consider a batch of 1 block with the following transactions:
         Transaction 1: Account A transfers balance to Account C
         Transaction 2: Account B transfers balance to Account C
 
-    In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
+    In this account A and B pays for the account info diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
     So A and B should share that cost
     So the ratio would be something like this in this simple scenario:
-    3 unique balance slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
-    If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
+    3 unique account info slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
+    If every user pays 0.75 of the account info state diff they created, the total state diff will be covered
 */
-/// Nonce and balance are stored together so we use single constant
-const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
 const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
@@ -547,16 +550,10 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
 
     let mut diff_size = 0usize;
 
-    // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
-    // thus we increment the diff size by 20 (coinbase address) + 32 (coinbase balance change)
-    // notice, we don't add to diff size when an address explicitly sends funds to coinbase
-    if !account_changes.contains_key(&env.block.coinbase) {
-        diff_size += size_of::<Address>() + size_of::<U256>();
-    }
-
     for (addr, account) in account_changes {
-        // Apply size of address of changed account
-        diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
+        if account.created {
+            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
+        }
 
         // Apply size of account_info
         if account.account_info_changed || account.code_changed {
@@ -571,7 +568,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
             diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
+                (db_account_size + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
         }
 
         // Apply size of changed slots
@@ -632,5 +629,5 @@ fn decrease_caller_balance<EXT, DB: Database>(
 #[cfg(feature = "native")]
 pub(crate) fn diff_size_send_eth_eoa() -> usize {
     DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
-        + (DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100
+        + (DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
 }

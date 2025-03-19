@@ -14,7 +14,7 @@ use sov_rollup_interface::spec::SpecId;
 use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::tests::genesis_tests::BENEFICIARY;
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
-use crate::tests::DEFAULT_CHAIN_ID;
+use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::PendingTransaction;
 
 lazy_static! {
@@ -31,7 +31,7 @@ fn begin_l2_block_hook_creates_pending_block() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 54,
     };
@@ -67,7 +67,7 @@ fn end_l2_block_hook_sets_head() {
         l2_height,
         pre_state_root,
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 54,
     };
@@ -137,7 +137,7 @@ fn end_l2_block_hook_moves_transactions_and_receipts() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -255,7 +255,7 @@ fn finalize_hook_creates_final_block() {
         l2_height,
         pre_state_root: root,
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 54,
     };
@@ -280,7 +280,7 @@ fn finalize_hook_creates_final_block() {
             l2_height,
             pre_state_root: root_hash,
             current_spec: SpecId::Fork2,
-            sequencer_pub_key: vec![],
+            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 54,
         },
@@ -364,7 +364,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
         l2_height,
         pre_state_root: root,
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -398,7 +398,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
             l2_height,
             pre_state_root: random_32_bytes,
             current_spec: SpecId::Fork2,
-            sequencer_pub_key: vec![],
+            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
         };
@@ -418,7 +418,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
         l2_height,
         pre_state_root: random_32_bytes,
         current_spec: SpecId::Fork2,
-        sequencer_pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };

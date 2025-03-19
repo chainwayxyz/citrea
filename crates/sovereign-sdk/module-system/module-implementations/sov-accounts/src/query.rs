@@ -1,5 +1,6 @@
 //! Defines rpc queries exposed by the accounts module, along with the relevant types
 use jsonrpsee::core::RpcResult;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{AddressBech32, StateMapAccessor, WorkingSet};
 
@@ -25,7 +26,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
     /// Get the account corresponding to the given public key.
     pub fn get_account(
         &self,
-        pub_key: Vec<u8>,
+        pub_key: K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<Response> {
         let response = {

@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use sov_modules_api::hooks::HookL2BlockInfo;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{native_debug, native_error, Context, DaSpec, WorkingSet};
 use sov_rollup_interface::stf::{L2BlockError, L2BlockHookError, StateTransitionError};
+use sov_rollup_interface::transaction::Transaction;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -113,7 +113,7 @@ where
         native_debug!(
             "Beginning l2 block #{} from sequencer: 0x{}",
             l2_block_info.l2_height(),
-            hex::encode(l2_block_info.sequencer_pub_key())
+            l2_block_info.sequencer_pub_key()
         );
 
         // ApplyL2BlockHook: begin

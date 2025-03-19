@@ -1,14 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::L2BlockError;
 use sov_rollup_interface::stf::L2BlockHookError;
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
-
-use crate::transaction::Transaction;
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -72,7 +72,7 @@ pub struct HookL2BlockInfo {
     /// The current spec
     pub current_spec: SpecId,
     /// Public key of the sequencer
-    pub sequencer_pub_key: Vec<u8>,
+    pub sequencer_pub_key: K256PublicKey,
     /// L1 fee rate
     pub l1_fee_rate: u128,
     /// Timestamp
@@ -92,8 +92,8 @@ impl HookL2BlockInfo {
         self.current_spec
     }
 
-    pub fn sequencer_pub_key(&self) -> &[u8] {
-        self.sequencer_pub_key.as_slice()
+    pub fn sequencer_pub_key(&self) -> &K256PublicKey {
+        &self.sequencer_pub_key
     }
 
     pub fn l1_fee_rate(&self) -> u128 {
@@ -111,16 +111,17 @@ impl HookL2BlockInfo {
 }
 
 impl HookL2BlockInfo {
-    pub fn new<Tx: Clone + BorshSerialize>(
-        l2_block: &L2Block<Tx>,
+    pub fn new(
+        l2_block: &L2Block,
         pre_state_root: StorageRootHash,
         current_spec: SpecId,
+        sequencer_pub_key: K256PublicKey,
     ) -> Self {
         Self {
             l2_height: l2_block.height(),
             pre_state_root,
             current_spec,
-            sequencer_pub_key: l2_block.sequencer_pub_key().to_vec(),
+            sequencer_pub_key,
             l1_fee_rate: l2_block.l1_fee_rate(),
             timestamp: l2_block.timestamp(),
         }
