@@ -1,15 +1,17 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use alloy_rpc_types::TransactionRequest;
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
-    GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame, TraceResult,
+    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
+    NoopFrame, TraceResult,
 };
 use citrea_evm::Evm;
 use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use reth_rpc_eth_types::error::EthApiError;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
@@ -110,6 +112,16 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
             };
         }
     });
+}
+
+pub fn debug_trace_call_inner<C: sov_modules_api::Context>(
+    request: TransactionRequest,
+    block_id: Option<BlockId>,
+    opts: Option<GethDebugTracingCallOptions>,
+    evm: &Evm<C>,
+    working_set: &mut WorkingSet<C::Storage>,
+) -> Result<GethTrace, ErrorObjectOwned> {
+    evm.trace_call(request, block_id, opts, working_set, fork_from_block_number)
 }
 
 pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(

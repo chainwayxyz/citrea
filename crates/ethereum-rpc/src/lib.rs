@@ -8,8 +8,12 @@ use std::sync::Arc;
 use alloy_network::AnyNetwork;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
-use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
+use alloy_rpc_types::{
+    EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index, TransactionRequest,
+};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
 use citrea_evm::{DbAccount, Evm, Filter};
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_sequencer::SequencerRpcClient;
@@ -34,7 +38,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
 use tokio::sync::broadcast;
-use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
+use trace::{debug_trace_by_block_number, debug_trace_call_inner, handle_debug_trace_chain};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -128,6 +132,16 @@ pub trait EthereumRpc {
         &self,
         tx_hash: B256,
         opts: Option<GethDebugTracingOptions>,
+    ) -> RpcResult<GethTrace>;
+
+    /// Returns a trace for `eth_call`
+    #[method(name = "debug_traceCall")]
+    #[blocking]
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
     ) -> RpcResult<GethTrace>;
 
     /// Returns the transaction pool content.
@@ -612,6 +626,20 @@ where
                 Err(EthApiError::EvmCustom(error.clone()).into())
             }
         }
+    }
+
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+
+        let trace = debug_trace_call_inner(request, block_id, opts, &evm, &mut working_set)?;
+
+        Ok(trace)
     }
 
     fn txpool_content(&self) -> RpcResult<Value> {

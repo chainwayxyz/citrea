@@ -14,7 +14,9 @@ use alloy_rpc_types::{
 };
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, TraceResult};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
 use alloy_serde::OtherFields;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
@@ -1354,6 +1356,63 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
         Ok(traces)
+    }
+
+    /// Returns the trace of a call
+    pub fn trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+        working_set: &mut WorkingSet<C::Storage>,
+        fork_fn: impl Fn(u64) -> Fork,
+    ) -> RpcResult<GethTrace> {
+        let block_number_or_tag = match block_id {
+            Some(BlockId::Number(block_num)) => block_num,
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = self
+                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+                BlockNumberOrTag::Number(block_number)
+            }
+            None => BlockNumberOrTag::Latest,
+        };
+        let sealed_block = self
+            .get_sealed_block_by_number(Some(block_number_or_tag), working_set)?
+            .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
+        let citrea_spec_id = fork_fn(sealed_block.header.number).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let block_env = sealed_block_to_block_env(&sealed_block.header, &fork_fn);
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+
+        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+        let l1_fee_rate = sealed_block.l1_fee_rate;
+
+        let account = self
+            .account_info(
+                &request.from.unwrap_or_default(),
+                citrea_spec_id,
+                working_set,
+            )
+            .unwrap_or_default();
+
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
+
+        // create tx env
+        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;
+        let trace = trace_call(
+            opts.unwrap_or_default(),
+            cfg_env,
+            block_env,
+            tx_env,
+            &mut evm_db,
+            l1_fee_rate,
+        )?;
+        Ok(trace)
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
