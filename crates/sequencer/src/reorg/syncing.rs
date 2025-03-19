@@ -26,9 +26,9 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::SlotNumber;
-use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId,
     StateValueAccessor, WorkingSet,
@@ -39,6 +39,7 @@ use sov_rollup_interface::block::{L2Header, SignedL2Header};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{L2BlockResult, StateTransitionError};
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -198,7 +199,7 @@ where
                     soft_confirmation_response.l2_height, soft_confirmation_response.da_slot_height, last_processed_l1_height
                 );
 
-                let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())?;
+                let pub_key = &self.sov_tx_signer_priv_key.pub_key();
 
                 let l2_block_info = HookL2BlockInfo {
                     l2_height: soft_confirmation_response.l2_height,
@@ -210,9 +211,6 @@ where
                 };
 
                 let prestate = self.storage_manager.create_storage_for_next_l2_height();
-
-                let mut reversed_slot_hash = soft_confirmation_response.da_slot_hash.clone();
-                reversed_slot_hash.reverse();
 
                 let da_block = if let Some(da_block) = self
                     .l1_block_cache
@@ -359,15 +357,14 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn save_l2_block(
         &mut self,
-        l2_block: L2Block<Transaction>,
+        l2_block: L2Block,
         l2_block_result: L2BlockResult<ProverStorage, sov_state::Witness, sov_state::ReadWriteLog>,
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
     ) -> anyhow::Result<()> {
         debug!(
-            "Saving L2 block with hash: {:?} from sequencer {:?}",
+            "Saving L2 block with hash: {:?}",
             hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
         );
 
         let state_root_transition = l2_block_result.state_root_transition;
@@ -413,7 +410,7 @@ where
     ) -> anyhow::Result<u64> {
         let accounts = Accounts::<DefaultContext>::default();
 
-        let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())?;
+        let pub_key = self.sov_tx_signer_priv_key.pub_key().clone();
 
         match accounts
             .get_account(pub_key, working_set)
@@ -491,13 +488,7 @@ where
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let tx = Transaction::new_signed_tx(
-            &self.sov_tx_signer_priv_key.key_pair.to_bytes(),
-            raw_message,
-            0,
-            nonce,
-            true,
-        );
+        let tx = Transaction::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
         Ok(tx)
     }
 
@@ -506,10 +497,8 @@ where
         let hash = Into::<[u8; 32]>::into(digest);
 
         let signature = self.sov_tx_signer_priv_key.sign(&hash);
-        let pub_key = self.sov_tx_signer_priv_key.pub_key();
         let signature = borsh::to_vec(&signature)?;
-        let pub_key = borsh::to_vec(&pub_key)?;
-        Ok(SignedL2Header::new(header, hash, signature, pub_key))
+        Ok(SignedL2Header::new(header, hash, signature))
     }
 
     fn process_sys_txs(
@@ -572,7 +561,7 @@ where
     fn dry_run_transactions_post_fork2(
         &mut self,
         user_transactions: Vec<TransactionSignedEcRecovered>,
-        pub_key: &[u8],
+        pub_key: &K256PublicKey,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Vec<u8>],
