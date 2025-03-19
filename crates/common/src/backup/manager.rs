@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::{Mutex, MutexGuard, Semaphore};
 use tracing::{info, warn};
 
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
@@ -46,6 +46,8 @@ pub struct BackupManager {
     l1_processing_lock: Mutex<()>,
     /// Lock to hold during l2 block processing
     l2_processing_lock: Mutex<()>,
+    /// Semaphore to ensure backup creation is sequential
+    create_backup_sempahore: Semaphore,
     /// Backup configuration. Holds required and optional dirs.
     pub config: BackupConfig,
 }
@@ -94,6 +96,7 @@ impl BackupManager {
             l1_processing_lock: Mutex::new(()),
             l2_processing_lock: Mutex::new(()),
             config,
+            create_backup_sempahore: Semaphore::new(1),
         }
     }
 
@@ -149,6 +152,8 @@ impl BackupManager {
         path: Option<PathBuf>,
         ledger_db: &LedgerDB,
     ) -> anyhow::Result<CreateBackupInfo> {
+        let _permit = self.create_backup_sempahore.acquire().await?;
+
         let backup_path = path
             .as_ref()
             .or(self.base_path.as_ref())
