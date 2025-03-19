@@ -38,7 +38,7 @@ impl TestCase for BasicSequencerTest {
             .get_head_l2_block()
             .await?
             .unwrap();
-        assert_eq!(head_batch0.header.height, 1);
+        assert_eq!(head_batch0.header.height.to::<u64>(), 1);
 
         sequencer.client.send_publish_batch_request().await?;
 
@@ -51,7 +51,7 @@ impl TestCase for BasicSequencerTest {
             .get_head_l2_block()
             .await?
             .unwrap();
-        assert_eq!(head_batch1.header.height, 2);
+        assert_eq!(head_batch1.header.height.to::<u64>(), 2);
 
         Ok(())
     }

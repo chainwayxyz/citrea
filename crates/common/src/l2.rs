@@ -189,7 +189,7 @@ where
     ) -> anyhow::Result<()> {
         let start = Instant::now();
 
-        let l2_height = l2_block_response.header.height;
+        let l2_height = l2_block_response.header.height.to();
 
         info!(
             "Running l2 block batch #{} with hash: 0x{}",
