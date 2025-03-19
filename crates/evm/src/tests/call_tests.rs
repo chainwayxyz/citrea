@@ -289,7 +289,10 @@ fn failed_transaction_test() {
 
         assert_eq!(
             evm.call(call_message, &context, working_set).unwrap_err(),
-            L2BlockModuleCallError::EvmTransactionExecutionError
+            L2BlockModuleCallError::EvmTransactionExecutionError(
+                "transaction validation error: lack of funds (0) for max fee (100000000000000000)"
+                    .to_string()
+            )
         );
     }
 

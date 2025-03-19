@@ -115,7 +115,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             match e {
                 // only custom error we use is for not enough funds for L1 fee
                 EVMError::Custom(_) => L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee,
-                _ => L2BlockModuleCallError::EvmTransactionExecutionError,
+                _ => L2BlockModuleCallError::EvmTransactionExecutionError(e.to_string()),
             }
         })?;
 

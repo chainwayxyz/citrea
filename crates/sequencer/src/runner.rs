@@ -259,7 +259,7 @@ where
                             L2BlockModuleCallError::EvmTxTypeNotSupported(_) => {
                                 panic!("got unsupported tx type")
                             }
-                            L2BlockModuleCallError::EvmTransactionExecutionError => {
+                            L2BlockModuleCallError::EvmTransactionExecutionError(_) => {
                                 invalid_senders.insert(evm_tx.transaction_id.sender);
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;

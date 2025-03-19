@@ -124,7 +124,7 @@ pub enum L2BlockModuleCallError {
         block_gas_limit: u64,
     },
     /// There was an error during EVM transaction execution
-    EvmTransactionExecutionError,
+    EvmTransactionExecutionError(String),
     /// There is a system transaction where it should not be
     EvmMisplacedSystemTx,
     /// Address does not have enough funds to pay for L1 fee
@@ -232,8 +232,8 @@ impl std::fmt::Display for L2BlockModuleCallError {
                             cumulative_gas, tx_gas_used, block_gas_limit
                         )
             }
-            L2BlockModuleCallError::EvmTransactionExecutionError => {
-                write!(f, "EVM transaction execution error")
+            L2BlockModuleCallError::EvmTransactionExecutionError(e) => {
+                write!(f, "EVM transaction execution error: {:?}", e)
             }
             L2BlockModuleCallError::EvmMisplacedSystemTx => {
                 write!(f, "EVM misplaced system tx")
