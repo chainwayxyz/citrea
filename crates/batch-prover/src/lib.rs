@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
+use citrea_common::l2::L2SyncWorker;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use da_block_handler::L1BlockHandler;
@@ -19,7 +20,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 
 pub mod da_block_handler;
 pub mod db_migrations;
@@ -30,18 +31,18 @@ pub mod rpc;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub async fn build_services<Da, DB, Vm>(
+pub async fn build_services<DA, DB, Vm>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
         DefaultContext,
-        <Da as DaService>::Spec,
-        CitreaRuntime<DefaultContext, <Da as DaService>::Spec>,
+        <DA as DaService>::Spec,
+        CitreaRuntime<DefaultContext, <DA as DaService>::Spec>,
     >,
     public_keys: RollupPublicKeys,
-    da_service: Arc<Da>,
-    prover_service: Arc<ParallelProverService<Da, Vm>>,
+    da_service: Arc<DA>,
+    prover_service: Arc<ParallelProverService<DA, Vm>>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
@@ -51,18 +52,18 @@ pub async fn build_services<Da, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    CitreaBatchProver<Da, DB>,
-    L1BlockHandler<Vm, Da, DB>,
+    CitreaBatchProver<DA, DB>,
+    L1BlockHandler<Vm, DA, DB>,
     RpcModule<()>,
 )>
 where
-    Da: DaService<Error = anyhow::Error>,
+    DA: DaService<Error = anyhow::Error>,
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
 
-    let rpc_context = rpc::create_rpc_context::<Da, Vm, DB>(
+    let rpc_context = rpc::create_rpc_context::<DA, Vm, DB>(
         da_service.clone(),
         prover_service.clone(),
         ledger_db.clone(),
@@ -74,9 +75,10 @@ where
         code_commitments.clone(),
         elfs.clone(),
     );
-    let rpc_module = rpc::register_rpc_methods::<Da, Vm, DB>(rpc_context, rpc_module)?;
+    let rpc_module = rpc::register_rpc_methods::<DA, Vm, DB>(rpc_context, rpc_module)?;
 
-    let batch_prover = CitreaBatchProver::new(
+    let (l2_signal_tx, l2_signal_rx) = mpsc::channel(1);
+    let l2_sync_worker = L2SyncWorker::new(
         runner_config,
         init_params,
         native_stf,
@@ -87,7 +89,12 @@ where
         fork_manager,
         soft_confirmation_tx,
         backup_manager.clone(),
+        l2_signal_tx,
+        true,
     )?;
+
+    let batch_prover = CitreaBatchProver::new(ledger_db.clone(), l2_sync_worker, l2_signal_rx)?;
+
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
 

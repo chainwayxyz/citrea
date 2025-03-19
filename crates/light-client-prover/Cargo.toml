@@ -10,19 +10,26 @@ repository.workspace = true
 
 [dependencies]
 # Citrea Deps
+bitcoin-da = { path = "../bitcoin-da", optional = true }
 citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives", optional = true }
+citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
 prover-services = { path = "../prover-services", optional = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", optional = true }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
+sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core", default-features = false }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
 anyhow = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true }
+const-hex = { workspace = true }
+constmuck = { workspace = true }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, optional = true, features = ["http-client", "server", "client"] }
 metrics = { workspace = true, optional = true }
@@ -36,13 +43,19 @@ tracing = { workspace = true, optional = true }
 rand = { workspace = true }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
+tempfile = { workspace = true }
 
 [features]
 default = []
 native = [
+  "dep:sov-mock-da",
+  "dep:bitcoin-da",
   "dep:prover-services",
   "dep:citrea-primitives",
   "dep:citrea-common",
+  "dep:sov-prover-storage-manager",
   "dep:sov-db",
   "dep:hex",
   "dep:anyhow",

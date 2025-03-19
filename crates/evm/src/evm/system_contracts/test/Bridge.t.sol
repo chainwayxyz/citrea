@@ -87,7 +87,7 @@ contract BridgeTest is Test {
         vm.startPrank(SYSTEM_CALLER);
         bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
         // Arbitrary blockhash as this is mock
-        bitcoinLightClient.setBlockInfo(mockBlockhash, witnessRoot);
+        bitcoinLightClient.setBlockInfo(mockBlockhash, witnessRoot, 3);
         vm.stopPrank();
 
         operator = bridge.operator();
@@ -231,7 +231,7 @@ contract BridgeTest is Test {
         index = 0;
         intermediate_nodes = hex"";
         vm.startPrank(SYSTEM_CALLER);
-        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 0);
         
         vm.expectRevert("Invalid deposit script");
         // Incremented 1 block, that's why `doDeposit` is not used
@@ -245,7 +245,7 @@ contract BridgeTest is Test {
         // Tries the hard coded txn on another block with a different witness root
         witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
         vm.startPrank(SYSTEM_CALLER);
-        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 3);
 
         vm.expectRevert("Transaction is not in block");
         Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);

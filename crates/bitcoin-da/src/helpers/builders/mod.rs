@@ -1,5 +1,4 @@
-pub mod batch_proof_namespace;
-pub mod light_client_proof_namespace;
+pub mod body_builders;
 
 #[cfg(test)]
 mod tests;
@@ -26,7 +25,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tracing::{instrument, trace, warn};
 
-use super::{TransactionKindBatchProof, TransactionKindLightClient};
+use super::TransactionKind;
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
 

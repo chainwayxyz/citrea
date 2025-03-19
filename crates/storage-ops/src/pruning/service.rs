@@ -3,7 +3,7 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
-use super::types::PruningNodeType;
+use super::types::StorageNodeType;
 use super::Pruner;
 
 pub struct PrunerService {
@@ -27,7 +27,7 @@ impl PrunerService {
         }
     }
 
-    pub async fn run(mut self, node_type: PruningNodeType, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, node_type: StorageNodeType, cancellation_token: CancellationToken) {
         loop {
             select! {
                 biased;

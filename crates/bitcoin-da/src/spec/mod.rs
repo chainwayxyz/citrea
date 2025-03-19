@@ -1,7 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use citrea_primitives::compression::decompress_blob;
 use serde::{Deserialize, Serialize};
 use short_proof::BitcoinHeaderShortProof;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{DaSpec, DecompressError};
 
 use self::address::AddressWrapper;
 use self::blob::BlobWithSender;
@@ -26,8 +27,7 @@ pub mod utxo;
 pub struct BitcoinSpec;
 
 pub struct RollupParams {
-    pub to_light_client_prefix: Vec<u8>,
-    pub to_batch_proof_prefix: Vec<u8>,
+    pub reveal_tx_prefix: Vec<u8>,
 }
 
 impl DaSpec for BitcoinSpec {
@@ -46,4 +46,9 @@ impl DaSpec for BitcoinSpec {
     type CompletenessProof = Vec<TransactionWrapper>;
 
     type ShortHeaderProof = BitcoinHeaderShortProof;
+
+    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError> {
+        let blob = decompress_blob(complete_chunks).map_err(|_| DecompressError)?;
+        borsh::from_slice(blob.as_slice()).map_err(|_| DecompressError)
+    }
 }

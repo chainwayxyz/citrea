@@ -24,9 +24,7 @@ use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use metrics::histogram;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{
-    DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, DaTxRequest, SequencerCommitment,
-};
+use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
 use tokio::select;
@@ -36,19 +34,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::fee::{BumpFeeMethod, FeeService};
-use crate::helpers::builders::batch_proof_namespace::{
-    create_seqcommitment_transactions, BatchProvingTxs,
-};
-use crate::helpers::builders::light_client_proof_namespace::{
-    create_light_client_transactions, LightClientTxs, RawLightClientData,
-};
+use crate::helpers::builders::body_builders::{create_light_client_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
-use crate::helpers::parsers::{
-    parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
-    ParsedLightClientTransaction, VerifyParsed,
-};
+use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -59,7 +49,7 @@ use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::verifier::BitcoinVerifier;
+use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 #[cfg(feature = "testing")]
@@ -110,8 +100,7 @@ pub struct BitcoinService {
     client: Arc<Client>,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
-    to_light_client_prefix: Vec<u8>,
-    to_batch_proof_prefix: Vec<u8>,
+    reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
@@ -161,8 +150,7 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key: private_key,
-            to_light_client_prefix: chain_params.to_light_client_prefix,
-            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
+            reveal_tx_prefix: chain_params.reveal_tx_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
@@ -204,8 +192,7 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key,
-            to_light_client_prefix: chain_params.to_light_client_prefix,
-            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
+            reveal_tx_prefix: chain_params.reveal_tx_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
@@ -347,9 +334,9 @@ impl BitcoinService {
 
         match tx_request {
             DaTxRequest::ZKProof(zkproof) => {
-                let data = split_proof(zkproof);
+                let data = split_proof(zkproof)?;
 
-                let reveal_light_client_prefix = self.to_light_client_prefix.clone();
+                let reveal_light_client_prefix = self.reveal_tx_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -368,36 +355,46 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
-                match inscription_txs {
-                    LightClientTxs::Complete { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                match inscription_txs.clone() {
+                    DaTxs::Complete { commit, reveal } => {
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
-                    LightClientTxs::Chunked {
+                    DaTxs::Chunked {
                         commit_chunks,
                         reveal_chunks,
                         commit,
                         reveal,
                     } => {
-                        self.send_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
-                            .await
+                        self.send_chunked_transaction(
+                            commit_chunks,
+                            reveal_chunks,
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
                     _ => panic!("ZKProof tx must be either complete or chunked"),
                 }
             }
             DaTxRequest::SequencerCommitment(comm) => {
-                let data = DaDataBatchProof::SequencerCommitment(comm);
-                let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
+                let data = DataOnDa::SequencerCommitment(comm);
+                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
 
-                let prefix = self.to_batch_proof_prefix.clone();
+                let prefix = self.reveal_tx_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
                     // to release the tokio runtime execution
-                    create_seqcommitment_transactions(
-                        blob,
+                    create_light_client_transactions(
+                        RawTxData::SequencerCommitment(blob),
                         da_private_key,
                         prev_utxo,
                         utxos,
@@ -410,25 +407,31 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
-                let BatchProvingTxs { commit, reveal } = inscription_txs;
-
-                self.send_complete_transaction(commit, reveal).await
+                match inscription_txs.clone() {
+                    DaTxs::SequencerCommitment { commit, reveal } => {
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
+                    }
+                    _ => panic!("Tx must be SequencerCommitment"),
+                }
             }
             DaTxRequest::BatchProofMethodId(method_id) => {
-                let data = DaDataLightClient::BatchProofMethodId(method_id);
-                let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
+                let data = DataOnDa::BatchProofMethodId(method_id);
+                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
 
-                let prefix = self.to_light_client_prefix.clone();
+                let prefix = self.reveal_tx_prefix.clone();
 
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
                     // to release the tokio runtime execution
                     create_light_client_transactions(
-                        RawLightClientData::BatchProofMethodId(blob),
+                        RawTxData::BatchProofMethodId(blob),
                         da_private_key,
                         prev_utxo,
                         utxos,
@@ -441,12 +444,15 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
-                match inscription_txs {
-                    LightClientTxs::BatchProofMethodId { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                match inscription_txs.clone() {
+                    DaTxs::BatchProofMethodId { commit, reveal } => {
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            inscription_txs,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
                     _ => panic!("Tx must be BatchProofMethodId"),
                 }
@@ -454,12 +460,14 @@ impl BitcoinService {
         }
     }
 
-    pub async fn send_chunked_transaction(
+    async fn send_chunked_transaction(
         &self,
         commit_chunks: Vec<Transaction>,
         reveal_chunks: Vec<Transaction>,
         commit: Transaction,
         reveal: TxWithId,
+        back_up_txs: DaTxs,
+        back_up_path: PathBuf,
     ) -> Result<Vec<Txid>> {
         assert!(!commit_chunks.is_empty(), "Received empty chunks");
         assert_eq!(
@@ -500,6 +508,11 @@ impl BitcoinService {
                 .client
                 .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
                 .await?;
+
+            if let Some(errors) = signed_raw_commit_tx.errors {
+                bail!("Failed to sign commit transaction: {:?}", errors);
+            }
+
             raw_txs.push(signed_raw_commit_tx.hex);
 
             let serialized_reveal_tx = encode::serialize(&reveal);
@@ -526,12 +539,22 @@ impl BitcoinService {
             .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
             .await?;
 
+        if let Some(errors) = signed_raw_commit_tx.errors {
+            bail!(
+                "Failed to sign the aggregate commit transaction: {:?}",
+                errors
+            );
+        }
+
         raw_txs.push(signed_raw_commit_tx.hex);
 
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         raw_txs.push(serialized_reveal_tx);
 
         self.test_mempool_accept(&raw_txs).await?;
+
+        // backup tx only if it passes mempool accept test
+        back_up_txs.write_to_file(back_up_path)?;
 
         // Track the sum of all chunked transactions sizes
         let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
@@ -550,15 +573,22 @@ impl BitcoinService {
         Ok(txids)
     }
 
-    pub async fn send_complete_transaction(
+    async fn send_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
+        back_up_txs: DaTxs,
+        back_up_path: PathBuf,
     ) -> Result<Vec<Txid>> {
         let signed_raw_commit_tx = self
             .client
             .sign_raw_transaction_with_wallet(&commit, None, None)
             .await?;
+
+        if let Some(errors) = signed_raw_commit_tx.errors {
+            bail!("Failed to sign commit transaction: {:?}", errors);
+        }
+
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         let raw_txs = [signed_raw_commit_tx.hex, serialized_reveal_tx];
 
@@ -567,6 +597,9 @@ impl BitcoinService {
         histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
 
         self.test_mempool_accept(&raw_txs).await?;
+
+        // backup tx only if it passes mempool accept test
+        back_up_txs.write_to_file(back_up_path)?;
 
         let txids = self.send_raw_transactions(&raw_txs).await?;
         info!("Blob inscribe tx sent. Hash: {}", txids[1]);
@@ -762,7 +795,7 @@ impl DaService for BitcoinService {
     }
 
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        borsh::from_slice(decompress_blob(complete_chunks).as_slice())
+        BitcoinSpec::decompress_chunks(complete_chunks)
             .map_err(|_| anyhow!("Failed to parse complete chunks"))
     }
 
@@ -770,7 +803,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         prover_da_pub_key: &[u8],
-    ) -> Result<Vec<Proof>> {
+    ) -> Vec<Proof> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
 
@@ -779,29 +812,37 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_light_client_prefix)
+                .starts_with(&self.reveal_tx_prefix)
             {
                 continue;
             }
 
-            if let Ok(parsed) = parse_light_client_transaction(tx) {
+            if let Ok(parsed) = parse_relevant_transaction(tx) {
                 let tx_id = tx.compute_txid();
                 match parsed {
-                    ParsedLightClientTransaction::Complete(complete) => {
+                    ParsedTransaction::Complete(complete) => {
                         if complete.public_key() == prover_da_pub_key
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
-                            let body = decompress_blob(&complete.body);
-                            let data = DaDataLightClient::borsh_parse_complete(&body)
-                                .map_err(|e| anyhow!("{}: Failed to parse complete: {e}", tx_id))?;
-                            let DaDataLightClient::Complete(zk_proof) = data else {
-                                bail!("{}: Complete: unexpected kind", tx_id);
+                            let Ok(body) = decompress_blob(&complete.body) else {
+                                warn!("{tx_id}: Failed to decompress blob");
+                                continue;
+                            };
+
+                            let Ok(data) = DataOnDa::borsh_parse_complete(&body) else {
+                                warn!("{tx_id}: Failed to parse complete data");
+                                continue;
+                            };
+
+                            let DataOnDa::Complete(zk_proof) = data else {
+                                warn!("{}: Complete: unexpected kind", tx_id);
+                                continue;
                             };
                             completes.push((i, zk_proof));
                         }
                     }
-                    ParsedLightClientTransaction::Aggregate(aggregate) => {
+                    ParsedTransaction::Aggregate(aggregate) => {
                         if aggregate.public_key() == prover_da_pub_key
                             && aggregate.get_sig_verified_hash().is_some()
                         {
@@ -810,11 +851,14 @@ impl DaService for BitcoinService {
                             aggregate_idxs.push((i, tx_id, aggregate));
                         }
                     }
-                    ParsedLightClientTransaction::Chunk(_chunk) => {
+                    ParsedTransaction::Chunk(_chunk) => {
                         // we ignore them for now
                     }
-                    ParsedLightClientTransaction::BatchProverMethodId(_) => {
+                    ParsedTransaction::BatchProverMethodId(_) => {
                         // ignore because these are not proofs
+                    }
+                    ParsedTransaction::SequencerCommitment(_) => {
+                        // ignore
                     }
                 }
             }
@@ -824,14 +868,16 @@ impl DaService for BitcoinService {
         let mut aggregates = Vec::new();
         'aggregate: for (i, tx_id, aggregate) in aggregate_idxs {
             let mut body = Vec::new();
-            let data = DaDataLightClient::try_from_slice(&aggregate.body)
-                .map_err(|e| anyhow!("{}: Failed to parse aggregate: {e}", tx_id))?;
-            let DaDataLightClient::Aggregate(chunk_ids, _wtx_ids) = data else {
-                error!("{}: Aggregate: unexpected kind", tx_id);
+            let Ok(data) = DataOnDa::try_from_slice(&aggregate.body) else {
+                warn!("{tx_id}: Failed to parse aggregate");
+                continue;
+            };
+            let DataOnDa::Aggregate(chunk_ids, _wtx_ids) = data else {
+                error!("{tx_id}: Aggregate: unexpected kind");
                 continue;
             };
             if chunk_ids.is_empty() {
-                error!("{}: Empty aggregate tx list", tx_id);
+                error!("{tx_id}: Empty aggregate tx list");
                 continue;
             }
             for chunk_id in chunk_ids {
@@ -858,7 +904,7 @@ impl DaService for BitcoinService {
                 };
 
                 let wrapped: TransactionWrapper = tx_raw.into();
-                let parsed = match parse_light_client_transaction(&wrapped) {
+                let parsed = match parse_relevant_transaction(&wrapped) {
                     Ok(r) => r,
                     Err(e) => {
                         error!("{}:{}: Failed parse chunk: {e}", tx_id, chunk_id);
@@ -866,24 +912,34 @@ impl DaService for BitcoinService {
                     }
                 };
                 match parsed {
-                    ParsedLightClientTransaction::Chunk(part) => {
-                        let data = DaDataLightClient::try_from_slice(&part.body)
-                            .map_err(|e| anyhow!("{}: Failed to parse chunk: {e}", tx_id))?;
-                        let DaDataLightClient::Chunk(chunk) = data else {
-                            bail!("{}: Chunk: unexpected kind", tx_id);
+                    ParsedTransaction::Chunk(part) => {
+                        let Ok(data) = DataOnDa::try_from_slice(&part.body) else {
+                            warn!("{tx_id}: Failed to parse chunk");
+                            continue 'aggregate;
+                        };
+                        let DataOnDa::Chunk(chunk) = data else {
+                            warn!("{tx_id}: Chunk: unexpected kind",);
+                            continue 'aggregate;
                         };
                         body.extend(chunk);
                     }
-                    ParsedLightClientTransaction::Complete(_)
-                    | ParsedLightClientTransaction::Aggregate(_)
-                    | ParsedLightClientTransaction::BatchProverMethodId(_) => {
+                    ParsedTransaction::Complete(_)
+                    | ParsedTransaction::Aggregate(_)
+                    | ParsedTransaction::BatchProverMethodId(_)
+                    | ParsedTransaction::SequencerCommitment(_) => {
                         error!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
                         continue 'aggregate;
                     }
                 }
             }
-            let zk_proof: Proof = borsh::from_slice(decompress_blob(&body).as_slice())
-                .map_err(|e| anyhow!("{}: Failed to parse Proof from Aggregate: {e}", tx_id))?;
+            let Ok(blob) = decompress_blob(&body) else {
+                warn!("{tx_id}: Failed to decompress blob from Aggregate");
+                continue 'aggregate;
+            };
+            let Ok(zk_proof) = borsh::from_slice(blob.as_slice()) else {
+                warn!("{}: Failed to parse Proof from Aggregate", tx_id);
+                continue 'aggregate;
+            };
             aggregates.push((i, zk_proof));
         }
 
@@ -891,11 +947,7 @@ impl DaService for BitcoinService {
         // restore the order of tx they appear in the block
         proofs.sort_by_key(|b| b.0);
 
-        let mut result = Vec::new();
-        for (_i, proof) in proofs {
-            result.push(proof);
-        }
-        Ok(result)
+        proofs.into_iter().map(|(_, proof)| proof).collect()
     }
 
     /// Extract SequencerCommitment's from the block
@@ -903,7 +955,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         sequencer_da_pub_key: &[u8],
-    ) -> Result<Vec<SequencerCommitment>> {
+    ) -> Vec<SequencerCommitment> {
         let mut sequencer_commitments = Vec::new();
 
         for tx in &block.txdata {
@@ -911,38 +963,37 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_batch_proof_prefix)
+                .starts_with(&self.reveal_tx_prefix)
             {
                 continue;
             }
 
-            if let Ok(tx) = parse_batch_proof_transaction(tx) {
-                match tx {
-                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                        if seq_comm.get_sig_verified_hash().is_some()
-                            && seq_comm.public_key() == sequencer_da_pub_key
-                        {
-                            let data = DaDataBatchProof::try_from_slice(&seq_comm.body);
-                            if let Ok(DaDataBatchProof::SequencerCommitment(seq_com)) = data {
-                                sequencer_commitments.push(seq_com);
-                            }
-                        }
+            if let Ok(ParsedTransaction::SequencerCommitment(seq_comm)) =
+                parse_relevant_transaction(tx)
+            {
+                if seq_comm.get_sig_verified_hash().is_some()
+                    && seq_comm.public_key() == sequencer_da_pub_key
+                {
+                    let data = DataOnDa::try_from_slice(&seq_comm.body);
+                    if let Ok(DataOnDa::SequencerCommitment(seq_com)) = data {
+                        sequencer_commitments.push(seq_com);
                     }
                 }
+            } else {
+                // ignore
             }
         }
-        Ok(sequencer_commitments)
+        sequencer_commitments
     }
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
-    /// For example, this method might return all of the blob transactions in rollup's namespace for BatchProofs/LightClient,
+    /// For example, this method might return all of the blob transactions in rollup's namespace,
     /// together with a range proof against the root of the namespaced-merkle-tree, demonstrating that the entire
     /// rollup namespace has been covered.
     #[allow(clippy::type_complexity)]
     fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-        namespace: DaNamespace,
     ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
@@ -953,10 +1004,7 @@ impl DaService for BitcoinService {
             block.header.block_hash()
         );
 
-        let prefix = match namespace {
-            DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
-            DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
-        };
+        let prefix = self.reveal_tx_prefix.as_slice();
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
@@ -1000,71 +1048,63 @@ impl DaService for BitcoinService {
         let mut relevant_txs = vec![];
         for tx in &completeness_proof {
             let wtxid = tx.compute_wtxid();
-            match namespace {
-                DaNamespace::ToBatchProver => {
-                    if let Ok(tx) = parse_batch_proof_transaction(tx) {
-                        match tx {
-                            ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                                if let Some(hash) = seq_comm.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
-                                        seq_comm.body,
-                                        seq_comm.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
-
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
+            if let Ok(tx) = parse_relevant_transaction(tx) {
+                match tx {
+                    ParsedTransaction::Complete(complete) => {
+                        if let Some(hash) = complete.get_sig_verified_hash() {
+                            let Ok(blob) = decompress_blob(&complete.body) else {
+                                continue;
+                            };
+                            let relevant_tx = BlobWithSender::new(
+                                blob,
+                                complete.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
+                            relevant_txs.push(relevant_tx);
                         }
                     }
-                }
-                DaNamespace::ToLightClientProver => {
-                    if let Ok(tx) = parse_light_client_transaction(tx) {
-                        match tx {
-                            ParsedLightClientTransaction::Complete(complete) => {
-                                if let Some(hash) = complete.get_sig_verified_hash() {
-                                    let blob = decompress_blob(&complete.body);
-                                    let relevant_tx = BlobWithSender::new(
-                                        blob,
-                                        complete.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
-                            ParsedLightClientTransaction::Aggregate(aggregate) => {
-                                if let Some(hash) = aggregate.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
-                                        aggregate.body,
-                                        aggregate.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
-                            ParsedLightClientTransaction::Chunk(chunk) => {
-                                let relevant_tx = BlobWithSender::new(
-                                    chunk.body,
-                                    vec![],
-                                    [0; 32],
-                                    Some(wtxid.to_byte_array()),
-                                );
-                                relevant_txs.push(relevant_tx);
-                            }
-                            ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
-                                if let Some(hash) = method_id.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
-                                        method_id.body,
-                                        method_id.public_key,
-                                        hash,
-                                        Some(wtxid.to_byte_array()),
-                                    );
-                                    relevant_txs.push(relevant_tx);
-                                }
-                            }
+                    ParsedTransaction::Aggregate(aggregate) => {
+                        if let Some(hash) = aggregate.get_sig_verified_hash() {
+                            let relevant_tx = BlobWithSender::new(
+                                aggregate.body,
+                                aggregate.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
+                            relevant_txs.push(relevant_tx);
+                        }
+                    }
+                    ParsedTransaction::Chunk(chunk) => {
+                        let relevant_tx = BlobWithSender::new(
+                            chunk.body,
+                            vec![],
+                            [0; 32],
+                            Some(wtxid.to_byte_array()),
+                        );
+                        relevant_txs.push(relevant_tx);
+                    }
+                    ParsedTransaction::BatchProverMethodId(method_id) => {
+                        if let Some(hash) = method_id.get_sig_verified_hash() {
+                            let relevant_tx = BlobWithSender::new(
+                                method_id.body,
+                                method_id.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
+                            relevant_txs.push(relevant_tx);
+                        }
+                    }
+                    ParsedTransaction::SequencerCommitment(seq_comm) => {
+                        if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                            let relevant_tx = BlobWithSender::new(
+                                seq_comm.body,
+                                seq_comm.public_key,
+                                hash,
+                                Some(wtxid.to_byte_array()),
+                            );
+
+                            relevant_txs.push(relevant_tx);
                         }
                     }
                 }
@@ -1130,11 +1170,12 @@ impl DaService for BitcoinService {
                     .map(|transaction| transaction.into())
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        let tx_count = txs.len();
 
-        let witness_root = calculate_witness_root(&txs);
+        let witness_root = calculate_witness_root(&txs, tx_count);
 
         Ok(BitcoinBlock {
-            header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
+            header: HeaderWrapper::new(header, tx_count as u32, block.height, witness_root),
             txdata: txs,
         })
     }
@@ -1183,32 +1224,35 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_batch_proof_prefix)
+                .starts_with(&self.reveal_tx_prefix)
             {
                 continue;
             }
 
-            if let Ok(tx) = parse_batch_proof_transaction(tx) {
-                match tx {
-                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                        // we check on da pending txs of our wallet however let's keep consistency
-                        if seq_comm.get_sig_verified_hash().is_some()
-                            && seq_comm.public_key == sequencer_da_pub_key
-                        {
-                            let da_data = DaDataBatchProof::try_from_slice(&seq_comm.body);
-                            match da_data {
-                                Ok(da_data) => match da_data {
-                                    DaDataBatchProof::SequencerCommitment(commitment) => {
-                                        sequencer_commitments.push(commitment);
-                                    }
-                                },
-                                Err(err) => {
-                                    warn!("Pending transaction blob failed to be parsed: {}", err);
-                                }
+            if let Ok(ParsedTransaction::SequencerCommitment(seq_comm)) =
+                parse_relevant_transaction(tx)
+            {
+                // we check on da pending txs of our wallet however let's keep consistency
+                if seq_comm.get_sig_verified_hash().is_some()
+                    && seq_comm.public_key == sequencer_da_pub_key
+                {
+                    let da_data = DataOnDa::try_from_slice(&seq_comm.body);
+                    match da_data {
+                        Ok(da_data) => match da_data {
+                            DataOnDa::SequencerCommitment(commitment) => {
+                                sequencer_commitments.push(commitment);
                             }
+                            _ => {
+                                // ignore
+                            }
+                        },
+                        Err(err) => {
+                            warn!("Pending transaction blob failed to be parsed: {}", err);
                         }
                     }
                 }
+            } else {
+                // ignore
             }
         }
         sequencer_commitments
@@ -1231,17 +1275,17 @@ pub fn get_relevant_blobs_from_txs(
             continue;
         }
 
-        if let Ok(tx) = parse_batch_proof_transaction(&tx) {
-            match tx {
-                ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                    if let Some(hash) = seq_comm.get_sig_verified_hash() {
-                        let relevant_tx =
-                            BlobWithSender::new(seq_comm.body, seq_comm.public_key, hash, None);
+        if let Ok(ParsedTransaction::SequencerCommitment(seq_comm)) =
+            parse_relevant_transaction(&tx)
+        {
+            if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                let relevant_tx =
+                    BlobWithSender::new(seq_comm.body, seq_comm.public_key, hash, None);
 
-                        relevant_txs.push(relevant_tx);
-                    }
-                }
+                relevant_txs.push(relevant_tx);
             }
+        } else {
+            // ignore
         }
     }
     relevant_txs
@@ -1256,40 +1300,55 @@ impl From<TxidWrapper> for [u8; 32] {
 }
 
 /// This function splits Proof based on its size. It is either:
-/// 1: compress(borsh(DaDataLightClient::Complete(Proof)))
+/// 1: compress(borsh(DataOnDa::Complete(Proof)))
 /// 2:
 ///   let compressed = compress(borsh(Proof))
 ///   let chunks = compressed.chunks(MAX_TXBODY_SIZE)
-///   [borsh(DaDataLightClient::Chunk(chunk)) for chunk in chunks]
-fn split_proof(zk_proof: Proof) -> RawLightClientData {
+///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
+fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
-    let original_compressed = compress_blob(&original_blob);
+    let original_compressed = compress_blob(&original_blob)?;
 
     if original_compressed.len() < MAX_TXBODY_SIZE {
-        let data = DaDataLightClient::Complete(zk_proof);
+        let data = DataOnDa::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
-        let blob = compress_blob(&blob);
-        RawLightClientData::Complete(blob)
+        let blob = compress_blob(&blob)?;
+        Ok(RawTxData::Complete(blob))
     } else {
         let mut chunks = vec![];
         for chunk in original_compressed.chunks(MAX_TXBODY_SIZE) {
-            let data = DaDataLightClient::Chunk(chunk.to_vec());
+            let data = DataOnDa::Chunk(chunk.to_vec());
             let blob = borsh::to_vec(&data).expect("zk::Proof Chunk serialize must not fail");
             chunks.push(blob)
         }
 
-        RawLightClientData::Chunks(chunks)
+        Ok(RawTxData::Chunks(chunks))
     }
 }
 
-fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
+fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8; 32] {
+    // If there is only one transaction in the block, the witness root is all zeros
+    // So the merkle root is all zeros as well
+    if tx_count == 1 {
+        return [0u8; 32];
+    }
+
     let hashes = txdata
         .iter()
         .enumerate()
         .map(|(i, t)| {
             if i == 0 {
-                // Replace the first hash with zeroes.
-                Wtxid::all_zeros().to_raw_hash().to_byte_array()
+                let commitment_idx = t.output.iter().rev().position(|output| {
+                    output
+                        .script_pubkey
+                        .as_bytes()
+                        .starts_with(WITNESS_COMMITMENT_PREFIX)
+                });
+                // If non-segwit block, the coinbase tx should also use the txid instead of all zeros
+                match commitment_idx {
+                    Some(_) => Wtxid::all_zeros().to_raw_hash().to_byte_array(),
+                    None => t.compute_wtxid().to_raw_hash().to_byte_array(),
+                }
             } else {
                 t.compute_wtxid().to_raw_hash().to_byte_array()
             }

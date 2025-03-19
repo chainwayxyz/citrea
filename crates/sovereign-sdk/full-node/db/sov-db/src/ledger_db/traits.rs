@@ -105,11 +105,11 @@ pub trait SharedLedgerOps {
     ) -> Result<Option<StoredSoftConfirmation>>;
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    fn set_last_commitment_l2_height(&self, l2_height: SoftConfirmationNumber) -> Result<()>;
+    fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<()>;
 
     /// Get the most recent committed batch
-    /// Returns L2 height.
-    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<SoftConfirmationNumber>>;
+    /// Returns last sequencer commitment.
+    fn get_last_commitment(&self) -> anyhow::Result<Option<SequencerCommitment>>;
 
     /// Get the last scanned slot
     fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
@@ -151,6 +151,12 @@ pub trait SharedLedgerOps {
         &self,
         root: [u8; 32],
     ) -> anyhow::Result<Option<L2HeightRange>>;
+
+    /// Store commitment by index
+    fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()>;
+
+    /// Get commitment by index
+    fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>>;
 }
 
 /// Node ledger operations
@@ -230,15 +236,14 @@ pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send
 
 /// Sequencer ledger operations
 pub trait SequencerLedgerOps: SharedLedgerOps {
-    /// Gets all pending commitments' l2 ranges.
-    /// Returns start-end L2 heights.
-    fn get_pending_commitments_l2_range(&self) -> Result<Vec<L2HeightRange>>;
+    /// Gets all pending commitments.
+    fn get_pending_commitments(&self) -> Result<Vec<SequencerCommitment>>;
 
-    /// Put a pending commitment l2 range
-    fn put_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> Result<()>;
+    /// Put a pending commitment
+    fn put_pending_commitment(&self, seqcomm: &SequencerCommitment) -> Result<()>;
 
     /// Delete a pending commitment l2 range
-    fn delete_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> Result<()>;
+    fn delete_pending_commitment(&self, index: u32) -> Result<()>;
 
     /// Gets the latest state diff
     fn get_state_diff(&self) -> Result<StateDiff>;

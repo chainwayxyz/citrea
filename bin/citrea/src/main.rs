@@ -10,11 +10,13 @@ use citrea::{
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::tasks::manager::TaskType;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
+use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
-use citrea_storage_ops::pruning::types::PruningNodeType;
+use citrea_storage_ops::pruning::types::StorageNodeType;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
@@ -49,11 +51,8 @@ async fn main() -> anyhow::Result<()> {
         args.verbose = 0;
     }
     let logging_level = match args.verbose {
-        0 => tracing::Level::ERROR,
-        1 => tracing::Level::WARN,
-        2 => tracing::Level::INFO,
-        3 => tracing::Level::DEBUG,
-        4 => tracing::Level::TRACE,
+        1 => tracing::Level::DEBUG,
+        2 => tracing::Level::TRACE,
         _ => tracing::Level::INFO,
     };
     initialize_logging(logging_level);
@@ -106,6 +105,7 @@ where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <DefaultContext as Spec>::Storage: NativeStorage,
+    Network: InitialValueProvider<<S as RollupBlueprint>::DaSpec>,
 {
     let rollup_config: FullNodeConfig<DaC> = match rollup_config_path {
         Some(path) => from_toml_path(path)
@@ -254,14 +254,14 @@ where
                 None,
             );
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = sequencer.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
             });
         }
         NodeType::BatchProver(batch_prover_config) => {
-            let (mut prover, l1_block_handler, rpc_module) =
+            let (prover, l1_block_handler, rpc_module) =
                 CitreaRollupBlueprint::create_batch_prover(
                     &rollup_blueprint,
                     batch_prover_config,
@@ -284,20 +284,25 @@ where
                 None,
             );
 
-            let l1_start_height = rollup_config
-                .runner
-                .ok_or(anyhow!(
+            let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
+                Some(l1_height) => l1_height.0,
+                None => {
+                    rollup_config
+                        .runner
+                        .ok_or(anyhow!(
                     "Failed to start batch prover L1 block handler: Runner config not present"
                 ))?
-                .scan_l1_start_height;
+                        .scan_l1_start_height
+                }
+            };
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(l1_start_height, cancellation_token)
                     .await
             });
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 if let Err(e) = prover.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
@@ -314,11 +319,12 @@ where
             let (mut prover, l1_block_handler, rpc_module) =
                 CitreaRollupBlueprint::create_light_client_prover(
                     &rollup_blueprint,
+                    network,
                     light_client_prover_config,
                     rollup_config.clone(),
-                    &rocksdb_config,
                     da_service,
                     ledger_db,
+                    storage_manager,
                     rpc_module,
                     backup_manager,
                 )
@@ -332,20 +338,20 @@ where
                 None,
             );
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(starting_block, cancellation_token)
                     .await
             });
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = prover.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
             });
         }
         _ => {
-            let (mut full_node, l1_block_handler, pruner_service) =
+            let (full_node, l1_block_handler, pruner_service) =
                 CitreaRollupBlueprint::create_full_node(
                     &rollup_blueprint,
                     genesis_config,
@@ -366,14 +372,19 @@ where
                 None,
             );
 
-            let l1_start_height = rollup_config
-                .runner
-                .ok_or(anyhow!(
-                    "Failed to start fullnode L1 block handler: Runner config not present"
+            let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
+                Some(l1_height) => l1_height.0,
+                None => {
+                    rollup_config
+                        .runner
+                        .ok_or(anyhow!(
+                    "Failed to start batch prover L1 block handler: Runner config not present"
                 ))?
-                .scan_l1_start_height;
+                        .scan_l1_start_height
+                }
+            };
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(l1_start_height, cancellation_token)
                     .await
@@ -381,14 +392,14 @@ where
 
             // Spawn pruner if configs are set
             if let Some(pruner_service) = pruner_service {
-                task_manager.spawn(|cancellation_token| async move {
+                task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                     pruner_service
-                        .run(PruningNodeType::FullNode, cancellation_token)
+                        .run(StorageNodeType::FullNode, cancellation_token)
                         .await
                 });
             }
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = full_node.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use commands::PruningNodeTypeArg;
+use commands::StorageNodeTypeArg;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -41,7 +41,7 @@ enum Commands {
     /// Prune old DB entries
     Prune {
         #[arg(long)]
-        node_type: PruningNodeTypeArg,
+        node_type: StorageNodeTypeArg,
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,
@@ -51,12 +51,20 @@ enum Commands {
     },
     /// Rollback the most recent N blocks
     Rollback {
+        #[arg(long)]
+        node_type: StorageNodeTypeArg,
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,
-        /// The number of blocks to rollback
+        /// The target L2 block number to rollback to (non-inclusive)
         #[arg(long)]
-        blocks: u32,
+        l2_target: u64,
+        /// The target L1 block number to rollback to (non-inclusive)
+        #[arg(long)]
+        l1_target: u64,
+        /// The target sequencer commitment index to rollback to
+        #[arg(long)]
+        sequencer_commitment_index: u32,
     },
     /// Restore DBs from backup
     RestoreBackup {
@@ -113,10 +121,20 @@ async fn main() -> anyhow::Result<()> {
             commands::prune(node_type, db_path.clone(), distance).await?;
         }
         Commands::Rollback {
-            db_path: _db_path,
-            blocks,
+            node_type,
+            db_path,
+            l2_target,
+            l1_target,
+            sequencer_commitment_index,
         } => {
-            commands::rollback(blocks).await?;
+            commands::rollback(
+                node_type,
+                db_path.clone(),
+                l2_target,
+                l1_target,
+                sequencer_commitment_index,
+            )
+            .await?;
         }
         Commands::RestoreBackup {
             db_path,

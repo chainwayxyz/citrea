@@ -12,12 +12,12 @@ use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::transaction::TransactionWrapper;
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
-use citrea_primitives::{MAX_TXBODY_SIZE, TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{MAX_TXBODY_SIZE, REVEAL_TX_PREFIX};
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 
@@ -33,8 +33,7 @@ pub async fn get_default_service(
         config,
         NodeKind::Bitcoin.to_string(),
         DEFAULT_DA_PRIVATE_KEY.to_string(),
-        TO_BATCH_PROOF_PREFIX.to_vec(),
-        TO_LIGHT_CLIENT_PREFIX.to_vec(),
+        REVEAL_TX_PREFIX.to_vec(),
     )
     .await
 }
@@ -44,8 +43,7 @@ pub async fn get_service(
     config: &BitcoinConfig,
     wallet: String,
     da_private_key: String,
-    to_batch_proof_prefix: Vec<u8>,
-    to_light_client_prefix: Vec<u8>,
+    reveal_tx_prefix: Vec<u8>,
 ) -> Arc<BitcoinService> {
     let node_url = format!("http://127.0.0.1:{}/wallet/{}", config.rpc_port, wallet,);
 
@@ -64,17 +62,16 @@ pub async fn get_service(
 
     let da_service = BitcoinService::new_without_wallet_check(
         runtime_config,
-        RollupParams {
-            to_batch_proof_prefix,
-            to_light_client_prefix,
-        },
+        RollupParams { reveal_tx_prefix },
         tx,
     )
     .await
     .expect("Error initializing BitcoinService");
 
     let da_service = Arc::new(da_service);
-    task_manager.spawn(|tk| da_service.clone().run_da_queue(rx, tk));
+    task_manager.spawn(TaskType::Secondary, |tk| {
+        da_service.clone().run_da_queue(rx, tk)
+    });
 
     da_service
 }
@@ -111,7 +108,6 @@ pub async fn generate_mock_txs(
         &da_node.config,
         wrong_prefix_wallet,
         DEFAULT_DA_PRIVATE_KEY.to_string(),
-        vec![5],
         vec![6],
     )
     .await;
@@ -123,8 +119,7 @@ pub async fn generate_mock_txs(
         &da_node.config,
         wrong_key_wallet,
         "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
-        TO_BATCH_PROOF_PREFIX.to_vec(),
-        TO_LIGHT_CLIENT_PREFIX.to_vec(),
+        REVEAL_TX_PREFIX.to_vec(),
     )
     .await;
 
@@ -134,6 +129,7 @@ pub async fn generate_mock_txs(
     let mut valid_commitments = vec![];
     let mut valid_proofs = vec![];
     let mut valid_method_ids = vec![];
+    let mut seq_index = 0;
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
@@ -148,9 +144,10 @@ pub async fn generate_mock_txs(
 
     let commitment = SequencerCommitment {
         merkle_root: [13; 32],
-        l2_start_block_number: 1002,
+        index: seq_index,
         l2_end_block_number: 1100,
     };
+    seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
         .send_transaction(DaTxRequest::SequencerCommitment(commitment))
@@ -159,9 +156,10 @@ pub async fn generate_mock_txs(
 
     let commitment = SequencerCommitment {
         merkle_root: [14; 32],
-        l2_start_block_number: 1101,
+        index: seq_index,
         l2_end_block_number: 1245,
     };
+    seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
         .send_transaction(DaTxRequest::SequencerCommitment(commitment))
@@ -191,7 +189,7 @@ pub async fn generate_mock_txs(
     wrong_prefix_da_service
         .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
-            l2_start_block_number: 1246,
+            index: seq_index,
             l2_end_block_number: 1268,
         }))
         .await
@@ -210,7 +208,7 @@ pub async fn generate_mock_txs(
     wrong_key_da_service
         .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
-            l2_start_block_number: 1246,
+            index: seq_index,
             l2_end_block_number: 1268,
         }))
         .await
@@ -218,7 +216,7 @@ pub async fn generate_mock_txs(
 
     let commitment = SequencerCommitment {
         merkle_root: [15; 32],
-        l2_start_block_number: 1246,
+        index: seq_index,
         l2_end_block_number: 1268,
     };
     valid_commitments.push(commitment.clone());
@@ -297,7 +295,7 @@ pub fn get_mock_nonsegwit_block() -> BitcoinBlock {
         6,
         2,
         WitnessMerkleNode::from_str(
-            "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            "dd7cd5d27f0a6d032c51d3873e5328193438abd4e9cfd2788d83bdf1eb4847a4",
         )
         .unwrap()
         .to_raw_hash()

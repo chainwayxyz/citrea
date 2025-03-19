@@ -9,7 +9,7 @@ use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::backup::BackupManager;
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -17,7 +17,7 @@ use citrea_common::{
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
-use citrea_storage_ops::pruning::types::PruningNodeType;
+use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PruningConfig;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
@@ -32,7 +32,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpe
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
-use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
@@ -232,7 +232,7 @@ pub async fn start_rollup(
             Some(rpc_reporting_channel),
         );
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             sequencer
                 .run(cancellation_token)
                 .instrument(span)
@@ -242,22 +242,21 @@ pub async fn start_rollup(
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
-        let (mut prover, l1_block_handler, rpc_module) =
-            CitreaRollupBlueprint::create_batch_prover(
-                &mock_demo_rollup,
-                rollup_prover_config,
-                genesis_config,
-                rollup_config.clone(),
-                da_service,
-                ledger_db.clone(),
-                storage_manager,
-                soft_confirmation_channel.0,
-                rpc_module,
-                backup_manager,
-            )
-            .instrument(span.clone())
-            .await
-            .unwrap();
+        let (prover, l1_block_handler, rpc_module) = CitreaRollupBlueprint::create_batch_prover(
+            &mock_demo_rollup,
+            rollup_prover_config,
+            genesis_config,
+            rollup_config.clone(),
+            da_service,
+            ledger_db.clone(),
+            storage_manager,
+            soft_confirmation_channel.0,
+            rpc_module,
+            backup_manager,
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
 
         start_rpc_server(
             rollup_config.rpc.clone(),
@@ -267,7 +266,7 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
             let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
                 .await
                 .expect("Failed to fetch start L1 height");
@@ -277,7 +276,7 @@ pub async fn start_rollup(
                 .await
         });
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             prover
                 .run(cancellation_token)
                 .instrument(span)
@@ -300,11 +299,12 @@ pub async fn start_rollup(
         let (mut rollup, l1_block_handler, rpc_module) =
             CitreaRollupBlueprint::create_light_client_prover(
                 &mock_demo_rollup,
+                network.expect("should be some"),
                 light_client_prover_config,
                 rollup_config.clone(),
-                &rocksdb_config,
                 da_service,
                 ledger_db,
+                storage_manager,
                 rpc_module,
                 backup_manager,
             )
@@ -320,14 +320,14 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
             l1_block_handler
                 .run(starting_block, cancellation_token)
                 .instrument(handler_span.clone())
                 .await
         });
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             rollup
                 .run(cancellation_token)
                 .instrument(span)
@@ -337,7 +337,7 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (mut rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
+        let (rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),
@@ -359,7 +359,7 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
             let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
                 .await
                 .expect("Failed to fetch starting L1 height");
@@ -371,14 +371,14 @@ pub async fn start_rollup(
 
         // Spawn pruner if configs are set
         if let Some(pruner) = pruner {
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 pruner
-                    .run(PruningNodeType::FullNode, cancellation_token)
+                    .run(StorageNodeType::FullNode, cancellation_token)
                     .await
             });
         }
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             rollup
                 .run(cancellation_token)
                 .instrument(span)
@@ -618,10 +618,10 @@ fn extract_da_data(
         .extract_relevant_blobs(&block)
         .into_iter()
         .for_each(|tx| {
-            let data = DaTxRequest::try_from_slice(tx.full_data());
-            if let Ok(DaTxRequest::SequencerCommitment(seq_com)) = data {
+            let data = DataOnDa::try_from_slice(tx.full_data());
+            if let Ok(DataOnDa::SequencerCommitment(seq_com)) = data {
                 sequencer_commitments.push(seq_com);
-            } else if let Ok(DaTxRequest::ZKProof(proof)) = data {
+            } else if let Ok(DataOnDa::Complete(proof)) = data {
                 zk_proofs.push(proof);
             } else {
                 tracing::warn!(

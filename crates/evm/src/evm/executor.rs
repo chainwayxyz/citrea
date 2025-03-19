@@ -15,8 +15,8 @@ use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
+use super::system_contracts::{PostFork2SetBlockInfoCall, PreFork2SetBlockInfoCall};
 use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
-use crate::system_contracts::BitcoinLightClientContract;
 use crate::{Evm, EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
@@ -179,7 +179,7 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
     if l2_height == 1 {
         return Ok(());
     }
-    if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+    if function_selector == PostFork2SetBlockInfoCall::SELECTOR {
         let l1_block_hash: [u8; 32] = tx.input()[4..36]
             .try_into()
             .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
@@ -189,6 +189,7 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
         let txs_commitment: [u8; 32] = tx.input()[36..68]
             .try_into()
             .map_err(|_| SoftConfirmationModuleCallError::EvmSystemTxParseError)?;
+        let coinbase_depth: u8 = U256::from_be_slice(&tx.input()[68..100]).to::<u8>();
 
         let citrea_spec = fork_from_block_number(l2_height).spec_id;
 
@@ -203,6 +204,7 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
             prev_hash.unwrap().to_be_bytes(),
             next_l1_height,
             txs_commitment,
+            coinbase_depth,
             l2_height,
         ) {
             Ok(true) => return Ok(()),
@@ -214,8 +216,9 @@ fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
                 return Err(SoftConfirmationModuleCallError::ShortHeaderProofNotFound);
             }
         }
+    } else if function_selector == PreFork2SetBlockInfoCall::SELECTOR {
+        return Err(SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2);
     }
-
     Ok(())
 }
 

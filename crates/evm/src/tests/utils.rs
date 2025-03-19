@@ -25,10 +25,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "600287474db03ec020caf020ad58fe9c7918bd9b078ddfdba31642daae8bdffe"
+        "91ae2b95fa8b137746a0e83b759ffcd74c6488bc7101eb711d2a9f07368cffb5"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "6945eecef532f6de29cc417e3b9c2a948ab9b0af8c167392c3955a090f1cbb16"
+        "9a860d020d1ca2f022bd7744405037efc6b61fa4a2d7aac3ca6e5aaf4f53ac55"
     ));
 }
 
@@ -121,7 +121,7 @@ pub(crate) fn commit(
     let (state_log, mut witness) = checkpoint.freeze();
 
     let (state_root_transition, authenticated_node_batch, _) = storage
-        .compute_state_update(&state_log, &mut witness)
+        .compute_state_update(&state_log, &mut witness, true)
         .expect("jellyfish merkle tree update must succeed");
 
     let working_set = checkpoint.to_revertable();

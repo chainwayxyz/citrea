@@ -16,7 +16,6 @@ use sov_db::schema::types::light_client_proof::{
 use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_db::state_db::StateDB;
-use sov_rollup_interface::mmr::MMRGuest;
 use sov_schema_db::DB;
 use sov_state::Storage;
 use tokio::sync::broadcast;
@@ -24,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::pruning::components::prune_ledger;
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
-use crate::pruning::types::PruningNodeType;
+use crate::pruning::types::StorageNodeType;
 use crate::pruning::{Pruner, PrunerService, PruningConfig};
 
 #[tokio::test(flavor = "multi_thread")]
@@ -47,7 +46,7 @@ async fn test_pruning_simple_run() {
         );
         let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-        tokio::spawn(pruner_service.run(PruningNodeType::Sequencer, cancellation_token.clone()));
+        tokio::spawn(pruner_service.run(StorageNodeType::Sequencer, cancellation_token.clone()));
 
         sleep(Duration::from_secs(1));
 
@@ -181,7 +180,7 @@ pub fn test_pruning_ledger_db_soft_confirmations() {
         .unwrap()
         .is_some());
 
-    prune_ledger(PruningNodeType::Sequencer, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::Sequencer, ledger_db.clone(), 10);
 
     // Pruned
     assert!(ledger_db
@@ -333,7 +332,7 @@ pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
         .unwrap()
         .is_some());
 
-    prune_ledger(PruningNodeType::BatchProver, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::BatchProver, ledger_db.clone(), 10);
 
     // Pruned
     assert!(ledger_db
@@ -407,7 +406,7 @@ fn prepare_slots_data(ledger_db: &DB) {
                 &StoredLightClientProof {
                     proof: vec![1; 32],
                     light_client_proof_output: StoredLightClientProofOutput {
-                        state_root: [0u8; 32],
+                        l2_state_root: [0u8; 32],
                         light_client_proof_method_id: [1u32; 8],
                         latest_da_state: StoredLatestDaState {
                             block_hash: [0; 32],
@@ -420,7 +419,7 @@ fn prepare_slots_data(ledger_db: &DB) {
                         unchained_batch_proofs_info: vec![],
                         last_l2_height: da_slot_height,
                         batch_proof_method_ids: vec![],
-                        mmr_guest: MMRGuest::new(),
+                        lcp_state_root: [0; 32],
                     },
                 },
             )
@@ -517,7 +516,7 @@ pub fn test_pruning_ledger_db_fullnode_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(PruningNodeType::FullNode, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::FullNode, ledger_db.clone(), 10);
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
@@ -608,7 +607,7 @@ pub fn test_pruning_ledger_db_light_client_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(PruningNodeType::LightClient, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::LightClient, ledger_db.clone(), 10);
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
@@ -699,7 +698,7 @@ pub fn test_pruning_ledger_db_batch_prover_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(PruningNodeType::BatchProver, ledger_db.clone(), 10);
+    prune_ledger(StorageNodeType::BatchProver, ledger_db.clone(), 10);
 
     // SHOULD NOT CHANGE
     assert!(ledger_db

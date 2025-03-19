@@ -8,9 +8,9 @@ use bitcoin::taproot::ControlBlock;
 use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 
-use super::light_client_proof_namespace::{LightClientTxs, RawLightClientData};
+use super::body_builders::{DaTxs, RawTxData};
 use crate::helpers::builders::sign_blob_with_private_key;
-use crate::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
+use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -20,12 +20,12 @@ fn compression_decompression() {
 
     // compress and measure time
     let time = std::time::Instant::now();
-    let compressed_blob = compress_blob(&blob);
+    let compressed_blob = compress_blob(&blob).unwrap();
     println!("compression time: {:?}", time.elapsed());
 
     // decompress and measure time
     let time = std::time::Instant::now();
-    let decompressed_blob = decompress_blob(&compressed_blob);
+    let decompressed_blob = decompress_blob(&compressed_blob).unwrap();
     println!("decompression time: {:?}", time.elapsed());
 
     assert_eq!(blob, decompressed_blob);
@@ -467,9 +467,9 @@ fn create_inscription_transactions() {
     let (signature, signer_public_key) = sign_blob_with_private_key(&body, &da_private_key);
 
     let tx_prefix = &[0u8];
-    let LightClientTxs::Complete { commit, reveal } =
-        super::light_client_proof_namespace::create_light_client_transactions(
-            RawLightClientData::Complete(body.clone()),
+    let DaTxs::Complete { commit, reveal } =
+        super::body_builders::create_light_client_transactions(
+            RawTxData::Complete(body.clone()),
             da_private_key,
             None,
             utxos.clone(),
@@ -523,8 +523,8 @@ fn create_inscription_transactions() {
     );
 
     // check inscription
-    let inscription = parse_light_client_transaction(&reveal).unwrap();
-    let ParsedLightClientTransaction::Complete(inscription) = inscription else {
+    let inscription = parse_relevant_transaction(&reveal).unwrap();
+    let ParsedTransaction::Complete(inscription) = inscription else {
         panic!("Unexpected tx kind");
     };
 

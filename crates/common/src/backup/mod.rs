@@ -1,9 +1,8 @@
 //! Database backup and restoration functionality for Citrea nodes.
 //!
 //! This module provides functionality to create consistent backups of Citrea nodes'
-//! databases while ensuring data integrity and atomicity. It handles both required
-//! databases (ledger, state, native-db) and the optional MMR database used by the
-//! light client prover. The module exposes `start_l1_processing` and `start_l2_processing`
+//! databases while ensuring data integrity and atomicity. It handles required
+//! databases (ledger, state, native-db). The module exposes `start_l1_processing` and `start_l2_processing`
 //! methods to ensure no blocks are being processed during backup creation.
 //!
 //! # Architecture
@@ -37,8 +36,6 @@
 //! ├── ledger/       # Required - stores ledger database
 //! ├── state/        # Required - stores state database
 //! ├── native-db/    # Required - stores native database
-//! └── mmr/          # Optional - used by light client prover
-//! ```
 mod manager;
 mod rpc;
 mod utils;

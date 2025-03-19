@@ -143,6 +143,8 @@ pub enum SoftConfirmationModuleCallError {
     EvmSystemTransactionPlacedAfterUserTx,
     /// System tx failed to parse
     EvmSystemTxParseError,
+    /// System tx is deprecated after fork2
+    EvmSystemTxNotAllowedAfterFork2,
 }
 
 #[derive(Debug, PartialEq)]
@@ -259,6 +261,9 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::EvmSystemTxParseError => {
                 write!(f, "EVM system transaction parse error")
+            }
+            SoftConfirmationModuleCallError::EvmSystemTxNotAllowedAfterFork2 => {
+                write!(f, "EVM system transaction not allowed after fork2")
             }
         }
     }

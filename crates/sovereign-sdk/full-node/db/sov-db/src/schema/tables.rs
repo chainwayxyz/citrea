@@ -53,7 +53,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
+    PendingSequencerCommitment::table_name(),
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
@@ -69,6 +69,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     // ########
     #[cfg(test)]
     TestTableOld::table_name(),
@@ -93,6 +94,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     VerifiedBatchProofsBySlotNumber::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -118,6 +120,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -151,7 +154,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
     LightClientProofBySlotNumber::table_name(),
-    PendingSequencerCommitmentL2Range::table_name(),
+    PendingSequencerCommitment::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     SoftConfirmationStatus::table_name(),
@@ -165,6 +168,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
+    SequencerCommitmentByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -372,12 +376,13 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source for in progress sequencer commitments
-    (PendingSequencerCommitmentL2Range) L2HeightRange => ()
+    /// This table is used to store the pending sequencer commitments indexes
+    (PendingSequencerCommitment) () => Vec<u32>
 );
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SoftConfirmationNumber
+    (LastSequencerCommitmentSent) () => u32
 );
 
 define_table_with_seek_key_codec!(
@@ -391,6 +396,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Check whether a block is finalized
     (SoftConfirmationStatus) SoftConfirmationNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
+);
+
+define_table_with_seek_key_codec!(
+    /// Index to sequencer commitment mapping
+    (SequencerCommitmentByIndex) u32 => SequencerCommitment
 );
 
 define_table_without_codec!(
@@ -478,7 +488,7 @@ define_table_with_seek_key_codec!(
 
 impl KeyEncoder<JmtNodes> for NodeKey {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        // 8 bytes for version, 4 each for the num_nibbles and bytes.len() fields, plus 1 byte per byte of nibllepath
+        // 8 bytes for version, 4 each for the num_nibbles and bytes.len() fields, plus 1 byte per byte of nibblepath
         let mut output =
             Vec::with_capacity(8 + 4 + 4 + ((self.nibble_path().num_nibbles() + 1) / 2));
         let version = self.version().to_be_bytes();
@@ -530,6 +540,12 @@ impl<T: AsRef<[u8]> + core::fmt::Debug> KeyEncoder<JmtValues> for (T, Version) {
         out.write_u64::<BigEndian>(self.1)
             .expect("serialization to vec is infallible");
         Ok(out)
+    }
+}
+
+impl SeekKeyEncoder<JmtNodes> for NodeKey {
+    fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        self.encode_key()
     }
 }
 

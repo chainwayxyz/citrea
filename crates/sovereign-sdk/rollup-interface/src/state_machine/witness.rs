@@ -42,6 +42,11 @@ impl Witness {
         let hint = self.hints.pop_front().expect("No more hints left");
         T::deserialize_reader(&mut hint.as_slice()).expect("Hint deserialization should never fail")
     }
+
+    /// Number of hints left
+    pub fn remaining(&self) -> usize {
+        self.hints.len()
+    }
 }
 
 impl From<Witness> for PreFork2Witness {

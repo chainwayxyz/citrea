@@ -16,4 +16,3 @@ pub mod runner;
 mod services;
 #[cfg(test)]
 mod tests;
-pub(crate) mod utils;

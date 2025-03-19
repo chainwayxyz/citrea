@@ -9,10 +9,10 @@ use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_common::FullNodeConfig;
 use citrea_primitives::forks::use_network_forks;
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
@@ -120,8 +120,7 @@ impl RollupBlueprint for BitcoinRollup {
             BitcoinService::new_with_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
-                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -130,8 +129,7 @@ impl RollupBlueprint for BitcoinRollup {
             BitcoinService::new_without_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
-                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -144,8 +142,12 @@ impl RollupBlueprint for BitcoinRollup {
             // run only for sequencer and prover
             service.monitoring.restore().await?;
 
-            task_manager.spawn(|tk| Arc::clone(&service).run_da_queue(rx, tk));
-            task_manager.spawn(|tk| Arc::clone(&service.monitoring).run(tk));
+            task_manager.spawn(TaskType::Secondary, |tk| {
+                Arc::clone(&service).run_da_queue(rx, tk)
+            });
+            task_manager.spawn(TaskType::Secondary, |tk| {
+                Arc::clone(&service.monitoring).run(tk)
+            });
         }
 
         Ok(service)
@@ -153,8 +155,7 @@ impl RollupBlueprint for BitcoinRollup {
 
     fn create_da_verifier(&self) -> Self::DaVerifier {
         BitcoinVerifier::new(RollupParams {
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
         })
     }
 

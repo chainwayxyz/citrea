@@ -1,14 +1,8 @@
-/// Prefix for the reveal transaction ids - batch proof namespace.
+/// Prefix for the reveal transaction ids.
 #[cfg(feature = "testing")]
-pub const TO_BATCH_PROOF_PREFIX: &[u8] = &[1]; // since we changed the prefix to 1 genesis fork proving tests fail
+pub const REVEAL_TX_PREFIX: &[u8] = &[2]; // since we changed the prefix to 1 genesis fork proving tests fail
 #[cfg(not(feature = "testing"))]
-pub const TO_BATCH_PROOF_PREFIX: &[u8] = &[1, 1];
-
-/// Prefix for the reveal transaction ids - light client namespace.
-#[cfg(feature = "testing")]
-pub const TO_LIGHT_CLIENT_PREFIX: &[u8] = &[2];
-#[cfg(not(feature = "testing"))]
-pub const TO_LIGHT_CLIENT_PREFIX: &[u8] = &[2, 2];
+pub const REVEAL_TX_PREFIX: &[u8] = &[2, 2];
 
 pub const TEST_PRIVATE_KEY: &str =
     "1212121212121212121212121212121212121212121212121212121212121212";

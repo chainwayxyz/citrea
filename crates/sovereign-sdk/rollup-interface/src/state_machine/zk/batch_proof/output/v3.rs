@@ -28,8 +28,14 @@ pub struct BatchProofCircuitOutputV3 {
     /// The last processed l2 height in the processed sequencer commitments.
     /// This will be 0 for pre fork 1 proofs
     pub last_l2_height: u64,
-    /// Hashes inside sequencer commitmentes that were processed.
-    pub sequencer_commitment_merkle_roots: Vec<[u8; 32]>,
-    /// L1 hashes added to the Bitocin light client contract
+    /// Hashes inside sequencer commitments that were processed.
+    pub sequencer_commitment_hashes: Vec<[u8; 32]>,
+    /// The range of sequencer commitments that were processed.
+    pub sequencer_commitment_index_range: (u32, u32),
+    /// L1 hashes added to the Bitcoin light client contract
     pub last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    /// The index of the previous commitment that was given as input in the batch proof
+    pub previous_commitment_index: Option<u32>,
+    /// The hash of the previous commitment that was given as input in the batch proof
+    pub previous_commitment_hash: Option<[u8; 32]>,
 }

@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use alloy_primitives::U64;
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
@@ -11,7 +10,7 @@ use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::FromEnv;
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::REVEAL_TX_PREFIX;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::select;
@@ -20,7 +19,7 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
-use crate::helpers::parsers::{parse_batch_proof_transaction, parse_light_client_transaction};
+use crate::helpers::parsers::parse_relevant_transaction;
 use crate::service::FINALITY_DEPTH;
 use crate::spec::utxo::UTXO;
 
@@ -33,20 +32,20 @@ pub enum TxStatus {
     #[serde(rename_all = "camelCase")]
     Pending {
         in_mempool: bool,
-        base_fee: U64,
-        timestamp: U64,
+        base_fee: u64,
+        timestamp: u64,
     },
     #[serde(rename_all = "camelCase")]
     Confirmed {
         block_hash: BlockHash,
-        block_height: U64,
-        confirmations: U64,
+        block_height: u64,
+        confirmations: u64,
     },
     #[serde(rename_all = "camelCase")]
     Finalized {
         block_hash: BlockHash,
-        block_height: U64,
-        confirmations: U64,
+        block_height: u64,
+        confirmations: u64,
     },
     #[serde(rename_all = "camelCase")]
     Replaced {
@@ -80,7 +79,7 @@ impl MonitoredTx {
         let confirmations = match self.status {
             TxStatus::Pending { .. } => 0,
             TxStatus::Confirmed { confirmations, .. }
-            | TxStatus::Finalized { confirmations, .. } => confirmations.to(),
+            | TxStatus::Finalized { confirmations, .. } => confirmations,
             _ => return None,
         };
 
@@ -267,15 +266,8 @@ impl MonitoringService {
             let reveal_wtxid = tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
-            // Assumes that no wallet can hold both batch_proof_transaction and light_client_transaction utxos
-            if reveal_hash.starts_with(TO_BATCH_PROOF_PREFIX)
-                && parse_batch_proof_transaction(&tx).is_ok()
-            {
-                txids.push(tx.input[0].previous_output.txid);
-                txids.push(txid);
-            }
-            if reveal_hash.starts_with(TO_LIGHT_CLIENT_PREFIX)
-                && parse_light_client_transaction(&tx).is_ok()
+            // Assumes that no wallet can hold both txs utxos
+            if reveal_hash.starts_with(REVEAL_TX_PREFIX) && parse_relevant_transaction(&tx).is_ok()
             {
                 txids.push(tx.input[0].previous_output.txid);
                 txids.push(txid);
@@ -501,12 +493,12 @@ impl MonitoringService {
 
         for (txid, tx) in txs.iter_mut() {
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
-                if confirmations.to::<u64>() <= depth {
+                if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     tx.status = self.determine_tx_status(&tx_result).await?;
 
                     if let TxStatus::Pending { .. } = tx.status {
-                        info!("Rebroadcasting tx {tx:?}");
+                        info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
                         let raw_tx = self.client.get_raw_transaction_hex(txid, None).await?;
                         self.client.send_raw_transaction(raw_tx).await?;
                     }
@@ -558,29 +550,27 @@ impl MonitoringService {
             if confirmations >= FINALITY_DEPTH {
                 TxStatus::Finalized {
                     block_hash,
-                    block_height: U64::from(block_height),
-                    confirmations: U64::from(confirmations),
+                    block_height,
+                    confirmations,
                 }
             } else {
                 TxStatus::Confirmed {
                     block_hash,
-                    block_height: U64::from(block_height),
-                    confirmations: U64::from(confirmations),
+                    block_height,
+                    confirmations,
                 }
             }
         } else {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
                 Ok(entry) => {
-                    let base_fee = U64::from(entry.fees.base.to_sat());
+                    let base_fee = entry.fees.base.to_sat();
                     TxStatus::Pending {
                         in_mempool: true,
                         base_fee,
-                        timestamp: U64::from(
-                            SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs(),
-                        ),
+                        timestamp: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
                     }
                 }
                 Err(_) => TxStatus::Evicted,

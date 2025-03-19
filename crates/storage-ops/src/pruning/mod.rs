@@ -4,7 +4,7 @@ use futures::future;
 use serde::{Deserialize, Serialize};
 use sov_db::schema::tables::{LastPrunedBlock, LastPrunedL2Height};
 use tracing::info;
-use types::PruningNodeType;
+use types::StorageNodeType;
 
 use self::components::{prune_ledger, prune_native_db};
 use self::criteria::{Criteria, DistanceCriteria};
@@ -73,7 +73,7 @@ impl Pruner {
     }
 
     /// Prune everything
-    pub async fn prune(&self, node_type: PruningNodeType, up_to_block: u64) {
+    pub async fn prune(&self, node_type: StorageNodeType, up_to_block: u64) {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
 

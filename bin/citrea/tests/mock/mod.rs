@@ -31,6 +31,7 @@ mod mempool;
 mod proving;
 mod pruning;
 mod reopen;
+mod rollback;
 mod sequencer_behaviour;
 mod sequencer_replacement;
 mod soft_confirmation_rule_enforcer;
@@ -200,7 +201,6 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
     assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
     assert_eq!(commitments[0].l1_height.to::<u64>(), 3);

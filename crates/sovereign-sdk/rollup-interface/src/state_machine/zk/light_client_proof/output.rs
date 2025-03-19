@@ -2,13 +2,15 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::LatestDaState;
-use crate::mmr::MMRGuest;
+use crate::zk::StorageRootHash;
 
 /// The output of light client proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 pub struct LightClientCircuitOutput {
     /// State root of the node after the light client proof
-    pub state_root: [u8; 32],
+    pub l2_state_root: StorageRootHash,
+    /// Light client proof JMT state root
+    pub lcp_state_root: StorageRootHash,
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
     pub light_client_proof_method_id: [u32; 8],
@@ -21,10 +23,6 @@ pub struct LightClientCircuitOutput {
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
-    /// A map from tx hash to chunk data.
-    /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
-    /// like 32 hashes and some u64
-    pub mmr_guest: MMRGuest,
 }
 
 /// The batch proof that was not verified in the light client circuit because it was missing another proof for state root chaining

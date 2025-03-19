@@ -1,14 +1,12 @@
-use sov_db::schema::tables::{
-    L2Witness, ProverStateDiffs, SoftConfirmationByHash, SoftConfirmationByNumber,
-    SoftConfirmationStatus,
-};
+use sov_db::schema::tables::SoftConfirmationByNumber;
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_schema_db::{ScanDirection, DB};
 
-use crate::pruning::types::PruningNodeType;
+use crate::pruning::types::StorageNodeType;
+use crate::utils::delete_soft_confirmations_by_number;
 
 pub(crate) fn prune_soft_confirmations(
-    node_type: PruningNodeType,
+    node_type: StorageNodeType,
     ledger_db: &DB,
     up_to_block: u64,
 ) -> anyhow::Result<u64> {
@@ -29,20 +27,13 @@ pub(crate) fn prune_soft_confirmations(
         if soft_confirmation_number > SoftConfirmationNumber(up_to_block) {
             break;
         }
-        ledger_db.delete::<SoftConfirmationByNumber>(&soft_confirmation_number)?;
 
-        if matches!(node_type, PruningNodeType::LightClient) {
-            continue;
-        }
-
-        let soft_confirmation = record.value;
-        ledger_db.delete::<SoftConfirmationByHash>(&soft_confirmation.hash)?;
-        ledger_db.delete::<SoftConfirmationStatus>(&soft_confirmation_number)?;
-
-        if matches!(node_type, PruningNodeType::BatchProver) {
-            ledger_db.delete::<L2Witness>(&soft_confirmation_number)?;
-            ledger_db.delete::<ProverStateDiffs>(&soft_confirmation_number)?;
-        }
+        delete_soft_confirmations_by_number(
+            node_type,
+            ledger_db,
+            soft_confirmation_number,
+            record.value.hash,
+        )?;
 
         deleted += 1;
     }

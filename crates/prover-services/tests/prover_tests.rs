@@ -7,7 +7,7 @@ use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockH
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
-use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_state::Witness;
 use tokio::sync::oneshot;
 
@@ -191,6 +191,8 @@ fn make_transition_data(header_hash: MockHash) -> BatchProofCircuitInput<'static
         sequencer_commitments: vec![],
         cache_prune_l2_heights: vec![],
         last_l1_hash_witness: Witness::default(),
+        // Update this after you get the input from this function
+        previous_sequencer_commitment: None,
     }
 }
 
@@ -206,11 +208,14 @@ async fn start_proof(
 ) -> oneshot::Receiver<Proof> {
     // Spawn mock proving in the background
     let rx = prover_service
-        .start_proving(ProofData {
-            input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-            assumptions: vec![],
-            elf: vec![],
-        })
+        .start_proving(
+            ProofData {
+                input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+                assumptions: vec![],
+                elf: vec![],
+            },
+            ReceiptType::Groth16,
+        )
         .await;
 
     // Ensure inner proving task is initialized

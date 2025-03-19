@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::zk::Proof;
 use crate::{BasicAddress, Network};
@@ -15,10 +16,22 @@ use crate::{BasicAddress, Network};
 pub struct SequencerCommitment {
     /// Merkle root of soft confirmation hashes
     pub merkle_root: [u8; 32],
-    /// Start L2 block's number
-    pub l2_start_block_number: u64,
+    /// Absolute order of the sequencer commitment, the first commitment has index 0, the next one has 1...
+    pub index: u32,
     /// End L2 block's number
     pub l2_end_block_number: u64,
+}
+
+impl SequencerCommitment {
+    /// Compute sha256 hash
+    pub fn serialize_and_calculate_sha_256(&self) -> [u8; 32] {
+        let serialized =
+            borsh::to_vec(self).expect("Sequencer commitment serialization cannot fail");
+        let mut hasher = Sha256::default();
+        hasher.update(&serialized);
+        let hash = hasher.finalize();
+        hash.into()
+    }
 }
 
 /// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
@@ -38,7 +51,7 @@ impl core::cmp::PartialOrd for SequencerCommitment {
 
 impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.l2_start_block_number.cmp(&other.l2_start_block_number)
+        self.index.cmp(&other.index)
     }
 }
 
@@ -55,7 +68,7 @@ pub enum DaTxRequest {
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaDataLightClient {
+pub enum DataOnDa {
     /// A zk proof and state diff
     Complete(Proof),
     /// A list of tx ids
@@ -64,9 +77,11 @@ pub enum DaDataLightClient {
     Chunk(Vec<u8>),
     /// A new batch proof method_id
     BatchProofMethodId(BatchProofMethodId),
+    /// Sequencer commitment
+    SequencerCommitment(SequencerCommitment),
 }
 
-impl DaDataLightClient {
+impl DataOnDa {
     /// Implement parsing of ::Complete variant according to possible changes
     ///  of format on DA.
     pub fn borsh_parse_complete(body: &[u8]) -> borsh::io::Result<Self> {
@@ -88,7 +103,7 @@ impl DaDataLightClient {
         } else {
             let prefork1_data = PreFork1DaDataLightClient::try_from_slice(body)?;
             if let PreFork1DaDataLightClient::Complete(PreFork1Proof::Full(full)) = prefork1_data {
-                Ok(DaDataLightClient::Complete(full))
+                Ok(DataOnDa::Complete(full))
             } else {
                 use borsh::io::{Error, ErrorKind};
                 Err(Error::new(
@@ -98,23 +113,6 @@ impl DaDataLightClient {
             }
         }
     }
-}
-
-/// Data written to DA and read from DA must be the borsh serialization of this enum
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaDataBatchProof {
-    /// A commitment from the sequencer
-    SequencerCommitment(SequencerCommitment),
-    // /// Or a forced transaction
-    // ForcedTransaction(ForcedTransaction),
-}
-
-/// Which type of tx we operate on in DaVerifier
-pub enum DaNamespace {
-    /// Txs going to batch-prover
-    ToBatchProver,
-    /// Txs going to light-client-prover
-    ToLightClientProver,
 }
 
 /// A specification for the types used by a DA layer.
@@ -166,7 +164,13 @@ pub trait DaSpec:
         + Send
         + Sync
         + Debug;
+
+    /// Decompress chunks to complete
+    fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError>;
 }
+
+/// Decompression error
+pub struct DecompressError;
 
 #[derive(Debug)]
 /// Information needed to update L1 light client system contract
@@ -256,7 +260,6 @@ pub trait DaVerifier: Send + Sync {
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-        namespace: DaNamespace,
     ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error>;
 
     /// Verify that the block header is valid for the given previous light client proof output
@@ -401,6 +404,9 @@ pub trait BlockHeaderTrait:
 
     /// The bits of the block
     fn bits(&self) -> u32;
+
+    /// Coinbase txid merkle proof height in the block.
+    fn coinbase_txid_merkle_proof_height(&self) -> u64;
 }
 
 #[derive(
