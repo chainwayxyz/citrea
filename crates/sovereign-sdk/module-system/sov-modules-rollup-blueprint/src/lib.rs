@@ -71,7 +71,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
-        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 

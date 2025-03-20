@@ -15,11 +15,11 @@ pub mod utils;
 pub use config::*;
 use sov_rollup_interface::zk::StorageRootHash;
 
-type SoftConfirmationHash = [u8; 32];
+type L2BlockHash = [u8; 32];
 
 pub struct InitParams {
     /// The last known state root
-    pub state_root: StorageRootHash,
+    pub prev_state_root: StorageRootHash,
     /// The last known batch hash
-    pub batch_hash: SoftConfirmationHash,
+    pub prev_l2_block_hash: L2BlockHash,
 }

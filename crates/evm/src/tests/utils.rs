@@ -7,16 +7,16 @@ use alloy_primitives::{address, Address, Bytes, TxKind, B256, U256};
 use lazy_static::lazy_static;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::KECCAK_EMPTY;
+use short_header_proof_provider::ShortHeaderProofProvider;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
-use sov_modules_api::hooks::{
-    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
-};
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{ProverStorage, Storage};
 
+use super::get_test_seq_pub_key;
 use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction, PRIORITY_FEE_VAULT};
@@ -25,10 +25,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "91ae2b95fa8b137746a0e83b759ffcd74c6488bc7101eb711d2a9f07368cffb5"
+        "bea5c599ea9d78733ece547a0858592579a498901f0576b086f0c848d1da5ef1"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "9a860d020d1ca2f022bd7744405037efc6b61fa4a2d7aac3ca6e5aaf4f53ac55"
+        "d36ef4899f97c539d7411822aeebda5eed0371d84d3d6bb4c196798005f651c8"
     ));
 }
 
@@ -52,12 +52,6 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::St
     get_evm_with_spec(config, SovSpecId::Fork2)
 }
 
-pub(crate) fn get_evm_pre_fork2(
-    config: &EvmConfig,
-) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
-    get_evm_with_spec(config, SovSpecId::Kumquat)
-}
-
 pub(crate) fn get_evm_with_spec(
     config: &EvmConfig,
     spec_id: SovSpecId,
@@ -73,33 +67,18 @@ pub(crate) fn get_evm_with_spec(
     let mut working_set = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root, &mut working_set.accessory_state());
 
-    let hook_info = if spec_id >= SovSpecId::Fork2 {
-        HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
-            l2_height: 1,
-            pre_state_root: root,
-            current_spec: spec_id,
-            pub_key: vec![],
-            l1_fee_rate: 0,
-            timestamp: 0,
-        })
-    } else {
-        HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
-            l2_height: 1,
-            da_slot_hash: [1u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [2u8; 32],
-            pre_state_root: root,
-            current_spec: spec_id,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 0,
-            timestamp: 0,
-        })
+    let hook_info = HookL2BlockInfo {
+        l2_height: 1,
+        pre_state_root: root,
+        current_spec: spec_id,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 0,
+        timestamp: 0,
     };
 
     // Pass the same struct to both hooks
-    evm.begin_soft_confirmation_hook(&hook_info, &mut working_set);
-    evm.end_soft_confirmation_hook(&hook_info, &mut working_set);
+    evm.begin_l2_block_hook(&hook_info, &mut working_set);
+    evm.end_l2_block_hook(&hook_info, &mut working_set);
 
     let root = commit(working_set, storage.clone());
     let mut working_set: WorkingSet<<C as Spec>::Storage> = WorkingSet::new(storage.clone());
@@ -252,7 +231,7 @@ pub(crate) fn get_evm_config(
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
             balance: signer_balance,
@@ -264,7 +243,6 @@ pub(crate) fn get_evm_config(
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
     (config, dev_signer, contract_addr)
 }
 
@@ -276,7 +254,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
             balance: signer_balance,
@@ -290,11 +268,10 @@ pub(crate) fn get_evm_config_starting_base_fee(
         coinbase: PRIORITY_FEE_VAULT,
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
     (config, dev_signer, contract_addr)
 }
 pub(crate) fn get_evm_test_config() -> EvmConfig {
-    let mut config = EvmConfig {
+    EvmConfig {
         data: vec![AccountData {
             address: Address::from([1u8; 20]),
             balance: U256::checked_mul(U256::from(1000), U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH
@@ -333,17 +310,11 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
         difficulty: U256::ZERO,
         extra_data: Bytes::default(),
         nonce: 0,
-    };
-    config_push_contracts(&mut config, None);
-    config
+    }
 }
 
 pub(crate) fn get_fork_fn_only_fork2() -> impl Fn(u64) -> Fork {
     |_: u64| Fork::new(SovSpecId::Fork2, 0)
-}
-
-pub(crate) fn get_fork_fn_only_kumquat() -> impl Fn(u64) -> Fork {
-    |_: u64| Fork::new(SovSpecId::Kumquat, 0)
 }
 
 /// Read genesis file
@@ -353,4 +324,32 @@ pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(path: P) -
     let config: T = serde_json::from_str(&data).unwrap();
 
     config
+}
+
+pub struct TestingShortHeaderProofProviderService;
+
+impl ShortHeaderProofProvider for TestingShortHeaderProofProviderService {
+    fn get_and_verify_short_header_proof_by_l1_hash(
+        &self,
+        _l1_hash: [u8; 32],
+        _prev_l1_hash: [u8; 32],
+        _l1_height: u64,
+        _txs_commitment: [u8; 32],
+        _coinbase_depth: u8,
+        _l2_height: u64, // needed on the native implementation to track queries to the provider
+    ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
+        Ok(true)
+    }
+
+    fn clear_queried_hashes(&self) {
+        todo!()
+    }
+
+    fn take_queried_hashes(&self, _l2_range: std::ops::RangeInclusive<u64>) -> Vec<[u8; 32]> {
+        todo!()
+    }
+
+    fn take_last_queried_hash(&self) -> Option<[u8; 32]> {
+        todo!()
+    }
 }

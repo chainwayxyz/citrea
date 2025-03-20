@@ -4,13 +4,6 @@ use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-/// PreFork2Witness should only be used for forks < Fork2
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct PreFork2Witness {
-    next_idx: usize,
-    hints: Vec<Vec<u8>>,
-}
-
 /// A [`VecDeque`]-based implementation of [`Witness`] with no special logic.
 ///
 /// # Example
@@ -46,14 +39,5 @@ impl Witness {
     /// Number of hints left
     pub fn remaining(&self) -> usize {
         self.hints.len()
-    }
-}
-
-impl From<Witness> for PreFork2Witness {
-    fn from(value: Witness) -> Self {
-        Self {
-            next_idx: 0,
-            hints: value.hints.into(),
-        }
     }
 }

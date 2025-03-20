@@ -7,9 +7,8 @@ use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::backup::BackupManager;
-use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -28,8 +27,8 @@ use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,
 };
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
@@ -141,7 +140,7 @@ pub async fn start_rollup(
     let Dependencies {
         da_service,
         mut task_manager,
-        soft_confirmation_channel,
+        l2_block_channel,
     } = mock_demo_rollup
         .setup_dependencies(
             &rollup_config,
@@ -180,12 +179,14 @@ pub async fn start_rollup(
         }
     }
 
+    let (l2_block_tx, l2_block_rx) = l2_block_channel;
+
     let sequencer_client_url = rollup_config
         .runner
         .clone()
         .map(|runner| runner.sequencer_client_url);
-    let soft_confirmation_rx = if light_client_prover_config.is_none() {
-        soft_confirmation_channel.1
+    let l2_block_rx = if light_client_prover_config.is_none() {
+        l2_block_rx
     } else {
         None
     };
@@ -197,7 +198,7 @@ pub async fn start_rollup(
             ledger_db.clone(),
             da_service.clone(),
             sequencer_client_url,
-            soft_confirmation_rx,
+            l2_block_rx,
             &backup_manager,
         )
         .expect("RPC module setup should work");
@@ -205,7 +206,7 @@ pub async fn start_rollup(
     if let Some(sequencer_config) = sequencer_config {
         warn!(
             "Starting sequencer node pub key: {:?}",
-            DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
+            K256PrivateKey::from_hex(TEST_PRIVATE_KEY)
                 .unwrap()
                 .pub_key()
         );
@@ -219,7 +220,7 @@ pub async fn start_rollup(
             da_service,
             ledger_db,
             storage_manager,
-            soft_confirmation_channel.0,
+            l2_block_tx,
             rpc_module,
             backup_manager,
         )
@@ -232,7 +233,7 @@ pub async fn start_rollup(
             Some(rpc_reporting_channel),
         );
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             sequencer
                 .run(cancellation_token)
                 .instrument(span)
@@ -250,7 +251,7 @@ pub async fn start_rollup(
             da_service,
             ledger_db.clone(),
             storage_manager,
-            soft_confirmation_channel.0,
+            l2_block_tx,
             rpc_module,
             backup_manager,
         )
@@ -266,17 +267,17 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(|cancellation_token| async move {
-            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
-                .await
-                .expect("Failed to fetch start L1 height");
+        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+            let start_l1_height = rollup_config
+                .runner
+                .map_or(1, |runner| runner.scan_l1_start_height);
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
                 .instrument(handler_span.clone())
                 .await
         });
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             prover
                 .run(cancellation_token)
                 .instrument(span)
@@ -320,14 +321,14 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
             l1_block_handler
                 .run(starting_block, cancellation_token)
                 .instrument(handler_span.clone())
                 .await
         });
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             rollup
                 .run(cancellation_token)
                 .instrument(span)
@@ -344,7 +345,7 @@ pub async fn start_rollup(
             da_service,
             ledger_db.clone(),
             storage_manager,
-            soft_confirmation_channel.0,
+            l2_block_tx,
             backup_manager,
         )
         .instrument(span.clone())
@@ -359,10 +360,10 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(|cancellation_token| async move {
-            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
-                .await
-                .expect("Failed to fetch starting L1 height");
+        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+            let start_l1_height = rollup_config
+                .runner
+                .map_or(1, |runner| runner.scan_l1_start_height);
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
                 .instrument(handler_span.clone())
@@ -371,14 +372,14 @@ pub async fn start_rollup(
 
         // Spawn pruner if configs are set
         if let Some(pruner) = pruner {
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 pruner
                     .run(StorageNodeType::FullNode, cancellation_token)
                     .await
             });
         }
 
-        task_manager.spawn(|cancellation_token| async move {
+        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
             rollup
                 .run(cancellation_token)
                 .instrument(span)
@@ -409,10 +410,6 @@ pub fn create_default_rollup_config(
     FullNodeConfig {
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
-                32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124,
-                137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
-            ],
-            sequencer_k256_public_key: vec![
                 3, 99, 96, 232, 86, 49, 12, 229, 210, 148, 232, 190, 51, 252, 128, 112, 119, 220,
                 86, 172, 128, 217, 93, 156, 212, 221, 189, 33, 50, 94, 255, 115, 247,
             ],
@@ -476,9 +473,9 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
-        debug!("Waiting for soft confirmation {}", num);
+        debug!("Waiting for l2 block {}", num);
         let latest_block = client
-            .ledger_get_head_soft_confirmation_height()
+            .ledger_get_head_l2_block_height()
             .await
             .expect("Expected height to be Some");
 

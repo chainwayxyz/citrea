@@ -1,12 +1,8 @@
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_primitives::{address, Address, B256, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
-use revm::primitives::bitvec::view::BitViewSized;
-use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateMap, StateVec};
 use sov_state::storage::StateValueCodec;
-use sov_state::Prefix;
 
 pub(crate) mod conversions;
 pub(crate) mod db;
@@ -26,14 +22,12 @@ pub use executor::{
 
 #[cfg(feature = "native")]
 pub(crate) mod call;
-#[cfg(feature = "native")]
-pub(crate) mod compat;
 
 #[cfg(all(test, feature = "native"))]
 mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
-use sov_state::codec::{BcsCodec, BorshCodec};
+use sov_state::codec::BorshCodec;
 
 #[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
@@ -49,11 +43,6 @@ pub const BASE_FEE_VAULT: Address = address!("3100000000000000000000000000000000
 pub const L1_FEE_VAULT: Address = address!("3100000000000000000000000000000000000004");
 /// Priority fee vault address
 pub const PRIORITY_FEE_VAULT: Address = address!("3100000000000000000000000000000000000005");
-
-/// Prefix for Storage module for evm::Account::storage
-pub const DBACCOUNT_STORAGE_PREFIX: [u8; 6] = *b"Evm/s/";
-/// Prefix for Storage module for evm::Account::keys
-pub const DBACCOUNT_KEYS_PREFIX: [u8; 6] = *b"Evm/k/";
 
 /// Stores information about an EVM account
 #[derive(Default, Deserialize, Serialize, Debug, PartialEq, Clone)]
@@ -104,38 +93,6 @@ impl StateValueCodec<AccountInfo> for BorshCodec {
     }
 }
 
-/// Stores information about an EVM account and a corresponding account state.
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub struct DbAccount {
-    /// Storage
-    pub storage: StateMap<U256, U256, BcsCodec>,
-    /// Keys
-    pub keys: StateVec<U256, BcsCodec>,
-}
-
-impl DbAccount {
-    /// Create a new DbAccount
-    pub fn new(address: &Address) -> Self {
-        Self {
-            storage: StateMap::with_codec(Self::create_storage_prefix(address), BcsCodec {}),
-            keys: StateVec::with_codec(Self::create_keys_prefix(address), BcsCodec {}),
-        }
-    }
-
-    /// Create a storage prefix
-    pub(crate) fn create_storage_prefix(address: &Address) -> Prefix {
-        let mut prefix = Prefix::from_slice(&DBACCOUNT_STORAGE_PREFIX);
-        prefix.extend_from_slice(address.as_raw_slice());
-        prefix
-    }
-
-    fn create_keys_prefix(address: &Address) -> Prefix {
-        let mut prefix = Prefix::from_slice(&DBACCOUNT_KEYS_PREFIX);
-        prefix.extend_from_slice(address.as_raw_slice());
-        prefix
-    }
-}
-
 /// EVM Chain configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct EvmChainConfig {
@@ -146,11 +103,6 @@ pub struct EvmChainConfig {
     /// Limits size of contract code size
     /// By default it is 0x6000 (~25kb).
     pub limit_contract_code_size: Option<usize>,
-
-    /// DO NOT USE THIS FIELD ever again
-    ///
-    /// List of EVM hardforks by block number
-    pub spec: Vec<(u64, SpecId)>,
 
     /// Coinbase where all the fees go
     pub coinbase: Address,
@@ -168,7 +120,6 @@ impl Default for EvmChainConfig {
         EvmChainConfig {
             chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
-            spec: vec![(0, SpecId::SHANGHAI)],
             coinbase: Address::ZERO,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             base_fee_params: BaseFeeParams::ethereum(),

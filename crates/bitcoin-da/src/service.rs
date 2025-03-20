@@ -34,8 +34,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::fee::{BumpFeeMethod, FeeService};
-use crate::helpers::builders::body_builders::{create_light_client_transactions, DaTxs, RawTxData};
-use crate::helpers::builders::{TxListWithReveal, TxWithId};
+use crate::helpers::builders::body_builders::{
+    backup_chunked_txs, backup_complete_txs, create_light_client_transactions, DaTxs, RawTxData,
+};
+use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
@@ -355,13 +357,13 @@ impl BitcoinService {
                 })
                 .await??;
 
-                match inscription_txs.clone() {
+                match inscription_txs {
                     DaTxs::Complete { commit, reveal } => {
                         self.send_complete_transaction(
                             commit,
                             reveal,
-                            inscription_txs,
                             self.tx_backup_dir.clone(),
+                            "complete_zk_proof",
                         )
                         .await
                     }
@@ -376,7 +378,6 @@ impl BitcoinService {
                             reveal_chunks,
                             commit,
                             reveal,
-                            inscription_txs,
                             self.tx_backup_dir.clone(),
                         )
                         .await
@@ -407,13 +408,13 @@ impl BitcoinService {
                 })
                 .await??;
 
-                match inscription_txs.clone() {
+                match inscription_txs {
                     DaTxs::SequencerCommitment { commit, reveal } => {
                         self.send_complete_transaction(
                             commit,
                             reveal,
-                            inscription_txs,
                             self.tx_backup_dir.clone(),
+                            "sequencer_commitment",
                         )
                         .await
                     }
@@ -444,13 +445,13 @@ impl BitcoinService {
                 })
                 .await??;
 
-                match inscription_txs.clone() {
+                match inscription_txs {
                     DaTxs::BatchProofMethodId { commit, reveal } => {
                         self.send_complete_transaction(
                             commit,
                             reveal,
-                            inscription_txs,
                             self.tx_backup_dir.clone(),
+                            "method_id_update",
                         )
                         .await
                     }
@@ -466,7 +467,6 @@ impl BitcoinService {
         reveal_chunks: Vec<Transaction>,
         commit: Transaction,
         reveal: TxWithId,
-        back_up_txs: DaTxs,
         back_up_path: PathBuf,
     ) -> Result<Vec<Txid>> {
         assert!(!commit_chunks.is_empty(), "Received empty chunks");
@@ -554,7 +554,7 @@ impl BitcoinService {
         self.test_mempool_accept(&raw_txs).await?;
 
         // backup tx only if it passes mempool accept test
-        back_up_txs.write_to_file(back_up_path)?;
+        backup_chunked_txs(back_up_path, &raw_txs)?;
 
         // Track the sum of all chunked transactions sizes
         let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
@@ -577,8 +577,8 @@ impl BitcoinService {
         &self,
         commit: Transaction,
         reveal: TxWithId,
-        back_up_txs: DaTxs,
         back_up_path: PathBuf,
+        back_up_name: &str,
     ) -> Result<Vec<Txid>> {
         let signed_raw_commit_tx = self
             .client
@@ -599,7 +599,7 @@ impl BitcoinService {
         self.test_mempool_accept(&raw_txs).await?;
 
         // backup tx only if it passes mempool accept test
-        back_up_txs.write_to_file(back_up_path)?;
+        backup_complete_txs(back_up_path, &raw_txs, back_up_name)?;
 
         let txids = self.send_raw_transactions(&raw_txs).await?;
         info!("Blob inscribe tx sent. Hash: {}", txids[1]);

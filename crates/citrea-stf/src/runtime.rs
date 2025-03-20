@@ -21,7 +21,7 @@
 //!     The `#[derive(Genesis)` macro will generate `Runtime::genesis(config)` method which returns
 //!     `Storage` with the initialized state.
 //!
-//! 2. Calls:      
+//! 2. Calls:
 //!     The `Module` interface defines a `call` method which accepts a module-defined type and triggers the specific `module logic.`
 //!     In general, the point of a call is to change the module state, but if the call throws an error,
 //!     no module specific state is updated (the transaction is reverted).
@@ -34,9 +34,7 @@
 #[cfg(feature = "native")]
 use citrea_evm::{EvmRpcImpl, EvmRpcServer};
 #[cfg(feature = "native")]
-use soft_confirmation_rule_enforcer::{
-    SoftConfirmationRuleEnforcerRpcImpl, SoftConfirmationRuleEnforcerRpcServer,
-};
+use l2_block_rule_enforcer::{L2BlockRuleEnforcerRpcImpl, L2BlockRuleEnforcerRpcServer};
 #[cfg(feature = "native")]
 use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
 #[cfg(feature = "native")]
@@ -64,9 +62,8 @@ pub struct CitreaRuntime<C: Context, Da: DaSpec> {
     pub accounts: sov_accounts::Accounts<C>,
     /// The EVM module.
     pub evm: citrea_evm::Evm<C>,
-    /// The soft confirmation rule enforcer module.
-    pub soft_confirmation_rule_enforcer:
-        soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<C, Da>,
+    /// The l2 block rule enforcer module.
+    pub l2_block_rule_enforcer: l2_block_rule_enforcer::L2BlockRuleEnforcer<C, Da>,
 }
 
 impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for CitreaRuntime<C, Da>

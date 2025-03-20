@@ -28,6 +28,8 @@ sov-modules-api = { path = "../../sov-modules-api", default-features = false, fe
     "macros",
 ] }
 sov-state = { path = "../../sov-state" }
+sov-keys = { path = "../../sov-keys" }
+sov-rollup-interface = { path = "../../../rollup-interface" }
 
 
 [dev-dependencies]

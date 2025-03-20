@@ -10,7 +10,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
 use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_rollup_interface::rpc::{LastVerifiedBatchProofResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::{L2BlockStatus, LastVerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use tokio::task::JoinHandle;
@@ -22,11 +22,12 @@ use crate::common::helpers::{
     wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height_proofs, NodeMode,
 };
 use crate::common::{
-    make_test_client, TEST_DATA_GENESIS_PATH,
-    TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
 };
 
 mod evm;
+mod l2_block_rule_enforcer;
+mod l2_block_status;
 mod mempool;
 mod proving;
 mod pruning;
@@ -34,12 +35,10 @@ mod reopen;
 mod rollback;
 mod sequencer_behaviour;
 mod sequencer_replacement;
-mod soft_confirmation_rule_enforcer;
-mod soft_confirmation_status;
 mod system_transactions;
 
 struct TestConfig {
-    seq_min_soft_confirmations: u64,
+    seq_min_l2_blocks: u64,
     deposit_mempool_fetch_limit: usize,
     sequencer_path: PathBuf,
     fullnode_path: PathBuf,
@@ -50,8 +49,7 @@ struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            seq_min_soft_confirmations:
-                TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            seq_min_l2_blocks: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
             deposit_mempool_fetch_limit: 10,
             sequencer_path: PathBuf::new(),
             fullnode_path: PathBuf::new(),
@@ -222,7 +220,7 @@ async fn test_all_flow() {
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
     // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
-    // 6th soft confirmation
+    // 6th l2 block
     wait_for_l1_block(&da_service, 4, None).await;
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 6, None).await;
@@ -251,17 +249,17 @@ async fn test_all_flow() {
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
     full_node_test_client
-        .ledger_get_soft_confirmation_status(5)
+        .ledger_get_l2_block_status(5)
         .await
         .unwrap();
 
     for i in 1..=4 {
         let status = full_node_test_client
-            .ledger_get_soft_confirmation_status(i)
+            .ledger_get_l2_block_status(i)
             .await
             .unwrap();
 
-        assert_eq!(status, SoftConfirmationStatus::Proven);
+        assert_eq!(status, L2BlockStatus::Proven);
     }
 
     let balance = full_node_test_client
@@ -354,11 +352,11 @@ async fn test_all_flow() {
     for i in 1..=8 {
         // print statuses
         let status = full_node_test_client
-            .ledger_get_soft_confirmation_status(i)
+            .ledger_get_l2_block_status(i)
             .await
             .unwrap();
 
-        assert_eq!(status, SoftConfirmationStatus::Proven);
+        assert_eq!(status, L2BlockStatus::Proven);
     }
 
     // Synced up to the latest block
@@ -374,9 +372,9 @@ async fn test_all_flow() {
     full_node_task.abort();
 }
 
-/// Test RPC `ledger_getHeadSoftConfirmation`
+/// Test RPC `ledger_getHeadL2Block`
 #[tokio::test(flavor = "multi_thread")]
-async fn test_ledger_get_head_soft_confirmation() {
+async fn test_ledger_get_head_l2_block() {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -399,7 +397,7 @@ async fn test_ledger_get_head_soft_confirmation() {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
+        min_l2_blocks_per_commitment: config.seq_min_l2_blocks,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };
@@ -428,23 +426,23 @@ async fn test_ledger_get_head_soft_confirmation() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    let head_soft_confirmation = seq_test_client
-        .ledger_get_head_soft_confirmation()
+    let head_l2_block = seq_test_client
+        .ledger_get_head_l2_block()
         .await
         .unwrap()
         .unwrap();
     assert_eq!(latest_block.header.number, 2);
     assert_eq!(
-        head_soft_confirmation.state_root.as_slice(),
+        head_l2_block.header.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
-    assert_eq!(head_soft_confirmation.l2_height, 2);
+    assert_eq!(head_l2_block.header.height.to::<u64>(), 2u64);
 
-    let head_soft_confirmation_height = seq_test_client
-        .ledger_get_head_soft_confirmation_height()
+    let head_l2_block_height = seq_test_client
+        .ledger_get_head_l2_block_height()
         .await
         .unwrap();
-    assert_eq!(head_soft_confirmation_height, 2);
+    assert_eq!(head_l2_block_height, 2);
 
     seq_task.abort();
 }
@@ -463,7 +461,7 @@ async fn initialize_test(
     let fullnode_path = config.fullnode_path.clone();
 
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
+        min_l2_blocks_per_commitment: config.seq_min_l2_blocks,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };

@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
@@ -14,7 +15,8 @@ use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::ParallelProverService;
 use rand::Rng;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
@@ -42,8 +44,7 @@ where
     ledger_db: DB,
     da_service: Arc<Da>,
     storage_manager: ProverStorageManager,
-    sequencer_pub_key: Vec<u8>,
-    sequencer_k256_pub_key: Vec<u8>,
+    sequencer_pub_key: K256PublicKey,
     sequencer_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
@@ -79,8 +80,8 @@ where
             ledger_db,
             storage_manager,
             da_service,
-            sequencer_pub_key: public_keys.sequencer_public_key,
-            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
+            sequencer_pub_key: K256PublicKey::try_from_slice(&public_keys.sequencer_public_key)
+                .expect("Should convert sequencer pub key"),
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             code_commitments_by_spec,
             elfs_by_spec,
@@ -179,9 +180,7 @@ where
                 self.ledger_db.clone(),
                 &self.storage_manager,
                 self.sequencer_pub_key.clone(),
-                self.sequencer_k256_pub_key.clone(),
                 self.sequencer_da_pub_key.clone(),
-                self.l1_block_cache.clone(),
                 l1_block,
                 Some(GroupCommitments::Normal),
             )
@@ -334,7 +333,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
         };
         for l2_height in l2_start_block_number..=sequencer_commitment.l2_end_block_number {
             let state_diff = ledger_db
-                .get_l2_state_diff(SoftConfirmationNumber(l2_height))?
+                .get_l2_state_diff(L2BlockNumber(l2_height))?
                 .ok_or(anyhow!(
                     "Could not find state diff for L2 range {}-{}",
                     l2_start_block_number,

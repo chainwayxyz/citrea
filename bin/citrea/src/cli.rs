@@ -54,7 +54,7 @@ pub(crate) struct Args {
     pub(crate) light_client_prover: Option<Option<String>>,
 
     /// Logging verbosity
-    #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "2")]
+    #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "0", env = "CITREA_VERBOSITY")]
     pub(crate) verbose: u8,
     /// Logging verbosity
     #[arg(long, short = 'q', action)]

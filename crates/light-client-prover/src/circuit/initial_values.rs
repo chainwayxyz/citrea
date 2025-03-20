@@ -24,7 +24,7 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
 
 pub mod mockda {
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"f3a1164976f5f1d4c74779c58fea93e212a7fdea1745a7d3ef028d6bca834425",
+        b"0d4df27fd99ab1df21528bf8833531e5a15c6f2b2bd4f5f9d6499e327e49c6fb",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -76,7 +76,7 @@ pub mod bitcoinda {
     pub const NIGHTLY_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "f3a1164976f5f1d4c74779c58fea93e212a7fdea1745a7d3ef028d6bca834425",
+            None => "0d4df27fd99ab1df21528bf8833531e5a15c6f2b2bd4f5f9d6499e327e49c6fb",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -88,7 +88,7 @@ pub mod bitcoinda {
     pub const TEST_NETWORK_WITH_FORKS_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "f3a1164976f5f1d4c74779c58fea93e212a7fdea1745a7d3ef028d6bca834425",
+            None => "0d4df27fd99ab1df21528bf8833531e5a15c6f2b2bd4f5f9d6499e327e49c6fb",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
