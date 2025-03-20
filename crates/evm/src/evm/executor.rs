@@ -65,6 +65,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     ext: &mut EXT,
     prev_gas_used: u64,
     l2_height: u64,
+    should_be_end_of_sys_txs: &mut bool,
 ) -> Result<Vec<ExecutionResult>, L2BlockModuleCallError> {
     if txs.is_empty() {
         return Ok(vec![]);
@@ -78,10 +79,6 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
 
     let mut tx_results = Vec::with_capacity(txs.len());
 
-    // Set to true as soon as a user tx is found
-    // If a sys tx is encountered after a user tx it is an error
-    let mut should_be_end_of_sys_txs = false;
-
     for (_i, tx) in txs.iter().enumerate() {
         #[cfg(feature = "native")]
         let _span =
@@ -89,14 +86,16 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 .entered();
 
         if tx.signer() == SYSTEM_SIGNER {
-            if should_be_end_of_sys_txs {
+            if *should_be_end_of_sys_txs {
                 native_error!("System transaction found after user txs");
                 return Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
             verify_system_tx(evm.evm.db_mut(), tx, l2_height)?;
         } else {
-            should_be_end_of_sys_txs = true;
+            // Set to true as soon as a user tx is found
+            // If a sys tx is encountered after a user tx it is an error
+            *should_be_end_of_sys_txs = true;
         }
 
         // if tx is eip4844 error out
@@ -116,7 +115,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             }
         })?;
 
-        if !should_be_end_of_sys_txs {
+        if !*should_be_end_of_sys_txs {
             assert!(result_and_state.result.is_success());
         }
 

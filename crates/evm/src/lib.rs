@@ -110,6 +110,11 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[memory]
     pub(crate) block_env: BlockEnv,
 
+    /// Module level flag used to indicate that the current L2 block should not contain system
+    /// transactions after a user transaction has been processed.
+    #[memory]
+    pub(crate) should_be_end_of_sys_txs: bool,
+
     /// Transactions that will be added to the current block.
     /// Valid transactions are added to the vec on every call message.
     /// WARNING: only use in the L2 block hook & tx execution path.

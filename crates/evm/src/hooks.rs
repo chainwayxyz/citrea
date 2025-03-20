@@ -83,6 +83,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // set early. so that if underlying calls use `self.block_env`
         // they don't use the wrong value
         self.block_env = new_pending_env;
+
+        self.should_be_end_of_sys_txs = false;
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
@@ -170,6 +172,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         self.head.set(&block, working_set);
+
+        self.should_be_end_of_sys_txs = false;
 
         #[cfg(not(feature = "native"))]
         pending_transactions.clear();
