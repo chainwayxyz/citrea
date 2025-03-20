@@ -2609,7 +2609,7 @@ dependencies = [
  "revm-inspectors",
  "revm-precompile",
  "rstest",
- "secp256k1 0.30.0",
+ "secp256k1 0.29.1",
  "serde",
  "serde_json",
  "sha2 0.10.8",
