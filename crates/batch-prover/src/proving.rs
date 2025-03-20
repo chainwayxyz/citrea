@@ -86,7 +86,8 @@ where
             l1_height: l1_block.header().height(),
         });
     }
-    // TODO: Make sure commitment indexes are sequential
+
+    sequencer_commitments.sort();
 
     // Store commitments by index
     for commitment in sequencer_commitments.iter() {
@@ -128,8 +129,6 @@ where
     if sequencer_commitments.is_empty() {
         return Err(L1ProcessingError::DuplicateCommitments { l1_height });
     }
-
-    sequencer_commitments.sort();
 
     let ranges = match group_commitments {
         Some(GroupCommitments::SingleShot) => vec![(0..=sequencer_commitments.len() - 1)],
