@@ -33,15 +33,14 @@ impl FromEnv for sov_mock_da::MockDaConfig {
 pub struct RunnerConfig {
     /// Sequencer client configuration.
     pub sequencer_client_url: String,
-    /// Saves sequencer soft confirmations if set to true
+    /// Saves sequencer l2 blocks if set to true
     pub include_tx_body: bool,
     /// Number of blocks to request during sync
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
     /// Configurations for pruning
     pub pruning_config: Option<PruningConfig>,
-    /// After fork2 nodes will not have da data in soft confirmations
-    /// So providing the l1 start height from config makes sense
+    /// The DA block number to start L1 sync from
     pub scan_l1_start_height: u64,
 }
 
@@ -189,12 +188,9 @@ impl FromEnv for StorageConfig {
 /// Important public keys for the rollup
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RollupPublicKeys {
-    /// Soft confirmation signing public key of the Sequencer
+    /// L2 block signing k256 public key of the Sequencer
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
-    /// Soft confirmation signing k256 public key of the Sequencer
-    #[serde(with = "hex::serde")]
-    pub sequencer_k256_public_key: Vec<u8>,
     /// DA Signing Public Key of the Sequencer
     /// serialized as hex
     #[serde(with = "hex::serde")]
@@ -209,7 +205,6 @@ impl FromEnv for RollupPublicKeys {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             sequencer_public_key: hex::decode(std::env::var("SEQUENCER_PUBLIC_KEY")?)?,
-            sequencer_k256_public_key: hex::decode(std::env::var("SEQUENCER_K256_PUBLIC_KEY")?)?,
             sequencer_da_pub_key: hex::decode(std::env::var("SEQUENCER_DA_PUB_KEY")?)?,
             prover_da_pub_key: hex::decode(std::env::var("PROVER_DA_PUB_KEY")?)?,
         })
@@ -333,8 +328,8 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
 pub struct SequencerConfig {
     /// Private key of the sequencer
     pub private_key: String,
-    /// Min. soft confirmaitons for sequencer to commit
-    pub min_soft_confirmations_per_commitment: u64,
+    /// Min. l2 blocks for sequencer to commit
+    pub min_l2_blocks_per_commitment: u64,
     /// Whether or not the sequencer is running in test mode
     pub test_mode: bool,
     /// Limit for the number of deposit transactions to be included in the block
@@ -354,7 +349,7 @@ impl Default for SequencerConfig {
         SequencerConfig {
             private_key: "1212121212121212121212121212121212121212121212121212121212121212"
                 .to_string(),
-            min_soft_confirmations_per_commitment: 4,
+            min_l2_blocks_per_commitment: 4,
             test_mode: true,
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
@@ -369,10 +364,7 @@ impl FromEnv for SequencerConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             private_key: std::env::var("PRIVATE_KEY")?,
-            min_soft_confirmations_per_commitment: std::env::var(
-                "MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT",
-            )?
-            .parse()?,
+            min_l2_blocks_per_commitment: std::env::var("MIN_L2_BLOCKS_PER_COMMITMENT")?.parse()?,
             test_mode: std::env::var("TEST_MODE")?.parse()?,
             deposit_mempool_fetch_limit: std::env::var("DEPOSIT_MEMPOOL_FETCH_LIMIT")?.parse()?,
             mempool_conf: SequencerMempoolConfig::from_env()?,
@@ -500,8 +492,7 @@ mod tests {
         let config =
             r#"
             [public_keys]
-            sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
-            sequencer_k256_public_key = "000000000000000000000000000000000000000000000000000000000000000000"
+            sequencer_public_key = "000000000000000000000000000000000000000000000000000000000000000000"
             sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
             prover_da_pub_key = ""
 
@@ -564,8 +555,7 @@ mod tests {
                 api_key: None,
             },
             public_keys: RollupPublicKeys {
-                sequencer_public_key: vec![0; 32],
-                sequencer_k256_public_key: vec![0; 33],
+                sequencer_public_key: vec![0; 33],
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
@@ -599,7 +589,7 @@ mod tests {
     fn test_correct_sequencer_config() {
         let config = r#"
             private_key = "1212121212121212121212121212121212121212121212121212121212121212"
-            min_soft_confirmations_per_commitment = 123
+            min_l2_blocks_per_commitment = 123
             test_mode = false
             deposit_mempool_fetch_limit = 10
             da_update_interval_ms = 1000
@@ -622,7 +612,7 @@ mod tests {
         let expected = SequencerConfig {
             private_key: "1212121212121212121212121212121212121212121212121212121212121212"
                 .to_string(),
-            min_soft_confirmations_per_commitment: 123,
+            min_l2_blocks_per_commitment: 123,
             test_mode: false,
             deposit_mempool_fetch_limit: 10,
             mempool_conf: SequencerMempoolConfig {
@@ -662,7 +652,7 @@ mod tests {
             "PRIVATE_KEY",
             "1212121212121212121212121212121212121212121212121212121212121212",
         );
-        std::env::set_var("MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT", "123");
+        std::env::set_var("MIN_L2_BLOCKS_PER_COMMITMENT", "123");
         std::env::set_var("TEST_MODE", "false");
         std::env::set_var("DEPOSIT_MEMPOOL_FETCH_LIMIT", "10");
         std::env::set_var("DA_UPDATE_INTERVAL_MS", "1000");
@@ -681,7 +671,7 @@ mod tests {
         let expected = SequencerConfig {
             private_key: "1212121212121212121212121212121212121212121212121212121212121212"
                 .to_string(),
-            min_soft_confirmations_per_commitment: 123,
+            min_l2_blocks_per_commitment: 123,
             test_mode: false,
             deposit_mempool_fetch_limit: 10,
             mempool_conf: SequencerMempoolConfig {
@@ -704,10 +694,6 @@ mod tests {
     fn test_correct_full_node_config_from_env() {
         std::env::set_var(
             "SEQUENCER_PUBLIC_KEY",
-            "0000000000000000000000000000000000000000000000000000000000000000",
-        );
-        std::env::set_var(
-            "SEQUENCER_K256_PUBLIC_KEY",
             "000000000000000000000000000000000000000000000000000000000000000000",
         );
         std::env::set_var(
@@ -770,8 +756,7 @@ mod tests {
                 db_path: "/tmp/da".into(),
             },
             public_keys: RollupPublicKeys {
-                sequencer_public_key: vec![0; 32],
-                sequencer_k256_public_key: vec![0; 33],
+                sequencer_public_key: vec![0; 33],
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },

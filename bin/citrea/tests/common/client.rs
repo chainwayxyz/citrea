@@ -21,9 +21,10 @@ use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
+use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
-    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,
+    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    VerifiedBatchProofResponse,
 };
 
 pub const SEND_ETH_GAS: u64 = 21001;
@@ -502,25 +503,23 @@ impl TestClient {
     }
 
     #[allow(clippy::extra_unused_type_parameters)]
-    pub(crate) async fn ledger_get_soft_confirmation_by_number<
-        DaSpec: sov_rollup_interface::da::DaSpec,
-    >(
+    pub(crate) async fn ledger_get_l2_block_by_number<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
-    ) -> Option<SoftConfirmationResponse> {
+    ) -> Option<L2BlockResponse> {
         self.http_client
-            .get_soft_confirmation_by_number(U64::from(num))
+            .get_l2_block_by_number(U64::from(num))
             .await
             .unwrap()
     }
 
-    pub(crate) async fn ledger_get_soft_confirmation_status(
+    pub(crate) async fn ledger_get_l2_block_status(
         &self,
-        soft_confirmation_receipt: u64,
-    ) -> Result<SoftConfirmationStatus, Box<dyn std::error::Error>> {
+        l2_block_receipt: u64,
+    ) -> Result<L2BlockStatus, Box<dyn std::error::Error>> {
         Ok(self
             .http_client
-            .get_soft_confirmation_status(U64::from(soft_confirmation_receipt))
+            .get_l2_block_status(U64::from(l2_block_receipt))
             .await?)
     }
 
@@ -581,20 +580,20 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_head_soft_confirmation(
+    pub(crate) async fn ledger_get_head_l2_block(
         &self,
-    ) -> Result<Option<SoftConfirmationResponse>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<L2BlockResponse>, Box<dyn std::error::Error>> {
         self.http_client
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .await
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_head_soft_confirmation_height(
+    pub(crate) async fn ledger_get_head_l2_block_height(
         &self,
     ) -> Result<u64, Box<dyn std::error::Error>> {
         self.http_client
-            .get_head_soft_confirmation_height()
+            .get_head_l2_block_height()
             .await
             .map(|v| v.to())
             .map_err(|e| e.into())
@@ -602,10 +601,7 @@ impl TestClient {
 
     pub(crate) async fn get_max_l2_blocks_per_l1(&self) -> u64 {
         self.http_client
-            .request(
-                "softConfirmationRuleEnforcer_getMaxL2BlocksPerL1",
-                rpc_params![],
-            )
+            .request("L2BlockRuleEnforcer_getMaxL2BlocksPerL1", rpc_params![])
             .await
             .unwrap()
     }

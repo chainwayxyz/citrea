@@ -10,8 +10,8 @@ pub use query::*;
 mod tests;
 
 pub use hooks::AccountsTxHook;
-use sov_modules_api::default_signature::DefaultPublicKey;
-use sov_modules_api::{Address, Context, ModuleInfo, SoftConfirmationModuleCallError, WorkingSet};
+use sov_keys::default_signature::K256PublicKey;
+use sov_modules_api::{Address, Context, L2BlockModuleCallError, ModuleInfo, WorkingSet};
 use sov_state::codec::BorshCodec;
 use sov_state::storage::StateValueCodec;
 
@@ -49,27 +49,19 @@ impl StateValueCodec<Account> for BorshCodec {
 /// A module responsible for managing accounts on the rollup.
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
+#[module(rename = "A")]
 pub struct Accounts<C: Context> {
     /// The address of the sov-accounts module.
     #[address]
     pub address: C::Address,
 
     /// Mapping from an account address to a corresponding public key.
-    #[state(rename = "public_keys_post_fork2")]
-    pub(crate) public_keys: sov_modules_api::StateMap<Address, Vec<u8>>,
-
-    /// Mapping from an account address to a corresponding public key used before fork2.
-    /// This uses address to public key object directly
-    #[state(rename = "public_keys")]
-    pub(crate) public_keys_pre_fork2: sov_modules_api::StateMap<Address, DefaultPublicKey>,
+    #[state(rename = "p")]
+    pub(crate) public_keys: sov_modules_api::StateMap<Address, K256PublicKey, BorshCodec>,
 
     /// Mapping from a public key to a corresponding account.
-    #[state(rename = "accounts_post_fork2")]
-    pub(crate) accounts: sov_modules_api::StateMap<Vec<u8>, Account>,
-
-    /// Mapping from a public key to a corresponding account.
-    #[state(rename = "accounts")]
-    pub(crate) accounts_pre_fork2: sov_modules_api::StateMap<DefaultPublicKey, Account>,
+    #[state(rename = "a")]
+    pub(crate) accounts: sov_modules_api::StateMap<K256PublicKey, Account, BorshCodec>,
 }
 
 impl<C: Context> sov_modules_api::Module for Accounts<C> {
@@ -88,7 +80,7 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
         _msg: Self::CallMessage,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<sov_modules_api::CallResponse, L2BlockModuleCallError> {
         Ok(sov_modules_api::CallResponse::default())
     }
 }

@@ -1,14 +1,11 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use prover_services::{ParallelProverService, ProofData, ProofGenMode};
-use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
+use sov_mock_da::{MockAddress, MockDaService, MockHash};
 use sov_mock_zkvm::MockZkvm;
-use sov_rollup_interface::da::Time;
-use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
-use sov_state::Witness;
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -33,8 +30,8 @@ async fn test_successful_prover_execution() {
     let proof = rx.await.unwrap();
 
     // Check that the output is correct
-    let header = extract_output_header(&proof);
-    assert_eq!(header.hash, header_hash);
+    let hash_from_proof = extract_output_header(&proof);
+    assert_eq!(hash_from_proof, header_hash);
 
     prover_service.submit_proof(proof).await.unwrap();
 }
@@ -67,10 +64,10 @@ async fn test_parallel_proofs_equal_to_limit() {
     let proof_2 = rx_2.await.unwrap();
 
     // Check that the output is correct and the order of proofs are same as the input
-    let header_1 = extract_output_header(&proof_1);
-    assert_eq!(header_1.hash, header_hash_1);
-    let header_2 = extract_output_header(&proof_2);
-    assert_eq!(header_2.hash, header_hash_2);
+    let hash_1_from_proof = extract_output_header(&proof_1);
+    assert_eq!(hash_1_from_proof, header_hash_1);
+    let hash_2_from_proof = extract_output_header(&proof_2);
+    assert_eq!(hash_2_from_proof, header_hash_2);
 
     let txs_and_proofs = prover_service
         .submit_proofs(vec![proof_1, proof_2])
@@ -130,14 +127,14 @@ async fn test_parallel_proofs_higher_than_limit() {
     let proof_4 = rx_4.await.unwrap();
 
     // Check that the output is correct and the order of proofs are same as the input
-    let header_1 = extract_output_header(&proof_1);
-    assert_eq!(header_1.hash, header_hash_1);
-    let header_2 = extract_output_header(&proof_2);
-    assert_eq!(header_2.hash, header_hash_2);
-    let header_3 = extract_output_header(&proof_3);
-    assert_eq!(header_3.hash, header_hash_3);
-    let header_4 = extract_output_header(&proof_4);
-    assert_eq!(header_4.hash, header_hash_4);
+    let hash_1 = extract_output_header(&proof_1);
+    assert_eq!(hash_1, header_hash_1);
+    let hash_2 = extract_output_header(&proof_2);
+    assert_eq!(hash_2, header_hash_2);
+    let hash_3 = extract_output_header(&proof_3);
+    assert_eq!(hash_3, header_hash_3);
+    let hash_3 = extract_output_header(&proof_4);
+    assert_eq!(hash_3, header_hash_4);
 
     let txs_and_proofs = prover_service
         .submit_proofs(vec![proof_1, proof_2, proof_3, proof_4])
@@ -164,42 +161,19 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
     }
 }
 
-fn make_transition_data(header_hash: MockHash) -> BatchProofCircuitInput<'static, MockDaSpec, ()> {
-    BatchProofCircuitInput {
-        initial_state_root: [0; 32],
-        inclusion_proof: [0; 32],
-        prev_soft_confirmation_hash: [0; 32],
-        completeness_proof: Vec::new(),
-        da_data: vec![],
-        sequencer_commitments_range: (0, 0),
-        da_block_header_of_commitments: MockBlockHeader {
-            prev_hash: [0; 32].into(),
-            hash: header_hash,
-            txs_commitment: header_hash,
-            height: 0,
-            time: Time::now(),
-            bits: 0,
-        },
-        l2_blocks: VecDeque::new(),
-        state_transition_witnesses: VecDeque::new(),
-        da_block_headers_of_l2_blocks: VecDeque::new(),
-        sequencer_public_key: vec![],
-        sequencer_da_public_key: vec![],
-        preproven_commitments: vec![],
-        short_header_proofs: VecDeque::new(),
-        final_state_root: [0; 32],
-        sequencer_commitments: vec![],
-        cache_prune_l2_heights: vec![],
-        last_l1_hash_witness: Witness::default(),
-        // Update this after you get the input from this function
-        previous_sequencer_commitment: None,
-    }
+#[derive(BorshDeserialize, BorshSerialize)]
+struct MockInput {
+    header_hash: MockHash,
 }
 
-fn extract_output_header(proof: &Vec<u8>) -> MockBlockHeader {
-    MockZkvm::extract_output::<BatchProofCircuitInput<'static, MockDaSpec, ()>>(proof)
+fn make_transition_data(header_hash: MockHash) -> MockInput {
+    MockInput { header_hash }
+}
+
+fn extract_output_header(proof: &Vec<u8>) -> MockHash {
+    MockZkvm::extract_output::<MockInput>(proof)
         .unwrap()
-        .da_block_header_of_commitments
+        .header_hash
 }
 
 async fn start_proof(

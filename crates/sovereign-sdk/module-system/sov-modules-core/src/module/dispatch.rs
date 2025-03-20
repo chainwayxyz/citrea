@@ -1,7 +1,7 @@
 //! Runtime call message definitions.
 
 use borsh::io;
-use sov_rollup_interface::stf::SoftConfirmationModuleCallError;
+use sov_rollup_interface::stf::L2BlockModuleCallError;
 
 use crate::module::{CallResponse, Context, Spec};
 use crate::storage::WorkingSet;
@@ -23,7 +23,7 @@ pub trait DispatchCall: Send + Sync {
         message: Self::Decodable,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
         context: &Self::Context,
-    ) -> Result<CallResponse, SoftConfirmationModuleCallError>;
+    ) -> Result<CallResponse, L2BlockModuleCallError>;
 
     /// Returns an address of the dispatched module.
     fn module_address(&self, message: &Self::Decodable) -> &<Self::Context as Spec>::Address;

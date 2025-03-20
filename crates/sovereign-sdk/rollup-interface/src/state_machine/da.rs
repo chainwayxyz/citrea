@@ -11,10 +11,10 @@ use crate::zk::Proof;
 use crate::{BasicAddress, Network};
 
 /// Commitments made to the DA layer from the sequencer.
-/// Has merkle root of soft confirmation hashes from L1 start block to L1 end block (inclusive)
+/// Has merkle root of l2 block hashes from L1 start block to L1 end block (inclusive)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct SequencerCommitment {
-    /// Merkle root of soft confirmation hashes
+    /// Merkle root of l2 block hashes
     pub merkle_root: [u8; 32],
     /// Absolute order of the sequencer commitment, the first commitment has index 0, the next one has 1...
     pub index: u32,
@@ -85,33 +85,7 @@ impl DataOnDa {
     /// Implement parsing of ::Complete variant according to possible changes
     ///  of format on DA.
     pub fn borsh_parse_complete(body: &[u8]) -> borsh::io::Result<Self> {
-        #[derive(Clone, Debug, PartialEq, Eq, BorshDeserialize)]
-        enum PreFork1Proof {
-            /// Only public input was generated.
-            PublicInput(Vec<u8>),
-            /// The serialized ZK proof.
-            Full(Vec<u8>),
-        }
-
-        #[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize)]
-        enum PreFork1DaDataLightClient {
-            Complete(PreFork1Proof),
-        }
-
-        if let Ok(res) = Self::try_from_slice(body) {
-            Ok(res)
-        } else {
-            let prefork1_data = PreFork1DaDataLightClient::try_from_slice(body)?;
-            if let PreFork1DaDataLightClient::Complete(PreFork1Proof::Full(full)) = prefork1_data {
-                Ok(DataOnDa::Complete(full))
-            } else {
-                use borsh::io::{Error, ErrorKind};
-                Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "PreFork1 Complete failed to parse",
-                ))
-            }
-        }
+        Self::try_from_slice(body)
     }
 }
 

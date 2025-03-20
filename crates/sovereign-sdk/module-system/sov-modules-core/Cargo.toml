@@ -27,6 +27,7 @@ thiserror = { workspace = true, optional = true }
 tinyvec = { workspace = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", default-features = false }
+sov-keys = { path = "../sov-keys", default-features = false }
 
 [dev-dependencies]
 proptest = { workspace = true }

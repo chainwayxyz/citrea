@@ -55,27 +55,25 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
 
 pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork2, 0)];
 
-pub const TESTNET_FORKS: [Fork; 3] = [
-    Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Kumquat, 5546000), // will be reached Jan 24 2025 ~7 PM
-    Fork::new(SpecId::Fork2, u64::MAX),
+pub const TESTNET_FORKS: [Fork; 1] = [
+    // Fork::new(SpecId::Genesis, 0),
+    // Fork::new(SpecId::Kumquat, 5546000), // will be reached Jan 24 2025 ~7 PM
+    Fork::new(SpecId::Fork2, 0),
 ];
 
-pub const DEVNET_FORKS: [Fork; 3] = [
-    Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Kumquat, 1921835),
-    Fork::new(SpecId::Fork2, u64::MAX),
+pub const DEVNET_FORKS: [Fork; 1] = [
+    // Fork::new(SpecId::Genesis, 0),
+    // Fork::new(SpecId::Kumquat, 1921835),
+    Fork::new(SpecId::Fork2, 0),
 ];
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork2, 0)];
 
-pub const ALL_FORKS: [Fork; 3] = [
-    Fork::new(SpecId::Genesis, 0),
-    // TODO: since we didn't freeze kumquat elfs yet, tests depending on Kumquat fork
-    // are actually going to be using the current elf.
+pub const ALL_FORKS: [Fork; 1] = [
+    // Fork::new(SpecId::Genesis, 0),
     // So this doesn't mean anything, it will act like Fork2
-    Fork::new(SpecId::Kumquat, 100),
-    Fork::new(SpecId::Fork2, 200),
+    // Fork::new(SpecId::Kumquat, 100),
+    Fork::new(SpecId::Fork2, 0),
 ];
 
 const _CHECK_FORKS: () = {

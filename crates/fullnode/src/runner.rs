@@ -43,7 +43,7 @@ where
             .l2_sync_worker
             .take()
             .expect("L2 sync worker should be set");
-        let worker = l2_sync_worker.run(cancellation_token.child_token());
+        let worker = l2_sync_worker.run(cancellation_token.clone());
         tokio::pin!(worker);
 
         loop {
@@ -51,7 +51,7 @@ where
                 _ = &mut worker => {},
                 Some(l2_block) = self.l2_signal_rx.recv() => {
                     FULLNODE_METRICS.current_l2_block.set(l2_block.height as f64);
-                    FULLNODE_METRICS.process_soft_confirmation.record(l2_block.process_duration);
+                    FULLNODE_METRICS.process_l2_block.record(l2_block.process_duration);
                 }
                 _ = cancellation_token.cancelled() => {
                     info!("Shutting down fullnode");

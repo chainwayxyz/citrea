@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_rollup_interface::stf::SoftConfirmationModuleCallError;
+use sov_rollup_interface::stf::L2BlockModuleCallError;
 
 use crate::common::ModulePrefix;
 use crate::storage::WorkingSet;
@@ -48,7 +48,7 @@ pub trait Module {
         _message: Self::CallMessage,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
-    ) -> Result<CallResponse, SoftConfirmationModuleCallError>;
+    ) -> Result<CallResponse, L2BlockModuleCallError>;
 }
 
 /// A [`Module`] that has a well-defined and known [JSON

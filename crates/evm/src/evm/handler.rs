@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
-use std::mem::size_of;
 use std::sync::Arc;
 
 use reth_primitives::KECCAK_EMPTY;
@@ -19,38 +18,35 @@ use revm::{Context, ContextPrecompiles, Database, FrameResult, InnerEvmContext, 
 #[cfg(feature = "native")]
 use revm::{EvmContext, Inspector};
 use revm_precompile::secp256r1::P256VERIFY;
-use sov_modules_api::{native_debug, native_error, native_warn, SpecId as CitreaSpecId};
+use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
-/// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak  internally for evm operations
+/// 4 bytes of prefix ("E/i/") + 20 bytes of address = 24 bytes
+const ACCOUNT_IDX_KEY_SIZE: usize = 24;
+
+/// Account index is 64 bit integer
+const ACCOUNT_IDX_SIZE: usize = 8;
+
+/// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak internally for evm operations
 const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
-/// Normally db account key is: 6 bytes of prefix ("Evm/a/") + 1 byte for size of remaining data + 20 bytes of address = 27 bytes
-const DB_ACCOUNT_KEY_SIZE: usize = 27;
+/// 4 bytes of prefix ("E/a/") + 8 bytes of account id = 12 bytes
+const DB_ACCOUNT_KEY_SIZE: usize = 12;
 
-/// Storage key is 59 bytes because of sov sdk prefix ("Evm/s/")
-const STORAGE_KEY_SIZE: usize = 59;
+/// 4 bytes of prefix ("E/s/") + 32 bytes of storage hash = 36 bytes
+const STORAGE_KEY_SIZE: usize = 36;
 
-/// StorageKey key is 59 bytes because of sov sdk prefix ("Evm/k/")
-const KEY_KEY_SIZE: usize = 59;
+/// Storage value is 32 bytes
+const STORAGE_VALUE_SIZE: usize = 32;
 
-/// StorageKey value is 32 bytes + 1 byte length
-const KEY_VALUE_SIZE: usize = 33;
-
-/// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
-const STORAGE_VALUE_SIZE: usize = 33;
-
-/// Code key size "Evm/c/" + 1 byte of length + 32 bytes of code hash = 39 bytes
-const CODE_KEY_SIZE: usize = 39;
-
-/// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, soft_confirmation_rule_enforcer and sov_accounts
+/// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, l2_block_rule_enforcer and sov_accounts
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
-/// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 soft confirmations
+/// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 l2 blocks
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
 pub const L1_FEE_OVERHEAD: usize = 3;
 
@@ -69,14 +65,12 @@ Let's consider a batch of 1 block with the following transactions:
         Transaction 1: Account A transfers balance to Account C
         Transaction 2: Account B transfers balance to Account C
 
-    In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
+    In this account A and B pays for the account info diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
     So A and B should share that cost
     So the ratio would be something like this in this simple scenario:
-    3 unique balance slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
-    If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
+    3 unique account info slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
+    If every user pays 0.75 of the account info state diff they created, the total state diff will be covered
 */
-/// Nonce and balance are stored together so we use single constant
-const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
 const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
@@ -268,22 +262,17 @@ impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
     }
 }
 
-pub(crate) fn citrea_handler<'a, DB, EXT>(
-    citrea_spec: CitreaSpecId,
-    cfg: HandlerCfg,
-) -> EvmHandler<'a, EXT, DB>
+pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
 where
     DB: Database,
     EXT: CitreaExternalExt,
 {
     let mut handler = EvmHandler::mainnet_with_spec(cfg.spec_id);
-    handler.append_handler_register(HandleRegisters::Box(citrea_handle_register(citrea_spec)));
+    handler.append_handler_register(HandleRegisters::Box(citrea_handle_register()));
     handler
 }
 
-pub(crate) fn citrea_handle_register<DB, EXT>(
-    citrea_spec: CitreaSpecId,
-) -> HandleRegisterBox<'static, EXT, DB>
+pub(crate) fn citrea_handle_register<DB, EXT>() -> HandleRegisterBox<'static, EXT, DB>
 where
     DB: Database,
     EXT: CitreaExternalExt,
@@ -298,11 +287,7 @@ where
             // validation.env =
             validation.tx_against_state =
                 Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
-            let load_precompiles = if citrea_spec >= CitreaSpecId::Fork2 {
-                CitreaHandler::<SPEC, EXT, DB>::load_precompiles_postfork2
-            } else {
-                CitreaHandler::<SPEC, EXT, DB>::load_precompiles_prefork2
-            };
+            let load_precompiles = CitreaHandler::<SPEC, EXT, DB>::load_precompiles;
             pre_execution.load_precompiles = Arc::new(load_precompiles);
             // pre_execution.load_accounts =
             pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
@@ -329,24 +314,7 @@ struct CitreaHandler<SPEC, EXT, DB> {
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    fn load_precompiles_prefork2() -> ContextPrecompiles<DB> {
-        fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
-            let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
-
-            if SPEC::enabled(SpecId::CANCUN) {
-                precompiles
-                    .to_mut()
-                    .remove(&u64_to_address(0x0A))
-                    .expect("after cancun point eval should be removed");
-            }
-
-            precompiles
-        }
-
-        our_precompiles::<SPEC, DB>()
-    }
-
-    fn load_precompiles_postfork2() -> ContextPrecompiles<DB> {
+    fn load_precompiles() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
 
@@ -455,13 +423,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         let uncompressed_size =
             calc_diff_size::<EXT, SPEC, DB>(context).map_err(EVMError::Database)?;
 
-        let compression_percentage = if SPEC::enabled(SpecId::CANCUN) {
-            // Estimate the size of the state diff after the brotli compression
-            BROTLI_COMPRESSION_PERCENTAGE
-        } else {
-            100
-        };
-        let diff_size = (uncompressed_size * compression_percentage / 100) as u64;
+        // Estimate the size of the state diff after the brotli compression
+        let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64;
 
         let l1_fee_rate = context.external.l1_fee_rate();
         let l1_fee =
@@ -494,7 +457,6 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     let InnerEvmContext {
         journaled_state,
         env,
-        db,
         ..
     } = &mut context.evm.inner;
 
@@ -588,29 +550,10 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
 
     let mut diff_size = 0usize;
 
-    // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
-    // thus we increment the diff size by 20 (coinbase address) + 32 (coinbase balance change)
-    // notice, we don't add to diff size when an address explicitly sends funds to coinbase
-    if !account_changes.contains_key(&env.block.coinbase) {
-        diff_size += size_of::<Address>() + size_of::<U256>();
-    }
-
     for (addr, account) in account_changes {
-        if account.destroyed && !SPEC::enabled(SpecId::CANCUN) {
-            // Each 'delete' key produces a write of 'key' + 1 byte
-            // account_info:
-            diff_size += DB_ACCOUNT_KEY_SIZE + 1;
-            // account_slots (and also keys):
-            let account = &state[addr];
-            let n_slots = account.storage.len();
-            diff_size += (STORAGE_KEY_SIZE + 1) * n_slots;
-            diff_size += (KEY_KEY_SIZE + 1) * n_slots;
-            // We don't delete account_code.
-            continue;
+        if account.created {
+            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
         }
-
-        // Apply size of address of changed account
-        diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
 
         // Apply size of account_info
         if account.account_info_changed || account.code_changed {
@@ -625,43 +568,16 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
             diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
+                (db_account_size + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
         }
 
         // Apply size of changed slots
         let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
 
-        // If CANCUN is enabled this was not even added in the first place so no need to add it to the diff size
-        let keys_size = if SPEC::enabled(SpecId::CANCUN) {
-            0
-        } else {
-            KEY_VALUE_SIZE + KEY_KEY_SIZE // key + value
-        };
-
         diff_size +=
             slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
-        diff_size += keys_size * account.storage_changes.len();
 
-        // Apply size of changed codes
-        if account.code_changed {
-            let account = &state[addr];
-
-            if let Some(code) = account.info.code.as_ref() {
-                // Don't charge for account code if it is already in DB.
-                let db_code = db.code_by_hash(account.info.code_hash)?;
-                // This would only add code's size to the diff size in case CANCUN is NOT activated.
-                if db_code.is_empty() && !SPEC::enabled(SpecId::CANCUN) {
-                    // if code is eoa code
-                    diff_size += CODE_KEY_SIZE;
-                    diff_size += code.len();
-                }
-            } else {
-                native_warn!(
-                    "Code must exist for account when calculating diff: {}",
-                    addr,
-                );
-            }
-        }
+        // No checks on code change as it is not part of the state diff
     }
 
     Ok(diff_size)
@@ -713,5 +629,5 @@ fn decrease_caller_balance<EXT, DB: Database>(
 #[cfg(feature = "native")]
 pub(crate) fn diff_size_send_eth_eoa() -> usize {
     DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
-        + (DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100
+        + (DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
 }

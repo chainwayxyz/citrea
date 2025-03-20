@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
+use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::l2::L2SyncWorker;
@@ -13,6 +14,7 @@ use prover_services::ParallelProverService;
 pub use proving::GroupCommitments;
 pub use runner::*;
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{SpecId, Zkvm};
@@ -45,7 +47,7 @@ pub async fn build_services<DA, DB, Vm>(
     prover_service: Arc<ParallelProverService<DA, Vm>>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    l2_block_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     elfs: HashMap<SpecId, Vec<u8>>,
@@ -69,8 +71,7 @@ where
         ledger_db.clone(),
         storage_manager.clone(),
         public_keys.sequencer_da_pub_key.clone(),
-        public_keys.sequencer_public_key.clone(),
-        public_keys.sequencer_k256_public_key.clone(),
+        K256PublicKey::try_from_slice(&public_keys.sequencer_public_key.clone())?,
         l1_block_cache,
         code_commitments.clone(),
         elfs.clone(),
@@ -87,7 +88,7 @@ where
         ledger_db.clone(),
         storage_manager.clone(),
         fork_manager,
-        soft_confirmation_tx,
+        l2_block_tx,
         backup_manager.clone(),
         l2_signal_tx,
         true,

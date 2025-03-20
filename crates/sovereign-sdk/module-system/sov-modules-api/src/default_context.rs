@@ -3,17 +3,14 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
-use sov_modules_core::{Address, Context, PublicKey, Spec};
+#[cfg(feature = "native")]
+use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::{K256PublicKey, K256Signature};
+use sov_modules_core::{Address, Context, Spec};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::RollupAddress;
 #[cfg(feature = "native")]
 use sov_state::ProverStorage;
 use sov_state::ZkStorage;
-
-#[cfg(feature = "native")]
-use crate::default_signature::private_key::DefaultPrivateKey;
-use crate::default_signature::{DefaultPublicKey, DefaultSignature, K256PublicKey};
 
 #[cfg(feature = "native")]
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -29,10 +26,10 @@ pub struct DefaultContext {
 impl Spec for DefaultContext {
     type Address = Address;
     type Storage = ProverStorage;
-    type PrivateKey = DefaultPrivateKey;
-    type PublicKey = DefaultPublicKey;
+    type PrivateKey = K256PrivateKey;
+    type PublicKey = K256PublicKey;
     type Hasher = sha2::Sha256;
-    type Signature = DefaultSignature;
+    type Signature = K256Signature;
 }
 
 #[cfg(feature = "native")]
@@ -77,10 +74,10 @@ impl Spec for ZkDefaultContext {
     type Address = Address;
     type Storage = ZkStorage;
     #[cfg(feature = "native")]
-    type PrivateKey = DefaultPrivateKey;
-    type PublicKey = DefaultPublicKey;
+    type PrivateKey = K256PrivateKey;
+    type PublicKey = K256PublicKey;
     type Hasher = sha2::Sha256;
-    type Signature = DefaultSignature;
+    type Signature = K256Signature;
 }
 
 impl Context for ZkDefaultContext {
@@ -106,27 +103,5 @@ impl Context for ZkDefaultContext {
 
     fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
-    }
-}
-
-impl PublicKey for DefaultPublicKey {
-    fn to_address<A: RollupAddress>(&self) -> A {
-        let pub_key_hash = {
-            let mut hasher = <ZkDefaultContext as Spec>::Hasher::new();
-            hasher.update(self.pub_key);
-            hasher.finalize().into()
-        };
-        A::from(pub_key_hash)
-    }
-}
-
-impl PublicKey for K256PublicKey {
-    fn to_address<A: RollupAddress>(&self) -> A {
-        let pub_key_hash = {
-            let mut hasher = <ZkDefaultContext as Spec>::Hasher::new();
-            hasher.update(self.pub_key.to_sec1_bytes());
-            hasher.finalize().into()
-        };
-        A::from(pub_key_hash)
     }
 }

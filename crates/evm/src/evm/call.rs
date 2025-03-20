@@ -225,7 +225,8 @@ pub(crate) fn create_txn_env(
         data: input.try_into_unique_input()?.unwrap_or_default(),
         access_list: access_list.unwrap_or_default().to_vec(),
         // EIP-4844 related fields
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
+        // as the `TxEnv` returned from this function is given to plain revm::Evm
+        // and as CitreaEvm ignores type3 txs, we can safely ignore these fields
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
         authorization_list: None,

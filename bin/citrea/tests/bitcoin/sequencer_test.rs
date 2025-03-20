@@ -35,10 +35,10 @@ impl TestCase for BasicSequencerTest {
         let head_batch0 = sequencer
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .await?
             .unwrap();
-        assert_eq!(head_batch0.l2_height, 1);
+        assert_eq!(head_batch0.header.height.to::<u64>(), 1);
 
         sequencer.client.send_publish_batch_request().await?;
 
@@ -48,10 +48,10 @@ impl TestCase for BasicSequencerTest {
         let head_batch1 = sequencer
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .await?
             .unwrap();
-        assert_eq!(head_batch1.l2_height, 2);
+        assert_eq!(head_batch1.header.height.to::<u64>(), 2);
 
         Ok(())
     }
@@ -79,7 +79,7 @@ struct SequencerMissedDaBlocksTest;
 impl TestCase for SequencerMissedDaBlocksTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 1000,
+            min_l2_blocks_per_commitment: 1000,
             ..Default::default()
         }
     }
@@ -114,10 +114,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
 
         sequencer.client.wait_for_l2_block(13, None).await?;
 
-        let head_soft_confirmation_height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
+        let head_l2_block_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         for l1_height in init_da_height..init_da_height + 103 {
             let res: String = seq_test_client
@@ -138,7 +135,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
         // check that the sequencer has at least one block for each 10 DA blocks
         // starting from l2 #2 all the way up to l2 #12 without no gaps
         // Blocks should have 10 txs which are all set block infos
-        for i in 1..=head_soft_confirmation_height {
+        for i in 1..=head_l2_block_height {
             let block = seq_test_client
                 .eth_get_block_by_number(Some(i.into()))
                 .await;

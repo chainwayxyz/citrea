@@ -54,7 +54,7 @@ async fn start_sequencer(
     restart: bool,
 ) -> (TaskManager<()>, Box<TestClient>, SocketAddr) {
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 10,
+        min_l2_blocks_per_commitment: 10,
         test_mode: true,
         ..Default::default()
     };
@@ -229,7 +229,7 @@ async fn assert_dbs(
     check_l2_block: u64,
     balance_at_l2_height: u128,
 ) {
-    // Check soft confirmations have been rolled back in Ledger DB
+    // Check l2 blocks have been rolled back in Ledger DB
     wait_for_l2_block(test_client, check_l2_block, None).await;
 
     // Suppress output of panics
@@ -571,20 +571,20 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
     wait_for_l2_block(&seq_test_client, 40, None).await;
     wait_for_l2_block(&full_node_test_client, 40, None).await;
 
-    let seq_soft_confirmation = seq_test_client
-        .ledger_get_head_soft_confirmation()
+    let seq_l2_block = seq_test_client
+        .ledger_get_head_l2_block()
         .await
         .unwrap()
         .unwrap();
-    let full_node_soft_confirmation = full_node_test_client
-        .ledger_get_head_soft_confirmation()
+    let full_node_l2_block = full_node_test_client
+        .ledger_get_head_l2_block()
         .await
         .unwrap()
         .unwrap();
 
     assert_eq!(
-        seq_soft_confirmation.state_root,
-        full_node_soft_confirmation.state_root
+        seq_l2_block.header.state_root,
+        full_node_l2_block.header.state_root
     );
 
     seq_task_manager.abort().await;

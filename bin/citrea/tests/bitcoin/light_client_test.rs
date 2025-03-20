@@ -10,7 +10,7 @@ use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::GroupCommitments;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig,
@@ -52,7 +52,7 @@ impl TestCase for LightClientProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 5,
+            min_l2_blocks_per_commitment: 5,
             da_update_interval_ms: 500,
             ..Default::default()
         }
@@ -80,15 +80,14 @@ impl TestCase for LightClientProvingTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        // publish min_soft_confirmations_per_commitment confirmations
-        for _ in 0..min_soft_confirmations_per_commitment {
+        // publish min_l2_blocks_per_commitment confirmations
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(min_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment tx to be submitted to DA
@@ -185,7 +184,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 50,
+            min_l2_blocks_per_commitment: 50,
             da_update_interval_ms: 500,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_size: 2000,
@@ -223,17 +222,16 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
         let n_commitments = 2;
 
-        // publish min_soft_confirmations_per_commitment confirmations
-        for _ in 0..n_commitments * min_soft_confirmations_per_commitment {
+        // publish min_l2_blocks_per_commitment confirmations
+        for _ in 0..n_commitments * min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(n_commitments * min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(n_commitments * min_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment txs to be submitted to DA
@@ -350,17 +348,14 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .is_empty());
 
         // Let's generate a new batch proof
-        // publish min_soft_confirmations_per_commitment confirmations
-        let l2_height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
-        for _ in 0..min_soft_confirmations_per_commitment {
+        // publish min_l2_blocks_per_commitment confirmations
+        let l2_height = sequencer.client.ledger_get_head_l2_block_height().await?;
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         sequencer
-            .wait_for_l2_height(l2_height + min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(l2_height + min_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment tx to be submitted to DA
@@ -476,7 +471,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 2,
+            min_l2_blocks_per_commitment: 2,
             da_update_interval_ms: 500,
             ..Default::default()
         }
@@ -544,18 +539,18 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .unwrap(),
         );
 
-        self.task_manager
-            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        // publish min_soft_confirmations_per_commitment confirmations
-        for _ in 0..min_soft_confirmations_per_commitment {
+        // publish min_l2_blocks_per_commitment confirmations
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(min_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment tx to be submitted to DA
@@ -786,8 +781,9 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .unwrap(),
         );
 
-        self.task_manager
-            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -957,7 +953,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 10000,
+            min_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
     }
@@ -1007,8 +1003,9 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             .unwrap(),
         );
 
-        self.task_manager
-            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -1326,7 +1323,7 @@ fn create_serialized_fake_receipt_batch_proof(
         initial_state_root,
         final_state_root,
         last_l2_height,
-        final_soft_confirmation_hash: [0u8; 32],
+        final_l2_block_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
         // TODO: Update these values accordingly
         sequencer_commitment_hashes: vec![],

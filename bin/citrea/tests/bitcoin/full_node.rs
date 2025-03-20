@@ -51,9 +51,10 @@ impl TestCase for FullNodeRestartTest {
         let state_root_before = full_node
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .await?
             .unwrap()
+            .header
             .state_root;
 
         full_node.restart(None, None).await?;
@@ -61,9 +62,10 @@ impl TestCase for FullNodeRestartTest {
         let state_root_after = full_node
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_head_l2_block()
             .await?
             .unwrap()
+            .header
             .state_root;
 
         // Verify state root persists across restarts
@@ -102,8 +104,7 @@ impl TestCase for L2StatusTest {
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_soft_confirmations_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
         let initial_committed_height = full_node
             .client
