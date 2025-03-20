@@ -6,7 +6,6 @@ mod tests;
 use core::fmt;
 use core::result::Result::Ok;
 use std::collections::HashSet;
-use std::path::PathBuf;
 
 use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
@@ -45,11 +44,6 @@ impl fmt::Debug for TxWithId {
             .field("tx", &"...")
             .finish()
     }
-}
-
-// To dump raw da txs into file to recover from a sequencer crash
-pub(crate) trait TxListWithReveal: Serialize {
-    fn write_to_file(&self, dir: PathBuf) -> Result<(), anyhow::Error>;
 }
 
 /// Return (tx, leftover_utxos)

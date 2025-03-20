@@ -27,12 +27,19 @@ use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::backup::BackupManager;
 use crate::cache::L1BlockCache;
 use crate::utils::{compute_tx_hashes, decode_sov_tx_and_update_short_header_proofs};
 use crate::{InitParams, RollupPublicKeys, RunnerConfig};
+
+enum SyncError {
+    ResponseOverLimit,
+    Call(String),
+    Connection(String),
+    Unknown(String),
+}
 
 pub struct L2BlockSignal {
     pub height: u64,
@@ -314,68 +321,70 @@ where
 }
 
 async fn sync_l2(
-    start_l2_height: u64,
+    mut start_l2_height: u64,
     sequencer_client: HttpClient,
     sender: mpsc::Sender<Vec<L2BlockResponse>>,
     sync_blocks_count: u64,
 ) {
-    let mut l2_height = start_l2_height;
-    info!("Starting to sync from L2 height {}", l2_height);
+    let mut current_sync_blocks_count = sync_blocks_count;
+
+    info!("Starting to sync from L2 height {}", start_l2_height);
     loop {
-        let exponential_backoff = ExponentialBackoffBuilder::<backoff::SystemClock>::new()
-            .with_initial_interval(Duration::from_secs(1))
-            .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-            .with_multiplier(1.5)
-            .build();
+        let end_l2_height = start_l2_height + current_sync_blocks_count - 1;
 
         let inner_client = &sequencer_client;
-        let mut l2_blocks = match retry_backoff(exponential_backoff, || async move {
-            let l2_blocks = inner_client
-                .get_l2_block_range(
-                    U64::from(l2_height),
-                    U64::from(l2_height + sync_blocks_count - 1),
-                )
-                .await;
-            match l2_blocks {
-                Ok(l2_blocks) => Ok(l2_blocks.into_iter().flatten().collect::<Vec<_>>()),
-                Err(e) => match e {
-                    JsonrpseeError::Transport(e) => {
-                        let error_msg =
-                            format!("L2 Block: connection error during RPC call: {:?}", e);
-                        debug!(error_msg);
-                        Err(backoff::Error::Transient {
-                            err: error_msg,
-                            retry_after: None,
-                        })
-                    }
-                    _ => Err(backoff::Error::Transient {
-                        err: format!("L2 Block: unknown error from RPC call: {:?}", e),
-                        retry_after: None,
-                    }),
-                },
-            }
-        })
-        .await
+        let mut l2_blocks = match get_l2_blocks_range(inner_client, start_l2_height, end_l2_height)
+            .await
         {
-            Ok(l2_blocks) => l2_blocks,
-            Err(_) => {
-                continue;
+            Ok(l2_blocks) => {
+                // request has succeeded, try to increase sync blocks back up until original
+                current_sync_blocks_count *= 2;
+                if current_sync_blocks_count > sync_blocks_count {
+                    current_sync_blocks_count = sync_blocks_count;
+                }
+                l2_blocks
             }
+            Err(e) => match e {
+                SyncError::ResponseOverLimit => {
+                    debug!("Sync response size over limit, retrying...");
+                    current_sync_blocks_count /= 2;
+                    if current_sync_blocks_count == 1 {
+                        warn!("Very slow sync at 1 block/s");
+                    } else if current_sync_blocks_count == 0 {
+                        error!("L2 blocks are getting too big. It is recommended to increase response size");
+                        // Stop the sync since we cannot fetch new soft confirmations.
+                        return;
+                    }
+                    continue;
+                }
+                SyncError::Connection(e) => {
+                    error!("L2 sync: RPC connection error: {:?}", e);
+                    continue;
+                }
+                SyncError::Call(e) => {
+                    error!("L2 sync: RPC call error: {:?}", e);
+                    continue;
+                }
+                SyncError::Unknown(e) => {
+                    error!("L2 sync: RPC unknown error: {:?}", e);
+                    continue;
+                }
+            },
         };
 
         if l2_blocks.is_empty() {
             debug!(
-                "L2 Block: no batch at starting height {}, retrying...",
-                l2_height
+                "L2 block: no batch at starting height {}, retrying...",
+                start_l2_height
             );
 
             sleep(Duration::from_secs(1)).await;
             continue;
         }
 
-        l2_height += l2_blocks.len() as u64;
+        start_l2_height += l2_blocks.len() as u64;
 
-        // Make sure l2 blocks are sorted for us to make sure they are processed
+        // Make sure L2 blocks are sorted for us to make sure they are processed
         // in the correct order.
         l2_blocks.sort_by_key(|l2_block| l2_block.header.height);
 
@@ -383,4 +392,56 @@ async fn sync_l2(
             error!("Could not notify about L2 block: {}", e);
         }
     }
+}
+
+async fn get_l2_blocks_range(
+    sequencer_client: &HttpClient,
+    start_l2_height: u64,
+    end_l2_height: u64,
+) -> Result<Vec<L2BlockResponse>, SyncError> {
+    let inner_client = &sequencer_client;
+
+    let exponential_backoff = ExponentialBackoffBuilder::<backoff::SystemClock>::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+        .with_multiplier(1.5)
+        .build();
+
+    retry_backoff(exponential_backoff, || async move {
+        let l2_blocks = inner_client
+            .get_l2_block_range(U64::from(start_l2_height), U64::from(end_l2_height))
+            .await;
+        match l2_blocks {
+            Ok(l2_blocks) => Ok(l2_blocks.into_iter().flatten().collect::<Vec<_>>()),
+            Err(e) => match e {
+                JsonrpseeError::Call(e) => {
+                    if e.message().eq("Response is too big") {
+                        return Err(backoff::Error::Permanent(SyncError::ResponseOverLimit));
+                    }
+                    let error_msg = format!("L2 block: call error during RPC call: {:?}", e);
+                    debug!(error_msg);
+                    Err(backoff::Error::Transient {
+                        err: SyncError::Call(error_msg),
+                        retry_after: None,
+                    })
+                }
+                JsonrpseeError::Transport(e) => {
+                    let error_msg = format!("L2 block: connection error during RPC call: {:?}", e);
+                    debug!(error_msg);
+                    Err(backoff::Error::Transient {
+                        err: SyncError::Connection(error_msg),
+                        retry_after: None,
+                    })
+                }
+                _ => Err(backoff::Error::Transient {
+                    err: SyncError::Unknown(format!(
+                        "L2 block: unknown error from RPC call: {:?}",
+                        e
+                    )),
+                    retry_after: None,
+                }),
+            },
+        }
+    })
+    .await
 }

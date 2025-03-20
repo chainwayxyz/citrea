@@ -11,7 +11,9 @@ use alloy::transports::http::{Http, HyperClient};
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
 use alloy_rpc_types::{AnyNetworkBlock, EIP1186AccountProofResponse};
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
 use citrea_batch_prover::GroupCommitments;
 use citrea_evm::{Filter, LogResponse};
 use ethereum_rpc::SyncStatus;
@@ -613,6 +615,18 @@ impl TestClient {
     ) -> GethTrace {
         self.http_client
             .request("debug_traceTransaction", rpc_params![tx_hash, opts])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> GethTrace {
+        self.http_client
+            .request("debug_traceCall", rpc_params![request, block_id, opts])
             .await
             .unwrap()
     }

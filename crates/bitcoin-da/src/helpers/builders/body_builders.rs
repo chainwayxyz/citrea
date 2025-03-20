@@ -7,13 +7,13 @@ use std::time::Instant;
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
-use bitcoin::consensus::encode::serialize;
 use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
-use bitcoin::{Address, Amount, Network, Transaction};
+use bitcoin::{consensus, Address, Amount, Network, Transaction};
+use itertools::Itertools;
 use metrics::histogram;
 use secp256k1::SECP256K1;
 use serde::Serialize;
@@ -22,8 +22,7 @@ use tracing::{instrument, trace, warn};
 
 use super::{
     build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
-    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxListWithReveal,
-    TxWithId,
+    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
 };
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
@@ -64,108 +63,77 @@ pub(crate) enum DaTxs {
     },
 }
 
-impl TxListWithReveal for DaTxs {
-    fn write_to_file(&self, mut path: PathBuf) -> Result<(), anyhow::Error> {
-        fn hex_serialize_tx(tx: &Transaction) -> String {
-            hex::encode(serialize(tx))
-        }
+pub(crate) fn backup_complete_txs(
+    mut path: PathBuf,
+    raw_txs: &[Vec<u8>; 2],
+    name: &str,
+) -> Result<(), anyhow::Error> {
+    let commit_tx: Transaction = consensus::deserialize(&raw_txs[0])?;
+    let reveal_tx: Transaction = consensus::deserialize(&raw_txs[1])?;
 
-        match self {
-            Self::Complete { commit, reveal } => {
-                let commit_id = commit.compute_txid();
-                path.push(format!(
-                    "complete_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id, reveal.id
-                ));
-                let file = File::create(path)?;
-                let mut writer: BufWriter<&File> = BufWriter::new(&file);
+    path.push(format!(
+        "{}_inscription_commit_id_{}_reveal_id_{}.txs",
+        name,
+        commit_tx.compute_txid(),
+        reveal_tx.compute_txid()
+    ));
+    let file = File::create(path)?;
+    let mut writer: BufWriter<&File> = BufWriter::new(&file);
 
-                writer.write_all(format!("commit {}\n", commit_id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
-                writer.write_all(b"\n")?;
+    writer.write_all(format!("commit {}\n", commit_tx.compute_txid()).as_bytes())?;
+    writer.write_all(hex::encode(raw_txs[0].as_slice()).as_bytes())?;
+    writer.write_all(b"\n")?;
 
-                writer.write_all(format!("reveal {}\n", reveal.id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
-                writer.flush()?;
-                Ok(())
-            }
-            Self::Chunked {
-                commit_chunks,
-                reveal_chunks,
-                commit,
-                reveal,
-            } => {
-                let commit_id = commit.compute_txid();
-                path.push(format!(
-                    "chunked_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id, reveal.id,
-                ));
-                let file = File::create(path)?;
-                let mut writer = BufWriter::new(&file);
-                for (idx, (commit_chunk, reveal_chunk)) in
-                    commit_chunks.iter().zip(reveal_chunks.iter()).enumerate()
-                {
-                    writer.write_all(
-                        format!("chunk {} commit {}\n", idx + 1, commit_chunk.compute_txid())
-                            .as_bytes(),
-                    )?;
-                    writer.write_all(hex_serialize_tx(commit_chunk).as_bytes())?;
-                    writer.write_all(b"\n")?;
+    writer.write_all(format!("reveal {}\n", reveal_tx.compute_txid()).as_bytes())?;
+    writer.write_all(hex::encode(raw_txs[1].as_slice()).as_bytes())?;
+    writer.flush()?;
 
-                    writer.write_all(
-                        format!("chunk {} reveal {}\n", idx + 1, reveal_chunk.compute_txid())
-                            .as_bytes(),
-                    )?;
-                    writer.write_all(hex_serialize_tx(reveal_chunk).as_bytes())?;
-                    writer.write_all(b"\n")?;
-                }
-                writer.write_all(format!("aggregate commit {}\n", commit_id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
-                writer.write_all(b"\n")?;
+    Ok(())
+}
 
-                writer.write_all(format!("aggregate reveal {}\n", reveal.id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
-                writer.flush()?;
-                Ok(())
-            }
-            Self::BatchProofMethodId { commit, reveal } => {
-                let commit_id = commit.compute_txid();
-                path.push(format!(
-                    "batch_proof_method_id_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id, reveal.id
-                ));
-                let file = File::create(path)?;
-                let mut writer: BufWriter<&File> = BufWriter::new(&file);
+pub(crate) fn backup_chunked_txs(
+    mut path: PathBuf,
+    raw_txs: &[Vec<u8>],
+) -> Result<(), anyhow::Error> {
+    let aggr_commit: Transaction = consensus::deserialize(&raw_txs[raw_txs.len() - 2])?;
+    let aggr_reveal: Transaction = consensus::deserialize(&raw_txs[raw_txs.len() - 1])?;
 
-                writer.write_all(format!("commit {}\n", commit_id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
-                writer.write_all(b"\n")?;
+    path.push(format!(
+        "chunked_inscription_commit_id_{}_reveal_id_{}.txs",
+        aggr_commit.compute_txid(),
+        aggr_reveal.compute_txid(),
+    ));
 
-                writer.write_all(format!("reveal {}\n", reveal.id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
-                writer.flush()?;
-                Ok(())
-            }
-            Self::SequencerCommitment { commit, reveal } => {
-                let commit_id = commit.compute_txid();
-                path.push(format!(
-                    "sequencer_commitment_inscription_commit_id_{}_reveal_id_{}.txs",
-                    commit_id, reveal.id
-                ));
-                let file = File::create(path)?;
-                let mut writer: BufWriter<&File> = BufWriter::new(&file);
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(&file);
+    for (idx, (commit_chunk, reveal_chunk)) in
+        raw_txs[0..raw_txs.len() - 2].iter().tuples().enumerate()
+    {
+        let commit_tx: Transaction = consensus::deserialize(commit_chunk)?;
+        let reveal_tx: Transaction = consensus::deserialize(reveal_chunk)?;
 
-                writer.write_all(format!("commit {}\n", commit_id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(commit).as_bytes())?;
-                writer.write_all(b"\n")?;
+        writer.write_all(
+            format!("chunk {} commit {}\n", idx + 1, commit_tx.compute_txid()).as_bytes(),
+        )?;
+        writer.write_all(hex::encode(commit_chunk).as_bytes())?;
+        writer.write_all(b"\n")?;
 
-                writer.write_all(format!("reveal {}\n", reveal.id).as_bytes())?;
-                writer.write_all(hex_serialize_tx(&reveal.tx).as_bytes())?;
-                writer.flush()?;
-                Ok(())
-            }
-        }
+        writer.write_all(
+            format!("chunk {} reveal {}\n", idx + 1, reveal_tx.compute_txid()).as_bytes(),
+        )?;
+        writer.write_all(hex::encode(reveal_chunk).as_bytes())?;
+        writer.write_all(b"\n")?;
     }
+
+    writer.write_all(format!("aggregate commit {}\n", aggr_commit.compute_txid()).as_bytes())?;
+    writer.write_all(hex::encode(raw_txs[raw_txs.len() - 2].as_slice()).as_bytes())?;
+    writer.write_all(b"\n")?;
+
+    writer.write_all(format!("aggregate reveal {}\n", aggr_reveal.compute_txid()).as_bytes())?;
+    writer.write_all(hex::encode(raw_txs[raw_txs.len() - 1].as_slice()).as_bytes())?;
+    writer.flush()?;
+
+    Ok(())
 }
 
 // Creates the light client transactions (commit and reveal)
