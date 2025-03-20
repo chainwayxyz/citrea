@@ -1619,7 +1619,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
             method_id,
             None,
             false,
-            [1u8; 32], // unknown l1 hash
+            l1_hash,
         );
 
         bitcoin_da_service
