@@ -1,7 +1,7 @@
 use alloy_primitives::{TxHash, U256};
 use alloy_rpc_types_trace::geth::{
-    FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
-    GethTrace, NoopFrame,
+    FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingCallOptions,
+    GethDebugTracingOptions, GethTrace, NoopFrame,
 };
 use reth_primitives::revm_primitives::TxEnv;
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered};
@@ -21,6 +21,145 @@ use crate::evm::db::EvmDb;
 use crate::handler::{
     citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
 };
+use crate::rpc_helpers::*;
+
+pub(crate) fn trace_call<C: sov_modules_api::Context>(
+    opts: GethDebugTracingCallOptions,
+    config_env: CfgEnvWithHandlerCfg,
+    mut block_env: BlockEnv,
+    tx_env: TxEnv,
+    db: &mut EvmDb<'_, C>,
+    l1_fee_rate: u128,
+) -> EthResult<GethTrace> {
+    let GethDebugTracingCallOptions {
+        tracing_options,
+        state_overrides,
+        block_overrides,
+    } = opts;
+
+    if let Some(state_overrides) = state_overrides {
+        apply_state_overrides(state_overrides, db)?;
+    }
+
+    if let Some(mut block_overrides) = block_overrides {
+        apply_block_overrides(&mut block_env, &mut block_overrides, db);
+    }
+
+    let GethDebugTracingOptions {
+        config,
+        tracer,
+        tracer_config,
+        ..
+    } = tracing_options;
+
+    if let Some(tracer) = tracer {
+        return match tracer {
+            GethDebugTracerType::BuiltInTracer(tracer) => match tracer {
+                GethDebugBuiltInTracerType::FourByteTracer => {
+                    let inspector = FourByteInspector::default();
+
+                    let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
+                    let _ = trace_citrea(
+                        db,
+                        config_env,
+                        block_env,
+                        tx_env,
+                        None,
+                        &mut citrea_inspector,
+                    )?;
+                    return Ok(FourByteFrame::from(citrea_inspector.inspector).into());
+                }
+                GethDebugBuiltInTracerType::CallTracer => {
+                    let call_config = tracer_config
+                        .into_call_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+
+                    let inspector = TracingInspector::new(
+                        TracingInspectorConfig::from_geth_call_config(&call_config),
+                    );
+                    let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
+
+                    let res = trace_citrea(
+                        db,
+                        config_env,
+                        block_env,
+                        tx_env,
+                        None,
+                        &mut citrea_inspector,
+                    )?;
+                    let frame = citrea_inspector
+                        .inspector
+                        .into_geth_builder()
+                        .geth_call_traces(call_config, res.result.gas_used());
+                    Ok(frame.into())
+                }
+                GethDebugBuiltInTracerType::PreStateTracer => {
+                    // Requires DatabaseRef trait
+                    // meaning we need a readonly state to implement this
+                    Err(EthApiError::Unsupported("PreStateTracer"))
+                }
+                GethDebugBuiltInTracerType::NoopTracer => Ok(NoopFrame::default().into()),
+                GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
+                GethDebugBuiltInTracerType::FlatCallTracer => {
+                    Err(EthApiError::Unsupported("FlatCallTracer"))
+                }
+            },
+            GethDebugTracerType::JsTracer(code) => {
+                let config = tracer_config.into_json();
+
+                let inspector = JsInspector::new(code, config)
+                    .map_err(|e| EthApiError::InternalJsTracerError(e.to_string()))?;
+                let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
+
+                let mut db_ref = EvmDbRef::new(db);
+                let result_and_state = js_trace_citrea(
+                    &mut db_ref,
+                    config_env.clone(),
+                    block_env.clone(),
+                    tx_env.clone(),
+                    None,
+                    &mut citrea_inspector,
+                )?;
+
+                let env = revm::primitives::Env {
+                    cfg: config_env.cfg_env,
+                    block: block_env,
+                    tx: tx_env,
+                };
+
+                let json_value = citrea_inspector
+                    .inspector
+                    .json_result(result_and_state, &env, &db_ref)
+                    .map_err(|e| EthApiError::InternalJsTracerError(e.to_string()))?;
+                Ok(GethTrace::JS(json_value))
+            }
+        };
+    }
+
+    // default structlog tracer
+    let inspector_config = TracingInspectorConfig::from_geth_config(&config);
+
+    let inspector = TracingInspector::new(inspector_config);
+    let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
+
+    let res = trace_citrea(
+        db,
+        config_env,
+        block_env,
+        tx_env,
+        None,
+        &mut citrea_inspector,
+    )?;
+    let gas_used = res.result.gas_used();
+    let return_value = res.result.into_output().unwrap_or_default();
+    let frame =
+        citrea_inspector
+            .inspector
+            .into_geth_builder()
+            .geth_traces(gas_used, return_value, config);
+
+    Ok(frame.into())
+}
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     opts: GethDebugTracingOptions,
@@ -49,7 +188,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         config_env,
                         block_env,
                         tx_env,
-                        tx_hash,
+                        Some(tx_hash),
                         &mut citrea_inspector,
                     )?;
                     return Ok((
@@ -71,7 +210,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         config_env,
                         block_env,
                         tx_env,
-                        tx_hash,
+                        Some(tx_hash),
                         &mut citrea_inspector,
                     )?;
                     let frame = citrea_inspector
@@ -111,7 +250,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     config_env.clone(),
                     block_env.clone(),
                     tx_env.clone(),
-                    tx_hash,
+                    Some(tx_hash),
                     &mut citrea_inspector,
                 )?;
                 let state = result_and_state.state.clone();
@@ -142,7 +281,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
         config_env,
         block_env,
         tx_env,
-        tx_hash,
+        Some(tx_hash),
         &mut citrea_inspector,
     )?;
     let gas_used = res.result.gas_used();
@@ -162,7 +301,7 @@ fn trace_citrea<'a, 'b, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: Option<TxHash>,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -179,7 +318,10 @@ where
         .append_handler_register_box(citrea_handle_register())
         .append_handler_register(inspector_handle_register)
         .build();
-    evm.context.external.set_current_tx_hash(tx_hash);
+
+    if let Some(tx_hash) = tx_hash {
+        evm.context.external.set_current_tx_hash(tx_hash);
+    }
 
     evm.transact()
 }
@@ -189,7 +331,7 @@ fn js_trace_citrea<'a, 'b, 'c, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: Option<TxHash>,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -206,7 +348,10 @@ where
         .append_handler_register_box(citrea_handle_register())
         .append_handler_register(inspector_handle_register)
         .build();
-    evm.context.external.set_current_tx_hash(tx_hash);
+
+    if let Some(tx_hash) = tx_hash {
+        evm.context.external.set_current_tx_hash(tx_hash);
+    }
 
     evm.transact()
 }
