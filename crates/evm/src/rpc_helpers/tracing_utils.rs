@@ -326,14 +326,13 @@ where
     I: Inspector<&'b mut EvmDb<'a, C>>,
     I: CitreaExternalExt,
 {
-    let citrea_spec = db.citrea_spec;
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env)
         .with_tx_env(tx_env)
-        .append_handler_register_box(citrea_handle_register(citrea_spec))
+        .append_handler_register_box(citrea_handle_register())
         .append_handler_register(inspector_handle_register)
         .build();
 
@@ -379,14 +378,13 @@ where
     I: Inspector<&'c mut EvmDbRef<'a, 'b, C>>,
     I: CitreaExternalExt,
 {
-    let citrea_spec = db.citrea_spec();
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env)
         .with_tx_env(tx_env)
-        .append_handler_register_box(citrea_handle_register(citrea_spec))
+        .append_handler_register_box(citrea_handle_register())
         .append_handler_register(inspector_handle_register)
         .build();
 

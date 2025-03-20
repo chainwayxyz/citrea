@@ -1295,7 +1295,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         opts: Option<GethDebugTracingCallOptions>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<GethTrace> {
-        let fork_fn = fork_from_block_number;
         let block_number = match block_id {
             Some(BlockId::Number(block_num)) => block_num,
             Some(BlockId::Hash(block_hash)) => {
@@ -1308,7 +1307,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let block_env = match block_number {
-            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set, &fork_fn),
+            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
             _ => {
                 let block = self
                     .get_sealed_block_by_number(Some(block_number), working_set)?
@@ -1316,7 +1315,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
                     ))?;
 
-                sealed_block_to_block_env(&block.header, &fork_fn)
+                sealed_block_to_block_env(&block.header)
             }
         };
 
@@ -1328,7 +1327,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
         };
 
-        let citrea_spec_id = fork_fn(block_num).spec_id;
+        let citrea_spec_id = fork_from_block_number(block_num).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
         let cfg = self
@@ -1344,14 +1343,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
         let account = self
-            .account_info(
-                &request.from.unwrap_or_default(),
-                citrea_spec_id,
-                working_set,
-            )
+            .account_info(&request.from.unwrap_or_default(), working_set)
             .unwrap_or_default();
 
-        let mut evm_db = self.get_db(working_set, citrea_spec_id);
+        let mut evm_db = self.get_db(working_set);
 
         // create tx env
         let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;

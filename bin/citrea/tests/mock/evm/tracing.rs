@@ -247,7 +247,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         .try_into_default_frame()
         .unwrap();
 
-    assert_eq!(default_frame_call_trace.failed, false);
+    assert!(!default_frame_call_trace.failed);
     assert_eq!(default_frame_call_trace.gas, 21000);
     assert_eq!(default_frame_call_trace.return_value, Bytes::default());
 
