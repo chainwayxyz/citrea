@@ -40,7 +40,7 @@ pub struct L2BlockSignal {
     pub state_diff: Option<StateDiff>,
 }
 
-pub struct L2SyncWorker<DA, DB>
+pub struct L2Syncer<DA, DB>
 where
     DA: DaService,
     DB: SharedLedgerOps + Clone,
@@ -63,7 +63,7 @@ where
     l2_signal_tx: mpsc::Sender<L2BlockSignal>,
 }
 
-impl<DA, DB> L2SyncWorker<DA, DB>
+impl<DA, DB> L2Syncer<DA, DB>
 where
     DA: DaService<Error = anyhow::Error>,
     DB: SharedLedgerOps + Clone + Send + Sync + 'static,

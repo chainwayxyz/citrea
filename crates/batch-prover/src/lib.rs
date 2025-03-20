@@ -5,7 +5,7 @@ use anyhow::Result;
 use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::L2SyncWorker;
+use citrea_common::l2::L2Syncer;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use da_block_handler::L1BlockHandler;
@@ -79,7 +79,7 @@ where
     let rpc_module = rpc::register_rpc_methods::<DA, Vm, DB>(rpc_context, rpc_module)?;
 
     let (l2_signal_tx, l2_signal_rx) = mpsc::channel(1);
-    let l2_sync_worker = L2SyncWorker::new(
+    let l2_syncer = L2Syncer::new(
         runner_config,
         init_params,
         native_stf,
@@ -94,7 +94,7 @@ where
         true,
     )?;
 
-    let batch_prover = CitreaBatchProver::new(ledger_db.clone(), l2_sync_worker, l2_signal_rx)?;
+    let batch_prover = CitreaBatchProver::new(ledger_db.clone(), l2_syncer, l2_signal_rx)?;
 
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));

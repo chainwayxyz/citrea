@@ -1,6 +1,6 @@
 use core::panic;
 
-use citrea_common::l2::{L2BlockSignal, L2SyncWorker};
+use citrea_common::l2::{L2BlockSignal, L2Syncer};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_rollup_interface::services::da::DaService;
@@ -17,7 +17,7 @@ where
     DB: BatchProverLedgerOps + Clone,
 {
     ledger_db: DB,
-    l2_sync_worker: Option<L2SyncWorker<DA, DB>>,
+    l2_syncer: Option<L2Syncer<DA, DB>>,
     l2_signal_rx: mpsc::Receiver<L2BlockSignal>,
 }
 
@@ -28,23 +28,20 @@ where
 {
     pub fn new(
         ledger_db: DB,
-        l2_sync_worker: L2SyncWorker<DA, DB>,
+        l2_syncer: L2Syncer<DA, DB>,
         l2_signal_rx: mpsc::Receiver<L2BlockSignal>,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             ledger_db,
-            l2_sync_worker: Some(l2_sync_worker),
+            l2_syncer: Some(l2_syncer),
             l2_signal_rx,
         })
     }
 
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(mut self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
-        let mut l2_sync_worker = self
-            .l2_sync_worker
-            .take()
-            .expect("L2 sync worker should be set");
-        let worker = l2_sync_worker.run(cancellation_token.clone());
+        let mut l2_syncer = self.l2_syncer.take().expect("L2 sync worker should be set");
+        let worker = l2_syncer.run(cancellation_token.clone());
         tokio::pin!(worker);
 
         loop {
