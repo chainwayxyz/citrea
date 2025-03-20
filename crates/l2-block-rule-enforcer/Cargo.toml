@@ -1,0 +1,38 @@
+[package]
+name = "l2-block-rule-enforcer"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+readme = "README.md"
+resolver = "2"
+
+[dependencies]
+citrea-evm = { path = "../evm" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, features = ["macros"] }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
+
+borsh = { workspace = true }
+jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+serde = { workspace = true }
+tracing = { workspace = true, optional = true }
+
+[dev-dependencies]
+chrono = { workspace = true, default-features = true }
+hex = { workspace = true }
+lazy_static = "1.4.0"
+sov-keys = { path = "../sovereign-sdk/module-system/sov-keys" }
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["native", "testing"] }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
+tempfile = { workspace = true }
+
+[features]
+default = []
+native = ["sov-modules-api/native", "dep:tracing", "jsonrpsee"]

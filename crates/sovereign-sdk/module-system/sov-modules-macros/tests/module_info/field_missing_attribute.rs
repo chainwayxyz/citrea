@@ -23,7 +23,7 @@ impl<C: Context> Module for TestStruct<C> {
         _message: Self::CallMessage,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::L2BlockModuleCallError>
     {
         todo!()
     }

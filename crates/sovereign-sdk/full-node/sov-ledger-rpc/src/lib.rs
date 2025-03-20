@@ -3,9 +3,10 @@
 use alloy_primitives::U64;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
+use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
-    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,
+    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    VerifiedBatchProofResponse,
 };
 
 #[cfg(feature = "server")]
@@ -47,38 +48,25 @@ impl From<[u8; 32]> for HexHash {
     rpc(client, namespace = "ledger")
 )]
 pub trait LedgerRpc {
-    /// Gets a single soft confirmation by number.
-    #[method(name = "getSoftConfirmationByNumber")]
+    /// Gets a single l2 block by number.
+    #[method(name = "getL2BlockByNumber")]
     #[blocking]
-    fn get_soft_confirmation_by_number(
-        &self,
-        number: U64,
-    ) -> RpcResult<Option<SoftConfirmationResponse>>;
+    fn get_l2_block_by_number(&self, number: U64) -> RpcResult<Option<L2BlockResponse>>;
 
-    /// Gets a single soft confirmation by hash.
-    #[method(name = "getSoftConfirmationByHash")]
+    /// Gets a single l2 block by hash.
+    #[method(name = "getL2BlockByHash")]
     #[blocking]
-    fn get_soft_confirmation_by_hash(
-        &self,
-        hash: HexHash,
-    ) -> RpcResult<Option<SoftConfirmationResponse>>;
+    fn get_l2_block_by_hash(&self, hash: HexHash) -> RpcResult<Option<L2BlockResponse>>;
 
-    /// Gets all soft confirmations with numbers `range.start` to `range.end`.
-    #[method(name = "getSoftConfirmationRange")]
+    /// Gets all l2 blocks with numbers `range.start` to `range.end`.
+    #[method(name = "getL2BlockRange")]
     #[blocking]
-    fn get_soft_confirmation_range(
-        &self,
-        start: U64,
-        end: U64,
-    ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>>;
+    fn get_l2_block_range(&self, start: U64, end: U64) -> RpcResult<Vec<Option<L2BlockResponse>>>;
 
     /// Gets a single event by number.
-    #[method(name = "getSoftConfirmationStatus")]
+    #[method(name = "getL2BlockStatus")]
     #[blocking]
-    fn get_soft_confirmation_status(
-        &self,
-        soft_confirmation_receipt: U64,
-    ) -> RpcResult<SoftConfirmationStatus>;
+    fn get_l2_block_status(&self, l2_block_receipt: U64) -> RpcResult<L2BlockStatus>;
 
     /// Gets the L2 genesis state root.
     #[method(name = "getL2GenesisStateRoot")]
@@ -117,15 +105,15 @@ pub trait LedgerRpc {
         hash: HexHash,
     ) -> RpcResult<Option<Vec<BatchProofResponse>>>;
 
-    /// Gets the height pf most recent committed soft confirmation.
-    #[method(name = "getHeadSoftConfirmation")]
+    /// Gets the height pf most recent committed l2 block.
+    #[method(name = "getHeadL2Block")]
     #[blocking]
-    fn get_head_soft_confirmation(&self) -> RpcResult<Option<SoftConfirmationResponse>>;
+    fn get_head_l2_block(&self) -> RpcResult<Option<L2BlockResponse>>;
 
-    /// Gets the height pf most recent committed soft confirmation.
-    #[method(name = "getHeadSoftConfirmationHeight")]
+    /// Gets the height pf most recent committed l2 block.
+    #[method(name = "getHeadL2BlockHeight")]
     #[blocking]
-    fn get_head_soft_confirmation_height(&self) -> RpcResult<U64>;
+    fn get_head_l2_block_height(&self) -> RpcResult<U64>;
 
     /// Gets verified proofs by slot height
     #[method(name = "getVerifiedBatchProofsBySlotHeight")]

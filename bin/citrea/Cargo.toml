@@ -31,8 +31,9 @@ prover-services = { path = "../../crates/prover-services" }
 short-header-proof-provider = { path = "../../crates/short-header-proof-provider", features = ["native"] }
 
 # Sovereign-SDK deps
-soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
+l2-block-rule-enforcer = { path = "../../crates/l2-block-rule-enforcer" }
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
+sov-keys = { path = "../../crates/sovereign-sdk/module-system/sov-keys", features = ["native"] }
 sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = ["server"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-modules-api = { path = "../../crates/sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
@@ -59,7 +60,6 @@ metrics-util = { workspace = true }
 reth-primitives = { workspace = true }
 reth-transaction-pool = { workspace = true }
 risc0-binfmt = { workspace = true }
-secp256k1 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true }

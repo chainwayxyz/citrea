@@ -21,7 +21,6 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 
 mod commitment;
-mod compat;
 pub mod db_migrations;
 mod db_provider;
 mod deposit_data_mempool;
@@ -44,7 +43,7 @@ pub fn build_services<Da, DB>(
     da_service: Arc<Da>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    l2_block_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
@@ -86,7 +85,7 @@ where
         mempool,
         deposit_mempool,
         fork_manager,
-        soft_confirmation_tx,
+        l2_block_tx,
         backup_manager,
         l2_force_block_rx,
     )

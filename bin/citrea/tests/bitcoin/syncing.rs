@@ -90,14 +90,14 @@ impl TestCase for SyncStatusTest {
         TestCaseConfig {
             with_sequencer: true,
             with_full_node: true,
-            mode: CitreaMode::DevAllForks,
+            mode: CitreaMode::Dev,
             ..Default::default()
         }
     }
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 1000,
+            min_l2_blocks_per_commitment: 1000,
             ..Default::default()
         }
     }
@@ -265,10 +265,10 @@ async fn test_same_block_sync() -> Result<()> {
         .await
 }
 
-struct SoftConfirmationsDifferentBlocksTest;
+struct L2BlocksDifferentBlocksTest;
 
 #[async_trait]
-impl TestCase for SoftConfirmationsDifferentBlocksTest {
+impl TestCase for L2BlocksDifferentBlocksTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_sequencer: true,
@@ -290,23 +290,25 @@ impl TestCase for SoftConfirmationsDifferentBlocksTest {
         sequencer.wait_for_l2_height(6, None).await?;
         full_node.wait_for_l2_height(6, None).await?;
 
-        // Verify soft confirmations match
+        // Verify l2 blocks match
         for i in 1..=6 {
-            let seq_soft_conf = sequencer
+            let seq_l2_block = sequencer
                 .client
                 .http_client()
-                .get_soft_confirmation_by_number(U64::from(i))
+                .get_l2_block_by_number(U64::from(i))
                 .await?
                 .unwrap();
-            let full_soft_conf = full_node
+            let full_l2_block = full_node
                 .client
                 .http_client()
-                .get_soft_confirmation_by_number(U64::from(i))
+                .get_l2_block_by_number(U64::from(i))
                 .await?
                 .unwrap();
 
-            assert_eq!(seq_soft_conf.da_slot_height, full_soft_conf.da_slot_height);
-            assert_eq!(seq_soft_conf.state_root, full_soft_conf.state_root);
+            assert_eq!(
+                seq_l2_block.header.state_root,
+                full_l2_block.header.state_root
+            );
         }
 
         // Generate new DA block
@@ -320,23 +322,33 @@ impl TestCase for SoftConfirmationsDifferentBlocksTest {
         sequencer.wait_for_l2_height(12, None).await?;
         full_node.wait_for_l2_height(12, None).await?;
 
-        // Verify new soft confirmations match but are on different DA blocks
+        // Verify new l2 blocks match but are on different DA blocks
         for i in 7..=12 {
-            let seq_soft_conf = sequencer
+            let seq_l2_block = sequencer
                 .client
                 .http_client()
-                .get_soft_confirmation_by_number(U64::from(i))
+                .get_l2_block_by_number(U64::from(i))
                 .await?
                 .unwrap();
-            let full_soft_conf = full_node
+            let full_node_l2_block = full_node
                 .client
                 .http_client()
-                .get_soft_confirmation_by_number(U64::from(i))
+                .get_l2_block_by_number(U64::from(i))
+                .await?
+                .unwrap();
+            let hash = full_node_l2_block.header.hash;
+            let full_node_l2_block_by_hash = full_node
+                .client
+                .http_client()
+                .get_l2_block_by_hash(hash.into())
                 .await?
                 .unwrap();
 
-            assert_eq!(seq_soft_conf.da_slot_height, full_soft_conf.da_slot_height);
-            assert_eq!(seq_soft_conf.state_root, full_soft_conf.state_root);
+            assert_eq!(
+                seq_l2_block.header.state_root,
+                full_node_l2_block.header.state_root
+            );
+            assert_eq!(seq_l2_block, full_node_l2_block_by_hash);
         }
 
         Ok(())
@@ -344,8 +356,8 @@ impl TestCase for SoftConfirmationsDifferentBlocksTest {
 }
 
 #[tokio::test]
-async fn test_soft_confirmations_different_blocks() -> Result<()> {
-    TestCaseRunner::new(SoftConfirmationsDifferentBlocksTest)
+async fn test_l2_blocks_different_blocks() -> Result<()> {
+    TestCaseRunner::new(L2BlocksDifferentBlocksTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

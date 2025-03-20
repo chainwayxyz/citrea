@@ -7,26 +7,17 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
-use borsh::BorshDeserialize;
 use citrea_e2e::config::{
-    BatchProverConfig, CitreaMode, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
-    SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
+    TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
-use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
-use citrea_stf::runtime::DefaultContext;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::default_signature::K256PublicKey;
-use sov_modules_api::fork::ForkManager;
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{PublicKey, Spec, SpecId};
 use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
-use sov_rollup_interface::Network;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
@@ -88,7 +79,7 @@ pub async fn wait_for_proving_finish(
 }
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
-/// It generates soft confirmations and wait until it reaches the first commitment.
+/// It generates l2 blocks and wait until it reaches the first commitment.
 /// It asserts that the blob inscribe txs have been sent.
 /// This catches regression to the default prover flow, such as the one introduced by [#942](https://github.com/chainwayxyz/citrea/pull/942) and [#973](https://github.com/chainwayxyz/citrea/pull/973)
 struct BasicProverTest;
@@ -113,10 +104,9 @@ impl TestCase for BasicProverTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        for _ in 0..min_soft_confirmations_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -190,7 +180,7 @@ async fn basic_prover_test() -> Result<()> {
 
 //     fn sequencer_config() -> SequencerConfig {
 //         SequencerConfig {
-//             min_soft_confirmations_per_commitment: 1,
+//             min_l2_blocks_per_commitment: 1,
 //             ..Default::default()
 //         }
 //     }
@@ -258,10 +248,9 @@ async fn basic_prover_test() -> Result<()> {
 //         // Generate FINALIZED DA block.
 //         da.generate(FINALITY_DEPTH).await?;
 
-//         let min_soft_confirmations_per_commitment =
-//             sequencer.min_soft_confirmations_per_commitment();
+//         let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-//         for _ in 0..min_soft_confirmations_per_commitment {
+//         for _ in 0..min_l2_blocks_per_commitment {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
@@ -327,8 +316,8 @@ async fn basic_prover_test() -> Result<()> {
 //         // Wait for the duplicate commitment transaction to be accepted.
 //         da.wait_mempool_len(2, None).await?;
 
-//         // Trigger a new commitment.
-//         for _ in 0..min_soft_confirmations_per_commitment {
+//         Trigger a new commitment.
+//         for _ in 0..min_l2_blocks_per_commitment {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
@@ -417,7 +406,7 @@ impl TestCase for LocalProvingTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             // Made this 1 or-else proving takes forever
-            min_soft_confirmations_per_commitment: 1,
+            min_l2_blocks_per_commitment: 1,
             ..Default::default()
         }
     }
@@ -430,10 +419,9 @@ impl TestCase for LocalProvingTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
-        // Generate soft confirmations to invoke commitment creation
-        for _ in 0..min_soft_confirmations_per_commitment {
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        // Generate l2 blocks to invoke commitment creation
+        for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -503,7 +491,7 @@ impl TestCase for ParallelProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 98,
+            min_l2_blocks_per_commitment: 100,
             mempool_conf: SequencerMempoolConfig {
                 max_account_slots: 1000,
                 ..Default::default()
@@ -512,14 +500,17 @@ impl TestCase for ParallelProvingTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
         let seq_test_client = make_test_client(SocketAddr::new(
             sequencer.config().rpc_bind_host().parse()?,
@@ -528,7 +519,7 @@ impl TestCase for ParallelProvingTest {
         .await?;
 
         // Invoke 2 sequencer commitments
-        for _ in 0..min_soft_confirmations_per_commitment * 2 {
+        for _ in 0..min_l2_blocks_per_commitment * 2 {
             // 6 txs in each block
             for _ in 0..6 {
                 let _ = seq_test_client
@@ -579,242 +570,242 @@ async fn parallel_proving_test() -> Result<()> {
         .await
 }
 
-struct ForkElfSwitchingTest;
+// struct ForkElfSwitchingTest;
 
-#[async_trait]
-impl TestCase for ForkElfSwitchingTest {
-    fn test_config() -> TestCaseConfig {
-        TestCaseConfig {
-            with_batch_prover: true,
-            with_full_node: true,
-            with_light_client_prover: true,
-            mode: CitreaMode::DevAllForks,
-            ..Default::default()
-        }
-    }
+// #[async_trait]
+// impl TestCase for ForkElfSwitchingTest {
+//     fn test_config() -> TestCaseConfig {
+//         TestCaseConfig {
+//             with_batch_prover: true,
+//             with_full_node: true,
+//             with_light_client_prover: true,
+//             mode: CitreaMode::DevAllForks,
+//             ..Default::default()
+//         }
+//     }
 
-    fn light_client_prover_config() -> LightClientProverConfig {
-        LightClientProverConfig {
-            initial_da_height: 171,
-            enable_recovery: false,
-            ..Default::default()
-        }
-    }
+//     fn light_client_prover_config() -> LightClientProverConfig {
+//         LightClientProverConfig {
+//             initial_da_height: 171,
+//             enable_recovery: false,
+//             ..Default::default()
+//         }
+//     }
 
-    fn sequencer_config() -> SequencerConfig {
-        let kumquat_height = ForkManager::new(get_forks(), 0)
-            .next_fork()
-            .unwrap()
-            .activation_height;
+//     fn sequencer_config() -> SequencerConfig {
+//         let kumquat_height = ForkManager::new(get_forks(), 0)
+//             .next_fork()
+//             .unwrap()
+//             .activation_height;
 
-        // Set just below kumquat height so we can generate first soft com txs in genesis
-        // and second batch above kumquat
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: kumquat_height - 5,
-            ..Default::default()
-        }
-    }
+//         // Set just below kumquat height so we can generate first soft com txs in genesis
+//         // and second batch above kumquat
+//         SequencerConfig {
+//             min_l2_blocks_per_commitment: kumquat_height - 5,
+//             ..Default::default()
+//         }
+//     }
 
-    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let da = f.bitcoin_nodes.get(0).unwrap();
-        let sequencer = f.sequencer.as_ref().unwrap();
-        let batch_prover = f.batch_prover.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
-        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+//     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+//         let da = f.bitcoin_nodes.get(0).unwrap();
+//         let sequencer = f.sequencer.as_ref().unwrap();
+//         let batch_prover = f.batch_prover.as_ref().unwrap();
+//         let full_node = f.full_node.as_ref().unwrap();
+//         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        // send evm tx
-        let evm_client = make_test_client(SocketAddr::new(
-            sequencer.config().rpc_bind_host().parse()?,
-            sequencer.config().rpc_bind_port(),
-        ))
-        .await?;
+//         // send evm tx
+//         let evm_client = make_test_client(SocketAddr::new(
+//             sequencer.config().rpc_bind_host().parse()?,
+//             sequencer.config().rpc_bind_port(),
+//         ))
+//         .await?;
 
-        let pending_evm_tx = evm_client
-            .send_eth(Address::random(), None, None, None, 100)
-            .await
-            .unwrap();
+//         let pending_evm_tx = evm_client
+//             .send_eth(Address::random(), None, None, None, 100)
+//             .await
+//             .unwrap();
 
-        let min_soft_confirmations = sequencer.min_soft_confirmations_per_commitment();
+//         let min_l2_blocks = sequencer.min_l2_blocks_per_commitment();
 
-        for _ in 0..min_soft_confirmations {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+//         for _ in 0..min_l2_blocks {
+//             sequencer.client.send_publish_batch_request().await?;
+//         }
 
-        // assert that evm tx is mined
-        let evm_tx = evm_client
-            .eth_get_transaction_by_hash(*pending_evm_tx.tx_hash(), None)
-            .await
-            .unwrap();
+//         // assert that evm tx is mined
+//         let evm_tx = evm_client
+//             .eth_get_transaction_by_hash(*pending_evm_tx.tx_hash(), None)
+//             .await
+//             .unwrap();
 
-        assert!(evm_tx.block_number.is_some());
+//         assert!(evm_tx.block_number.is_some());
 
-        let height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
+//         let height = sequencer
+//             .client
+//             .ledger_get_head_l2_block_height()
+//             .await?;
 
-        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
+//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
 
-        // Generate softcom in kumquat
-        for _ in 0..min_soft_confirmations {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+//         // Generate softcom in kumquat
+//         for _ in 0..min_l2_blocks {
+//             sequencer.client.send_publish_batch_request().await?;
+//         }
 
-        let height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
-        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
+//         let height = sequencer
+//             .client
+//             .ledger_get_head_l2_block_height()
+//             .await?;
+//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
 
-        // Generate softcom in fork2
-        for _ in 0..min_soft_confirmations {
-            sequencer.client.send_publish_batch_request().await?;
-        }
+//         // Generate softcom in fork2
+//         for _ in 0..min_l2_blocks {
+//             sequencer.client.send_publish_batch_request().await?;
+//         }
 
-        let last_sc_before_fork2 = sequencer
-            .client
-            .http_client()
-            .get_soft_confirmation_by_number(U64::from(199u64))
-            .await
-            .unwrap()
-            .unwrap();
+//         let last_sc_before_fork2 = sequencer
+//             .client
+//             .http_client()
+//             .get_l2_block_by_number(U64::from(199u64))
+//             .await
+//             .unwrap()
+//             .unwrap();
 
-        // the last tx of last soft confirmation before fork2 should be the change authority sov tx
-        let last_tx_hex = last_sc_before_fork2
-            .clone()
-            .txs
-            .clone()
-            .unwrap()
-            .last()
-            .expect("should have last tx")
-            .clone();
+//         // the last tx of last l2 block before fork2 should be the change authority sov tx
+//         let last_tx_hex = last_sc_before_fork2
+//             .clone()
+//             .txs
+//             .clone()
+//             .unwrap()
+//             .last()
+//             .expect("should have last tx")
+//             .clone();
 
-        let tx_vec = last_tx_hex.tx.clone();
+//         let tx_vec = last_tx_hex.tx.clone();
 
-        let tx = Transaction::try_from_slice(&tx_vec).expect("Should be the tx");
+//         let tx = Transaction::try_from_slice(&tx_vec).expect("Should be the tx");
 
-        let k256_pub_key_sequencer = K256PublicKey::try_from(
-            sequencer
-                .config()
-                .rollup
-                .public_keys
-                .sequencer_k256_public_key
-                .as_slice(),
-        )
-        .unwrap();
+//         let k256_pub_key_sequencer = K256PublicKey::try_from(
+//             sequencer
+//                 .config()
+//                 .rollup
+//                 .public_keys
+//                 .sequencer_public_key
+//                 .as_slice(),
+//         )
+//         .unwrap();
 
-        let address = k256_pub_key_sequencer.to_address::<<DefaultContext as Spec>::Address>();
+//         let address = k256_pub_key_sequencer.to_address::<<DefaultContext as Spec>::Address>();
 
-        // Going to ignore the first byte here because it's the call prefix
-        // It is an enum of modules:
-        // 0 is accounts,1 is evm, 2 is soft confirmation rule enforcer
-        // assert the first byte is 2 as in sc rule enforcer
-        assert_eq!(tx.runtime_msg()[0], 2);
+//         // Going to ignore the first byte here because it's the call prefix
+//         // It is an enum of modules:
+//         // 0 is accounts,1 is evm, 2 is l2 block rule enforcer
+//         // assert the first byte is 2 as in sc rule enforcer
+//         assert_eq!(tx.runtime_msg()[0], 2);
 
-        let change_authority_call_message: soft_confirmation_rule_enforcer::CallMessage
-        // Going to ignore the first byte here because it's the call prefix as explained above
-        = soft_confirmation_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
-            .expect("Should be the tx");
+//         let change_authority_call_message: l2_block_rule_enforcer::CallMessage
+//         // Going to ignore the first byte here because it's the call prefix as explained above
+//         = l2_block_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
+//             .expect("Should be the tx");
 
-        match change_authority_call_message {
-            soft_confirmation_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
-                assert_eq!(new_authority, address);
-                println!("New authority: {:?}", new_authority);
-            }
-            _ => panic!("Should be change authority"),
-        }
+//         match change_authority_call_message {
+//             l2_block_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
+//                 assert_eq!(new_authority, address);
+//                 println!("New authority: {:?}", new_authority);
+//             }
+//             _ => panic!("Should be change authority"),
+//         }
 
-        let height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
-        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
+//         let height = sequencer
+//             .client
+//             .ledger_get_head_l2_block_height()
+//             .await?;
+//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
 
-        da.wait_mempool_len(6, None).await?;
+//         da.wait_mempool_len(6, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+//         da.generate(FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height(None).await?;
+//         let finalized_height = da.get_finalized_height(None).await?;
 
-        batch_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await?;
+//         batch_prover
+//             .wait_for_l1_height(finalized_height, None)
+//             .await?;
 
-        // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(6, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+//         // Wait for batch proof tx to hit mempool
+//         da.wait_mempool_len(6, None).await?;
+//         da.generate(FINALITY_DEPTH).await?;
 
-        full_node
-            .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
-            .await?;
-        let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 3)
-            .await
-            .unwrap();
+//         full_node
+//             .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
+//             .await?;
+//         let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None, 3)
+//             .await
+//             .unwrap();
 
-        assert_eq!(proofs.len(), 3);
-        assert_eq!(
-            SpecId::from_u8(
-                proofs[0]
-                    .proof_output
-                    .last_active_spec_id
-                    .expect("should have field")
-                    .to()
-            )
-            .expect("should be valid"),
-            SpecId::Genesis
-        );
-        assert_eq!(
-            fork_from_block_number(
-                proofs[1]
-                    .proof_output
-                    .last_l2_height
-                    .expect("should have field")
-                    .to()
-            )
-            .spec_id,
-            SpecId::Kumquat
-        );
-        assert_eq!(
-            fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
-            SpecId::Fork2
-        );
+//         assert_eq!(proofs.len(), 3);
+//         assert_eq!(
+//             SpecId::from_u8(
+//                 proofs[0]
+//                     .proof_output
+//                     .last_active_spec_id
+//                     .expect("should have field")
+//                     .to()
+//             )
+//             .expect("should be valid"),
+//             SpecId::Genesis
+//         );
+//         assert_eq!(
+//             fork_from_block_number(
+//                 proofs[1]
+//                     .proof_output
+//                     .last_l2_height
+//                     .expect("should have field")
+//                     .to()
+//             )
+//             .spec_id,
+//             SpecId::Kumquat
+//         );
+//         assert_eq!(
+//             fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
+//             SpecId::Fork2
+//         );
 
-        light_client_prover
-            .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
-            .await?;
-        let lcp = light_client_prover
-            .client
-            .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height + FINALITY_DEPTH)
-            .await
-            .unwrap()
-            .unwrap();
+//         light_client_prover
+//             .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
+//             .await?;
+//         let lcp = light_client_prover
+//             .client
+//             .http_client()
+//             .get_light_client_proof_by_l1_height(finalized_height + FINALITY_DEPTH)
+//             .await
+//             .unwrap()
+//             .unwrap();
 
-        assert!(lcp
-            .light_client_proof_output
-            .unchained_batch_proofs_info
-            .is_empty());
+//         assert!(lcp
+//             .light_client_proof_output
+//             .unchained_batch_proofs_info
+//             .is_empty());
 
-        assert_eq!(
-            lcp.light_client_proof_output.l2_state_root.to_vec(),
-            proofs[2].proof_output.final_state_root
-        );
+//         assert_eq!(
+//             lcp.light_client_proof_output.l2_state_root.to_vec(),
+//             proofs[2].proof_output.final_state_root
+//         );
 
-        Ok(())
-    }
-}
+//         Ok(())
+//     }
+// }
 
-// ignoring this test now as we won't be supporting backwards compatability for proofs.
-#[tokio::test]
-#[ignore]
-async fn test_fork_elf_switching() -> Result<()> {
-    use_network_forks(Network::TestNetworkWithForks);
+// // ignoring this test now as we won't be supporting backwards compatability for proofs.
+// #[tokio::test]
+// #[ignore]
+// async fn test_fork_elf_switching() -> Result<()> {
+//     use_network_forks(Network::TestNetworkWithForks);
 
-    TestCaseRunner::new(ForkElfSwitchingTest)
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
-}
+//     TestCaseRunner::new(ForkElfSwitchingTest)
+//         .set_citrea_path(get_citrea_path())
+//         .run()
+//         .await
+// }
 
 struct L1HashOutputTest;
 
@@ -829,7 +820,7 @@ impl TestCase for L1HashOutputTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 12,
+            min_l2_blocks_per_commitment: 12,
             ..Default::default()
         }
     }
@@ -871,13 +862,14 @@ impl TestCase for L1HashOutputTest {
         let l1_hash = zkp[0]
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
-            .clone()
-            .expect("Should exist")
-            .0;
+            .clone();
 
         let hash_from_rpc = sequencer.da.get_block_hash(start_l1_height + 100).await?;
 
-        assert_eq!(hash_from_rpc.as_raw_hash().to_byte_array(), l1_hash);
+        assert_eq!(
+            hash_from_rpc.as_raw_hash().to_byte_array().to_vec(),
+            l1_hash
+        );
 
         // part 2
         for _ in 0..26 {
@@ -917,9 +909,7 @@ impl TestCase for L1HashOutputTest {
         let prev_l1_hash = zkp_prev[0]
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
-            .clone()
-            .expect("Should exist")
-            .0;
+            .clone();
 
         assert_ne!(prev_l1_hash, l1_hash);
 
@@ -930,9 +920,7 @@ impl TestCase for L1HashOutputTest {
         let new_l1_hash = zkp_last[0]
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
-            .clone()
-            .expect("Should exist")
-            .0;
+            .clone();
 
         assert_eq!(new_l1_hash, prev_l1_hash);
 

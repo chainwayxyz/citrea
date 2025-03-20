@@ -3,10 +3,9 @@ use core::result::Result;
 use borsh::BorshDeserialize;
 use hex::FromHex;
 use serde::{Deserialize, Deserializer};
-use sov_modules_api::default_signature::{DefaultPublicKey, K256PublicKey};
-use sov_modules_api::{
-    Address, PublicKey, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet,
-};
+use sov_keys::default_signature::K256PublicKey;
+use sov_keys::PublicKey;
+use sov_modules_api::{Address, L2BlockHookError, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -37,62 +36,33 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) {
         for pub_key in config.pub_keys.iter() {
-            if self
-                .accounts_pre_fork2
-                .get(
-                    &DefaultPublicKey::try_from_slice(pub_key).expect("Should be a valid pub key"),
-                    working_set,
-                )
-                .is_some()
-            {
-                panic!("No account should exist in init_module");
-            }
-
             // Called only in genesis so spec id should be Genesis
-            self.create_default_account(pub_key, working_set, SpecId::Genesis)
-                .expect("Accounts should create account in init_module");
+            self.create_default_account(
+                &K256PublicKey::try_from_slice(pub_key)
+                    .expect("K256PublicKey should be created from slice"),
+                working_set,
+            )
+            .expect("Accounts should create account in init_module");
         }
     }
 
     pub(crate) fn create_default_account(
         &self,
-        pub_key: &[u8],
+        pub_key: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
-        spec_id: SpecId,
-    ) -> Result<Account, SoftConfirmationHookError> {
-        let default_address: Address = if spec_id >= SpecId::Fork2 {
-            let pub_key: K256PublicKey = K256PublicKey::try_from_slice(pub_key)
-                // TODO: Update error handling
-                .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
-            pub_key.to_address()
-        } else {
-            let pub_key = C::PublicKey::try_from_slice(pub_key)
-                // TODO: Update error handling
-                .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
-            pub_key.to_address()
-        };
+    ) -> Result<Account, L2BlockHookError> {
+        let default_address = pub_key.to_address();
 
-        self.exit_if_address_exists(&default_address, working_set, spec_id)?;
+        self.exit_if_address_exists(&default_address, working_set)?;
 
         let new_account = Account {
             addr: default_address,
             nonce: 0,
         };
 
-        if spec_id >= SpecId::Fork2 {
-            self.accounts.set(pub_key, &new_account, working_set);
+        self.accounts.set(pub_key, &new_account, working_set);
 
-            self.public_keys
-                .set(&default_address, &pub_key.to_vec(), working_set);
-        } else {
-            let pub_key =
-                DefaultPublicKey::try_from_slice(pub_key).expect("Should be valid public key");
-            self.accounts_pre_fork2
-                .set(&pub_key, &new_account, working_set);
-
-            self.public_keys_pre_fork2
-                .set(&default_address, &pub_key, working_set);
-        }
+        self.public_keys.set(&default_address, pub_key, working_set);
 
         Ok(new_account)
     }
@@ -101,18 +71,9 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         &self,
         address: &Address,
         working_set: &mut WorkingSet<C::Storage>,
-        spec_id: SpecId,
-    ) -> Result<(), SoftConfirmationHookError> {
-        if spec_id >= SpecId::Fork2 {
-            if self.public_keys.get(address, working_set).is_some() {
-                return Err(SoftConfirmationHookError::SovTxAccountAlreadyExists);
-            }
-        } else if self
-            .public_keys_pre_fork2
-            .get(address, working_set)
-            .is_some()
-        {
-            return Err(SoftConfirmationHookError::SovTxAccountAlreadyExists);
+    ) -> Result<(), L2BlockHookError> {
+        if self.public_keys.get(address, working_set).is_some() {
+            return Err(L2BlockHookError::SovTxAccountAlreadyExists);
         }
 
         Ok(())
@@ -121,30 +82,30 @@ impl<C: sov_modules_api::Context> Accounts<C> {
 
 #[cfg(all(test, feature = "native"))]
 mod tests {
-    use sov_modules_api::default_signature::DefaultPublicKey;
-    use sov_modules_api::PublicKeyHex;
+    use sov_keys::default_signature::K256PublicKey;
+    use sov_keys::PublicKeyHex;
 
     use super::*;
 
     #[test]
     fn test_config_serialization() {
         let pub_key_hex = PublicKeyHex::try_from(
-            "1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf",
+            "0300c27ad8a28f9e69f72984612c435edef385907101315f0317f0632a73aa706a",
         )
         .unwrap();
 
-        let _ = DefaultPublicKey::try_from(&pub_key_hex).unwrap();
+        let _ = K256PublicKey::try_from(&pub_key_hex).unwrap();
 
         let config = AccountConfig {
             pub_keys: vec![hex::decode(
-                "1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf",
+                "0300c27ad8a28f9e69f72984612c435edef385907101315f0317f0632a73aa706a",
             )
             .unwrap()],
         };
 
         let data = r#"
         {
-            "pub_keys":["1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf"]
+            "pub_keys":["0300c27ad8a28f9e69f72984612c435edef385907101315f0317f0632a73aa706a"]
         }"#;
 
         let parsed_config: AccountConfig = serde_json::from_str(data).unwrap();

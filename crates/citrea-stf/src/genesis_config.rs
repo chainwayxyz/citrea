@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context as _;
 use citrea_evm::EvmConfig;
-use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcerConfig;
+use l2_block_rule_enforcer::L2BlockRuleEnforcerConfig;
 use sov_accounts::AccountConfig;
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Context;
@@ -25,8 +25,8 @@ pub struct GenesisPaths {
     pub accounts_genesis_path: PathBuf,
     /// EVM genesis path.
     pub evm_genesis_path: PathBuf,
-    /// Soft Confirmation Rule Enforcer genesis path.
-    pub soft_confirmation_rule_enforcer_genesis_path: PathBuf,
+    /// L2 Block Rule Enforcer genesis path.
+    pub l2_block_rule_enforcer_genesis_path: PathBuf,
 }
 
 impl GenesisPaths {
@@ -39,9 +39,7 @@ impl GenesisPaths {
         Self {
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
-            soft_confirmation_rule_enforcer_genesis_path: dir
-                .as_ref()
-                .join("soft_confirmation_rule_enforcer.json"),
+            l2_block_rule_enforcer_genesis_path: dir.as_ref().join("l2_block_rule_enforcer.json"),
         }
     }
 }
@@ -68,13 +66,13 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
 
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 
-    let soft_confirmation_rule_enforcer_config: SoftConfirmationRuleEnforcerConfig =
-        read_json_file(&genesis_paths.soft_confirmation_rule_enforcer_genesis_path)?;
+    let l2_block_rule_enforcer_config: L2BlockRuleEnforcerConfig =
+        read_json_file(&genesis_paths.l2_block_rule_enforcer_genesis_path)?;
 
     Ok(GenesisConfig::new(
         accounts_config,
         evm_config,
-        soft_confirmation_rule_enforcer_config,
+        l2_block_rule_enforcer_config,
     ))
 }
 

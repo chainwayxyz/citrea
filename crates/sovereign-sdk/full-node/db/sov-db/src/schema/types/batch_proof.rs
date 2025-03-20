@@ -1,13 +1,11 @@
 use std::fmt::Debug;
 
-use alloy_primitives::{U32, U64, U8};
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, SerializableHash, VerifiedBatchProofResponse,
 };
-use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::Proof;
@@ -15,10 +13,6 @@ use sov_rollup_interface::zk::Proof;
 /// The on-disk format for a state transition.
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub enum StoredBatchProofOutput {
-    /// V1 batch proof output wrapper
-    V1(BatchProofCircuitOutputV1),
-    /// V2 batch proof output wrapper
-    V2(BatchProofCircuitOutputV2),
     /// V3 batch proof output wrapper
     V3(BatchProofCircuitOutputV3),
 }
@@ -47,22 +41,8 @@ impl From<StoredBatchProof> for BatchProofResponse {
 impl From<BatchProofCircuitOutput> for StoredBatchProofOutput {
     fn from(value: BatchProofCircuitOutput) -> Self {
         match value {
-            BatchProofCircuitOutput::V1(value) => Self::V1(value),
-            BatchProofCircuitOutput::V2(value) => Self::V2(value),
             BatchProofCircuitOutput::V3(value) => Self::V3(value),
         }
-    }
-}
-
-impl From<BatchProofCircuitOutputV1> for StoredBatchProofOutput {
-    fn from(value: BatchProofCircuitOutputV1) -> Self {
-        Self::V1(value)
-    }
-}
-
-impl From<BatchProofCircuitOutputV2> for StoredBatchProofOutput {
-    fn from(value: BatchProofCircuitOutputV2) -> Self {
-        Self::V2(value)
     }
 }
 
@@ -93,64 +73,28 @@ impl From<StoredVerifiedProof> for VerifiedBatchProofResponse {
 impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
     fn from(value: StoredBatchProofOutput) -> Self {
         match value {
-            StoredBatchProofOutput::V1(value) => Self {
-                initial_state_root: value.initial_state_root.to_vec(),
-                final_state_root: value.final_state_root.to_vec(),
-                state_diff: value.state_diff,
-                da_slot_hash: Some(SerializableHash(value.da_slot_hash)),
-                sequencer_da_public_key: value.sequencer_da_public_key,
-                sequencer_public_key: value.sequencer_public_key,
-                sequencer_commitments_range: Some((
-                    U32::from(value.sequencer_commitments_range.0),
-                    U32::from(value.sequencer_commitments_range.1),
-                )),
-                preproven_commitments: Some(value.preproven_commitments),
-                prev_soft_confirmation_hash: Some(SerializableHash(value.initial_batch_hash)),
-                final_soft_confirmation_hash: None,
-                last_l2_height: None,
-                last_active_spec_id: Some(U8::from(value.last_active_spec_id as u8)),
-                last_l1_hash_on_bitcoin_light_client_contract: None,
-            },
-            StoredBatchProofOutput::V2(value) => Self {
-                initial_state_root: value.initial_state_root.to_vec(),
-                final_state_root: value.final_state_root.to_vec(),
-                state_diff: value.state_diff,
-                da_slot_hash: Some(SerializableHash(value.da_slot_hash)),
-                sequencer_da_public_key: value.sequencer_da_public_key,
-                sequencer_public_key: value.sequencer_public_key,
-                sequencer_commitments_range: Some((
-                    U32::from(value.sequencer_commitments_range.0),
-                    U32::from(value.sequencer_commitments_range.1),
-                )),
-                preproven_commitments: Some(value.preproven_commitments),
-                prev_soft_confirmation_hash: Some(SerializableHash(
-                    value.prev_soft_confirmation_hash,
-                )),
-                final_soft_confirmation_hash: Some(SerializableHash(
-                    value.final_soft_confirmation_hash,
-                )),
-                last_l2_height: Some(U64::from(value.last_l2_height)),
-                last_active_spec_id: None,
-                last_l1_hash_on_bitcoin_light_client_contract: None,
-            },
             StoredBatchProofOutput::V3(value) => Self {
                 initial_state_root: value.initial_state_root.to_vec(),
                 final_state_root: value.final_state_root.to_vec(),
                 state_diff: value.state_diff,
-                da_slot_hash: None,
-                sequencer_da_public_key: vec![],
-                sequencer_public_key: vec![],
-                sequencer_commitments_range: None,
-                preproven_commitments: None,
-                prev_soft_confirmation_hash: None,
-                final_soft_confirmation_hash: Some(SerializableHash(
-                    value.final_soft_confirmation_hash,
-                )),
-                last_l2_height: Some(U64::from(value.last_l2_height)),
-                last_active_spec_id: None,
-                last_l1_hash_on_bitcoin_light_client_contract: Some(SerializableHash(
-                    value.last_l1_hash_on_bitcoin_light_client_contract,
-                )),
+                final_l2_block_hash: value.final_l2_block_hash.to_vec(),
+                last_l2_height: U64::from(value.last_l2_height),
+                last_l1_hash_on_bitcoin_light_client_contract: value
+                    .last_l1_hash_on_bitcoin_light_client_contract
+                    .to_vec(),
+                sequencer_commitment_index_range: (
+                    U32::from(value.sequencer_commitment_index_range.0),
+                    U32::from(value.sequencer_commitment_index_range.1),
+                ),
+                sequencer_commitment_hashes: value
+                    .sequencer_commitment_hashes
+                    .into_iter()
+                    .map(|x| SerializableHash(x.to_vec()))
+                    .collect(),
+                previous_commitment_index: value.previous_commitment_index.map(U32::from),
+                previous_commitment_hash: value
+                    .previous_commitment_hash
+                    .map(|x| SerializableHash(x.to_vec())),
             },
         }
     }

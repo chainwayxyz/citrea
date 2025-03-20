@@ -10,8 +10,7 @@ use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{DbAccount, Evm, Filter};
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_evm::{Evm, Filter};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -29,7 +28,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{SpecId as CitreaSpecId, StateMapAccessor, WorkingSet};
+use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
@@ -250,14 +249,12 @@ where
             .map_err(to_eth_rpc_error)
     }
 
-    // For account for fork1 we return:
-    //  fork1, account_proof, account_exists (y/n)
-    // For account for fork2 we return one of:
-    //  - fork2, index_proof, n
-    //  - fork2, index_proof, index (little endian, 8 bytes), account_proof, account_exists (y)
+    // For account we return one of:
+    //  - index_proof, 'n' (account_exists)
+    //  - index_proof, index (little endian, 8 bytes), account_proof, 'y' (account_exists)
     //
     // For storages we return:
-    //  fork1/fork2, value_proof, value_exists (y/n)
+    //  value_proof, value_exists (y/n)
     fn eth_get_proof(
         &self,
         address: Address,
@@ -271,8 +268,6 @@ where
         let evm = Evm::<C>::default();
 
         let block_id_internal = evm.block_number_from_state(block_id, &mut working_set)?;
-
-        let citrea_spec = fork_from_block_number(block_id_internal).spec_id;
 
         evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
 
@@ -289,22 +284,14 @@ where
             .get_root_hash(version)
             .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
 
-        let account_in_fork1 = evm.account_info_prefork2(&address, &mut working_set);
-        let account_in_fork2 = evm.account_info_postfork2(&address, &mut working_set);
-        let account_should_gen_prefork2_proof = citrea_spec < CitreaSpecId::Fork2
-            || (account_in_fork1.is_some() && account_in_fork2.is_none());
-
-        let account = if account_should_gen_prefork2_proof {
-            account_in_fork1.unwrap_or_default()
-        } else {
-            account_in_fork2.unwrap_or_default()
-        };
+        let account = evm
+            .account_info(&address, &mut working_set)
+            .unwrap_or_default();
         let balance = account.balance;
         let nonce = account.nonce;
         let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
 
-        // Remove before mainet
-        fn generate_account_proof_prefork2<C>(
+        fn generate_account_proof<C>(
             evm: &Evm<C>,
             account: &Address,
             version: u64,
@@ -314,37 +301,6 @@ where
             C: sov_modules_api::Context,
             C::Storage: NativeStorage,
         {
-            let account_key = StorageKey::new(
-                evm.accounts_prefork2.prefix(),
-                &account,
-                evm.accounts_prefork2.codec().key_codec(),
-            );
-
-            let account_proof = working_set.get_with_proof(account_key, version);
-            let fork = Bytes::from("fork1"); // Remove before mainet
-            let account_exists = if account_proof.value.is_some() {
-                Bytes::from("y")
-            } else {
-                Bytes::from("n")
-            };
-            let account_proof =
-                borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
-            let account_proof = Bytes::from(account_proof);
-            vec![fork, account_proof, account_exists]
-        }
-
-        fn generate_account_proof_postfork2<C>(
-            evm: &Evm<C>,
-            account: &Address,
-            version: u64,
-            working_set: &mut WorkingSet<C::Storage>,
-        ) -> Vec<Bytes>
-        where
-            C: sov_modules_api::Context,
-            C::Storage: NativeStorage,
-        {
-            let fork = Bytes::from("fork2"); // Remove before mainet
-
             let index_key = StorageKey::new(
                 evm.account_idxs.prefix(),
                 account,
@@ -365,9 +321,9 @@ where
                 let index_bytes = Bytes::from_iter(index.to_le_bytes());
 
                 let account_key = StorageKey::new(
-                    evm.accounts_postfork2.prefix(),
+                    evm.accounts.prefix(),
                     &index,
-                    evm.accounts_postfork2.codec().key_codec(),
+                    evm.accounts.codec().key_codec(),
                 );
 
                 let account_proof = working_set.get_with_proof(account_key, version);
@@ -379,61 +335,18 @@ where
                 let account_proof =
                     borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
                 let account_proof = Bytes::from(account_proof);
-                vec![
-                    fork,
-                    index_proof,
-                    index_bytes,
-                    account_proof,
-                    account_exists,
-                ]
+                vec![index_proof, index_bytes, account_proof, account_exists]
             } else {
                 let index_exists = Bytes::from("n");
 
-                vec![fork, index_proof, index_exists]
+                vec![index_proof, index_exists]
             }
         }
 
-        // Remove before mainet
-        fn generate_storage_proof_prefork2<C>(
+        fn generate_storage_proof<C>(
             evm: &Evm<C>,
             account: &Address,
             key: &U256,
-            citrea_spec: CitreaSpecId,
-            version: u64,
-            working_set: &mut WorkingSet<C::Storage>,
-        ) -> EIP1186StorageProof
-        where
-            C: sov_modules_api::Context,
-            C::Storage: NativeStorage,
-        {
-            let db_account = DbAccount::new(account);
-            let storage_key = StorageKey::new(
-                db_account.storage.prefix(),
-                key,
-                db_account.storage.codec().key_codec(),
-            );
-            let value = evm.storage_get(account, key, citrea_spec, working_set);
-            let proof = working_set.get_with_proof(storage_key, version);
-            let fork = Bytes::from("fork1"); // Remove before mainet
-            let value_exists = if proof.value.is_some() {
-                Bytes::from("y")
-            } else {
-                Bytes::from("n")
-            };
-            let value_proof = borsh::to_vec(&proof.proof).expect("Serialization shouldn't fail");
-            let value_proof = Bytes::from(value_proof);
-            EIP1186StorageProof {
-                key: JsonStorageKey(key.to_le_bytes().into()),
-                value: value.unwrap_or_default(),
-                proof: vec![fork, value_proof, value_exists],
-            }
-        }
-
-        fn generate_storage_proof_postfork2<C>(
-            evm: &Evm<C>,
-            account: &Address,
-            key: &U256,
-            citrea_spec: CitreaSpecId,
             version: u64,
             working_set: &mut WorkingSet<C::Storage>,
         ) -> EIP1186StorageProof
@@ -447,9 +360,8 @@ where
                 &kaddr,
                 evm.storage.codec().key_codec(),
             );
-            let value = evm.storage_get(account, key, citrea_spec, working_set);
+            let value = evm.storage_get(account, key, working_set);
             let proof = working_set.get_with_proof(storage_key, version);
-            let fork = Bytes::from("fork2"); // Remove before mainet
             let value_exists = if proof.value.is_some() {
                 Bytes::from("y")
             } else {
@@ -460,46 +372,17 @@ where
             EIP1186StorageProof {
                 key: JsonStorageKey(key.to_le_bytes().into()),
                 value: value.unwrap_or_default(),
-                proof: vec![fork, value_proof, value_exists],
+                proof: vec![value_proof, value_exists],
             }
         }
 
-        let account_proof = if account_should_gen_prefork2_proof {
-            generate_account_proof_prefork2(&evm, &address, version, &mut working_set)
-        } else {
-            generate_account_proof_postfork2(&evm, &address, version, &mut working_set)
-        };
+        let account_proof = generate_account_proof(&evm, &address, version, &mut working_set);
 
         let mut storage_proof = vec![];
         for key in keys {
             let key: U256 = key.0.into();
-            let in_fork1 = evm
-                .storage_get_prefork2(&address, &key, &mut working_set)
-                .is_some();
-            let in_fork2 = evm
-                .storage_get_postfork2(&address, &key, &mut working_set)
-                .is_some();
-            let should_gen_prefork2_proof =
-                citrea_spec < CitreaSpecId::Fork2 || (in_fork1 && !in_fork2);
-            let proof = if should_gen_prefork2_proof {
-                generate_storage_proof_prefork2(
-                    &evm,
-                    &address,
-                    &key,
-                    citrea_spec,
-                    version,
-                    &mut working_set,
-                )
-            } else {
-                generate_storage_proof_postfork2(
-                    &evm,
-                    &address,
-                    &key,
-                    citrea_spec,
-                    version,
-                    &mut working_set,
-                )
-            };
+
+            let proof = generate_storage_proof(&evm, &address, &key, version, &mut working_set);
             storage_proof.push(proof);
         }
 
@@ -698,7 +581,7 @@ where
                 .sequencer_client
                 .as_ref()
                 .unwrap()
-                .get_head_soft_confirmation_height(),
+                .get_head_l2_block_height(),
             self.ethereum.da_service.get_last_finalized_block_header()
         );
 
@@ -710,8 +593,8 @@ where
             },
         };
 
-        let head_soft_confirmation = self.ethereum.ledger_db.get_head_soft_confirmation();
-        let l2_synced_block_number = match head_soft_confirmation {
+        let head_l2_block = self.ethereum.ledger_db.get_head_l2_block();
+        let l2_synced_block_number = match head_l2_block {
             Ok(Some((height, _))) => height.0,
             Ok(None) => 0u64,
             Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
@@ -812,7 +695,7 @@ pub fn create_rpc_module<C, Da>(
     storage: C::Storage,
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
-    soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+    l2_block_rx: Option<broadcast::Receiver<u64>>,
 ) -> RpcModule<EthereumRpcServerImpl<C, Da>>
 where
     C: sov_modules_api::Context,
@@ -827,7 +710,7 @@ where
 
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
-    let enable_subscriptions = soft_confirmation_rx.is_some();
+    let enable_subscriptions = l2_block_rx.is_some();
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let ethereum = Arc::new(Ethereum::new(
@@ -837,7 +720,7 @@ where
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
-        soft_confirmation_rx,
+        l2_block_rx,
     ));
     let server = EthereumRpcServerImpl::new(ethereum);
 

@@ -1,23 +1,22 @@
 use std::str::FromStr;
 
-use alloy_primitives::b256;
+use alloy_network::BlockResponse;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::{
-    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
-};
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateVecAccessor};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::LogsContract;
+use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::init_evm;
 use crate::tests::utils::{
-    create_contract_message, get_evm, get_evm_config, get_evm_pre_fork2, publish_event_message,
+    create_contract_message, get_evm, get_evm_config, publish_event_message,
 };
 use crate::{Filter, FilterBlockOption, FilterSet};
 
@@ -25,7 +24,7 @@ type C = DefaultContext;
 
 #[test]
 fn logs_for_filter_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SpecId::Kumquat);
+    let (evm, mut working_set, _, _, _) = init_evm(SpecId::Fork2);
 
     let result = evm.eth_get_logs(
         Filter {
@@ -45,11 +44,11 @@ fn logs_for_filter_test() {
         Err(EthApiError::HeaderNotFound(B256::from([1u8; 32]).into()).into())
     );
 
+    let block_hash = evm.latest_block_hashes.get(&2, &mut working_set).unwrap();
+
     let available_res = evm.eth_get_logs(
         Filter {
-            block_option: FilterBlockOption::AtBlockHash(b256!(
-                "9dd7277d6d484a4f92f03d301688820ec8d4d1805e7089fa45900278923f07a4"
-            )),
+            block_option: FilterBlockOption::AtBlockHash(block_hash),
             address: FilterSet::default(),
             topics: [
                 FilterSet::default(),
@@ -61,8 +60,22 @@ fn logs_for_filter_test() {
         &mut working_set,
     );
 
-    // TODO: Check this better.
-    assert_eq!(available_res.unwrap().len(), 9);
+    assert_eq!(available_res.unwrap().len(), 8);
+
+    // This does not really have anything to do with this test, but had us catch a bug before.
+    let first_block_block_hash = evm.latest_block_hashes.get(&1, &mut working_set).unwrap();
+    let b_rpc = evm
+        .get_block_by_hash(first_block_block_hash, None, &mut working_set)
+        .unwrap();
+
+    assert_eq!(b_rpc.unwrap().header().hash, first_block_block_hash);
+
+    let b = evm
+        .blocks
+        .get(1, &mut working_set.accessory_state())
+        .unwrap();
+
+    assert_eq!(b.header.hash(), first_block_block_hash);
 }
 
 #[test]
@@ -70,28 +83,24 @@ fn log_filter_test_at_block_hash() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    };
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         // deploy logs contract
         // call the contract function
@@ -113,7 +122,7 @@ fn log_filter_test_at_block_hash() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     // `AnotherLog` topics
@@ -135,10 +144,7 @@ fn log_filter_test_at_block_hash() {
        5) [[A, B], [A, B]] “(A OR B) in first position AND (A OR B) in second position (and anything after)”
     */
 
-    let block = evm
-        .blocks_rlp
-        .last(&mut working_set.accessory_state())
-        .unwrap();
+    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
     let mut address = FilterSet::default();
     // Test without address and topics
     let mut topics: [FilterSet<B256>; 4] = [
@@ -155,8 +161,8 @@ fn log_filter_test_at_block_hash() {
     };
 
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-    // should get all the logs including system txs
-    assert_eq!(rpc_logs.len(), 5);
+    // should get all the logs
+    assert_eq!(rpc_logs.len(), 4);
 
     // with address and without topics
     address.0.insert(contract_addr);
@@ -282,28 +288,24 @@ fn log_filter_test_with_range() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    };
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -325,7 +327,7 @@ fn log_filter_test_with_range() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
@@ -347,25 +349,21 @@ fn log_filter_test_with_range() {
     };
 
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-    assert_eq!(rpc_logs.len(), 8);
+    assert_eq!(rpc_logs.len(), 4);
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [99u8; 32],
-        current_spec: SpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    };
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
         // call the contract function
         evm.call(
             CallMessage {
@@ -382,7 +380,7 @@ fn log_filter_test_with_range() {
         .unwrap();
         // the last topic will be Keccak256("message")
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[100u8; 32], &mut working_set.accessory_state());
     let filter = Filter {
         block_option: crate::FilterBlockOption::Range {
@@ -413,15 +411,15 @@ fn test_log_limits() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    };
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
@@ -470,7 +468,7 @@ fn test_log_limits() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
@@ -510,17 +508,17 @@ fn test_log_limits() {
     ];
 
     for _ in 1..1001 {
-        let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+        let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
             current_spec: SpecId::Fork2,
-            pub_key: vec![],
+            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
-        });
+        };
         // generate 100_000 blocks to test the max block range limit
-        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;

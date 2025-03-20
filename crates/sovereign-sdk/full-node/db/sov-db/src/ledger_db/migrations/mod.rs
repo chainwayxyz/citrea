@@ -8,7 +8,7 @@ use tracing::{debug, error, info};
 
 use super::migrations::utils::{drop_column_families, list_column_families};
 use super::LedgerDB;
-use crate::ledger_db::{SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use crate::ledger_db::SharedLedgerOps;
 use crate::rocks_db_config::RocksdbConfig;
 
 /// Utilities for ledger db migrations
@@ -68,7 +68,7 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let dbs_path = &self.ledger_path;
 
-        if !dbs_path.join(LEDGER_DB_PATH_SUFFIX).exists() {
+        if !dbs_path.join(LedgerDB::DB_PATH_SUFFIX).exists() {
             // If this is the first time the ledger db is being created, then we don't need to run migrations
             // all migrations up to this point are considered successful
             let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
@@ -176,8 +176,8 @@ impl<'a> LedgerDBMigrator<'a> {
 
         info!("Migrations executed, restoring to original path");
         // Construct a backup path adjacent to original path
-        let ledger_path = dbs_path.join(LEDGER_DB_PATH_SUFFIX);
-        let temp_ledger_path = temp_db_path.path().join(LEDGER_DB_PATH_SUFFIX);
+        let ledger_path = dbs_path.join(LedgerDB::DB_PATH_SUFFIX);
+        let temp_ledger_path = temp_db_path.path().join(LedgerDB::DB_PATH_SUFFIX);
         let last_part = ledger_path
             .components()
             .last()

@@ -9,7 +9,7 @@ use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_rollup_interface::RefCount;
-use sov_state::codec::{BcsCodec, BorshCodec};
+use sov_state::codec::BorshCodec;
 use sov_state::storage::{StateValueCodec, Storage, StorageKey, ValueExists};
 use sov_state::{ReadWriteLog, Witness};
 
@@ -44,12 +44,11 @@ where
         guest: &impl ZkvmGuest,
         pre_state: C::Storage,
         sequencer_public_key: &[u8],
-        sequencer_k256_public_key: &[u8],
         forks: &[Fork],
     ) -> BatchProofCircuitOutput {
         println!("Running sequencer commitments in DA slot");
 
-        let mut data: BatchProofCircuitInputV3Part1<Da> = guest.read_from_host();
+        let mut data: BatchProofCircuitInputV3Part1 = guest.read_from_host();
 
         let short_header_proof_provider: ZkShortHeaderProofProviderService<Da> =
             ZkShortHeaderProofProviderService::new(data.short_header_proofs);
@@ -60,34 +59,30 @@ where
             panic!("Short header proof provider already set");
         }
 
-        println!("going into apply_soft_confirmations_from_sequencer_commitments");
+        println!("going into apply_l2_blocks_from_sequencer_commitments");
 
         let ApplySequencerCommitmentsOutput {
             final_state_root,
             state_diff,
             last_l2_height,
-            final_soft_confirmation_hash,
+            final_l2_block_hash,
             sequencer_commitment_hashes,
             sequencer_commitment_index_range,
             previous_commitment_index,
             previous_commitment_hash,
             cumulative_state_log,
-        } = self
-            .app
-            .apply_soft_confirmations_from_sequencer_commitments(
-                guest,
-                sequencer_public_key,
-                sequencer_k256_public_key,
-                &data.initial_state_root,
-                pre_state.clone(),
-                data.previous_sequencer_commitment,
-                data.sequencer_commitments,
-                data.da_block_headers_of_soft_confirmations,
-                &data.cache_prune_l2_heights,
-                forks,
-            );
+        } = self.app.apply_l2_blocks_from_sequencer_commitments(
+            guest,
+            sequencer_public_key,
+            &data.initial_state_root,
+            pre_state.clone(),
+            data.previous_sequencer_commitment,
+            data.sequencer_commitments,
+            &data.cache_prune_l2_heights,
+            forks,
+        );
 
-        println!("out of apply_soft_confirmations_from_sequencer_commitments");
+        println!("out of apply_l2_blocks_from_sequencer_commitments");
 
         let last_queried_hash = SHORT_HEADER_PROOF_PROVIDER
             .get()
@@ -108,7 +103,7 @@ where
         BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            final_soft_confirmation_hash,
+            final_l2_block_hash,
             state_diff,
             last_l2_height,
             sequencer_commitment_hashes,
@@ -156,26 +151,7 @@ pub fn get_last_l1_hash_on_contract<C: Context>(
             match storage.get_and_prove(&key, last_l1_hash_witness, final_state_root) {
                 Some(value) => borsh_deserialize_value(value.into_cache_value().value),
                 None => {
-                    // If this is the first proof in Fork2 and we haven't changed the height yet
-                    // we must get from pre fork2 storage.
-                    //
-                    // We don't even check storage cache with pre fork2 keys here because
-                    // if pre fork2 storage is read in Fork2,
-                    // it would be written also be written to the cache with fork2 keys.
-                    // And we wouldn't be here.
-
-                    let pre_fork2_key = Evm::<C>::get_storage_key_pre_fork2(
-                        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                        &U256::ZERO,
-                    );
-
-                    bcs_deserialize_value(
-                        storage
-                            .get_and_prove(&pre_fork2_key, last_l1_hash_witness, final_state_root)
-                            .expect("Should exist")
-                            .into_cache_value()
-                            .value,
-                    )
+                    panic!("Next L1 height should exist in storage");
                 }
             }
         }
@@ -205,26 +181,7 @@ pub fn get_last_l1_hash_on_contract<C: Context>(
             match storage.get_and_prove(&key, last_l1_hash_witness, final_state_root) {
                 Some(value) => borsh_deserialize_value(value.into_cache_value().value),
                 None => {
-                    // If this is the first proof in Fork2 and we haven't changed the height yet
-                    // we must get from pre fork2 storage.
-                    //
-                    // We don't even check storage cache with pre fork2 keys here because
-                    // if pre fork2 storage is read in Fork2,
-                    // it would be written also be written to the cache with fork2 keys.
-                    // And we wouldn't be here.
-
-                    let pre_fork2_key = Evm::<C>::get_storage_key_pre_fork2(
-                        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                        &evm_storage_slot,
-                    );
-
-                    bcs_deserialize_value(
-                        storage
-                            .get_and_prove(&pre_fork2_key, last_l1_hash_witness, final_state_root)
-                            .expect("Should exist")
-                            .into_cache_value()
-                            .value,
-                    )
+                    panic!("Last L1 hash should exist in storage");
                 }
             }
         }
@@ -238,11 +195,4 @@ where
     BorshCodec: StateValueCodec<T>,
 {
     (BorshCodec {}).decode_value_unwrap(&bytes)
-}
-
-fn bcs_deserialize_value<T>(bytes: RefCount<[u8]>) -> T
-where
-    BcsCodec: StateValueCodec<T>,
-{
-    (BcsCodec {}).decode_value_unwrap(&bytes)
 }

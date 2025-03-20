@@ -1,9 +1,8 @@
 //! Defines rpc queries exposed by the accounts module, along with the relevant types
-use borsh::BorshDeserialize;
 use jsonrpsee::core::RpcResult;
-use sov_modules_api::default_signature::DefaultPublicKey;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{AddressBech32, SpecId, StateMapAccessor, WorkingSet};
+use sov_modules_api::{AddressBech32, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -27,24 +26,11 @@ impl<C: sov_modules_api::Context> Accounts<C> {
     /// Get the account corresponding to the given public key.
     pub fn get_account(
         &self,
-        pub_key: Vec<u8>,
-        spec_id: SpecId,
+        pub_key: K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<Response> {
-        let response = if spec_id >= SpecId::Fork2 {
+        let response = {
             match self.accounts.get(&pub_key, working_set) {
-                Some(Account { addr, nonce }) => Response::AccountExists {
-                    addr: addr.into(),
-                    nonce,
-                },
-                None => Response::AccountEmpty,
-            }
-        } else {
-            match self.accounts_pre_fork2.get(
-                &DefaultPublicKey::try_from_slice(pub_key.as_slice())
-                    .expect("Pub key is not a valid dalek pub key"),
-                working_set,
-            ) {
                 Some(Account { addr, nonce }) => Response::AccountExists {
                     addr: addr.into(),
                     nonce,
