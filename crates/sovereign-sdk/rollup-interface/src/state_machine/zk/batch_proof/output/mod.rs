@@ -12,6 +12,7 @@ pub type CumulativeStateDiff = BTreeMap<RefCount<[u8]>, Option<RefCount<[u8]>>>;
 
 /// Versioned Batch Proof Output
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
+#[repr(u8)]
 pub enum BatchProofCircuitOutput {
     /// V3 batch proof output
     V3(v3::BatchProofCircuitOutputV3),
