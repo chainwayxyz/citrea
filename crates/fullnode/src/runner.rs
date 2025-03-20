@@ -5,7 +5,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument};
 
-use crate::{l2_syncer::{L2BlockSignal, L2Syncer}, metrics::FULLNODE_METRICS};
+use crate::l2_syncer::{L2BlockSignal, L2Syncer};
+use crate::metrics::FULLNODE_METRICS;
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<DA, DB>

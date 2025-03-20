@@ -8,7 +8,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument};
 
-use crate::{l2_syncer::{L2BlockSignal, L2Syncer}, metrics::BATCH_PROVER_METRICS};
+use crate::l2_syncer::{L2BlockSignal, L2Syncer};
+use crate::metrics::BATCH_PROVER_METRICS;
 
 pub struct CitreaBatchProver<DA, DB>
 where
