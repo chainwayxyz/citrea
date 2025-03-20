@@ -71,7 +71,7 @@ impl LedgerRpcProvider for LedgerDB {
             l2_block_ids.len() <= MAX_L2_BLOCK_PER_REQUEST as usize,
             "requested too many l2 blocks. Requested: {}. Max: {}",
             l2_block_ids.len(),
-            MAX_BATCHES_PER_REQUEST
+            MAX_L2_BLOCK_PER_REQUEST
         );
 
         let mut out = Vec::with_capacity(l2_block_ids.len());
