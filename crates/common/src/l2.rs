@@ -146,7 +146,7 @@ where
 
                                 error!("Could not process L2 block: {}", e);
                                 // This block failed to process, add remaining L2 blocks to queue including this one.
-                                let remaining_l2s = l2_blocks[index..].to_vec();
+                                let remaining_l2s = l2_blocks.into_iter().skip(index);
                                 pending_l2_blocks.extend(remaining_l2s);
                                 break;
                             }
