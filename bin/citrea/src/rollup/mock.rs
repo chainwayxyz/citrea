@@ -113,7 +113,7 @@ impl RollupBlueprint for MockDemoRollup {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         BATCH_PROOF_LATEST_MOCK_GUESTS
             .iter()
-            .map(|(k, (id, _))| (*k, *id))
+            .map(|(k, (id, _))| (*k, id.clone()))
             .collect()
     }
 
@@ -122,7 +122,7 @@ impl RollupBlueprint for MockDemoRollup {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         LIGHT_CLIENT_LATEST_MOCK_GUESTS
             .iter()
-            .map(|(k, (id, _))| (*k, *id))
+            .map(|(k, (id, _))| (*k, id.clone()))
             .collect()
     }
 

@@ -13,12 +13,12 @@ macro_rules! guest {
     }};
 }
 
+#[cfg(feature = "r0")]
 lazy_static! {
     /// The following 2 are used as latest guest builds for tests that use mock DA.
     pub(crate) static ref BATCH_PROOF_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        #[cfg(feature = "r0")]
         m.insert(
             SpecId::Tangerine,
             (
@@ -28,10 +28,10 @@ lazy_static! {
         );
         m
     };
+
     pub(crate) static ref LIGHT_CLIENT_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        #[cfg(feature = "r0")]
         m.insert(
             SpecId::Tangerine,
             (
@@ -42,6 +42,21 @@ lazy_static! {
         m
     };
 
+}
+
+#[cfg(feature = "sp1")]
+lazy_static! {
+    pub(crate) static ref BATCH_PROOF_LATEST_MOCK_GUESTS: HashMap<SpecId, (citrea_sp1_host::VerifyingKey, Vec<u8>)> = {
+        let mut m = HashMap::new();
+        m
+    };
+    pub(crate) static ref LIGHT_CLIENT_LATEST_MOCK_GUESTS: HashMap<SpecId, (citrea_sp1_host::VerifyingKey, Vec<u8>)> = {
+        let mut m = HashMap::new();
+        m
+    };
+}
+
+lazy_static! {
     pub(crate) static ref BATCH_PROOF_REGTEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         cfg_if::cfg_if! {
             if #[cfg(feature = "r0")] {

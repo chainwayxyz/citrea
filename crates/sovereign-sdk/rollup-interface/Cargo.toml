@@ -23,7 +23,7 @@ bytes = { workspace = true, default-features = true }
 digest = { workspace = true, features = ["default"] }
 faster-hex = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
-hex = { workspace = true, optional = true, features = ["default"] }
+hex = { workspace = true, features = ["default"] }
 jmt = { workspace = true }
 uuid = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
@@ -46,11 +46,10 @@ native = [
   "tokio",
   "futures",
   "tracing",
-  "risc0-zkp",
   "faster-hex",
   "async-trait",
   "thiserror",
-  "hex",
   "uuid",
 ]
+r0 = ["dep:risc0-zkp"]
 testing = []

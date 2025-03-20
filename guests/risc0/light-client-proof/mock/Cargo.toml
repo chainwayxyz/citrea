@@ -13,7 +13,7 @@ risc0-zkvm-platform = { version = "2.0.1", features = ["sys-getenv"] }
 anyhow = "1.0.95"
 sov-mock-da = { path = "../../../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 
-citrea-light-client-prover = { path = "../../../../crates/light-client-prover", default-features = false }
+citrea-light-client-prover = { path = "../../../../crates/light-client-prover", default-features = false, features = ["r0"]}
 citrea-primitives = { path = "../../../../crates/primitives" }
 citrea-risc0-adapter = { path = "../../../../crates/risc0" }
 citrea-risc0-batch-proof = { path = "../../batch-proof" }

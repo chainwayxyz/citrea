@@ -185,6 +185,7 @@ impl RollupBlueprint for BitcoinRollup {
         }
     }
 
+    #[cfg(feature = "sp1")]
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
         todo!()
     }

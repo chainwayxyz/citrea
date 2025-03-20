@@ -1,17 +1,20 @@
 use std::env;
 
 use borsh::BorshDeserialize;
-use citrea_sp1_guest::{SP1Guest, VerifyingKey};
+use citrea_sp1_guest::SP1Guest;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
-use sov_rollup_interface::zk::{Proof, ReceiptType, Zkvm, ZkvmHost};
+use sov_db::ledger_db::LedgerDB;
+use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
 use sp1_sdk::{
     cpu::execute::CpuExecuteBuilder, include_elf, network::B256, EnvProver, NetworkProver, Prover,
     ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerificationError, SP1VerifyingKey,
 };
+use tokio::sync::oneshot;
 use tracing::info;
+
+pub use citrea_sp1_guest::VerifyingKey;
 
 // It is safer to define ProverClient once globally, because all the SP1 api is
 // built around the client, and creating multiple ProverClient in the lifespan
@@ -145,13 +148,14 @@ impl ZkvmHost for SP1Host {
 
     fn run(
         &mut self,
+        _job_id: uuid::Uuid,
         _elf: Vec<u8>,
-        with_proof: bool,
         _receipt_type: ReceiptType,
-    ) -> Result<Proof, anyhow::Error> {
+        with_prove: bool,
+    ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
         let stdin = self.collect_input_buf();
 
-        if with_proof {
+        if with_prove {
             let proof_with_public_values = self.generate_proof(stdin)?;
             info!("Successfully generated proof");
 
@@ -182,31 +186,10 @@ impl ZkvmHost for SP1Host {
         Ok(BorshDeserialize::try_from_slice(public_values.as_slice())?)
     }
 
-    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
-        let mut proofs = Vec::new();
-
-        // We can only recover if prover is configured to be Succinct
-        if let MaybeNetworkProverClient::Network(network_prover) = &*CLIENT {
-            let request_ids = self.ledger_db.get_pending_proving_sessions()?;
-            tracing::info!("Recovering {} Succinct sessions", request_ids.len());
-
-            for request_id in request_ids {
-                tracing::info!("Recovering Succinct session: {:?}", request_id);
-
-                let proof_with_public_values =
-                    block_on(network_prover.wait_proof(B256::from_slice(&request_id), None))?;
-
-                network_prover.verify(&proof_with_public_values, &self.verifying_key)?;
-                info!("Successfully verified the proof");
-
-                let data = bincode::serialize(&PublicValues::WithProof(proof_with_public_values))
-                    .expect("SP1 zk proof serialization must not fail");
-
-                proofs.push(data);
-            }
-        }
-
-        Ok(proofs)
+    fn start_session_recovery(
+        &self,
+    ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
+        Ok(vec![])
     }
 
     fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
