@@ -17,7 +17,7 @@ where
     DB: BatchProverLedgerOps + Clone,
 {
     ledger_db: DB,
-    l2_syncer: Option<L2Syncer<DA, DB>>,
+    l2_syncer: L2Syncer<DA, DB>,
     l2_signal_rx: mpsc::Receiver<L2BlockSignal>,
 }
 
@@ -33,20 +33,19 @@ where
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             ledger_db,
-            l2_syncer: Some(l2_syncer),
+            l2_syncer,
             l2_signal_rx,
         })
     }
 
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(mut self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
-        let mut l2_syncer = self.l2_syncer.take().expect("L2 sync worker should be set");
-        let worker = l2_syncer.run(cancellation_token.clone());
-        tokio::pin!(worker);
+        let l2_syncer = self.l2_syncer.run(cancellation_token.clone());
+        tokio::pin!(l2_syncer);
 
         loop {
             select! {
-                _ = &mut worker => {},
+                _ = &mut l2_syncer => {},
                 Some(l2_block) = self.l2_signal_rx.recv() => {
                     if let Some(state_diff) = l2_block.state_diff {
                         // Save state diff to ledger DB
