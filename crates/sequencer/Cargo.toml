@@ -71,6 +71,11 @@ l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer", features = ["nati
 
 # Reorg syncer deps
 serde = { workspace = true }
+sha2 = { workspace = true }
+ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
+sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core", default-features = false }
+schemars = { workspace = true, features = [] }
+thiserror = { workspace = true }
 
 [features]
 default = []

@@ -1,9 +1,8 @@
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
-use citrea_stf::runtime::DefaultContext;
 use reth_primitives::TransactionSignedEcRecovered;
 
-use super::types::{PreFork2Transaction, SoftConfirmationResponse};
+use super::types::{PreFork2Context, PreFork2Transaction, SoftConfirmationResponse};
 
 pub fn collect_user_txs(
     l2_block_response: &SoftConfirmationResponse,
@@ -12,7 +11,7 @@ pub fn collect_user_txs(
     if let Some(txs) = &l2_block_response.txs {
         for tx in txs {
             let tx = &tx.tx;
-            let tx = PreFork2Transaction::<DefaultContext>::try_from_slice(tx)
+            let tx = PreFork2Transaction::<PreFork2Context>::try_from_slice(tx)
                 .expect("Should deserialize transaction");
             let runtime_msg = tx.runtime_msg;
             if runtime_msg[0] == 1 {
