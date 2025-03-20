@@ -1,9 +1,9 @@
 /// Batch proof related storage types
 pub mod batch_proof;
+/// L2 block related storage types
+pub mod l2_block;
 /// Light client proof related storage types
 pub mod light_client_proof;
-/// Soft confirmation related storage types
-pub mod soft_confirmation;
 
 /// The "key" half of a key/value pair from accessory state.
 ///
@@ -21,9 +21,9 @@ pub type JmtValue = Option<Vec<u8>>;
 pub(crate) type StateKey = Vec<u8>;
 pub(crate) type StateKeyRef<'a> = &'a [u8];
 
-/// The range of L2 heights (soft confirmations) for a given L1 block
+/// The range of L2 heights (l2 blocks) for a given L1 block
 /// (start, end) inclusive
-pub type L2HeightRange = (SoftConfirmationNumber, SoftConfirmationNumber);
+pub type L2HeightRange = (L2BlockNumber, L2BlockNumber);
 
 macro_rules! u64_wrapper {
     ($name:ident) => {
@@ -53,4 +53,4 @@ macro_rules! u64_wrapper {
 }
 
 u64_wrapper!(SlotNumber);
-u64_wrapper!(SoftConfirmationNumber);
+u64_wrapper!(L2BlockNumber);

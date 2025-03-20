@@ -12,11 +12,11 @@ use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_heig
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
-use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::l2_block::StoredL2Block;
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
-use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -227,15 +227,14 @@ where
 
         // Traverse each item's field of vector of transactions, put them in merkle tree
         // and compare the root with the one from the ledger
-        let stored_soft_confirmations: Vec<StoredSoftConfirmation> =
-            self.ledger_db.get_soft_confirmation_range(
-                &(SoftConfirmationNumber(start_l2_height)..=SoftConfirmationNumber(end_l2_height)),
-            )?;
+        let stored_l2_blocks: Vec<StoredL2Block> = self
+            .ledger_db
+            .get_l2_block_range(&(L2BlockNumber(start_l2_height)..=L2BlockNumber(end_l2_height)))?;
 
-        // Make sure that the number of stored soft confirmations is equal to the range's length.
+        // Make sure that the number of stored l2 blocks is equal to the range's length.
         // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
         // synced yet.
-        if stored_soft_confirmations.len() < ((end_l2_height - start_l2_height) as usize) {
+        if stored_l2_blocks.len() < ((end_l2_height - start_l2_height) as usize) {
             return Err(SyncError::MissingL2(
                 "L2 range not synced yet",
                 start_l2_height,
@@ -243,21 +242,21 @@ where
             ));
         }
 
-        let soft_confirmations_tree = MerkleTree::<Sha256>::from_leaves(
-            stored_soft_confirmations
+        let l2_blocks_tree = MerkleTree::<Sha256>::from_leaves(
+            stored_l2_blocks
                 .iter()
                 .map(|x| x.hash)
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
 
-        if soft_confirmations_tree.root() != Some(sequencer_commitment.merkle_root) {
+        if l2_blocks_tree.root() != Some(sequencer_commitment.merkle_root) {
             return Err(anyhow!(
                 "Merkle root mismatch - expected 0x{} but got 0x{}. Skipping commitment.",
                 hex::encode(
-                    soft_confirmations_tree
+                    l2_blocks_tree
                         .root()
-                        .ok_or(anyhow!("Could not calculate soft confirmation tree root"))?
+                        .ok_or(anyhow!("Could not calculate l2 block tree root"))?
                 ),
                 hex::encode(sequencer_commitment.merkle_root)
             )
@@ -270,18 +269,13 @@ where
         )?;
 
         for i in start_l2_height..=end_l2_height {
-            self.ledger_db.put_l2_block_status(
-                SoftConfirmationNumber(i),
-                SoftConfirmationStatus::Finalized,
-            )?;
+            self.ledger_db
+                .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Finalized)?;
         }
 
         self.ledger_db.set_l2_range_by_commitment_merkle_root(
             sequencer_commitment.merkle_root,
-            (
-                SoftConfirmationNumber(start_l2_height),
-                SoftConfirmationNumber(end_l2_height),
-            ),
+            (L2BlockNumber(start_l2_height), L2BlockNumber(end_l2_height)),
         )?;
 
         self.ledger_db
@@ -378,7 +372,7 @@ where
             let seq_comm_range = (l2_start_height, sequencer_commitment.l2_end_block_number);
 
             let l2_height_before_comm_range = seq_comm_range.0 - 1;
-            let state_root_prior_soft_confirmation = self
+            let state_root_prior_l2_block = self
                 .ledger_db
                 .get_l2_state_root(l2_height_before_comm_range)?
                 .ok_or_else(|| {
@@ -388,19 +382,17 @@ where
                     )
                 })?;
 
-            if state_root_prior_soft_confirmation.as_ref() != initial_state_root.as_ref() {
+            if state_root_prior_l2_block.as_ref() != initial_state_root.as_ref() {
                 return Err(anyhow!(
                     "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(state_root_prior_soft_confirmation),
+                    hex::encode(state_root_prior_l2_block),
                     hex::encode(initial_state_root)
                 ).into());
             }
 
             for i in seq_comm_range.0..=seq_comm_range.1 {
-                self.ledger_db.put_l2_block_status(
-                    SoftConfirmationNumber(i),
-                    SoftConfirmationStatus::Proven,
-                )?;
+                self.ledger_db
+                    .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)?;
             }
             l2_start_height = sequencer_commitment.l2_end_block_number + 1;
         }

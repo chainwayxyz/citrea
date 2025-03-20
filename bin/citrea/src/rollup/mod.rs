@@ -20,10 +20,10 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::schema::types::L2BlockNumber;
 use sov_db::state_db::StateDB;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
@@ -64,7 +64,7 @@ pub struct Dependencies<T: RollupBlueprint> {
     /// The DA service
     pub da_service: Arc<<T as RollupBlueprint>::DaService>,
     /// The channel on which L2 block number is broadcasted.
-    pub soft_confirmation_channel: (broadcast::Sender<u64>, Option<broadcast::Receiver<u64>>),
+    pub l2_block_channel: (broadcast::Sender<u64>, Option<broadcast::Receiver<u64>>),
 }
 
 /// Overrides RollupBlueprint methods
@@ -80,10 +80,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let da_service = self
             .create_da_service(rollup_config, require_da_wallet, &mut task_manager)
             .await?;
-        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        let (l2_block_tx, l2_block_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
-        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
-            Some(soft_confirmation_rx)
+        let l2_block_rx = if rollup_config.rpc.enable_subscriptions {
+            Some(l2_block_rx)
         } else {
             None
         };
@@ -91,7 +91,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         Ok(Dependencies {
             task_manager,
             da_service,
-            soft_confirmation_channel: (soft_confirmation_tx, soft_confirmation_rx),
+            l2_block_channel: (l2_block_tx, l2_block_rx),
         })
     }
 
@@ -106,7 +106,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let storage_manager = self.create_storage_manager(rollup_config)?;
 
         backup_manager
-            .register_database(LEDGER_DB_PATH_SUFFIX.to_string(), ledger_db.db_handle())?;
+            .register_database(LedgerDB::DB_PATH_SUFFIX.to_string(), ledger_db.db_handle())?;
         backup_manager.register_database(
             StateDB::DB_PATH_SUFFIX.to_string(),
             storage_manager.get_state_db_handle(),
@@ -129,7 +129,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         ledger_db: LedgerDB,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         sequencer_client_url: Option<String>,
-        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
     ) -> Result<RpcModule<()>> {
         self.create_rpc_methods(
@@ -137,7 +137,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             sequencer_client_url,
-            soft_confirmation_rx,
+            l2_block_rx,
             backup_manager,
         )
     }
@@ -153,15 +153,15 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
-        soft_confirmation_tx: broadcast::Sender<u64>,
+        l2_block_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(CitreaSequencer<Self::DaService, LedgerDB>, RpcModule<()>)> {
         let current_l2_height = ledger_db
-            .get_head_soft_confirmation()
-            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .get_head_l2_block()
+            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
             .map(|(l2_height, _)| l2_height)
-            .unwrap_or(SoftConfirmationNumber(0));
+            .unwrap_or(L2BlockNumber(0));
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
@@ -178,7 +178,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             da_service,
             ledger_db,
             storage_manager,
-            soft_confirmation_tx,
+            l2_block_tx,
             fork_manager,
             rpc_module,
             backup_manager,
@@ -195,7 +195,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
-        soft_confirmation_tx: broadcast::Sender<u64>,
+        l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaFullnode<Self::DaService, LedgerDB>,
@@ -209,10 +209,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
         let current_l2_height = ledger_db
-            .get_head_soft_confirmation()
-            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .get_head_l2_block()
+            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
             .map(|(l2_height, _)| l2_height)
-            .unwrap_or(SoftConfirmationNumber(0));
+            .unwrap_or(L2BlockNumber(0));
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
@@ -227,7 +227,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             da_service,
             ledger_db,
             storage_manager,
-            soft_confirmation_tx,
+            l2_block_tx,
             fork_manager,
             code_commitments,
             backup_manager,
@@ -245,7 +245,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
-        soft_confirmation_tx: broadcast::Sender<u64>,
+        l2_block_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
@@ -260,8 +260,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
         let current_l2_height = ledger_db
-            .get_head_soft_confirmation_height()
-            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .get_head_l2_block_height()
+            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
             .unwrap_or(0);
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
@@ -290,7 +290,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             prover_service,
             ledger_db,
             storage_manager,
-            soft_confirmation_tx,
+            l2_block_tx,
             fork_manager,
             code_commitments,
             elfs,
@@ -324,10 +324,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let current_l2_height = ledger_db
-            .get_head_soft_confirmation()
-            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .get_head_l2_block()
+            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
             .map(|(l2_height, _)| l2_height)
-            .unwrap_or(SoftConfirmationNumber(0));
+            .unwrap_or(L2BlockNumber(0));
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
@@ -390,23 +390,28 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> anyhow::Result<InitParams> {
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
-        if let Some((number, soft_confirmation)) = ledger_db.get_head_soft_confirmation()? {
-            // At least one soft confirmation was processed
-            info!("Initialize node at L2 height #{}. State root: 0x{}. Last soft confirmation hash: 0x{}.", number.0, hex::encode(prover_storage.get_root_hash(number.0 + 1)?), hex::encode(soft_confirmation.hash));
+        if let Some((number, l2_block)) = ledger_db.get_head_l2_block()? {
+            // At least one l2 block was processed
+            info!(
+                "Initialize node at L2 height #{}. State root: 0x{}. Last l2 block hash: 0x{}.",
+                number.0,
+                hex::encode(prover_storage.get_root_hash(number.0 + 1)?),
+                hex::encode(l2_block.hash)
+            );
 
             return Ok(InitParams {
-                state_root: prover_storage.get_root_hash(number.0 + 1)?,
-                batch_hash: soft_confirmation.hash,
+                prev_state_root: prover_storage.get_root_hash(number.0 + 1)?,
+                prev_l2_block_hash: l2_block.hash,
             });
         }
 
         let genesis_root = prover_storage.get_root_hash(1);
-        if let Ok(state_root) = genesis_root {
+        if let Ok(prev_state_root) = genesis_root {
             // Chain was initialized but no L2 blocks were processed
             debug!("Chain is already initialized. Skipping initialization.");
             return Ok(InitParams {
-                state_root,
-                batch_hash: [0; 32],
+                prev_state_root,
+                prev_l2_block_hash: [0; 32],
             });
         }
 
@@ -421,8 +426,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             hex::encode(genesis_root),
         );
         Ok(InitParams {
-            state_root: genesis_root,
-            batch_hash: [0; 32],
+            prev_state_root: genesis_root,
+            prev_l2_block_hash: [0; 32],
         })
     }
 }

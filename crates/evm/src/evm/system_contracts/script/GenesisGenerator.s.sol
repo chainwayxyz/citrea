@@ -130,6 +130,7 @@ contract GenesisGenerator is Script {
         deployContract(address(new BaseFeeVault()), 3);
         deployContract(address(new L1FeeVault()), 4);
         deployContract(address(new PriorityFeeVault()), 5);
+        deployWCBTC();
     }
 
     function deployContract(address initImpl, uint160 index) internal {
@@ -161,6 +162,11 @@ contract GenesisGenerator is Script {
         // Remove initial proxy impl code from genesis
         vm.etch(initProxyImpl, "");
         vm.resetNonce(initProxyImpl);
+    }
+
+    function deployWCBTC() internal{
+        address wcbtc = address(0x3100000000000000000000000000000000000006);
+        vm.etch(wcbtc, vm.getDeployedCode("WCBTC9"));
     }
 
     function generateEvmJson(string memory _genesisPath, string memory _evmPath, bool _isProd) internal {

@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
+use alloy_primitives::ruint::aliases::U256;
 // use citrea::initialize_logging;
-use alloy_primitives::Address;
+use alloy_primitives::{Address, Bytes};
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
-    GethDebugTracingOptions, TraceResult,
+    GethDebugTracingCallOptions, GethDebugTracingOptions, TraceResult,
 };
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
@@ -13,6 +15,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use serde_json::{self, json};
 
+use crate::common::client::MAX_FEE_PER_GAS;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, NodeMode,
 };
@@ -90,8 +93,69 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         )
     };
 
-    // call the set method from the caller contract
+    let tx_request = TransactionRequest {
+        from: Some(test_client.from_addr),
+        to: Some(alloy_primitives::TxKind::Call(caller_contract_address)),
+        gas_price: None,
+        max_fee_per_gas: Some(MAX_FEE_PER_GAS),
+        max_priority_fee_per_gas: None,
+        max_fee_per_blob_gas: None,
+        gas: None,
+        value: None,
+        input: TransactionInput::new(
+            caller_contract
+                .call_set_call_data(Address::from_slice(ss_contract_address.as_ref()), 3)
+                .into(),
+        ),
+        nonce: None,
+        chain_id: None,
+        access_list: None,
+        transaction_type: None,
+        blob_versioned_hashes: None,
+        sidecar: None,
+        authorization_list: None,
+    };
 
+    let opts = GethDebugTracingCallOptions::default().with_tracing_options(
+        GethDebugTracingOptions::default().with_tracer(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::CallTracer,
+        )),
+    );
+
+    let call_frame_call_trace = test_client
+        .debug_trace_call(tx_request, None, Some(opts))
+        .await;
+
+    let json_value = serde_json::from_value::<CallFrame>(json! [{
+      "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "gas": "0x1c96f3c",
+      "gasUsed": "0xba65",
+      "to": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+      "input": "0xb7d5b6580000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000000000000000000000000000000000000000000003",
+      "calls": [
+        {
+          "from": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+          "gas": "0x1c23bb5",
+          "gasUsed": "0x57f2",
+          "to": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "input": "0x60fe47b10000000000000000000000000000000000000000000000000000000000000003",
+          "calls": [],
+          "logs": [],
+          "value": "0",
+          "type": "CALL"
+        }
+      ],
+      "logs": [],
+      "value": "0",
+      "type": "CALL"
+    }]).unwrap();
+
+    // now let's check if the traces are correct
+    assert!(matches!(call_frame_call_trace, GethTrace::CallTracer(_)));
+
+    assert_eq!(call_frame_call_trace, CallTracer(json_value.clone()));
+
+    // call the set method from the caller contract
     let tx_hash = {
         let call_set_value_req = test_client
             .contract_transaction(
@@ -156,6 +220,61 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92255").unwrap();
+
+    let tx_request = TransactionRequest {
+        from: Some(test_client.from_addr),
+        to: Some(alloy_primitives::TxKind::Call(addr)),
+        gas_price: None,
+        max_fee_per_gas: Some(1_000_000_000u128),
+        max_priority_fee_per_gas: None,
+        max_fee_per_blob_gas: None,
+        gas: None,
+        value: Some(U256::from(5_000_000_000_000_000_000u128)),
+        input: TransactionInput::default(),
+        nonce: None,
+        chain_id: None,
+        access_list: None,
+        transaction_type: None,
+        blob_versioned_hashes: None,
+        sidecar: None,
+        authorization_list: None,
+    };
+
+    let opts = GethDebugTracingCallOptions::default();
+    let default_frame_call_trace = test_client
+        .debug_trace_call(tx_request.clone(), None, Some(opts))
+        .await
+        .try_into_default_frame()
+        .unwrap();
+
+    assert!(!default_frame_call_trace.failed);
+    assert_eq!(default_frame_call_trace.gas, 21000);
+    assert_eq!(default_frame_call_trace.return_value, Bytes::default());
+
+    let opts = GethDebugTracingCallOptions::default().with_tracing_options(
+        GethDebugTracingOptions::default().with_tracer(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::CallTracer,
+        )),
+    );
+    let call_frame_call_trace = test_client
+        .debug_trace_call(tx_request, None, Some(opts))
+        .await
+        .try_into_call_frame()
+        .unwrap();
+
+    assert_eq!(call_frame_call_trace.from, test_client.from_addr);
+    assert_eq!(call_frame_call_trace.gas_used.to::<u64>(), 21000u64);
+    assert_eq!(call_frame_call_trace.to, Some(addr));
+    assert_eq!(call_frame_call_trace.input, Bytes::default());
+    assert_eq!(call_frame_call_trace.output, None);
+    assert_eq!(call_frame_call_trace.error, None);
+    assert_eq!(call_frame_call_trace.revert_reason, None);
+    assert_eq!(call_frame_call_trace.calls, vec![]);
+    assert_eq!(call_frame_call_trace.logs, vec![]);
+    assert_eq!(
+        call_frame_call_trace.value,
+        Some(U256::from(5_000_000_000_000_000_000u128))
+    );
 
     let send_eth_req = test_client
         .send_eth(addr, None, None, None, 5_000_000_000_000_000_000u128)

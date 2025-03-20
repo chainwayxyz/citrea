@@ -11,8 +11,8 @@ pub struct FullnodeMetrics {
     pub current_l2_block: Gauge,
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
     pub scan_l1_block: Histogram,
-    #[metric(describe = "The duration of processing a single soft confirmation")]
-    pub process_soft_confirmation: Histogram,
+    #[metric(describe = "The duration of processing a single l2 block")]
+    pub process_l2_block: Histogram,
 }
 
 /// Fullnode metrics

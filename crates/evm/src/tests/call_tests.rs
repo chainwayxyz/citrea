@@ -2,26 +2,23 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::BlockId;
-use alloy_primitives::{address, b256, Address, Bytes, TxKind, B256, U64};
+use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{BlockNumberOrTag, Log, LogData};
-use revm::primitives::{hex, KECCAK_EMPTY, U256};
+use reth_primitives::BlockNumberOrTag;
+use revm::primitives::{KECCAK_EMPTY, U256};
 use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::{
-    HookSoftConfirmationInfo, HookSoftConfirmationInfoV1, HookSoftConfirmationInfoV2,
-};
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Context, Module, SoftConfirmationModuleCallError, StateMapAccessor, StateVecAccessor,
+    Context, L2BlockModuleCallError, Module, StateMapAccessor, StateVecAccessor,
 };
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
-use crate::evm::DbAccount;
 use crate::handler::{BROTLI_COMPRESSION_PERCENTAGE, L1_FEE_OVERHEAD};
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
@@ -31,10 +28,10 @@ use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
     create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
-    get_evm_config, get_evm_config_starting_base_fee, get_evm_pre_fork2, get_evm_with_spec,
-    get_fork_fn_only_fork2, publish_event_message, set_arg_message,
+    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, get_fork_fn_only_fork2,
+    publish_event_message, set_arg_message,
 };
-use crate::tests::DEFAULT_CHAIN_ID;
+use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{
     AccountData, EvmConfig, RlpEvmTransaction, BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT,
 };
@@ -44,7 +41,7 @@ type C = DefaultContext;
 fn call_multiple_test() {
     let dev_signer1: TestSigner = TestSigner::new_random();
 
-    let mut config = EvmConfig {
+    let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer1.address(),
             balance: U256::from_str("100000000000000000000").unwrap(),
@@ -53,38 +50,31 @@ fn call_multiple_test() {
             nonce: 0,
             storage: Default::default(),
         }],
-        // SHANGAI instead of LATEST
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         ..Default::default()
     };
-    config_push_contracts(&mut config, None);
-    let (mut evm, mut working_set, spec_id) = get_evm_pre_fork2(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
     let l1_fee_rate = 0;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -101,12 +91,10 @@ fn call_multiple_test() {
         .unwrap();
     }
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let account_info = evm
-        .account_info(&contract_addr, spec_id, &mut working_set)
-        .unwrap();
+    let account_info = evm.account_info(&contract_addr, &mut working_set).unwrap();
 
     // Make sure the contract db account size is 75 bytes
     let db_account_len = bcs::to_bytes(&account_info)
@@ -115,7 +103,7 @@ fn call_multiple_test() {
     assert_eq!(db_account_len, 75);
 
     let eoa_account_info = evm
-        .account_info(&dev_signer1.address(), spec_id, &mut working_set)
+        .account_info(&dev_signer1.address(), &mut working_set)
         .unwrap();
     // Make sure the eoa db account size is 42 bytes
     let db_account_len = bcs::to_bytes(&eoa_account_info)
@@ -123,92 +111,59 @@ fn call_multiple_test() {
         .len();
     assert_eq!(db_account_len, 42);
     let storage_value = evm
-        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
-                    success: true, cumulative_gas_used: 50759,
+                    success: true,
+                    cumulative_gas_used: 132943,
                     logs: vec![]
                 },
-                gas_used: 50759,
+                gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 53
+                l1_diff_size: 23
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")], // Updated topic
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202")),
-                            ).unwrap()
-                        }
-                    ]
+                    cumulative_gas_used: 176673,
+                    logs: vec![]
                 },
-                gas_used: 80626,
+                gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt{
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead")),
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000")),
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
+                l1_diff_size: 19
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![Log {
-                        address: address!("3100000000000000000000000000000000000001"),
-                        data: LogData::new(
-                            vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")], // Updated topic
-                            Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                        ).unwrap()
-                    }]
+                    cumulative_gas_used: 203303,
+                    logs: vec![]
                 },
-                gas_used: 80626,
+                gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 94
+                l1_diff_size: 19
             },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 213569, logs: vec![] }, gas_used: 132943, log_index_start: 1, l1_diff_size: 52 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 257299, logs: vec![] }, gas_used: 43730, log_index_start: 1, l1_diff_size: 53 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 283929, logs: vec![] }, gas_used: 26630, log_index_start: 1, l1_diff_size: 53 },
-            Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 310559, logs: vec![] },
-            gas_used: 26630, log_index_start: 1, l1_diff_size: 53 }
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: true,
+                    cumulative_gas_used: 229933,
+                    logs: vec![]
+                },
+                gas_used: 26630,
+                log_index_start: 0,
+                l1_diff_size: 19
+            }
         ]
     );
     // checkout esad/fix-block-env-bug branch
@@ -229,29 +184,25 @@ fn call_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_pre_fork2(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -264,113 +215,40 @@ fn call_test() {
 
         evm.call(call_message, &context, &mut working_set).unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let storage_value = evm
-        .storage_get(&contract_addr, &U256::ZERO, spec_id, &mut working_set)
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
-        evm.receipts_rlp.iter(&mut working_set.accessory_state()).collect::<Vec<_>>(),
+        evm.receipts
+            .iter(&mut working_set.accessory_state())
+            .collect::<Vec<_>>(),
         [
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50759,
-                    logs: vec![]
-                },
-                gas_used: 50759,
-                log_index_start: 0,
-                l1_diff_size: 53
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"))
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 213569,
+                    cumulative_gas_used: 132943,
                     logs: vec![]
                 },
                 gas_used: 132943,
-                log_index_start: 1,
-                l1_diff_size: 52
+                log_index_start: 0,
+                l1_diff_size: 23
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 257299,
+                    cumulative_gas_used: 176673,
                     logs: vec![]
                 },
                 gas_used: 43730,
-                log_index_start: 1,
-                l1_diff_size: 53
+                log_index_start: 0,
+                l1_diff_size: 19
             }
         ]
     );
@@ -379,31 +257,26 @@ fn call_test() {
 #[test]
 fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
-    let mut config = EvmConfig::default();
-    config_push_contracts(&mut config, None);
+    let config = EvmConfig::default();
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_pre_fork2(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, working_set);
+    evm.begin_l2_block_hook(&l2_block_info, working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -416,111 +289,34 @@ fn failed_transaction_test() {
 
         assert_eq!(
             evm.call(call_message, &context, working_set).unwrap_err(),
-            SoftConfirmationModuleCallError::EvmTransactionExecutionError
+            L2BlockModuleCallError::EvmTransactionExecutionError(
+                "transaction validation error: lack of funds (0) for max fee (100000000000000000)"
+                    .to_string()
+            )
         );
     }
 
-    // assert one pending transaction (system transaction)
     let pending_txs = &evm.pending_transactions;
-    assert_eq!(pending_txs.len(), 1);
+    assert_eq!(pending_txs.len(), 0);
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, working_set);
+    evm.end_l2_block_hook(&l2_block_info, working_set);
     // assert no pending transaction
     let pending_txs = &evm.pending_transactions;
     assert_eq!(pending_txs.len(), 0);
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
-        [
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 50759,
-                    logs: vec![]
-                },
-                gas_used: 50759,
-                log_index_start: 0,
-                l1_diff_size: 53
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"))
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            }
-        ]
+        []
     );
-    let block = evm
-        .blocks_rlp
-        .last(&mut working_set.accessory_state())
-        .unwrap();
+    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
     assert_eq!(block.transactions.start, 0);
-    assert_eq!(block.transactions.end, 3);
+    assert_eq!(block.transactions.end, 0);
 }
 
 // tests first part of https://eips.ethereum.org/EIPS/eip-6780
-// test self destruct behaviour before cancun and after cancun
+// test self destruct behaviour after cancun
 #[test]
 fn self_destruct_test() {
     let contract_balance: u64 = 1000000000000000;
@@ -531,27 +327,23 @@ fn self_destruct_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
 
         // deploy selfdestruct contract
         // send some money to the selfdestruct contract
@@ -571,49 +363,57 @@ fn self_destruct_test() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
 
     let contract_info = evm
-        .account_info(&contract_addr, spec_id, &mut working_set)
+        .account_info(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
     // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
-    let db_contract = DbAccount::new(&contract_addr);
-
     // Test if we managed to set the variable in the contract
     assert_eq!(
-        evm.storage_get(&contract_addr, &U256::from(0), spec_id, &mut working_set)
+        evm.storage_get(&contract_addr, &U256::from(0), &mut working_set)
             .unwrap(),
         U256::from(123)
     );
 
-    // Test if the key is set in the keys statevec
-    assert_eq!(db_contract.keys.len(&mut working_set), 1);
     let l1_fee_rate = 0;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let contract_code_hash_before_destruct = contract_info.code_hash.unwrap();
+    let contract_code_before_destruct = evm
+        .offchain_code
+        .get(
+            &contract_code_hash_before_destruct,
+            &mut working_set.offchain_state(),
+        )
+        .unwrap();
+
+    // Activate fork1
+    // After cancun activated here SELFDESTRUCT will recover all funds to the target
+    // but not delete the account, except when called in the same transaction as creation
+    // In this case the contract does not have a selfdestruct in the same transaction as creation
+    // https://eips.ethereum.org/EIPS/eip-6780
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    // Switch to another fork
+    let _spec_id = SovSpecId::Fork2;
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
-        // selfdestruct
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+        // selfdestruct to die to address with someone other than the creator of the contract
         evm.call(
             CallMessage {
                 txs: vec![selfdestruct_message(
@@ -628,126 +428,11 @@ fn self_destruct_test() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    l2_height += 1;
-
-    // we now delete destructed accounts from storage
-    assert_eq!(
-        evm.account_info(&contract_addr, spec_id, &mut working_set),
-        None
-    );
-
-    let die_to_acc = evm
-        .account_info(&die_to_address, spec_id, &mut working_set)
-        .expect("die to address should exist");
-
-    let receipts = evm
-        .receipts_rlp
-        .iter(&mut working_set.accessory_state())
-        .collect::<Vec<_>>();
-
-    // the tx should be a success
-    assert!(receipts[0].receipt.success);
-
-    // the to address balance should be equal to contract balance
-    assert_eq!(die_to_acc.balance, U256::from(contract_balance));
-
-    let db_account = DbAccount::new(&contract_addr);
-
-    // the storage should be empty
-    assert_eq!(
-        evm.storage_get(&contract_addr, &U256::from(0), spec_id, &mut working_set),
-        None
-    );
-
-    // the keys should be empty
-    assert_eq!(db_account.keys.len(&mut working_set), 0);
-    let new_contract_address = address!("e04dd177927f4293a16f9c3f990b45afebc0e12c");
-    // Now deploy selfdestruct contract again
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    {
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
-
-        // deploy selfdestruct contract
-        // send some money to the selfdestruct contract
-        // set some variable in the contract
-        let rlp_transactions = vec![
-            create_contract_message(&dev_signer, 4, SelfDestructorContract::default()),
-            send_money_to_contract_message(
-                new_contract_address,
-                &dev_signer,
-                5,
-                contract_balance as u128,
-            ),
-            set_selfdestruct_arg_message(new_contract_address, &dev_signer, 6, 123),
-        ];
-
-        evm.call(
-            CallMessage {
-                txs: rlp_transactions,
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    l2_height += 1;
-
-    let contract_info = evm
-        .account_info(&new_contract_address, spec_id, &mut working_set)
-        .expect("contract address should exist");
-
-    let new_contract_code_hash_before_destruct = contract_info.code_hash.unwrap();
-    let new_contract_code_before_destruct = evm
-        .code
-        .get(&new_contract_code_hash_before_destruct, &mut working_set);
-
-    // Activate fork1
-    // After cancun activated here SELFDESTRUCT will recover all funds to the target
-    // but not delete the account, except when called in the same transaction as creation
-    // In this case the contract does not have a selfdestruct in the same transaction as creation
-    // https://eips.ethereum.org/EIPS/eip-6780
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        pub_key: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    });
-
-    // Switch to another fork
-    let spec_id = SovSpecId::Fork2;
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    {
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-        // selfdestruct to die to address with someone other than the creator of the contract
-        evm.call(
-            CallMessage {
-                txs: vec![selfdestruct_message(
-                    new_contract_address,
-                    &dev_signer,
-                    7,
-                    die_to_address,
-                )],
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect::<Vec<_>>();
 
@@ -756,46 +441,38 @@ fn self_destruct_test() {
 
     // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
     let contract_info = evm
-        .account_info(&new_contract_address, spec_id, &mut working_set)
+        .account_info(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
     // Test if we managed to send money to contract
     assert_eq!(contract_info.nonce, 1);
     assert_eq!(
         contract_info.code_hash.unwrap(),
-        new_contract_code_hash_before_destruct
+        contract_code_hash_before_destruct
     );
 
-    // Both on-chain state and off-chain state code should exist
     let code = evm
-        .code
-        .get(&new_contract_code_hash_before_destruct, &mut working_set);
-    assert_eq!(code, new_contract_code_before_destruct);
-
-    let off_chain_code = evm.offchain_code.get(
-        &new_contract_code_hash_before_destruct,
-        &mut working_set.offchain_state(),
-    );
-    assert_eq!(off_chain_code, new_contract_code_before_destruct);
+        .offchain_code
+        .get(
+            &contract_code_hash_before_destruct,
+            &mut working_set.offchain_state(),
+        )
+        .unwrap();
+    assert_eq!(code, contract_code_before_destruct);
 
     // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(0));
 
     let die_to_contract = evm
-        .account_info(&die_to_address, spec_id, &mut working_set)
+        .account_info(&die_to_address, &mut working_set)
         .expect("die to address should exist");
 
     // the to address balance should be equal to double contract balance now that two selfdestructs have been called
-    assert_eq!(die_to_contract.balance, U256::from(2 * contract_balance));
+    assert_eq!(die_to_contract.balance, U256::from(contract_balance));
 
     // the storage should not be empty
     assert_eq!(
-        evm.storage_get(
-            &new_contract_address,
-            &U256::from(0),
-            spec_id,
-            &mut working_set,
-        ),
+        evm.storage_get(&contract_addr, &U256::from(0), &mut working_set,),
         Some(U256::from(123))
     );
 }
@@ -809,16 +486,16 @@ fn test_block_hash_in_evm() {
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
-        pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
@@ -834,7 +511,7 @@ fn test_block_hash_in_evm() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
@@ -842,23 +519,24 @@ fn test_block_hash_in_evm() {
     for _i in 0..514 {
         // generate 514 more blocks
         let l1_fee_rate = 0;
-        let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+        let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Fork2,
-            pub_key: vec![],
+            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
-        });
-        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        };
+
+        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;
     }
 
     let _last_block_number = evm
-        .blocks_rlp
+        .blocks
         .last(&mut working_set.accessory_state())
         .unwrap()
         .header
@@ -901,7 +579,7 @@ fn test_block_hash_in_evm() {
         if (260..=515).contains(&i) {
             // Should be equal to the hash in accessory state
             let block = evm
-                .blocks_rlp
+                .blocks
                 .get((i) as usize, &mut working_set.accessory_state());
             assert_eq!(
                 resp.unwrap().to_vec(),
@@ -914,7 +592,7 @@ fn test_block_hash_in_evm() {
     }
 
     // last produced block is 516, eth_call with pending should return latest block's hash
-    let latest_block = evm.blocks_rlp.get(516, &mut working_set.accessory_state());
+    let latest_block = evm.blocks.get(516, &mut working_set.accessory_state());
     request.input.input = Some(BlockHashContract::default().get_block_hash(516).into());
 
     let resp = evm.get_call_inner(
@@ -958,16 +636,16 @@ fn test_block_gas_limit() {
     let l1_fee_rate = 0;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
-        pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
@@ -998,7 +676,7 @@ fn test_block_gas_limit() {
                 &mut working_set,
             )
             .unwrap_err(),
-            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+            L2BlockModuleCallError::EvmGasUsedExceedsBlockGasLimit {
                 cumulative_gas: 29997634,
                 tx_gas_used: 26388,
                 block_gas_limit: 30000000
@@ -1011,7 +689,7 @@ fn test_block_gas_limit() {
     let mut working_set = working_set.revert().to_revertable();
 
     assert_eq!(
-        evm.get_db(&mut working_set, SovSpecId::Genesis)
+        evm.get_db(&mut working_set)
             .basic(dev_signer.address())
             .unwrap()
             .unwrap()
@@ -1019,16 +697,16 @@ fn test_block_gas_limit() {
         0
     );
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
-        pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
@@ -1060,7 +738,7 @@ fn test_block_gas_limit() {
 
         assert!(result.is_ok());
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
@@ -1166,29 +844,28 @@ fn test_l1_fee_success() {
         expected_base_fee_vault_balance: U256,
         expected_l1_fee_vault_balance: U256,
     ) {
-        let (config, dev_signer, _) =
+        let (mut config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-        let (mut evm, mut working_set, spec_id) = get_evm_pre_fork2(&config);
+        // this will push contracts to the config
+        config_push_contracts(&mut config, None);
 
-        let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+        let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+
+        let l2_block_info = HookL2BlockInfo {
             l2_height: 2,
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32],
-            current_spec: SovSpecId::Kumquat,
-            pub_key: vec![],
-            deposit_data: vec![],
+            current_spec: SovSpecId::Fork2,
+            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
-        });
+        };
 
-        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
         {
             let sender_address = generate_address::<C>("sender");
 
-            let context = C::new(sender_address, 2, SovSpecId::Kumquat, l1_fee_rate);
+            let context = C::new(sender_address, 2, SovSpecId::Fork2, l1_fee_rate);
 
             let deploy_message = create_contract_message_with_priority_fee(
                 &dev_signer,
@@ -1207,22 +884,18 @@ fn test_l1_fee_success() {
             )
             .unwrap();
         }
-        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         let db_account = evm
-            .account_info(&dev_signer.address(), spec_id, &mut working_set)
+            .account_info(&dev_signer.address(), &mut working_set)
             .unwrap();
 
-        let base_fee_vault = evm
-            .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
-            .unwrap();
-        let l1_fee_vault = evm
-            .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
-            .unwrap();
+        let base_fee_vault = evm.account_info(&BASE_FEE_VAULT, &mut working_set).unwrap();
+        let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
         let coinbase_account = evm
-            .account_info(&config.coinbase, spec_id, &mut working_set)
+            .account_info(&config.coinbase, &mut working_set)
             .unwrap();
         assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
@@ -1232,105 +905,20 @@ fn test_l1_fee_success() {
         assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
         assert_eq!(
-            evm.receipts_rlp
+            evm.receipts
                 .iter(&mut working_set.accessory_state())
                 .collect::<Vec<_>>(),
-            [
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 50759,
-                        logs: vec![]
-                    },
-                    gas_used: 50759,
-                    log_index_start: 0,
-                    l1_diff_size: 53
+            [Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: true,
+                    cumulative_gas_used: 114235,
+                    logs: vec![]
                 },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 131385,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000001"),
-                                data: LogData::new(
-                                    vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 80626,
-                    log_index_start: 0,
-                    l1_diff_size: 94
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 300497,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                    Bytes::from_static(&hex!(
-                                        "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"
-                                    ))
-                                ).unwrap()
-                            },
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 169112,
-                    log_index_start: 1,
-                    l1_diff_size: 154
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 80626,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000001"),
-                                data: LogData::new(
-                                    vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 80626,
-                    log_index_start: 0,
-                    l1_diff_size: 94
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 194861,
-                        logs: vec![]
-                    },
-                    gas_used: 114235,
-                    log_index_start: 1,
-                    l1_diff_size: 52
-                }
-            ]
+                gas_used: 114235,
+                log_index_start: 0,
+                l1_diff_size: 23
+            }]
         );
     }
 
@@ -1346,45 +934,42 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 52 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 23 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(52 + L1_FEE_OVERHEAD as u64),
+        U256::from(23 + L1_FEE_OVERHEAD as u64),
     );
 }
 
 #[test]
 fn test_l1_fee_not_enough_funds() {
-    let (config, dev_signer, _) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, _) = get_evm_config_starting_base_fee(
         U256::from_str("1142350000000").unwrap(), // only covers base fee
         None,
         MIN_BASE_FEE_PER_GAS as u64,
     );
+    config_push_contracts(&mut config, None);
 
     let l1_fee_rate = 10000;
-    let (mut evm, mut working_set, spec_id) = get_evm_pre_fork2(&config);
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
 
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee_and_gas_limit(
             &dev_signer,
@@ -1403,89 +988,23 @@ fn test_l1_fee_not_enough_funds() {
             &mut working_set,
         );
 
-        println!("{:?}", call_result);
-
         assert_eq!(
             call_result.unwrap_err(),
-            SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee
+            L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee
         );
 
-        assert_eq!(
-            evm.receipts_rlp
-                .iter(&mut working_set.accessory_state())
-                .collect::<Vec<_>>(),
-            [
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 50759,
-                        logs: vec![]
-                    },
-                    gas_used: 50759,
-                    log_index_start: 0,
-                    l1_diff_size: 53
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 131385,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000001"),
-                                data: LogData::new(
-                                    vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 80626,
-                    log_index_start: 0,
-                    l1_diff_size: 94
-                },
-                Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: reth_primitives::TxType::Eip1559,
-                        success: true,
-                        cumulative_gas_used: 300497,
-                        logs: vec![
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                    Bytes::from_static(&hex!(
-                                        "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"
-                                    ))
-                                ).unwrap()
-                            },
-                            Log {
-                                address: address!("3100000000000000000000000000000000000002"),
-                                data: LogData::new(
-                                    vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                    Bytes::from_static(&hex!(
-                                        "000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
-                                    ))
-                                ).unwrap()
-                            }
-                        ]
-                    },
-                    gas_used: 169112,
-                    log_index_start: 1,
-                    l1_diff_size: 154
-                }
-            ]
-        );
+        assert!(evm
+            .receipts
+            .iter(&mut working_set.accessory_state())
+            .collect::<Vec<_>>()
+            .is_empty());
     }
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
-        .account_info(&dev_signer.address(), spec_id, &mut working_set)
+        .account_info(&dev_signer.address(), &mut working_set)
         .unwrap();
 
     // The account balance is unchanged
@@ -1493,37 +1012,37 @@ fn test_l1_fee_not_enough_funds() {
     assert_eq!(db_account.nonce, 0);
 
     // The coinbase balance is zero
-    let db_coinbase = evm.account_info(&config.coinbase, spec_id, &mut working_set);
-    assert_eq!(db_coinbase.unwrap().balance, U256::from(0));
+    let db_coinbase = evm
+        .account_info(&config.coinbase, &mut working_set)
+        .unwrap();
+    assert_eq!(db_coinbase.balance, U256::from(0));
 }
 
 #[test]
 fn test_l1_fee_halt() {
-    let (config, dev_signer, _) =
+    let (mut config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_pre_fork2(&config); // l2 height 1
+    config_push_contracts(&mut config, None);
+
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Kumquat,
-        pub_key: vec![],
-        deposit_data: vec![],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -1554,11 +1073,11 @@ fn test_l1_fee_halt() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -1566,108 +1085,33 @@ fn test_l1_fee_halt() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50759,
-                    logs: vec![]
-                },
-                gas_used: 50759,
-                log_index_start: 0,
-                l1_diff_size: 53
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 131385,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 300497,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead"))
-                            ).unwrap()
-                        },
-                        Log {
-                            address: address!("3100000000000000000000000000000000000002"),
-                            data: LogData::new(
-                                vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 169112,
-                log_index_start: 1,
-                l1_diff_size: 154
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 80626,
-                    logs: vec![
-                        Log {
-                            address: address!("3100000000000000000000000000000000000001"),
-                            data: LogData::new(
-                                vec![b256!("87071b99941c479317961cac97dfdb285d86f27155d4d9673a478ad5225459cd")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000205050505050505050505050505050505050505050505050505050505050505052a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"))
-                            ).unwrap()
-                        }
-                    ]
-                },
-                gas_used: 80626,
-                log_index_start: 0,
-                l1_diff_size: 94
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::Eip1559,
-                    success: true,
-                    cumulative_gas_used: 187573,
+                    cumulative_gas_used: 106947,
                     logs: vec![]
                 },
                 gas_used: 106947,
-                log_index_start: 1,
-                l1_diff_size: 52
+                log_index_start: 0,
+                l1_diff_size: 23
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: false,
-                    cumulative_gas_used: 1187573,
+                    cumulative_gas_used: 1106947,
                     logs: vec![]
                 },
                 gas_used: 1000000,
-                log_index_start: 1,
-                l1_diff_size: 31
+                log_index_start: 0,
+                l1_diff_size: 4
             }
         ]
     );
     let db_account = evm
-        .account_info(&dev_signer.address(), spec_id, &mut working_set)
+        .account_info(&dev_signer.address(), &mut working_set)
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        52 + // l1 contract deploy fee
-        31 + // l1 contract call fee
+        23 + // l1 contract deploy fee
+        4 + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.balance,
@@ -1676,113 +1120,36 @@ fn test_l1_fee_halt() {
             expenses
         )
     );
-    let base_fee_vault = evm
-        .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
-        .unwrap();
-    let l1_fee_vault = evm
-        .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
-        .unwrap();
+    let base_fee_vault = evm.account_info(&BASE_FEE_VAULT, &mut working_set).unwrap();
+    let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
         l1_fee_vault.balance,
-        U256::from(52 + 31 + 2 * L1_FEE_OVERHEAD as u64)
+        U256::from(23 + 4 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }
 
 #[test]
 fn test_l1_fee_compression_discount() {
-    let (config, dev_signer, _) =
+    let (mut config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-    let (mut evm, mut working_set, spec_id) = get_evm_with_spec(&config, SovSpecId::Genesis);
+    config_push_contracts(&mut config, None);
+
+    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 1;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V1(HookSoftConfirmationInfoV1 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height: 2,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Genesis,
-        pub_key: vec![],
-        deposit_data: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    });
-
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    {
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 2, SovSpecId::Genesis, l1_fee_rate);
-        let call_tx = dev_signer
-            .sign_default_transaction_with_priority_fee(
-                TxKind::Call(Address::random()),
-                vec![],
-                0,
-                1000,
-                20000000,
-                1,
-            )
-            .unwrap();
-
-        evm.call(
-            CallMessage { txs: vec![call_tx] },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    let db_account = evm
-        .account_info(&dev_signer.address(), spec_id, &mut working_set)
-        .unwrap();
-
-    let base_fee_vault = evm
-        .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
-        .unwrap();
-    let l1_fee_vault = evm
-        .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
-        .unwrap();
-
-    let coinbase_account = evm
-        .account_info(&config.coinbase, spec_id, &mut working_set)
-        .unwrap();
-    assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
-
-    let gas_fee_paid = 21000;
-    let tx1_diff_size = 140;
-
-    let mut expected_db_balance = U256::from(
-        100000000000000u64
-            - 1000
-            - gas_fee_paid * 10000001
-            - tx1_diff_size
-            - L1_FEE_OVERHEAD as u64,
-    );
-    let mut expected_base_fee_vault_balance = U256::from(gas_fee_paid * 10000000);
-    let mut expected_coinbase_balance = U256::from(gas_fee_paid);
-    let mut expected_l1_fee_vault_balance = U256::from(tx1_diff_size + L1_FEE_OVERHEAD as u64);
-
-    assert_eq!(db_account.balance, expected_db_balance);
-    assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
-    assert_eq!(coinbase_account.balance, expected_coinbase_balance);
-    assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
-
-    // Set up the next transaction with the fork 2 activated
-    let spec_id = SovSpecId::Fork2;
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
-        l2_height: 3,
         pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Fork2, // Compression discount is enabled
-        pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address, 3, SovSpecId::Fork2, l1_fee_rate);
@@ -1790,7 +1157,7 @@ fn test_l1_fee_compression_discount() {
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
                 vec![],
-                1,
+                0,
                 1000,
                 20000000,
                 1,
@@ -1805,49 +1172,47 @@ fn test_l1_fee_compression_discount() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[98u8; 32], &mut working_set.accessory_state());
 
     let db_account = evm
-        .account_info(&dev_signer.address(), spec_id, &mut working_set)
+        .account_info(&dev_signer.address(), &mut working_set)
         .unwrap();
-    let base_fee_vault = evm
-        .account_info(&BASE_FEE_VAULT, spec_id, &mut working_set)
-        .unwrap();
-    let l1_fee_vault = evm
-        .account_info(&L1_FEE_VAULT, spec_id, &mut working_set)
-        .unwrap();
+    let base_fee_vault = evm.account_info(&BASE_FEE_VAULT, &mut working_set).unwrap();
+    let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     let coinbase_account = evm
-        .account_info(&config.coinbase, spec_id, &mut working_set)
+        .account_info(&config.coinbase, &mut working_set)
         .unwrap();
 
     // gas fee remains the same
-    let tx2_diff_size = 46;
+    let tx2_diff_size = 9;
 
-    expected_db_balance -=
-        U256::from(gas_fee_paid * 10000001 + 1000 + tx2_diff_size + L1_FEE_OVERHEAD as u64);
-    expected_base_fee_vault_balance += U256::from(gas_fee_paid * 10000000);
-    expected_coinbase_balance += U256::from(gas_fee_paid);
-    expected_l1_fee_vault_balance += U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
+    let tx_gas = 21000;
+
+    let expected_db_balance = U256::from(
+        100000000000000u64 - 1000 - tx_gas * 10000001 - L1_FEE_OVERHEAD as u64 - tx2_diff_size,
+    );
+    let expected_base_fee_vault_balance = U256::from(tx_gas * 10000000);
+    let expected_coinbase_balance = U256::from(tx_gas);
+    let expected_l1_fee_vault_balance = U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
 
     assert_eq!(db_account.balance, expected_db_balance);
     assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
     assert_eq!(coinbase_account.balance, expected_coinbase_balance);
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
-    // assert comression discount
     assert_eq!(
-        tx1_diff_size * BROTLI_COMPRESSION_PERCENTAGE as u64 / 100,
-        tx2_diff_size
-    );
-
-    assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .map(|r| r.l1_diff_size)
             .collect::<Vec<_>>(),
-        [255, 561, 1019, 561, tx1_diff_size, tx2_diff_size]
+        [tx2_diff_size]
+    );
+
+    assert_eq!(
+        30 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
+        tx2_diff_size
     );
 }
 
@@ -1860,18 +1225,18 @@ fn test_call_with_block_overrides() {
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Fork2,
-        pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
     // Deploy block hashes contract
     let sender_address = generate_address::<C>("sender");
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
 
@@ -1886,23 +1251,24 @@ fn test_call_with_block_overrides() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
     l2_height += 1;
 
     // Create empty EVM blocks
     for _i in 0..10 {
         let l1_fee_rate = 0;
-        let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+        let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Fork2,
-            pub_key: vec![],
+            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
-        });
-        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        };
+
+        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
         l2_height += 1;
@@ -1983,17 +1349,17 @@ fn test_blob_tx() {
     let l1_fee_rate = 0;
     let l2_height = 2;
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2, // wont be Kumquat at height 2 currently but we can trick the spec id
-        pub_key: vec![],
+        current_spec: SovSpecId::Fork2, // wont be Fork2 at height 2 currently but we can trick the spec id
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
-    });
+    };
 
     let sender_address = generate_address::<C>("sender");
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
 
@@ -2010,7 +1376,7 @@ fn test_blob_tx() {
                 &mut working_set,
             )
             .unwrap_err(),
-            SoftConfirmationModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string())
+            L2BlockModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string())
         );
     }
 }

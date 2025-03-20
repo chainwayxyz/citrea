@@ -1,7 +1,7 @@
 use sov_db::schema::tables::{
     L2RangeByL1Height, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::pruning::types::StorageNodeType;
@@ -25,7 +25,7 @@ pub(crate) fn prune_slots(
         let slot_height = record.key;
         let slot_range = record.value;
 
-        if slot_range.1 > SoftConfirmationNumber(up_to_block) {
+        if slot_range.1 > L2BlockNumber(up_to_block) {
             break;
         }
 

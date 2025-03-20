@@ -14,10 +14,6 @@ pub use genesis::*;
 pub use hooks::{
     create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
 };
-#[cfg(feature = "native")]
-use primitive_types::DoNotUseSealedBlock;
-#[cfg(feature = "native")]
-use primitive_types::DoNotUseTransactionSignedAndRecovered;
 use sov_state::codec::BorshCodec;
 pub use system_events::SYSTEM_SIGNER;
 
@@ -42,15 +38,12 @@ use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
 use revm::primitives::{BlockEnv, SpecId as EvmSpecId};
-use sov_modules_api::{
-    ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
-};
+use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
 use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
 use crate::evm::primitive_types::SealedBlock;
-use crate::evm::primitive_types::{Block, DoNotUseHeader, Receipt, TransactionSignedAndRecovered};
-use crate::evm::system_events::SystemEvent;
+use crate::evm::primitive_types::{Block, Receipt, TransactionSignedAndRecovered};
 pub use crate::EvmConfig;
 
 #[derive(
@@ -80,6 +73,7 @@ type AccountId = u64;
 /// The citrea-evm module provides compatibility with the EVM.
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
+#[module(rename = "E")]
 pub struct Evm<C: sov_modules_api::Context> {
     /// The address of the evm module.
     #[address]
@@ -89,35 +83,25 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state(rename = "i")]
     pub account_idxs: sov_modules_api::StateMap<Address, AccountId, BorshCodec>,
 
-    /// Mapping from account address to account state.
-    #[state(rename = "a")]
-    pub accounts_prefork2: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
-
     /// Mapping from account id to account state.
-    #[state(rename = "t")]
-    pub accounts_postfork2: sov_modules_api::StateMap<AccountId, AccountInfo, BorshCodec>,
+    #[state(rename = "a")]
+    pub accounts: sov_modules_api::StateMap<AccountId, AccountInfo, BorshCodec>,
 
     /// The total number of accounts.
     #[state(rename = "n")]
     pub(crate) account_amount: sov_modules_api::StateValue<u64, BorshCodec>,
 
-    /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
-    #[state(rename = "c")]
-    pub(crate) code: sov_modules_api::StateMap<B256, revm::primitives::Bytecode, BcsCodec>,
-
     /// Mapping from storage hash ( sha256(address | key) ) to storage value.
-    #[state(rename = "S")]
+    #[state(rename = "s")]
     pub storage: sov_modules_api::StateMap<U256, U256, BorshCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
-    /// This is the new offchain version which is not counted in the state diff.
-    /// Activated after FORK1
-    #[state(rename = "occ")]
+    #[state(rename = "c")]
     pub(crate) offchain_code:
         sov_modules_api::OffchainStateMap<B256, revm::primitives::Bytecode, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
-    #[state]
+    #[state(rename = "S")]
     pub cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
@@ -133,25 +117,16 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[memory]
     pub(crate) pending_transactions: Vec<PendingTransaction>,
 
-    /// Head of the chain. The new head is set in `end_slot_hook` but without the inclusion of the `state_root` field.
-    /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
-    #[state]
-    pub(crate) head: sov_modules_api::StateValue<Block<DoNotUseHeader>, BcsCodec>,
-
     /// Head of the rlp encoded chain. The new head is set in `end_slot_hook` but without the inclusion of the `state_root` field.
     /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
-    #[state]
-    pub(crate) head_rlp: sov_modules_api::StateValue<Block<AlloyHeader>, RlpCodec>,
-
-    /// Last seen L1 block hash.
-    #[state(rename = "l")]
-    pub last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
+    #[state(rename = "h")]
+    pub(crate) head: sov_modules_api::StateValue<Block<AlloyHeader>, RlpCodec>,
 
     /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
     /// Removes the oldest blockhash in `finalize_hook`
     /// Used by the EVM to calculate the `blockhash` opcode.
-    #[state(rename = "h")]
-    pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
+    #[state(rename = "H")]
+    pub(crate) latest_block_hashes: sov_modules_api::StateMap<u64, B256, BorshCodec>,
 
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
@@ -162,44 +137,28 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state]
     pub(crate) pending_head: sov_modules_api::AccessoryStateValue<Block<AlloyHeader>, RlpCodec>,
 
-    /// Used only by the RPC: The vec is extended with `pending_head` in `finalize_hook`.
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) blocks: sov_modules_api::AccessoryStateVec<DoNotUseSealedBlock, BcsCodec>,
-
-    #[cfg(feature = "native")]
-    #[state]
-    pub(crate) blocks_rlp: sov_modules_api::AccessoryStateVec<SealedBlock, RlpCodec>,
+    pub(crate) blocks: sov_modules_api::AccessoryStateVec<SealedBlock, RlpCodec>,
 
     /// Used only by the RPC: block_hash => block_number mapping,
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) block_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
+    pub(crate) block_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BorshCodec>,
 
-    /// Used only by the RPC: List of processed transactions.
     #[cfg(feature = "native")]
     #[state]
     pub(crate) transactions:
-        sov_modules_api::AccessoryStateVec<DoNotUseTransactionSignedAndRecovered, BcsCodec>,
-
-    #[cfg(feature = "native")]
-    #[state]
-    pub(crate) transactions_rlp:
         sov_modules_api::AccessoryStateVec<TransactionSignedAndRecovered, RlpCodec>,
 
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) transaction_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
-
-    /// Used only by the RPC: Receipts.
-    #[cfg(feature = "native")]
-    #[state]
-    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
+    pub(crate) transaction_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BorshCodec>,
 
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) receipts_rlp: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
+    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
 }
 
 impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
@@ -218,7 +177,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         msg: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<sov_modules_api::CallResponse, L2BlockModuleCallError> {
         self.execute_call(msg.txs, context, working_set)
     }
 }
@@ -227,16 +186,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
         &'a self,
         working_set: &'a mut WorkingSet<C::Storage>,
-        citrea_spec: CitreaSpecId,
     ) -> EvmDb<'a, C> {
-        EvmDb::new(self, working_set, citrea_spec)
+        EvmDb::new(self, working_set)
     }
 }
 
-const fn citrea_spec_id_to_evm_spec_id(spec_id: CitreaSpecId) -> EvmSpecId {
-    match spec_id {
-        CitreaSpecId::Genesis => EvmSpecId::SHANGHAI,
-        // Any other citrea spec id mapped to cancun
-        _ => EvmSpecId::CANCUN,
-    }
+const fn citrea_spec_id_to_evm_spec_id(_spec_id: CitreaSpecId) -> EvmSpecId {
+    EvmSpecId::CANCUN
 }

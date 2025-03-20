@@ -38,7 +38,7 @@ pub fn build_services<DA, DB, Vm>(
     da_service: Arc<DA>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    l2_block_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     backup_manager: Arc<BackupManager>,
@@ -61,7 +61,7 @@ where
             storage_manager.get_native_db_handle(),
         );
 
-        PrunerService::new(pruner, last_pruned_block, soft_confirmation_tx.subscribe())
+        PrunerService::new(pruner, last_pruned_block, l2_block_tx.subscribe())
     });
 
     let include_tx_bodies = runner_config.include_tx_body;
@@ -75,7 +75,7 @@ where
         ledger_db.clone(),
         storage_manager,
         fork_manager,
-        soft_confirmation_tx,
+        l2_block_tx,
         backup_manager.clone(),
         l2_signal_tx,
         include_tx_bodies,

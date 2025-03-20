@@ -37,7 +37,7 @@ impl TestCase for GenerateProofInput {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 50,
+            min_l2_blocks_per_commitment: 50,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 1_000_000,
                 pending_tx_size: 100_000_000,
@@ -69,7 +69,7 @@ impl TestCase for GenerateProofInput {
         let mut signed_txs_iter = signed_txs.iter().filter(|tx| !tx.trim().is_empty());
 
         // 2 full commitments
-        let blocks = sequencer.config.node.min_soft_confirmations_per_commitment * 2;
+        let blocks = sequencer.config.node.min_l2_blocks_per_commitment * 2;
         let tx_per_block = signed_txs.len() as u64 / blocks;
 
         for block in 1..=blocks {

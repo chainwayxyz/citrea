@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
+use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::KECCAK_EMPTY;
-use revm::primitives::{Bytecode, SpecId};
+use revm::primitives::Bytecode;
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
+use sov_modules_api::WorkingSet;
 
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
@@ -116,9 +117,6 @@ pub struct EvmConfig {
     pub chain_id: u64,
     /// Limits size of contract code size.
     pub limit_contract_code_size: Option<usize>,
-    /// List of EVM hardforks by block number
-    /// Deactivated because we now handle forks and specs somewhere else
-    // pub spec: HashMap<u64, SpecId>,
     /// Coinbase where all the fees go
     pub coinbase: Address,
     /// Starting base fee.
@@ -158,13 +156,12 @@ impl Default for EvmConfig {
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {
-    // TODO: maybe be able to genesis with Kumquat
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C::Storage>,
     ) {
-        let mut evm_db = self.get_db(working_set, CitreaSpecId::Genesis);
+        let mut evm_db = self.get_db(working_set);
 
         for acc in &config.data {
             let code = Bytecode::new_raw(acc.code.clone());
@@ -195,20 +192,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let chain_cfg = EvmChainConfig {
             chain_id: config.chain_id,
             limit_contract_code_size: config.limit_contract_code_size,
-            // spec,
             coinbase: config.coinbase,
             block_gas_limit: config.block_gas_limit,
             base_fee_params: config.base_fee_params,
-            // We initialized testnet like this
-            // Even though we won't use it anymore
-            // we still need to initialize chain like this
-            // so we get the same genesis state root.
-            spec: vec![(0, SpecId::SHANGHAI)],
         };
 
         self.cfg.set(&chain_cfg, working_set);
 
-        let header = crate::primitive_types::DoNotUseHeader {
+        let header = Header {
             parent_hash: B256::default(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: config.coinbase,
@@ -216,7 +207,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             state_root: KECCAK_EMPTY,
             transactions_root: EMPTY_TRANSACTIONS,
             receipts_root: EMPTY_RECEIPTS,
-            withdrawals_root: None,
             logs_bloom: Bloom::default(),
             difficulty: config.difficulty,
             number: 0,
@@ -224,24 +214,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
             gas_used: 0,
             timestamp: config.timestamp,
             mix_hash: B256::default(),
-            nonce: config.nonce,
+            nonce: config.nonce.into(),
             base_fee_per_gas: Some(config.starting_base_fee),
             extra_data: config.extra_data.clone(),
             // EIP-4844 related fields
-            // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-            blob_gas_used: None,
-            excess_blob_gas: None,
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
             requests_root: None,
+            withdrawals_root: None,
         };
 
         let block = Block {
             header,
             l1_fee_rate: 0,
-            // TODO: Check this for genesis hash - is it completely fine?
-            l1_hash: B256::default(),
             transactions: 0u64..0u64,
         };
 
@@ -249,7 +237,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         #[cfg(feature = "native")]
         self.pending_head
-            .set(&block.into(), &mut working_set.accessory_state());
+            .set(&block, &mut working_set.accessory_state());
     }
 }
 
