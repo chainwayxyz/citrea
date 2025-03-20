@@ -116,7 +116,7 @@ fn call_multiple_test() {
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -129,7 +129,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 52
+                l1_diff_size: 23
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -140,7 +140,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 53
+                l1_diff_size: 19
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -151,7 +151,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 53
+                l1_diff_size: 19
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -162,7 +162,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 53
+                l1_diff_size: 19
             }
         ]
     );
@@ -224,7 +224,7 @@ fn call_test() {
 
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -237,7 +237,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 52
+                l1_diff_size: 23
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -248,7 +248,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 53
+                l1_diff_size: 19
             }
         ]
     );
@@ -289,7 +289,10 @@ fn failed_transaction_test() {
 
         assert_eq!(
             evm.call(call_message, &context, working_set).unwrap_err(),
-            L2BlockModuleCallError::EvmTransactionExecutionError
+            L2BlockModuleCallError::EvmTransactionExecutionError(
+                "transaction validation error: lack of funds (0) for max fee (100000000000000000)"
+                    .to_string()
+            )
         );
     }
 
@@ -302,15 +305,12 @@ fn failed_transaction_test() {
     assert_eq!(pending_txs.len(), 0);
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         []
     );
-    let block = evm
-        .blocks_rlp
-        .last(&mut working_set.accessory_state())
-        .unwrap();
+    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
     assert_eq!(block.transactions.start, 0);
     assert_eq!(block.transactions.end, 0);
 }
@@ -432,7 +432,7 @@ fn self_destruct_test() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect::<Vec<_>>();
 
@@ -536,7 +536,7 @@ fn test_block_hash_in_evm() {
     }
 
     let _last_block_number = evm
-        .blocks_rlp
+        .blocks
         .last(&mut working_set.accessory_state())
         .unwrap()
         .header
@@ -579,7 +579,7 @@ fn test_block_hash_in_evm() {
         if (260..=515).contains(&i) {
             // Should be equal to the hash in accessory state
             let block = evm
-                .blocks_rlp
+                .blocks
                 .get((i) as usize, &mut working_set.accessory_state());
             assert_eq!(
                 resp.unwrap().to_vec(),
@@ -592,7 +592,7 @@ fn test_block_hash_in_evm() {
     }
 
     // last produced block is 516, eth_call with pending should return latest block's hash
-    let latest_block = evm.blocks_rlp.get(516, &mut working_set.accessory_state());
+    let latest_block = evm.blocks.get(516, &mut working_set.accessory_state());
     request.input.input = Some(BlockHashContract::default().get_block_hash(516).into());
 
     let resp = evm.get_call_inner(
@@ -905,7 +905,7 @@ fn test_l1_fee_success() {
         assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
         assert_eq!(
-            evm.receipts_rlp
+            evm.receipts
                 .iter(&mut working_set.accessory_state())
                 .collect::<Vec<_>>(),
             [Receipt {
@@ -917,7 +917,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 52
+                l1_diff_size: 23
             }]
         );
     }
@@ -934,11 +934,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 52 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 23 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(52 + L1_FEE_OVERHEAD as u64),
+        U256::from(23 + L1_FEE_OVERHEAD as u64),
     );
 }
 
@@ -994,7 +994,7 @@ fn test_l1_fee_not_enough_funds() {
         );
 
         assert!(evm
-            .receipts_rlp
+            .receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>()
             .is_empty());
@@ -1077,7 +1077,7 @@ fn test_l1_fee_halt() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -1090,7 +1090,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 52
+                l1_diff_size: 23
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1101,7 +1101,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 31
+                l1_diff_size: 4
             }
         ]
     );
@@ -1110,8 +1110,8 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        52 + // l1 contract deploy fee
-        31 + // l1 contract call fee
+        23 + // l1 contract deploy fee
+        4 + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.balance,
@@ -1126,7 +1126,7 @@ fn test_l1_fee_halt() {
     assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
         l1_fee_vault.balance,
-        U256::from(52 + 31 + 2 * L1_FEE_OVERHEAD as u64)
+        U256::from(23 + 4 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }
 
@@ -1186,7 +1186,7 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
 
     // gas fee remains the same
-    let tx2_diff_size = 46;
+    let tx2_diff_size = 9;
 
     let tx_gas = 21000;
 
@@ -1203,7 +1203,7 @@ fn test_l1_fee_compression_discount() {
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .iter(&mut working_set.accessory_state())
             .map(|r| r.l1_diff_size)
             .collect::<Vec<_>>(),
@@ -1211,7 +1211,7 @@ fn test_l1_fee_compression_discount() {
     );
 
     assert_eq!(
-        140 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
+        30 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
         tx2_diff_size
     );
 }

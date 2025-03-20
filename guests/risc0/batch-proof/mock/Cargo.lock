@@ -3167,7 +3167,6 @@ dependencies = [
  "borsh",
  "citrea-primitives",
  "hex",
- "itertools 0.13.0",
  "jmt",
  "rs_merkle",
  "serde",
@@ -3806,8 +3805,3 @@ dependencies = [
  "quote",
  "syn 2.0.98",
 ]
-
-[[patch.unused]]
-name = "ed25519-dalek"
-version = "2.1.1"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.2-risczero.0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"

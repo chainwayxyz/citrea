@@ -233,7 +233,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             transactions: 0u64..0u64,
         };
 
-        self.head_rlp.set(&block, working_set);
+        self.head.set(&block, working_set);
 
         #[cfg(feature = "native")]
         self.pending_head

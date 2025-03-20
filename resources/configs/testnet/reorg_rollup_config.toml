@@ -52,4 +52,3 @@ bind_port = 12345
 
 # max subscriptions per connection is default to 100
 # max_subscriptions_per_connection = 100
-

@@ -151,7 +151,6 @@ pub fn get_last_l1_hash_on_contract<C: Context>(
             match storage.get_and_prove(&key, last_l1_hash_witness, final_state_root) {
                 Some(value) => borsh_deserialize_value(value.into_cache_value().value),
                 None => {
-                    // TODO for this pr: Maybe don't panic here?
                     panic!("Next L1 height should exist in storage");
                 }
             }
@@ -182,7 +181,6 @@ pub fn get_last_l1_hash_on_contract<C: Context>(
             match storage.get_and_prove(&key, last_l1_hash_witness, final_state_root) {
                 Some(value) => borsh_deserialize_value(value.into_cache_value().value),
                 None => {
-                    // TODO for this pr: Maybe don't panic here?
                     panic!("Last L1 hash should exist in storage");
                 }
             }

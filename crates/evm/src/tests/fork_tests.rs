@@ -5,7 +5,6 @@ use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
 use sha2::Digest;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
@@ -178,7 +177,7 @@ fn test_cancun_transient_storage_activation() {
     l2_height += 1;
 
     let receipts: Vec<_> = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
 
@@ -202,7 +201,7 @@ fn test_cancun_transient_storage_activation() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let receipts: Vec<_> = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
 
@@ -268,7 +267,7 @@ fn test_cancun_mcopy_activation() {
     // l2_height += 1;
 
     let receipts: Vec<_> = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
 
@@ -429,7 +428,7 @@ fn test_blob_base_fee_should_return_1() {
     // l2_height += 1;
 
     let receipts: Vec<_> = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
 
@@ -532,7 +531,7 @@ fn test_kzg_point_eval_should_revert() {
 
     // expect this call to fail because we do not have the kzg feature of revm enabled on fork1
     let receipts: Vec<_> = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
 
@@ -597,7 +596,7 @@ fn test_p256_verify() {
 
     // expect this call to success because we enabled the p256 feature of revm enabled on fork2
     let receipts: Vec<_> = evm
-        .receipts_rlp
+        .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
 
@@ -612,8 +611,6 @@ fn test_p256_verify() {
 fn test_offchain_contract_storage_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-
-    let fork_fn = |_: u64| Fork::new(SovSpecId::Fork2, 4);
 
     let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Fork2);
     let l1_fee_rate = 0;
@@ -663,9 +660,7 @@ fn test_offchain_contract_storage_evm() {
         .unwrap();
 
     // Try to get the code from Fork2 fork and expect it to exist
-    let code = evm
-        .get_code_inner(contract_addr, None, &mut working_set, fork_fn)
-        .unwrap();
+    let code = evm.get_code(contract_addr, None, &mut working_set).unwrap();
 
     assert_eq!(*cont_code.original_byte_slice(), code);
 
@@ -675,13 +670,12 @@ fn test_offchain_contract_storage_evm() {
         .unwrap();
 
     let code = evm
-        .get_code_inner(
+        .get_code(
             contract_addr,
             Some(alloy_eips::BlockId::Number(
                 alloy_eips::BlockNumberOrTag::Latest,
             )),
             &mut working_set,
-            fork_fn,
         )
         .unwrap();
 
@@ -749,7 +743,7 @@ fn test_offchain_contract_storage_evm() {
 
     // Try to get the code from Fork2 fork and expect it to not exist because it is stored in offchain storage
     let code = evm
-        .get_code_inner(new_contract_address, None, &mut working_set, fork_fn)
+        .get_code(new_contract_address, None, &mut working_set)
         .unwrap();
     assert_eq!(code, *offchain_code.unwrap().original_byte_slice());
 

@@ -92,7 +92,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) account_amount: sov_modules_api::StateValue<u64, BorshCodec>,
 
     /// Mapping from storage hash ( sha256(address | key) ) to storage value.
-    #[state(rename = "S")]
+    #[state(rename = "s")]
     pub storage: sov_modules_api::StateMap<U256, U256, BorshCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
@@ -101,7 +101,7 @@ pub struct Evm<C: sov_modules_api::Context> {
         sov_modules_api::OffchainStateMap<B256, revm::primitives::Bytecode, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
-    #[state]
+    #[state(rename = "S")]
     pub cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
@@ -119,13 +119,13 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Head of the rlp encoded chain. The new head is set in `end_slot_hook` but without the inclusion of the `state_root` field.
     /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
-    #[state]
-    pub(crate) head_rlp: sov_modules_api::StateValue<Block<AlloyHeader>, RlpCodec>,
+    #[state(rename = "h")]
+    pub(crate) head: sov_modules_api::StateValue<Block<AlloyHeader>, RlpCodec>,
 
     /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
     /// Removes the oldest blockhash in `finalize_hook`
     /// Used by the EVM to calculate the `blockhash` opcode.
-    #[state(rename = "h")]
+    #[state(rename = "H")]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<u64, B256, BorshCodec>,
 
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
@@ -139,7 +139,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) blocks_rlp: sov_modules_api::AccessoryStateVec<SealedBlock, RlpCodec>,
+    pub(crate) blocks: sov_modules_api::AccessoryStateVec<SealedBlock, RlpCodec>,
 
     /// Used only by the RPC: block_hash => block_number mapping,
     #[cfg(feature = "native")]
@@ -148,7 +148,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) transactions_rlp:
+    pub(crate) transactions:
         sov_modules_api::AccessoryStateVec<TransactionSignedAndRecovered, RlpCodec>,
 
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
@@ -158,7 +158,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) receipts_rlp: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
+    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
 }
 
 impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {

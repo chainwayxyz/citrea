@@ -35,12 +35,9 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             if let Some(ref code) = new_info.code {
                 if !code.is_empty() {
-                    // If after Kumquat, just set the offchain code if doesn't already exist
-                    // for contracts deployed before, self.code is set and they will be moved
-                    // to offchain code next time they are read.
-                    //
-                    // this if is not &&'ed with the above if, because if we are after Kumquat, we
-                    // don't even want to check or set the code in self.code
+                    // we don't update code with analyzed code because that would mean we can change jump table
+                    // however we want without changing the code hash
+                    // that means we can fiddle with tx execution
                     if self
                         .evm
                         .offchain_code

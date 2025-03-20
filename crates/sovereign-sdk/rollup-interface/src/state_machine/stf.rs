@@ -124,9 +124,7 @@ pub enum L2BlockModuleCallError {
         block_gas_limit: u64,
     },
     /// There was an error during EVM transaction execution
-    EvmTransactionExecutionError,
-    /// So we can see the error
-    EvmTransactionExecutionError2(String),
+    EvmTransactionExecutionError(String),
     /// There is a system transaction where it should not be
     EvmMisplacedSystemTx,
     /// Address does not have enough funds to pay for L1 fee
@@ -145,8 +143,6 @@ pub enum L2BlockModuleCallError {
     EvmSystemTransactionPlacedAfterUserTx,
     /// System tx failed to parse
     EvmSystemTxParseError,
-    /// System tx is deprecated after fork2
-    EvmSystemTxNotAllowedAfterFork2,
 }
 
 #[derive(Debug, PartialEq)]
@@ -234,10 +230,7 @@ impl std::fmt::Display for L2BlockModuleCallError {
                             cumulative_gas, tx_gas_used, block_gas_limit
                         )
             }
-            L2BlockModuleCallError::EvmTransactionExecutionError => {
-                write!(f, "EVM transaction execution error")
-            }
-            L2BlockModuleCallError::EvmTransactionExecutionError2(e) => {
+            L2BlockModuleCallError::EvmTransactionExecutionError(e) => {
                 write!(f, "EVM transaction execution error: {:?}", e)
             }
             L2BlockModuleCallError::EvmMisplacedSystemTx => {
@@ -266,9 +259,6 @@ impl std::fmt::Display for L2BlockModuleCallError {
             }
             L2BlockModuleCallError::EvmSystemTxParseError => {
                 write!(f, "EVM system transaction parse error")
-            }
-            L2BlockModuleCallError::EvmSystemTxNotAllowedAfterFork2 => {
-                write!(f, "EVM system transaction not allowed after fork2")
             }
         }
     }

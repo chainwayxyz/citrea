@@ -3,7 +3,7 @@ use alloy_primitives::Bytes as RethBytes;
 use reth_primitives::{
     TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, KECCAK_EMPTY,
 };
-use revm::primitives::{AccountInfo as ReVmAccountInfo, SpecId, TransactTo, TxEnv, U256};
+use revm::primitives::{AccountInfo as ReVmAccountInfo, TransactTo, TxEnv, U256};
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
@@ -45,13 +45,13 @@ impl From<AccountInfo> for reth_primitives::Account {
     }
 }
 
-pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, _spec_id: SpecId) -> TxEnv {
+pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
     let to = match tx.to() {
         Some(addr) => TransactTo::Call(addr),
         None => TransactTo::Create,
     };
 
-    let mut tx_env = TxEnv {
+    let tx_env = TxEnv {
         caller: tx.signer(),
         gas_limit: tx.gas_limit(),
         gas_price: U256::from(tx.effective_gas_price(None)),
@@ -61,22 +61,12 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered, _spec_id: SpecId)
         data: RethBytes::from(tx.input().to_vec()),
         chain_id: tx.chain_id(),
         nonce: Some(tx.nonce()),
-        access_list: vec![],
+        access_list: tx.access_list().cloned().unwrap_or_default().0,
         // EIP-4844 related fields
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        blob_hashes: vec![],
-        max_fee_per_blob_gas: None,
+        blob_hashes: tx.blob_versioned_hashes().unwrap_or_default(),
+        max_fee_per_blob_gas: tx.max_fee_per_blob_gas().map(U256::from),
         authorization_list: None,
     };
-
-    // A bug was found before activating cancun
-    // Access list supplied with txs were ignored
-    // that's why we can only use the access list if spec >= cancun
-    tx_env.access_list = tx.access_list().cloned().unwrap_or_default().0;
-
-    // EIP-4844 related fields
-    tx_env.blob_hashes = tx.blob_versioned_hashes().unwrap_or_default();
-    tx_env.max_fee_per_blob_gas = tx.max_fee_per_blob_gas().map(U256::from);
 
     tx_env
 }

@@ -38,7 +38,7 @@ const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 /// 4 bytes of prefix ("E/a/") + 8 bytes of account id = 12 bytes
 const DB_ACCOUNT_KEY_SIZE: usize = 12;
 
-/// 4 bytes of prefix ("E/S/") + 32 bytes of storage hash = 36 bytes
+/// 4 bytes of prefix ("E/s/") + 32 bytes of storage hash = 36 bytes
 const STORAGE_KEY_SIZE: usize = 36;
 
 /// Storage value is 32 bytes
@@ -287,7 +287,7 @@ where
             // validation.env =
             validation.tx_against_state =
                 Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
-            let load_precompiles = CitreaHandler::<SPEC, EXT, DB>::load_precompiles_postfork2;
+            let load_precompiles = CitreaHandler::<SPEC, EXT, DB>::load_precompiles;
             pre_execution.load_precompiles = Arc::new(load_precompiles);
             // pre_execution.load_accounts =
             pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
@@ -314,7 +314,7 @@ struct CitreaHandler<SPEC, EXT, DB> {
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    fn load_precompiles_postfork2() -> ContextPrecompiles<DB> {
+    fn load_precompiles() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
 

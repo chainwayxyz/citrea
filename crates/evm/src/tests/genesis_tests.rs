@@ -109,7 +109,7 @@ fn genesis_block() {
 
     let mut accessory_state = working_set.accessory_state();
 
-    let block = evm.blocks_rlp.get(0, &mut accessory_state).unwrap();
+    let block = evm.blocks.get(0, &mut accessory_state).unwrap();
 
     assert_eq!(
         block,
@@ -149,10 +149,10 @@ fn genesis_block() {
 #[test]
 fn genesis_head() {
     let (evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
-    let head = evm.head_rlp.get(&mut working_set).unwrap();
+    let head = evm.head.get(&mut working_set).unwrap();
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);
     let genesis_block = evm
-        .blocks_rlp
+        .blocks
         .get(0, &mut working_set.accessory_state())
         .unwrap();
 

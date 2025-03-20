@@ -81,7 +81,7 @@ fn end_l2_block_hook_sets_head() {
         .push(create_pending_transaction(2, 1));
 
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    let head = evm.head_rlp.get(&mut working_set).unwrap();
+    let head = evm.head.get(&mut working_set).unwrap();
     let pending_head = evm
         .pending_head
         .get(&mut working_set.accessory_state())
@@ -93,7 +93,7 @@ fn end_l2_block_hook_sets_head() {
         Block {
             header: alloy_consensus::Header {
                 parent_hash: B256::from(hex!(
-                    "c4ece408f7c00c5ba7b58e2ec9973014067b7cdfcc6c4419e355906650ea313a"
+                    "2bc99e5a9b733d0cfc105a23d3fff3a103d24757b3c395903782b79074eae75c"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -155,25 +155,25 @@ fn end_l2_block_hook_moves_transactions_and_receipts() {
     let tx2_hash = tx2.transaction.signed_transaction.hash;
 
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .get(0, &mut working_set.accessory_state())
             .unwrap(),
         tx1.receipt
     );
     assert_eq!(
-        evm.receipts_rlp
+        evm.receipts
             .get(1, &mut working_set.accessory_state())
             .unwrap(),
         tx2.receipt
     );
     assert_eq!(
-        evm.transactions_rlp
+        evm.transactions
             .get(0, &mut working_set.accessory_state())
             .unwrap(),
         tx1.transaction
     );
     assert_eq!(
-        evm.transactions_rlp
+        evm.transactions
             .get(1, &mut working_set.accessory_state())
             .unwrap(),
         tx2.transaction
@@ -243,7 +243,7 @@ fn finalize_hook_creates_final_block() {
 
     // hack to get the root hash
     let binding = evm
-        .blocks_rlp
+        .blocks
         .get(1, &mut working_set.accessory_state())
         .unwrap();
     let root = binding.header.header().state_root.0;
@@ -271,7 +271,7 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = working_set.accessory_state();
     evm.finalize_hook(&root_hash, &mut accessory_state);
-    assert_eq!(evm.blocks_rlp.len(&mut accessory_state), 3);
+    assert_eq!(evm.blocks.len(&mut accessory_state), 3);
 
     l2_height += 1;
 
@@ -289,9 +289,9 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = working_set.accessory_state();
 
-    let parent_block = evm.blocks_rlp.get(1usize, &mut accessory_state).unwrap();
+    let parent_block = evm.blocks.get(1usize, &mut accessory_state).unwrap();
     let parent_hash = parent_block.header.hash();
-    let block = evm.blocks_rlp.get(2usize, &mut accessory_state).unwrap();
+    let block = evm.blocks.get(2usize, &mut accessory_state).unwrap();
 
     let header = Header {
         parent_hash,
@@ -352,7 +352,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
 
     // hack to get the root hash
     let binding = evm
-        .blocks_rlp
+        .blocks
         .get(1, &mut working_set.accessory_state())
         .unwrap();
     let root = binding.header.header().state_root.0;
@@ -374,7 +374,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
     for i in 0..2 {
         assert_eq!(
             evm.latest_block_hashes.get(&i, &mut working_set).unwrap(),
-            evm.blocks_rlp
+            evm.blocks
                 .get(i as usize, &mut working_set.accessory_state())
                 .unwrap()
                 .header
@@ -426,7 +426,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
 
     assert_eq!(
         evm.latest_block_hashes.get(&257, &mut working_set).unwrap(),
-        evm.blocks_rlp
+        evm.blocks
             .get(257, &mut working_set.accessory_state())
             .unwrap()
             .header

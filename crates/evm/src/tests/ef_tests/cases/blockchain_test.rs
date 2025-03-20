@@ -186,7 +186,7 @@ impl Case for BlockchainTestCase {
                 );
                 evm.latest_block_hashes
                     .set(&0, &case.genesis_block_header.hash, &mut working_set);
-                evm.head_rlp.set(&block, &mut working_set);
+                evm.head.set(&block, &mut working_set);
                 evm.pending_head
                     .set(&block, &mut working_set.accessory_state());
                 evm.finalize_hook(
@@ -247,11 +247,7 @@ impl Case for BlockchainTestCase {
                     (None, Some(expected_state_root)) => {
                         // Insert state hashes into the provider based on the expected state root.
                         assert_eq!(
-                            *evm.head_rlp
-                                .get(&mut working_set)
-                                .unwrap()
-                                .header
-                                .state_root,
+                            *evm.head.get(&mut working_set).unwrap().header.state_root,
                             **expected_state_root
                         );
                     }

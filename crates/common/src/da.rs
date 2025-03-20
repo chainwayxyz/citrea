@@ -2,13 +2,10 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::U64;
 use anyhow::anyhow;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use jsonrpsee::http_client::HttpClient;
 use metrics::Histogram;
-use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
@@ -142,22 +139,4 @@ pub async fn extract_zk_proofs<Da: DaService>(
     da_service
         .extract_relevant_zk_proofs(l1_block, prover_da_pub_key)
         .await
-}
-
-pub async fn get_initial_slot_height(client: &HttpClient) -> u64 {
-    loop {
-        match client.get_l2_block_by_number(U64::from(1)).await {
-            Ok(Some(_batch)) => {
-                // TODO determine how to fetch l1 height
-                let l1_height = 0;
-                return l1_height;
-                // return batch.da_slot_height,
-            }
-            _ => {
-                // sleep 1
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                continue;
-            }
-        }
-    }
 }

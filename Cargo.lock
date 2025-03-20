@@ -2081,7 +2081,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=1e2259c#1e2259c28402ae039bcebbc56b417aea4a151bc1"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=7b392a2#7b392a23e14eb48d06f3ac5e64e247835477b164"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -5556,7 +5556,6 @@ dependencies = [
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-rollup-interface",
- "sov-state",
  "tempfile",
  "tokio",
  "tracing",
@@ -8187,7 +8186,6 @@ name = "sov-keys"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "bincode",
  "borsh",
  "derive_more",
  "digest 0.10.7",
@@ -8352,7 +8350,6 @@ dependencies = [
  "borsh",
  "citrea-primitives",
  "hex",
- "itertools 0.13.0",
  "jmt",
  "jsonrpsee",
  "rs_merkle",

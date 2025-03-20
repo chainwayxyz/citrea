@@ -2,12 +2,14 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::StateValueAccessor;
 
 use crate::tests::genesis_tests::{get_l2_block_rule_enforcer, TEST_CONFIG};
-use crate::tests::sc_info_helper;
+use crate::tests::{add_another_l1_hash, sc_info_helper, setup_evm};
 
 #[test]
 fn block_count_rule_is_enforced() {
     let (l2_block_rule_enforcer, mut working_set) =
         get_l2_block_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
+
+    setup_evm(&mut working_set);
 
     let l2_block_info = sc_info_helper();
 
@@ -27,8 +29,7 @@ fn block_count_rule_is_enforced() {
         3 // the counter is 2 and not 3 because the block count rule will be ignored for the first l2 block
     );
 
-    // TODO: somehow find something to test this at this level
-    // l2_block_info.set_da_slot_hash([2; 32]);
+    add_another_l1_hash(&mut working_set);
 
     // call with a different da hash
     l2_block_rule_enforcer
@@ -50,6 +51,8 @@ fn block_count_rule_is_enforced() {
 fn get_last_timestamp_must_be_correct() {
     let (l2_block_rule_enforcer, mut working_set) =
         get_l2_block_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
+
+    setup_evm(&mut working_set);
 
     assert_eq!(
         l2_block_rule_enforcer

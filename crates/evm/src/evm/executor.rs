@@ -1,15 +1,12 @@
 use alloy_primitives::{keccak256, U256};
 use alloy_sol_types::SolCall;
-use citrea_primitives::forks::fork_from_block_number;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use short_header_proof_provider::{ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER};
-use sov_modules_api::{
-    native_error, native_trace, L2BlockModuleCallError, SpecId as CitreaSpecId, WorkingSet,
-};
+use sov_modules_api::{native_error, native_trace, L2BlockModuleCallError, WorkingSet};
 #[cfg(feature = "native")]
 use tracing::trace_span;
 
@@ -45,7 +42,7 @@ where
         tx: &TransactionSignedEcRecovered,
     ) -> Result<ResultAndState, EVMError<DB::Error>> {
         self.evm.context.external.set_current_tx_hash(tx.hash());
-        *self.evm.tx_mut() = create_tx_env(tx, self.evm.spec_id());
+        *self.evm.tx_mut() = create_tx_env(tx);
         self.evm.transact()
     }
 
@@ -97,7 +94,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 return Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
-            post_fork2_system_tx_verifier(evm.evm.db_mut(), tx, l2_height)?;
+            verify_system_tx(evm.evm.db_mut(), tx, l2_height)?;
         } else {
             should_be_end_of_sys_txs = true;
         }
@@ -115,7 +112,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             match e {
                 // only custom error we use is for not enough funds for L1 fee
                 EVMError::Custom(_) => L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee,
-                _ => L2BlockModuleCallError::EvmTransactionExecutionError2(e.to_string()),
+                _ => L2BlockModuleCallError::EvmTransactionExecutionError(e.to_string()),
             }
         })?;
 
@@ -143,36 +140,48 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
     Ok(tx_results)
 }
 
-fn post_fork2_system_tx_verifier<C: sov_modules_api::Context>(
+fn verify_system_tx<C: sov_modules_api::Context>(
     db: &mut EvmDb<C>,
     tx: &TransactionSignedEcRecovered,
     l2_height: u64,
 ) -> Result<(), L2BlockModuleCallError> {
-    let function_selector: [u8; 4] = tx.input()[0..4]
-        .try_into()
-        .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
-
     // Early return if this is the first block because sequencer will not have any L1 block hash in system contract before setblock info call
     if l2_height == 1 {
         return Ok(());
     }
 
+    let function_selector: [u8; 4] = tx
+        .input()
+        .get(0..4)
+        .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?
+        .try_into()
+        .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
+
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
-        let l1_block_hash: [u8; 32] = tx.input()[4..36]
+        let l1_block_hash: [u8; 32] = tx
+            .input()
+            .get(4..36)
+            .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?
             .try_into()
             .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
         let shp_provider = SHORT_HEADER_PROOF_PROVIDER
             .get()
             .expect("Short header proof provider not set");
-        let txs_commitment: [u8; 32] = tx.input()[36..68]
+        let txs_commitment: [u8; 32] = tx
+            .input()
+            .get(36..68)
+            .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?
             .try_into()
             .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
-        let coinbase_depth: u8 = U256::from_be_slice(&tx.input()[68..100]).to::<u8>();
-
-        let citrea_spec = fork_from_block_number(l2_height).spec_id;
+        let coinbase_depth: u8 = U256::from_be_slice(
+            tx.input()
+                .get(68..100)
+                .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?,
+        )
+        .to::<u8>();
 
         let (last_l1_height, prev_hash) =
-            get_last_l1_height_and_hash_in_light_client::<C>(db.evm, citrea_spec, db.working_set);
+            get_last_l1_height_and_hash_in_light_client::<C>(db.evm, db.working_set);
 
         // counter intuitively the contract stores next block height (expected on setBlockInfo)
         let next_l1_height: u64 = last_l1_height.to::<u64>();
@@ -217,7 +226,6 @@ pub fn get_last_l1_height_in_light_client<C: sov_modules_api::Context>(
 /// Returns the last set l1 block hash in bitcoin light client contract
 pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
     evm: &Evm<C>,
-    _spec_id: CitreaSpecId,
     working_set: &mut WorkingSet<C::Storage>,
 ) -> (U256, Option<U256>) {
     let last_l1_height_in_contract = evm

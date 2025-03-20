@@ -66,7 +66,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Set the storage value for the given (account, key)
-    pub(crate) fn storage_set(
+    pub fn storage_set(
         &self,
         account: &Address,
         key: &U256,
@@ -80,7 +80,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[cfg(feature = "native")]
     /// Returns the sealed head block.
     pub fn last_sealed_header(&self, working_set: &mut WorkingSet<C::Storage>) -> SealedHeader {
-        self.blocks_rlp
+        self.blocks
             .last(&mut working_set.accessory_state())
             .expect("Head block must be set")
             .header

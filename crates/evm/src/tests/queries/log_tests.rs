@@ -71,7 +71,7 @@ fn logs_for_filter_test() {
     assert_eq!(b_rpc.unwrap().header().hash, first_block_block_hash);
 
     let b = evm
-        .blocks_rlp
+        .blocks
         .get(1, &mut working_set.accessory_state())
         .unwrap();
 
@@ -144,10 +144,7 @@ fn log_filter_test_at_block_hash() {
        5) [[A, B], [A, B]] “(A OR B) in first position AND (A OR B) in second position (and anything after)”
     */
 
-    let block = evm
-        .blocks_rlp
-        .last(&mut working_set.accessory_state())
-        .unwrap();
+    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
     let mut address = FilterSet::default();
     // Test without address and topics
     let mut topics: [FilterSet<B256>; 4] = [

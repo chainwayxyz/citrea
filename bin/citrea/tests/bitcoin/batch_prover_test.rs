@@ -491,13 +491,17 @@ impl TestCase for ParallelProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 98,
+            min_l2_blocks_per_commitment: 100,
             mempool_conf: SequencerMempoolConfig {
                 max_account_slots: 1000,
                 ..Default::default()
             },
             ..Default::default()
         }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {

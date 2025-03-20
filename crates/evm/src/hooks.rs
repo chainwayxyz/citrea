@@ -32,13 +32,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let parent_block = {
             let mut parent_block = self
-                .head_rlp
+                .head
                 .get(working_set)
                 .expect("Head block should always be set");
 
             parent_block.header.state_root = B256::from_slice(&l2_block_info.pre_state_root());
 
-            self.head_rlp.set(&parent_block, working_set);
+            self.head.set(&parent_block, working_set);
 
             parent_block
         };
@@ -94,7 +94,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) {
         let parent_block = self
-            .head_rlp
+            .head
             .get(working_set)
             .expect("Head block should always be set");
 
@@ -169,7 +169,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 
-        self.head_rlp.set(&block, working_set);
+        self.head.set(&block, working_set);
 
         #[cfg(not(feature = "native"))]
         pending_transactions.clear();
@@ -188,9 +188,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 receipt,
             } in pending_transactions
             {
-                self.transactions_rlp
-                    .push(transaction, &mut accessory_state);
-                self.receipts_rlp.push(receipt, &mut accessory_state);
+                self.transactions.push(transaction, &mut accessory_state);
+                self.receipts.push(receipt, &mut accessory_state);
 
                 self.transaction_hashes.set(
                     &transaction.signed_transaction.hash,
@@ -221,7 +220,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) {
         #[cfg(feature = "native")]
         {
-            let expected_block_number = self.blocks_rlp.len(accessory_working_set) as u64;
+            let expected_block_number = self.blocks.len(accessory_working_set) as u64;
 
             let mut block = self
                 .pending_head
@@ -243,7 +242,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             let sealed_block = block.seal();
 
-            self.blocks_rlp.push(&sealed_block, accessory_working_set);
+            self.blocks.push(&sealed_block, accessory_working_set);
             self.block_hashes.set(
                 &sealed_block.header.hash(),
                 &sealed_block.header.number,

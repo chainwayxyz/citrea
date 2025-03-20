@@ -5,7 +5,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Context, Module, Spec};
 use sov_rollup_interface::spec::SpecId;
 
-use super::sc_info_helper;
+use super::{sc_info_helper, setup_evm};
 use crate::call::CallMessage;
 use crate::tests::genesis_tests::{get_l2_block_rule_enforcer, TEST_CONFIG};
 
@@ -15,6 +15,8 @@ type C = DefaultContext;
 fn begin_l2_block_hook_checks_max_l2_blocks_per_l1() {
     let (mut l2_block_rule_enforcer, mut working_set) =
         get_l2_block_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
+
+    setup_evm(&mut working_set);
 
     let call_message = CallMessage::ModifyMaxL2BlocksPerL1 {
         max_l2_blocks_per_l1: 10,
@@ -49,6 +51,8 @@ fn begin_l2_block_hook_checks_max_l2_blocks_per_l1() {
 fn begin_l2_block_hook_checks_timestamp() {
     let (l2_block_rule_enforcer, mut working_set) =
         get_l2_block_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
+
+    setup_evm(&mut working_set);
 
     let original_timestamp = chrono::Local::now().timestamp() as u64;
 

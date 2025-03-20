@@ -220,7 +220,7 @@ where
                 } else {
                     let da_block = self
                         .da_service
-                        .get_block_by_hash(soft_confirmation_response.da_slot_hash.clone().into())
+                        .get_block_by_hash(soft_confirmation_response.da_slot_hash.into())
                         .await
                         .unwrap();
                     let short_header_proof = Da::block_to_short_header_proof(da_block.clone());
@@ -243,7 +243,7 @@ where
                     if soft_confirmation_response.da_slot_height > last_processed_l1_height {
                         self.dry_run_transactions_post_fork2(
                             user_txs,
-                            &pub_key,
+                            pub_key,
                             prestate,
                             l2_block_info.clone(),
                             &deposit_data,
@@ -253,7 +253,7 @@ where
                     } else {
                         self.dry_run_transactions_post_fork2(
                             user_txs,
-                            &pub_key,
+                            pub_key,
                             prestate,
                             l2_block_info.clone(),
                             &deposit_data,
@@ -271,9 +271,9 @@ where
 
                 let mut working_set = WorkingSet::new(prestate.clone());
 
-                if let Err(err) =
-                    self.stf
-                        .begin_l2_block(&pub_key, &mut working_set, &l2_block_info)
+                if let Err(err) = self
+                    .stf
+                    .begin_l2_block(pub_key, &mut working_set, &l2_block_info)
                 {
                     warn!(
                         "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
@@ -336,7 +336,7 @@ where
 
                 let signed_header = self.sign_l2_block_header(header)?;
                 // TODO: cleanup l2 block structure once we decide how to pull data from the running sequencer in the existing form
-                let l2_block = L2Block::new(signed_header, txs.into());
+                let l2_block = L2Block::new(signed_header, txs);
 
                 info!(
                     "Saving block #{}, Tx count: #{}",
@@ -652,11 +652,7 @@ where
                             L2BlockModuleCallError::EvmTxTypeNotSupported(_) => {
                                 panic!("got unsupported tx type")
                             }
-                            L2BlockModuleCallError::EvmTransactionExecutionError => {
-                                working_set_to_discard = working_set.revert().to_revertable();
-                                continue;
-                            }
-                            L2BlockModuleCallError::EvmTransactionExecutionError2(e) => {
+                            L2BlockModuleCallError::EvmTransactionExecutionError(e) => {
                                 tracing::error!("EVM transaction execution error: {:?}", e);
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;
@@ -681,9 +677,6 @@ where
                             }
                             L2BlockModuleCallError::EvmSystemTxParseError => {
                                 panic!("Sequencer produced incorrectly formatted system tx")
-                            }
-                            L2BlockModuleCallError::EvmSystemTxNotAllowedAfterFork2 => {
-                                panic!("System tx not allowed after fork2")
                             }
                         }
                     }

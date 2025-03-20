@@ -359,7 +359,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     assert_eq!(block.transactions.len(), 0);
     assert!(tx_from_mempool.is_none());
-    assert_eq!(l2_block.txs.unwrap().len(), 0);
+    assert_eq!(l2_block.txs.len(), 0);
 
     wait_for_l2_block(&full_node_test_client, block.header.number, None).await;
 
@@ -628,7 +628,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     // last in tx byte array should be a subarray of txs[0]
     assert!(find_subarray(
-        initial_l2_block.clone().txs.unwrap()[0].tx.as_slice(),
+        initial_l2_block.clone().txs[0].tx.as_slice(),
         &last_tx_raw[2..]
     )
     .is_some());
@@ -651,11 +651,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     envelope.encode(&mut not_in_raw);
 
     // not in tx byte array should not be a subarray of txs[0]
-    assert!(find_subarray(
-        initial_l2_block.txs.unwrap()[0].tx.as_slice(),
-        &not_in_raw[2..]
-    )
-    .is_none());
+    assert!(find_subarray(initial_l2_block.txs[0].tx.as_slice(), &not_in_raw[2..]).is_none());
 
     seq_test_client.send_publish_batch_request().await;
 
@@ -665,11 +661,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         .unwrap();
 
     // should be in tx byte array of the l2 block after
-    assert!(find_subarray(
-        second_l2_block.txs.unwrap()[0].tx.as_slice(),
-        &not_in_raw[2..]
-    )
-    .is_some());
+    assert!(find_subarray(second_l2_block.txs[0].tx.as_slice(), &not_in_raw[2..]).is_some());
 
     let block1 = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))

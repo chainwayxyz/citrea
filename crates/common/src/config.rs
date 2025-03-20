@@ -40,8 +40,7 @@ pub struct RunnerConfig {
     pub sync_blocks_count: u64,
     /// Configurations for pruning
     pub pruning_config: Option<PruningConfig>,
-    /// After fork2 nodes will not have da data in l2 blocks
-    /// So providing the l1 start height from config makes sense
+    /// The DA block number to start L1 sync from
     pub scan_l1_start_height: u64,
 }
 

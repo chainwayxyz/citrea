@@ -70,7 +70,7 @@ pub struct BatchProofCircuitInputV3 {
 }
 
 impl BatchProofCircuitInputV3 {
-    /// Into Kumquat expected inputs
+    /// Into Fork2 expected inputs
     pub fn into_v3_parts(self) -> (BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2) {
         assert_eq!(self.l2_blocks.len(), self.state_transition_witnesses.len());
         let mut x = VecDeque::with_capacity(self.l2_blocks.len());

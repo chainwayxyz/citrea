@@ -15,7 +15,6 @@ resolver = "2"
 anyhow = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
-itertools = { workspace = true }
 jmt = { workspace = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }
 rs_merkle = { workspace = true }

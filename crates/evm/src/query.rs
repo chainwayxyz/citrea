@@ -168,7 +168,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .transactions
             .clone()
             .map(|id| {
-                self.transactions_rlp
+                self.transactions
                     .get(id as usize, &mut working_set.accessory_state())
                     .expect("Transaction must be set")
             })
@@ -254,7 +254,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 };
 
                 // if hash is known, but we don't have the block, fail
-                self.blocks_rlp
+                self.blocks
                     .get(block_number as usize, &mut working_set.accessory_state())
                     .expect("Block must be set")
             }
@@ -271,12 +271,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .clone()
             .map(|id| {
                 let tx = self
-                    .transactions_rlp
+                    .transactions
                     .get(id as usize, &mut working_set.accessory_state())
                     .expect("Transaction must be set");
 
                 let receipt = self
-                    .receipts_rlp
+                    .receipts
                     .get(id as usize, &mut working_set.accessory_state())
                     .expect("Receipt for known transaction must be set");
 
@@ -314,23 +314,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         index: U256,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<B256> {
-        self.get_storage_at_inner(
-            address,
-            index,
-            block_id,
-            working_set,
-            fork_from_block_number,
-        )
-    }
-
-    pub(crate) fn get_storage_at_inner(
-        &self,
-        address: Address,
-        index: U256,
-        block_id: Option<BlockId>,
-        working_set: &mut WorkingSet<C::Storage>,
-        _fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<B256> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
 
@@ -371,16 +354,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<Bytes> {
-        self.get_code_inner(address, block_id, working_set, fork_from_block_number)
-    }
-
-    pub(crate) fn get_code_inner(
-        &self,
-        address: Address,
-        block_id: Option<BlockId>,
-        working_set: &mut WorkingSet<C::Storage>,
-        _fork_fn: impl Fn(u64) -> Fork,
-    ) -> RpcResult<Bytes> {
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let account = self.account_info(&address, working_set).unwrap_or_default();
@@ -411,7 +384,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let block = self
-            .blocks_rlp
+            .blocks
             .get(block_number as usize, &mut accessory_state)
             .expect("Block must be set");
 
@@ -423,12 +396,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let tx_number = block.transactions.start + index.to::<u64>();
 
         let tx = self
-            .transactions_rlp
+            .transactions
             .get(tx_number as usize, &mut accessory_state)
             .expect("Transaction must be set");
 
         let block = self
-            .blocks_rlp
+            .blocks
             .get(tx.block_number as usize, &mut accessory_state)
             .expect("Block number for known transaction must be set");
 
@@ -465,7 +438,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map_err(EthApiError::from)?;
 
         let block = self
-            .blocks_rlp
+            .blocks
             .get(block_number as usize, &mut working_set.accessory_state())
             .expect("Block must be set");
 
@@ -477,12 +450,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let tx_number = block.transactions.start + index.to::<u64>();
 
         let tx = self
-            .transactions_rlp
+            .transactions
             .get(tx_number as usize, &mut working_set.accessory_state())
             .expect("Transaction must be set");
 
         let block = self
-            .blocks_rlp
+            .blocks
             .get(tx.block_number as usize, &mut working_set.accessory_state())
             .expect("Block number for known transaction must be set");
 
@@ -514,16 +487,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let receipt = tx_number.map(|number| {
             let tx = self
-                .transactions_rlp
+                .transactions
                 .get(number as usize, &mut accessory_state)
                 .expect("Transaction with known hash must be set");
             let block = self
-                .blocks_rlp
+                .blocks
                 .get(tx.block_number as usize, &mut accessory_state)
                 .expect("Block number for known transaction must be set");
 
             let receipt = self
-                .receipts_rlp
+                .receipts
                 .get(number as usize, &mut accessory_state)
                 .expect("Receipt for known transaction must be set");
 
@@ -576,7 +549,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let mut block_env = match block_number {
-            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set, &fork_fn),
+            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
             _ => {
                 let block = self
                     .get_sealed_block_by_number(Some(block_number), working_set)?
@@ -643,7 +616,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_blockNumber")]
     pub fn block_number(&self, working_set: &mut WorkingSet<C::Storage>) -> RpcResult<U256> {
         let block_number = U256::from(
-            self.blocks_rlp
+            self.blocks
                 .len(&mut working_set.accessory_state())
                 .saturating_sub(1),
         );
@@ -673,14 +646,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (l1_fee_rate, block_env) = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 let l1_fee_rate = self
-                    .blocks_rlp
+                    .blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set")
                     .l1_fee_rate;
-                (
-                    l1_fee_rate,
-                    get_pending_block_env(self, working_set, &fork_fn),
-                )
+                (l1_fee_rate, get_pending_block_env(self, working_set))
             }
             _ => {
                 let block = self
@@ -790,14 +760,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (l1_fee_rate, block_env) = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 let l1_fee_rate = self
-                    .blocks_rlp
+                    .blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set")
                     .l1_fee_rate;
-                (
-                    l1_fee_rate,
-                    get_pending_block_env(self, working_set, &fork_fn),
-                )
+                (l1_fee_rate, get_pending_block_env(self, working_set))
             }
             _ => {
                 let block = self
@@ -848,7 +815,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: this assumes all blocks have the same gas limit
         // if gas limit ever changes this should be updated
         let last_block = self
-            .blocks_rlp
+            .blocks
             .last(&mut working_set.accessory_state())
             .expect("Head block must be set");
 
@@ -1207,15 +1174,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let transaction = tx_number.map(|number| {
             let tx = self
-                .transactions_rlp
+                .transactions
                 .get(number as usize, &mut accessory_state)
                 .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                 hash,
                 number,
-                self.transactions_rlp.len(&mut accessory_state)));
+                self.transactions.len(&mut accessory_state)));
 
             let block = self
-                .blocks_rlp
+                .blocks
                 .get(tx.block_number as usize, &mut accessory_state)
                 .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
                     tx.block_number,
@@ -1259,7 +1226,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_txs: Vec<TransactionSignedEcRecovered> = tx_range
             .clone()
             .map(|id| {
-                self.transactions_rlp
+                self.transactions
                     .get(id as usize, &mut working_set.accessory_state())
                     .expect("Transaction must be set")
                     .into()
@@ -1294,7 +1261,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 opts.clone().unwrap_or_default(),
                 cfg_env.clone(),
                 block_env.clone(),
-                create_tx_env(&tx, cfg_env.handler_cfg.spec_id),
+                create_tx_env(&tx),
                 tx.hash(),
                 &mut evm_db,
                 l1_fee_rate,
@@ -1336,7 +1303,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                 // if we know the hash, but can't find the block, fail
                 let block = self
-                    .blocks_rlp
+                    .blocks
                     .get(block_number as usize, &mut working_set.accessory_state())
                     .expect("Block must be set");
 
@@ -1353,7 +1320,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             } => {
                 // we start at the most recent block if unset in filter
                 let start_block = self
-                    .blocks_rlp
+                    .blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set")
                     .header
@@ -1411,7 +1378,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         {
             for idx in from..=to {
                 let block = match self
-                    .blocks_rlp
+                    .blocks
                     .get((idx) as usize, &mut working_set.accessory_state())
                 {
                     Some(block) => block,
@@ -1463,11 +1430,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         for i in tx_range {
             let receipt = self
-                .receipts_rlp
+                .receipts
                 .get(i as usize, &mut working_set.accessory_state())
                 .expect("Transaction must be set");
             let tx = self
-                .transactions_rlp
+                .transactions
                 .get(i as usize, &mut working_set.accessory_state())
                 .unwrap();
             let logs = receipt.receipt.logs;
@@ -1506,7 +1473,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Option<B256> {
         let block = self
-            .blocks_rlp
+            .blocks
             .get(block_number as usize, &mut working_set.accessory_state())?;
         Some(block.header.hash())
     }
@@ -1520,7 +1487,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut headers = Vec::new();
         for i in range {
             let block = self
-                .blocks_rlp
+                .blocks
                 .get(i as usize, &mut working_set.accessory_state())
                 .ok_or_else(|| EthApiError::InvalidBlockRange)?;
             headers.push(block.header);
@@ -1536,7 +1503,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<u64, EthApiError> {
         let latest_block_number = self
-            .blocks_rlp
+            .blocks
             .last(&mut working_set.accessory_state())
             .map(|block| block.header.number)
             .expect("Head block must be set");
@@ -1545,7 +1512,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockNumberOrTag::Latest => Ok(latest_block_number),
             BlockNumberOrTag::Pending => Err(EthApiError::HeaderNotFound((*block_id).into())),
             BlockNumberOrTag::Number(block_number) => {
-                if *block_number < self.blocks_rlp.len(&mut working_set.accessory_state()) as u64 {
+                if *block_number < self.blocks.len(&mut working_set.accessory_state()) as u64 {
                     Ok(*block_number)
                 } else {
                     Err(EthApiError::HeaderNotFound((*block_id).into()))
@@ -1596,24 +1563,24 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 self.check_if_l2_block_pruned(block_number, working_set)?;
 
                 Ok(self
-                    .blocks_rlp
+                    .blocks
                     .get(block_number as usize, &mut working_set.accessory_state()))
             }
             Some(BlockNumberOrTag::Earliest) => {
                 self.check_if_l2_block_pruned(0, working_set)?;
                 Ok(Some(
-                    self.blocks_rlp
+                    self.blocks
                         .get(0, &mut working_set.accessory_state())
                         .expect("Genesis block must be set"),
                 ))
             }
             Some(BlockNumberOrTag::Latest) => Ok(Some(
-                self.blocks_rlp
+                self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
             )),
             None => Ok(Some(
-                self.blocks_rlp
+                self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
             )),
@@ -1653,7 +1620,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             self.check_if_l2_block_pruned(num, working_set)?;
                         }
                         let curr_block_number = self
-                            .blocks_rlp
+                            .blocks
                             .last(&mut working_set.accessory_state())
                             .expect("Head block must be set")
                             .header
@@ -1920,10 +1887,9 @@ fn gas_limit_to_return(block_gas_limit: U64, estimated_tx_expenses: EstimatedTxE
 fn get_pending_block_env<C: sov_modules_api::Context>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C::Storage>,
-    _fork_fn: &impl Fn(u64) -> Fork,
 ) -> BlockEnv {
     let latest_block = evm
-        .blocks_rlp
+        .blocks
         .last(&mut working_set.accessory_state())
         .expect("Head block must be set");
 

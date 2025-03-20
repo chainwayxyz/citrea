@@ -142,7 +142,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn dry_run_transactions_post_fork2(
+    async fn dry_run_transactions(
         &mut self,
         mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
@@ -259,13 +259,7 @@ where
                             L2BlockModuleCallError::EvmTxTypeNotSupported(_) => {
                                 panic!("got unsupported tx type")
                             }
-                            L2BlockModuleCallError::EvmTransactionExecutionError => {
-                                invalid_senders.insert(evm_tx.transaction_id.sender);
-                                working_set_to_discard = working_set.revert().to_revertable();
-                                continue;
-                            }
-                            L2BlockModuleCallError::EvmTransactionExecutionError2(e) => {
-                                tracing::error!("EVM transaction execution error: {:?}", e);
+                            L2BlockModuleCallError::EvmTransactionExecutionError(_) => {
                                 invalid_senders.insert(evm_tx.transaction_id.sender);
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;
@@ -292,9 +286,6 @@ where
                             }
                             L2BlockModuleCallError::EvmSystemTxParseError => {
                                 panic!("Sequencer produced incorrectly formatted system tx")
-                            }
-                            L2BlockModuleCallError::EvmSystemTxNotAllowedAfterFork2 => {
-                                panic!("System tx not allowed after fork2")
                             }
                         },
                     }
@@ -344,7 +335,7 @@ where
                 // then there is no need to pass da data to the sequencer
                 da_blocks.clear();
             }
-            self.produce_l2_block_post_fork2(da_blocks, l1_fee_rate, l2_height, last_used_l1_height)
+            self.produce_l2_block_inner(da_blocks, l1_fee_rate, l2_height, last_used_l1_height)
                 .await
         };
 
@@ -359,7 +350,7 @@ where
     }
 
     /// Post fork2 block production
-    async fn produce_l2_block_post_fork2(
+    async fn produce_l2_block_inner(
         &mut self,
         da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
@@ -400,7 +391,7 @@ where
         // all transactions that would fit into the current block and the list of transactions
         // which do not have enough balance to pay for the L1 fee.
         let (txs_to_run, l1_fee_failed_txs) = self
-            .dry_run_transactions_post_fork2(
+            .dry_run_transactions(
                 evm_txs,
                 &pub_key,
                 prestate.clone(),
@@ -667,6 +658,8 @@ where
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
+                            // Cancel child tasks
+                            cancellation_token.cancel();
                             // we never want to continue if we have missed blocks
                             return Err(e);
                         }
@@ -697,6 +690,8 @@ where
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
+                            // Cancel child tasks
+                            cancellation_token.cancel();
                             // we never want to continue if we have missed blocks
                             return Err(e);
                         }

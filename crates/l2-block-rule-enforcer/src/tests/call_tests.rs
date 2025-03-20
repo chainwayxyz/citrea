@@ -7,6 +7,7 @@ use sov_modules_api::{Context, Module, Spec, SpecId, StateValueAccessor};
 
 use crate::call::CallMessage;
 use crate::tests::genesis_tests::{get_l2_block_rule_enforcer, TEST_CONFIG};
+use crate::tests::setup_evm;
 
 type C = DefaultContext;
 
@@ -14,6 +15,8 @@ type C = DefaultContext;
 fn change_max_l2_blocks_per_l1_and_authority() {
     let (mut l2_block_rule_enforcer, mut working_set) =
         get_l2_block_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
+
+    setup_evm(&mut working_set);
 
     let call_message = CallMessage::ModifyMaxL2BlocksPerL1 {
         max_l2_blocks_per_l1: 999,

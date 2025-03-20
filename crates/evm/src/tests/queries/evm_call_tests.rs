@@ -252,7 +252,7 @@ fn call_with_high_gas_price() {
         call_result,
         Err(RpcInvalidTransactionError::InsufficientFunds {
             cost: U256::from(1000000000000000000000000000u128),
-            balance: U256::from(99999574234737852721u128)
+            balance: U256::from(99999574234737852975u128)
         }
         .into())
     );
@@ -286,7 +286,7 @@ fn test_eip1559_fields_call() {
         high_fee_result,
         Err(RpcInvalidTransactionError::InsufficientFunds {
             cost: U256::from_str("34028236692093846346337460743176821145500000").unwrap(),
-            balance: U256::from(99999574234737852721u128)
+            balance: U256::from(99999574234737852975u128)
         }
         .into())
     );

@@ -100,13 +100,7 @@ fn receipt_from_inner(inner: InnerReceipt) -> Result<Receipt, RestoreReceiptErr>
 /// 2. Otherwise try to parse proof as Receipt
 pub(crate) fn receipt_from_proof(serialized_proof: &[u8]) -> Result<Receipt, RestoreReceiptErr> {
     match bincode::deserialize::<InnerReceipt>(serialized_proof) {
-        Ok(inner) => {
-            // PostFork2 uses InnerReceipt
-            receipt_from_inner(inner)
-        }
-        Err(_) => {
-            // PreFork2 used full Receipt (with journal duplicates)
-            Ok(bincode::deserialize(serialized_proof)?)
-        }
+        Ok(inner) => receipt_from_inner(inner),
+        Err(e) => Err(RestoreReceiptErr::Deserialize(e)),
     }
 }

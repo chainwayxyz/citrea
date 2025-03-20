@@ -9,7 +9,7 @@ use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_common::FullNodeConfig;
 use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::REVEAL_TX_PREFIX;
@@ -142,8 +142,12 @@ impl RollupBlueprint for BitcoinRollup {
             // run only for sequencer and prover
             service.monitoring.restore().await?;
 
-            task_manager.spawn(|tk| Arc::clone(&service).run_da_queue(rx, tk));
-            task_manager.spawn(|tk| Arc::clone(&service.monitoring).run(tk));
+            task_manager.spawn(TaskType::Secondary, |tk| {
+                Arc::clone(&service).run_da_queue(rx, tk)
+            });
+            task_manager.spawn(TaskType::Secondary, |tk| {
+                Arc::clone(&service.monitoring).run(tk)
+            });
         }
 
         Ok(service)

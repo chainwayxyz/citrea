@@ -90,7 +90,7 @@ impl TestCase for SyncStatusTest {
         TestCaseConfig {
             with_sequencer: true,
             with_full_node: true,
-            mode: CitreaMode::DevAllForks,
+            mode: CitreaMode::Dev,
             ..Default::default()
         }
     }

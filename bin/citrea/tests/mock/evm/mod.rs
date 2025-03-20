@@ -338,7 +338,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
             let arr = hasher.finalize();
             U256::from_le_slice(&arr)
         };
-        let storage_key = [b"E/S/".as_slice(), kaddr.as_le_slice()].concat();
+        let storage_key = [b"E/s/".as_slice(), kaddr.as_le_slice()].concat();
         let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
 
         let proved_value = if storage_proof.proof[1] == Bytes::from("y") {

@@ -15,7 +15,7 @@ impl<C: Context, Da: DaSpec> L2BlockRuleEnforcer<C, Da> {
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_block_count_rule(
         &self,
-        l2_block_info: &HookL2BlockInfo,
+        _l2_block_info: &HookL2BlockInfo,
         max_l2_blocks_per_l1: u32,
         last_da_root_hash: &mut [u8; 32],
         counter: &mut u32,
@@ -23,14 +23,10 @@ impl<C: Context, Da: DaSpec> L2BlockRuleEnforcer<C, Da> {
     ) -> Result<(), L2BlockHookError> {
         let da_root_hash = {
             let evm = Evm::<C>::default();
-            get_last_l1_height_and_hash_in_light_client(
-                &evm,
-                l2_block_info.current_spec(),
-                working_set,
-            )
-            .1
-            .unwrap()
-            .to_be_bytes::<32>()
+            get_last_l1_height_and_hash_in_light_client(&evm, working_set)
+                .1
+                .expect("At least one L1 height/hash should be present")
+                .to_be_bytes::<32>()
         };
 
         if da_root_hash == *last_da_root_hash {

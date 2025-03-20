@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use alloy_primitives::{U128, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::block::{L2Block, L2Header, SignedL2Header};
 use sov_rollup_interface::rpc::block::{L2BlockResponse, L2HeaderResponse};
@@ -65,24 +66,23 @@ impl TryFrom<StoredL2Block> for L2BlockResponse {
 
     fn try_from(value: StoredL2Block) -> Result<Self, Self::Error> {
         let header = L2HeaderResponse {
-            height: value.height,
+            height: U64::from(value.height),
             hash: value.hash,
             prev_hash: value.prev_hash,
             state_root: value.state_root,
             signature: value.signature,
-            l1_fee_rate: value.l1_fee_rate,
-            timestamp: value.timestamp,
+            l1_fee_rate: U128::from(value.l1_fee_rate),
+            timestamp: U64::from(value.timestamp),
             tx_merkle_root: value.tx_merkle_root,
         };
         Ok(Self {
             header,
-            txs: Some(
-                value
-                    .txs
-                    .into_iter()
-                    .filter_map(|tx| tx.body.map(Into::into))
-                    .collect(),
-            ), // Rollup full nodes don't store tx bodies
+            txs: value
+                .txs
+                .into_iter()
+                .filter_map(|tx| tx.body.map(Into::into))
+                .collect(),
+            // Rollup full nodes don't store tx bodies
         })
     }
 }
