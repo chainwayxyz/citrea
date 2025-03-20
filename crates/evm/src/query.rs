@@ -1359,14 +1359,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Returns the trace of a call
-    pub fn trace_call(
+    /// Returns trace for given tx request call.
+    ///
+    /// Handler for `debug_traceCall`
+    #[rpc_method(name = "debug_traceCall")]
+    pub fn debug_trace_call(
         &self,
         request: TransactionRequest,
         block_id: Option<BlockId>,
         opts: Option<GethDebugTracingCallOptions>,
         working_set: &mut WorkingSet<C::Storage>,
-        fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<GethTrace> {
+        let fork_fn = fork_from_block_number;
         let block_number = match block_id {
             Some(BlockId::Number(block_num)) => block_num,
             Some(BlockId::Hash(block_hash)) => {
