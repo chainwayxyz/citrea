@@ -59,11 +59,12 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                     let inspector = FourByteInspector::default();
 
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
-                    let _ = trace_call_citrea(
+                    let _ = trace_citrea(
                         db,
                         config_env,
                         block_env,
                         tx_env,
+                        None,
                         &mut citrea_inspector,
                     )?;
                     return Ok(FourByteFrame::from(citrea_inspector.inspector).into());
@@ -78,11 +79,12 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                     );
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
 
-                    let res = trace_call_citrea(
+                    let res = trace_citrea(
                         db,
                         config_env,
                         block_env,
                         tx_env,
+                        None,
                         &mut citrea_inspector,
                     )?;
                     let frame = citrea_inspector
@@ -110,11 +112,12 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                 let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
 
                 let mut db_ref = EvmDbRef::new(db);
-                let result_and_state = js_trace_call_citrea(
+                let result_and_state = js_trace_citrea(
                     &mut db_ref,
                     config_env.clone(),
                     block_env.clone(),
                     tx_env.clone(),
+                    None,
                     &mut citrea_inspector,
                 )?;
 
@@ -139,7 +142,14 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
     let inspector = TracingInspector::new(inspector_config);
     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
 
-    let res = trace_call_citrea(db, config_env, block_env, tx_env, &mut citrea_inspector)?;
+    let res = trace_citrea(
+        db,
+        config_env,
+        block_env,
+        tx_env,
+        None,
+        &mut citrea_inspector,
+    )?;
     let gas_used = res.result.gas_used();
     let return_value = res.result.into_output().unwrap_or_default();
     let frame =
@@ -178,7 +188,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         config_env,
                         block_env,
                         tx_env,
-                        tx_hash,
+                        Some(tx_hash),
                         &mut citrea_inspector,
                     )?;
                     return Ok((
@@ -200,7 +210,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         config_env,
                         block_env,
                         tx_env,
-                        tx_hash,
+                        Some(tx_hash),
                         &mut citrea_inspector,
                     )?;
                     let frame = citrea_inspector
@@ -240,7 +250,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     config_env.clone(),
                     block_env.clone(),
                     tx_env.clone(),
-                    tx_hash,
+                    Some(tx_hash),
                     &mut citrea_inspector,
                 )?;
                 let state = result_and_state.state.clone();
@@ -271,7 +281,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
         config_env,
         block_env,
         tx_env,
-        tx_hash,
+        Some(tx_hash),
         &mut citrea_inspector,
     )?;
     let gas_used = res.result.gas_used();
@@ -291,7 +301,7 @@ fn trace_citrea<'a, 'b, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: Option<TxHash>,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -308,33 +318,10 @@ where
         .append_handler_register_box(citrea_handle_register())
         .append_handler_register(inspector_handle_register)
         .build();
-    evm.context.external.set_current_tx_hash(tx_hash);
 
-    evm.transact()
-}
-
-/// Executes the [Env] against the given [Database] without committing state changes.
-fn trace_call_citrea<'a, 'b, C, I>(
-    db: &'b mut EvmDb<'a, C>,
-    config_env: CfgEnvWithHandlerCfg,
-    block_env: BlockEnv,
-    tx_env: TxEnv,
-    inspector: I,
-) -> Result<ResultAndState, EVMError<DBError>>
-where
-    C: sov_modules_api::Context,
-    I: Inspector<&'b mut EvmDb<'a, C>>,
-    I: CitreaExternalExt,
-{
-    let mut evm = revm::Evm::builder()
-        .with_db(db)
-        .with_external_context(inspector)
-        .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
-        .with_tx_env(tx_env)
-        .append_handler_register_box(citrea_handle_register())
-        .append_handler_register(inspector_handle_register)
-        .build();
+    if let Some(tx_hash) = tx_hash {
+        evm.context.external.set_current_tx_hash(tx_hash);
+    }
 
     evm.transact()
 }
@@ -344,7 +331,7 @@ fn js_trace_citrea<'a, 'b, 'c, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: Option<TxHash>,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -361,32 +348,10 @@ where
         .append_handler_register_box(citrea_handle_register())
         .append_handler_register(inspector_handle_register)
         .build();
-    evm.context.external.set_current_tx_hash(tx_hash);
 
-    evm.transact()
-}
-
-fn js_trace_call_citrea<'a, 'b, 'c, C, I>(
-    db: &'c mut EvmDbRef<'a, 'b, C>,
-    config_env: CfgEnvWithHandlerCfg,
-    block_env: BlockEnv,
-    tx_env: TxEnv,
-    inspector: I,
-) -> Result<ResultAndState, EVMError<DBError>>
-where
-    C: sov_modules_api::Context,
-    I: Inspector<&'c mut EvmDbRef<'a, 'b, C>>,
-    I: CitreaExternalExt,
-{
-    let mut evm = revm::Evm::builder()
-        .with_db(db)
-        .with_external_context(inspector)
-        .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
-        .with_tx_env(tx_env)
-        .append_handler_register_box(citrea_handle_register())
-        .append_handler_register(inspector_handle_register)
-        .build();
+    if let Some(tx_hash) = tx_hash {
+        evm.context.external.set_current_tx_hash(tx_hash);
+    }
 
     evm.transact()
 }
