@@ -336,7 +336,14 @@ async fn sync_l2(
         let mut l2_blocks = match get_l2_blocks_range(inner_client, start_l2_height, end_l2_height)
             .await
         {
-            Ok(l2_blocks) => l2_blocks,
+            Ok(l2_blocks) => {
+                // request has succeeded, try to increase sync blocks back up until original
+                current_sync_blocks_count *= 2;
+                if current_sync_blocks_count > sync_blocks_count {
+                    current_sync_blocks_count = sync_blocks_count;
+                }
+                l2_blocks
+            }
             Err(e) => match e {
                 SyncError::ResponseOverLimit => {
                     debug!("Sync response size over limit, retrying...");
