@@ -1,4 +1,3 @@
-use citrea_common::l2::{L2BlockSignal, L2Syncer};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_rollup_interface::services::da::DaService;
 use tokio::select;
@@ -6,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument};
 
-use crate::metrics::FULLNODE_METRICS;
+use crate::{l2_syncer::{L2BlockSignal, L2Syncer}, metrics::FULLNODE_METRICS};
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<DA, DB>

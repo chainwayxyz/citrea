@@ -2222,6 +2222,7 @@ dependencies = [
  "once_cell",
  "rs_merkle",
  "sov-db",
+ "sov-keys",
  "sov-ledger-rpc",
  "sov-modules-api",
  "sov-modules-stf-blueprint",

@@ -4,11 +4,11 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::L2Syncer;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
+use l2_syncer::L2Syncer;
 pub use runner::*;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
@@ -22,6 +22,7 @@ use tokio::sync::{broadcast, mpsc, Mutex};
 
 pub mod da_block_handler;
 pub mod db_migrations;
+mod l2_syncer;
 mod metrics;
 mod runner;
 

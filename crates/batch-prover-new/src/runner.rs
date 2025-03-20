@@ -1,6 +1,5 @@
 use core::panic;
 
-use citrea_common::l2::{L2BlockSignal, L2Syncer};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_rollup_interface::services::da::DaService;
@@ -9,7 +8,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument};
 
-use crate::metrics::BATCH_PROVER_METRICS;
+use crate::{l2_syncer::{L2BlockSignal, L2Syncer}, metrics::BATCH_PROVER_METRICS};
 
 pub struct CitreaBatchProver<DA, DB>
 where
