@@ -367,7 +367,7 @@ async fn sync_l2(
 
         if l2_blocks.is_empty() {
             debug!(
-                "Soft Confirmation: no batch at starting height {}, retrying...",
+                "L2 block: no batch at starting height {}, retrying...",
                 start_l2_height
             );
 
@@ -377,7 +377,7 @@ async fn sync_l2(
 
         start_l2_height += l2_blocks.len() as u64;
 
-        // Make sure soft confirmations are sorted for us to make sure they are processed
+        // Make sure L2 blocks are sorted for us to make sure they are processed
         // in the correct order.
         l2_blocks.sort_by_key(|l2_block| l2_block.header.height);
 
@@ -411,8 +411,7 @@ async fn get_l2_blocks_range(
                     if e.message().eq("Response is too big") {
                         return Err(backoff::Error::Permanent(SyncError::ResponseOverLimit));
                     }
-                    let error_msg =
-                        format!("Soft Confirmation: call error during RPC call: {:?}", e);
+                    let error_msg = format!("L2 block: call error during RPC call: {:?}", e);
                     debug!(error_msg);
                     Err(backoff::Error::Transient {
                         err: SyncError::Call(error_msg),
@@ -420,10 +419,7 @@ async fn get_l2_blocks_range(
                     })
                 }
                 JsonrpseeError::Transport(e) => {
-                    let error_msg = format!(
-                        "Soft Confirmation: connection error during RPC call: {:?}",
-                        e
-                    );
+                    let error_msg = format!("L2 block: connection error during RPC call: {:?}", e);
                     debug!(error_msg);
                     Err(backoff::Error::Transient {
                         err: SyncError::Connection(error_msg),
@@ -432,7 +428,7 @@ async fn get_l2_blocks_range(
                 }
                 _ => Err(backoff::Error::Transient {
                     err: SyncError::Unknown(format!(
-                        "Soft Confirmation: unknown error from RPC call: {:?}",
+                        "L2 block: unknown error from RPC call: {:?}",
                         e
                     )),
                     retry_after: None,
