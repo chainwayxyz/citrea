@@ -1367,7 +1367,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<GethTrace> {
-        let block_number_or_tag = match block_id {
+        let block_number = match block_id {
             Some(BlockId::Number(block_num)) => block_num,
             Some(BlockId::Hash(block_hash)) => {
                 let block_number = self
@@ -1377,19 +1377,41 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
             None => BlockNumberOrTag::Latest,
         };
-        let sealed_block = self
-            .get_sealed_block_by_number(Some(block_number_or_tag), working_set)?
-            .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
-        let citrea_spec_id = fork_fn(sealed_block.header.number).spec_id;
+
+        let block_env = match block_number {
+            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set, &fork_fn),
+            _ => {
+                let block = self
+                    .get_sealed_block_by_number(Some(block_number), working_set)?
+                    .ok_or(EthApiError::HeaderNotFound(
+                        block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
+                    ))?;
+
+                sealed_block_to_block_env(&block.header, &fork_fn)
+            }
+        };
+
+        let block_num: u64 = block_env.number.saturating_to();
+
+        // Set evm state to block if needed
+        match block_number {
+            BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
+            _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
+        };
+
+        let citrea_spec_id = fork_fn(block_num).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
-        let block_env = sealed_block_to_block_env(&sealed_block.header, &fork_fn);
         let cfg = self
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
+
+        let sealed_block = self
+            .get_sealed_block_by_number(Some(block_number), working_set)?
+            .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
         let account = self
