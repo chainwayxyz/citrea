@@ -2021,6 +2021,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-batch-prover-new"
+version = "0.6.0"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "async-trait",
+ "backoff",
+ "borsh",
+ "citrea-common",
+ "citrea-primitives",
+ "citrea-stf",
+ "faster-hex",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "metrics",
+ "metrics-derive",
+ "num_cpus",
+ "once_cell",
+ "parking_lot",
+ "prover-services",
+ "rand",
+ "rayon",
+ "rs_merkle",
+ "serde",
+ "short-header-proof-provider",
+ "sov-db",
+ "sov-keys",
+ "sov-ledger-rpc",
+ "sov-modules-api",
+ "sov-modules-core",
+ "sov-modules-stf-blueprint",
+ "sov-prover-storage-manager",
+ "sov-rollup-interface",
+ "sov-state",
+ "tokio",
+ "tokio-util",
+ "tower 0.4.13",
+ "tracing",
+ "tracing-subscriber 0.3.19",
+]
+
+[[package]]
 name = "citrea-cli"
 version = "0.6.0"
 dependencies = [
