@@ -35,3 +35,4 @@ elf/
 *transactions.txt
 
 bitcoin-testnet4/
+resources/dbs*
