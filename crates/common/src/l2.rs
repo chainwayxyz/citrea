@@ -44,7 +44,7 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     stf: &mut StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     current_l2_block_hash: L2BlockHash,
     current_state_root: StorageRootHash,
-    sequencer_pub_key: K256PublicKey,
+    sequencer_pub_key: &K256PublicKey,
     include_tx_body: bool,
 ) -> anyhow::Result<ProcessL2BlockResult> {
     let start = Instant::now();

@@ -22,7 +22,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, Mutex};
 
 pub mod da_block_handler;
 pub mod db_migrations;
@@ -79,7 +79,6 @@ where
     );
     let rpc_module = rpc::register_rpc_methods::<DA, Vm, DB>(rpc_context, rpc_module)?;
 
-    let (l2_signal_tx, l2_signal_rx) = mpsc::channel(1);
     let l2_syncer = L2Syncer::new(
         runner_config,
         init_params,
@@ -91,11 +90,10 @@ where
         fork_manager,
         l2_block_tx,
         backup_manager.clone(),
-        l2_signal_tx,
         true,
     )?;
 
-    let batch_prover = CitreaBatchProver::new(ledger_db.clone(), l2_syncer, l2_signal_rx)?;
+    let batch_prover = CitreaBatchProver::new(l2_syncer)?;
 
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
