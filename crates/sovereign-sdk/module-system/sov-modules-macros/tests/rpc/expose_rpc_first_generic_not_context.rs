@@ -3,7 +3,7 @@ use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, Module,
-    ModuleInfo, SoftConfirmationModuleCallError, Spec, SpecId, StateValue, WorkingSet,
+    ModuleInfo, L2BlockModuleCallError, Spec, SpecId, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 
@@ -55,7 +55,7 @@ pub mod my_module {
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<C::Storage>,
-        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+        ) -> Result<CallResponse, L2BlockModuleCallError> {
             self.data.set(&msg, working_set);
             Ok(CallResponse::default())
         }
@@ -117,7 +117,7 @@ fn main() {
         <RT as EncodeCall<my_module::QueryModule<C, u32>>>::encode_call(message);
     let module = RT::decode_call(&serialized_message).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
-    let context = C::new(sender, 1, SpecId::Genesis, 0);
+    let context = C::new(sender, 1, SpecId::Fork2, 0);
 
     let _ = runtime
         .dispatch_call(module, working_set, &context)

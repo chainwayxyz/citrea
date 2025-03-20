@@ -6,15 +6,15 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2RangeByL1Height, L2Witness, LightClientProofBySlotNumber,
-    ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs, SlotByHash, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2RangeByL1Height,
+    L2Witness, LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2,
+    ProverStateDiffs, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
+use sov_db::schema::types::l2_block::StoredL2Block;
 use sov_db::schema::types::light_client_proof::{
     StoredLatestDaState, StoredLightClientProof, StoredLightClientProofOutput,
 };
-use sov_db::schema::types::soft_confirmation::StoredSoftConfirmation;
-use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_db::state_db::StateDB;
 use sov_schema_db::DB;
 use sov_state::Storage;
@@ -94,89 +94,73 @@ pub fn test_pruning_should_prune() {
 }
 
 #[test]
-pub fn test_pruning_ledger_db_soft_confirmations() {
+pub fn test_pruning_ledger_db_l2_blocks() {
     let tmpdir = tempfile::tempdir().unwrap();
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
 
-    let mut da_slot_height = 1;
-
     for i in 1u64..=20 {
-        let soft_confirmation = StoredSoftConfirmation {
-            l2_height: i,
-            da_slot_height,
-            da_slot_hash: [i as u8; 32],
-            da_slot_txs_commitment: [i as u8; 32],
+        let l2_block = StoredL2Block {
+            height: i,
+
             hash: [i as u8; 32],
             prev_hash: [(i as u8) - 1; 32],
             txs: vec![],
-            deposit_data: vec![],
+
             state_root: [i as u8; 32],
-            soft_confirmation_signature: vec![],
-            pub_key: vec![0; 32],
+            signature: vec![],
             tx_merkle_root: [0; 32],
             l1_fee_rate: 0,
             timestamp: i,
         };
 
         ledger_db
-            .put::<SoftConfirmationByNumber>(&SoftConfirmationNumber(i), &soft_confirmation)
+            .put::<L2BlockByNumber>(&L2BlockNumber(i), &l2_block)
             .unwrap();
         ledger_db
-            .put::<SoftConfirmationByHash>(&[i as u8; 32], &SoftConfirmationNumber(i))
+            .put::<L2BlockByHash>(&[i as u8; 32], &L2BlockNumber(i))
             .unwrap();
         ledger_db
-            .put::<SoftConfirmationStatus>(
-                &SoftConfirmationNumber(i),
-                &sov_rollup_interface::rpc::SoftConfirmationStatus::Finalized,
+            .put::<L2BlockStatus>(
+                &L2BlockNumber(i),
+                &sov_rollup_interface::rpc::L2BlockStatus::Finalized,
             )
             .unwrap();
         ledger_db
-            .put::<L2Witness>(&SoftConfirmationNumber(i), &(vec![5; 32], vec![6; 32]))
+            .put::<L2Witness>(&L2BlockNumber(i), &(vec![5; 32], vec![6; 32]))
             .unwrap();
         ledger_db
-            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &vec![])
+            .put::<ProverStateDiffs>(&L2BlockNumber(i), &vec![])
             .unwrap();
-
-        da_slot_height += 1;
     }
 
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .get::<L2BlockByNumber>(&L2BlockNumber(1))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .get::<L2BlockByNumber>(&L2BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
-        .get::<SoftConfirmationByHash>(&[1; 32])
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<SoftConfirmationByHash>(&[10; 32])
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<SoftConfirmationByHash>(&[20; 32])
+        .get::<L2BlockByNumber>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
+    assert!(ledger_db.get::<L2BlockByHash>(&[1; 32]).unwrap().is_some());
+    assert!(ledger_db.get::<L2BlockByHash>(&[10; 32]).unwrap().is_some());
+    assert!(ledger_db.get::<L2BlockByHash>(&[20; 32]).unwrap().is_some());
+
     assert!(ledger_db
-        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(1))
+        .get::<L2BlockStatus>(&L2BlockNumber(1))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(10))
+        .get::<L2BlockStatus>(&L2BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(20))
+        .get::<L2BlockStatus>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
@@ -184,151 +168,135 @@ pub fn test_pruning_ledger_db_soft_confirmations() {
 
     // Pruned
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .get::<L2BlockByNumber>(&L2BlockNumber(1))
         .unwrap()
         .is_none());
     // Pruned
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .get::<L2BlockByNumber>(&L2BlockNumber(10))
         .unwrap()
         .is_none());
     // NOT Pruned
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
+        .get::<L2BlockByNumber>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
     // Pruned
-    assert!(ledger_db
-        .get::<SoftConfirmationByHash>(&[1; 32])
-        .unwrap()
-        .is_none());
+    assert!(ledger_db.get::<L2BlockByHash>(&[1; 32]).unwrap().is_none());
     // Pruned
-    assert!(ledger_db
-        .get::<SoftConfirmationByHash>(&[10; 32])
-        .unwrap()
-        .is_none());
+    assert!(ledger_db.get::<L2BlockByHash>(&[10; 32]).unwrap().is_none());
     // NOT Pruned
-    assert!(ledger_db
-        .get::<SoftConfirmationByHash>(&[20; 32])
-        .unwrap()
-        .is_some());
+    assert!(ledger_db.get::<L2BlockByHash>(&[20; 32]).unwrap().is_some());
 
     assert!(ledger_db
-        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(1))
+        .get::<L2BlockStatus>(&L2BlockNumber(1))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(10))
+        .get::<L2BlockStatus>(&L2BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(20))
+        .get::<L2BlockStatus>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 }
 
 #[test]
-pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
+pub fn test_pruning_ledger_db_batch_prover_l2_blocks() {
     let tmpdir = tempfile::tempdir().unwrap();
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap().inner();
 
-    let mut da_slot_height = 1;
-
     for i in 1u64..=20 {
-        let soft_confirmation = StoredSoftConfirmation {
-            l2_height: i,
-            da_slot_height,
-            da_slot_hash: [i as u8; 32],
-            da_slot_txs_commitment: [i as u8; 32],
+        let l2_block = StoredL2Block {
+            height: i,
+
             hash: [i as u8; 32],
             prev_hash: [(i as u8) - 1; 32],
             txs: vec![],
-            deposit_data: vec![],
+
             state_root: [i as u8; 32],
-            soft_confirmation_signature: vec![],
-            pub_key: vec![0; 32],
+            signature: vec![],
             tx_merkle_root: [0; 32],
             l1_fee_rate: 0,
             timestamp: i,
         };
 
         ledger_db
-            .put::<SoftConfirmationByNumber>(&SoftConfirmationNumber(i), &soft_confirmation)
+            .put::<L2BlockByNumber>(&L2BlockNumber(i), &l2_block)
             .unwrap();
         ledger_db
-            .put::<L2Witness>(&SoftConfirmationNumber(i), &(vec![5; 32], vec![6; 32]))
+            .put::<L2Witness>(&L2BlockNumber(i), &(vec![5; 32], vec![6; 32]))
             .unwrap();
         ledger_db
-            .put::<ProverStateDiffs>(&SoftConfirmationNumber(i), &vec![])
+            .put::<ProverStateDiffs>(&L2BlockNumber(i), &vec![])
             .unwrap();
-
-        da_slot_height += 1;
     }
 
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .get::<L2BlockByNumber>(&L2BlockNumber(1))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .get::<L2BlockByNumber>(&L2BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(1))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(10))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(20))
+        .get::<L2BlockByNumber>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(1))
+        .get::<L2Witness>(&L2BlockNumber(1))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(10))
+        .get::<L2Witness>(&L2BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(1))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(10))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(20))
+        .get::<L2Witness>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(1))
+        .get::<ProverStateDiffs>(&L2BlockNumber(1))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(10))
+        .get::<ProverStateDiffs>(&L2BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(20))
+        .get::<ProverStateDiffs>(&L2BlockNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<L2Witness>(&L2BlockNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2Witness>(&L2BlockNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<L2Witness>(&L2BlockNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&L2BlockNumber(1))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&L2BlockNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<ProverStateDiffs>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
@@ -336,43 +304,43 @@ pub fn test_pruning_ledger_db_batch_prover_soft_confirmations() {
 
     // Pruned
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(1))
+        .get::<L2BlockByNumber>(&L2BlockNumber(1))
         .unwrap()
         .is_none());
     // Pruned
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(10))
+        .get::<L2BlockByNumber>(&L2BlockNumber(10))
         .unwrap()
         .is_none());
     // NOT Pruned
     assert!(ledger_db
-        .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(20))
+        .get::<L2BlockByNumber>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(1))
+        .get::<L2Witness>(&L2BlockNumber(1))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(10))
+        .get::<L2Witness>(&L2BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2Witness>(&SoftConfirmationNumber(20))
+        .get::<L2Witness>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(1))
+        .get::<ProverStateDiffs>(&L2BlockNumber(1))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(10))
+        .get::<ProverStateDiffs>(&L2BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<ProverStateDiffs>(&SoftConfirmationNumber(20))
+        .get::<ProverStateDiffs>(&L2BlockNumber(20))
         .unwrap()
         .is_some());
 }
@@ -383,8 +351,8 @@ fn prepare_slots_data(ledger_db: &DB) {
             .put::<L2RangeByL1Height>(
                 &SlotNumber(da_slot_height),
                 &(
-                    SoftConfirmationNumber(da_slot_height - 1),
-                    SoftConfirmationNumber(da_slot_height),
+                    L2BlockNumber(da_slot_height - 1),
+                    L2BlockNumber(da_slot_height),
                 ),
             )
             .unwrap();

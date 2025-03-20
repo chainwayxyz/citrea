@@ -3,7 +3,7 @@ pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    CallResponse, Context, Module, ModuleInfo, SoftConfirmationModuleCallError, Spec, StateValue,
+    CallResponse, Context, Module, ModuleInfo, L2BlockModuleCallError, Spec, StateValue,
     WorkingSet,
 };
 
@@ -30,7 +30,7 @@ impl<C: Context> Module for QueryModule<C> {
         msg: Self::CallMessage,
         _context: &Self::Context,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+    ) -> Result<CallResponse, L2BlockModuleCallError> {
         self.data.set(&msg, working_set);
         Ok(CallResponse::default())
     }

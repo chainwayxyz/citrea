@@ -31,7 +31,7 @@ pub mod first_test_module {
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<C::Storage>,
-        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::L2BlockModuleCallError>
         {
             todo!()
         }
@@ -67,7 +67,7 @@ mod second_test_module {
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
-        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::L2BlockModuleCallError>
         {
             todo!()
         }

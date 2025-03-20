@@ -16,6 +16,13 @@ pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u6
     let mut counter = 0u32;
     let mut keys_to_delete = vec![];
     while let Some(Ok(entry)) = iter.next() {
+        // Skip the offchain state records for evm.code
+        // TODO: native db needs better version based pruning
+        // https://github.com/chainwayxyz/citrea/issues/2129
+        if entry.key.0.starts_with(b"E/c/".as_slice()) {
+            continue;
+        }
+
         let version = entry.key.1;
         // The version value is always ahead of block number by one.
         if version <= up_to_block + 1 {

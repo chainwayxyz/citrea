@@ -27,4 +27,3 @@ tempfile = { workspace = true }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
-sov-state = { path = "../sovereign-sdk/module-system/sov-state" }

@@ -20,22 +20,6 @@ lazy_static! {
         let mut m = HashMap::new();
 
         m.insert(
-            SpecId::Genesis,
-            (
-                Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID),
-                citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ELF.to_vec(),
-            ),
-        );
-
-        m.insert(
-            SpecId::Kumquat,
-            (
-                Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID),
-                citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ELF.to_vec(),
-            ),
-        );
-
-        m.insert(
             SpecId::Fork2,
             (
                 Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID),
@@ -60,11 +44,6 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_REGTEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         HashMap::from(
             [
-                // this is ELF of genesis fork except for da namespace [1, 1] -> [1] and [2,2] -> [2]
-                (SpecId::Genesis, guest!("../../../resources/guests/risc0/genesis-batch-proof-0-short-prefix")),
-                (SpecId::Kumquat,
-                    guest!("../../../resources/guests/risc0/genesis-batch-proof-1-short-prefix")
-                ),
                 (SpecId::Fork2,
                     (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
                     citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
@@ -89,20 +68,6 @@ lazy_static! {
         let mut m = HashMap::new();
 
         m.insert(
-            SpecId::Genesis,
-            (
-                Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID),
-                citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ELF.to_vec(),
-            )
-        );
-        m.insert(
-            SpecId::Kumquat,
-            (
-                Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID),
-                citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ELF.to_vec(),
-            )
-        );
-        m.insert(
             SpecId::Fork2,
             (
                 Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID),
@@ -115,44 +80,40 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_MAINNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/mainnet/batch-0.elf"));
+        m.insert(SpecId::Fork2, guest!("../../../resources/guests/risc0/mainnet/batch-0.elf"));
         m
     };
     pub(crate) static ref BATCH_PROOF_TESTNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/testnet/batch-0.elf"));
-        m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/testnet/batch-1.elf"));
+        m.insert(SpecId::Fork2, guest!("../../../resources/guests/risc0/testnet/batch-0.elf"));
 
         m
     };
     pub(crate) static ref BATCH_PROOF_DEVNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-0.elf"));
-        m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/devnet/batch-1.elf"));
+        m.insert(SpecId::Fork2, guest!("../../../resources/guests/risc0/devnet/batch-0.elf"));
 
         m
     };
     pub(crate) static ref LIGHT_CLIENT_MAINNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/mainnet/light-0.elf"));
+        m.insert(SpecId::Fork2, guest!("../../../resources/guests/risc0/mainnet/light-0.elf"));
         m
     };
     pub(crate) static ref LIGHT_CLIENT_TESTNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/testnet/light-0.elf"));
-        m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/testnet/light-0.elf"));
+        m.insert(SpecId::Fork2, guest!("../../../resources/guests/risc0/testnet/light-0.elf"));
 
         m
     };
     pub(crate) static ref LIGHT_CLIENT_DEVNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/light-0.elf"));
-        m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/devnet/light-0.elf"));
+        m.insert(SpecId::Fork2, guest!("../../../resources/guests/risc0/devnet/light-0.elf"));
         m
     };
 }

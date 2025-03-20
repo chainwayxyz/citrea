@@ -30,14 +30,14 @@ pub(crate) async fn prune(
     let native_db = NativeDB::setup_schema_db(&rocksdb_config)?;
     let state_db = StateDB::setup_schema_db(&rocksdb_config)?;
 
-    let Some(soft_confirmation_number) = ledger_db.get_head_soft_confirmation_height()? else {
+    let Some(l2_block_number) = ledger_db.get_head_l2_block_height()? else {
         return Ok(());
     };
     let last_pruned_block_number = ledger_db.get_last_pruned_l2_height()?.unwrap_or(0);
 
     debug!(
-        "Pruning up to latest soft confirmation number: {}, taking into consideration the configured distance of {}",
-        soft_confirmation_number, distance
+        "Pruning up to latest l2 block number: {}, taking into consideration the configured distance of {}",
+        l2_block_number, distance
     );
 
     let pruner = Pruner::new(
@@ -46,9 +46,7 @@ pub(crate) async fn prune(
         Arc::new(state_db),
         Arc::new(native_db),
     );
-    if let Some(up_to_block) =
-        pruner.should_prune(last_pruned_block_number, soft_confirmation_number)
-    {
+    if let Some(up_to_block) = pruner.should_prune(last_pruned_block_number, l2_block_number) {
         pruner.prune(node_type.into(), up_to_block).await;
     }
     Ok(())

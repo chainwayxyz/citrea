@@ -47,7 +47,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         storage: C::Storage,
         ledger_db: LedgerDB,
         sequencer_client: Option<HttpClient>,
-        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
     ) -> Self {
         let evm = Evm::<C>::default();
         let gas_price_oracle =
@@ -62,7 +62,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
 
         let subscription_manager =
-            soft_confirmation_rx.map(|rx| SubscriptionManager::new::<C>(storage.clone(), rx));
+            l2_block_rx.map(|rx| SubscriptionManager::new::<C>(storage.clone(), rx));
 
         Self {
             da_service,

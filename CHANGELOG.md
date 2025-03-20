@@ -1,7 +1,7 @@
 # Changelog
 
 ## v0.6.1 (2025-1-21)
-- Fix LedgerDB migration process ([#1730](https://github.com/chainwayxyz/citrea/pull/1730)) 
+- Fix LedgerDB migration process ([#1730](https://github.com/chainwayxyz/citrea/pull/1730))
 
 ## v0.6.0 (2025-1-20)
 Citrea Kumquat upgrade will go live on testnet at block 5546000, activating many new features:
@@ -40,7 +40,7 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Bitcoin DA adapter uses mempool.space API for fee estimation. ([#1302](https://github.com/chainwayxyz/citrea/pull/1302))
 - New RPC for prover node: `prover_generateInput`. ([#1280](https://github.com/chainwayxyz/citrea/pull/1280))
 - Enhance `eth_estimateGas` RPC L1 fee estimatation. ([#1261](https://github.com/chainwayxyz/citrea/pull/1261))
-- Structured concurrency and graceful shutdown: fixes breaking storage on shutdown while syncing for the first time. ([#1214](https://github.com/chainwayxyz/citrea/pull/1214) and [#1216](https://github.com/chainwayxyz/citrea/pull/1216)) 
+- Structured concurrency and graceful shutdown: fixes breaking storage on shutdown while syncing for the first time. ([#1214](https://github.com/chainwayxyz/citrea/pull/1214) and [#1216](https://github.com/chainwayxyz/citrea/pull/1216))
 
 ## v0.5.2 (2024-09-30)
 - Added config for disableing prover proving session recovery. ([#1241](https://github.com/chainwayxyz/citrea/pull/1241))
@@ -48,6 +48,6 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 
 ## v0.5.1 (2024-09-26)
 
-- Fix bug where full nodes would query more soft confirmations than intended. ([#1230](https://github.com/chainwayxyz/citrea/pull/1230))
+- Fix bug where full nodes would query more l2 blocks than intended. ([#1230](https://github.com/chainwayxyz/citrea/pull/1230))
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))

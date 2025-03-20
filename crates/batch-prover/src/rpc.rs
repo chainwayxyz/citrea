@@ -15,10 +15,10 @@ use jsonrpsee::types::ErrorObjectOwned;
 use prover_services::ParallelProverService;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::Mutex;
 
@@ -44,8 +44,7 @@ where
     pub ledger: DB,
     pub storage_manager: ProverStorageManager,
     pub sequencer_da_pub_key: Vec<u8>,
-    pub sequencer_pub_key: Vec<u8>,
-    pub sequencer_k256_pub_key: Vec<u8>,
+    pub sequencer_pub_key: K256PublicKey,
     pub l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pub code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     pub elfs_by_spec: HashMap<SpecId, Vec<u8>>,
@@ -60,8 +59,7 @@ pub fn create_rpc_context<Da, Vm, DB>(
     ledger: DB,
     storage_manager: ProverStorageManager,
     sequencer_da_pub_key: Vec<u8>,
-    sequencer_pub_key: Vec<u8>,
-    sequencer_k256_pub_key: Vec<u8>,
+    sequencer_pub_key: K256PublicKey,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
@@ -77,7 +75,6 @@ where
         storage_manager,
         sequencer_da_pub_key,
         sequencer_pub_key,
-        sequencer_k256_pub_key,
         l1_block_cache,
         prover_service,
         code_commitments_by_spec,
@@ -172,9 +169,7 @@ where
             self.context.ledger.clone(),
             &self.context.storage_manager,
             self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_k256_pub_key.clone(),
             self.context.sequencer_da_pub_key.clone(),
-            self.context.l1_block_cache.clone(),
             &l1_block,
             group_commitments,
         )
@@ -189,22 +184,18 @@ where
 
         let mut batch_proof_circuit_input_responses = vec![];
 
-        for input in inputs {
-            let range_start = input.sequencer_commitments_range.0;
-            let range_end = input.sequencer_commitments_range.1;
+        for (input, sequencer_commitment_range) in inputs {
+            let range_start = sequencer_commitment_range.0;
+            let range_end = sequencer_commitment_range.1;
 
             let last_seq_com = sequencer_commitments
                 .get(range_end as usize)
                 .expect("Commitment does not exist");
             let last_l2_height = last_seq_com.l2_end_block_number;
-            let current_spec = fork_from_block_number(last_l2_height).spec_id;
+            let _current_spec = fork_from_block_number(last_l2_height).spec_id;
 
-            let serialized_circuit_input = match current_spec {
-                SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input)),
-                SpecId::Kumquat => borsh::to_vec(&input.into_v2_parts()),
-                _ => borsh::to_vec(&input.into_v3_parts()),
-            }
-            .expect("Risc0 hint serialization is infallible");
+            let serialized_circuit_input = borsh::to_vec(&input.into_v3_parts())
+                .expect("Risc0 hint serialization is infallible");
 
             let response = ProverInputResponse {
                 commitment_range: (U32::from(range_start), U32::from(range_end)),
@@ -244,9 +235,7 @@ where
             self.context.ledger.clone(),
             &self.context.storage_manager,
             self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_k256_pub_key.clone(),
             self.context.sequencer_da_pub_key.clone(),
-            self.context.l1_block_cache.clone(),
             &l1_block,
             group_commitments,
         )

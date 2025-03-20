@@ -28,7 +28,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-evm = { path = "../evm" }
-soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
+l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer" }
 
 [features]
 default = []
@@ -38,12 +38,12 @@ native = [
   "sov-modules-api/native",
   "sov-rollup-interface/native",
   "sov-modules-stf-blueprint/native",
-  "soft-confirmation-rule-enforcer/native",
+  "l2-block-rule-enforcer/native",
   "citrea-evm/native",
   "dep:jsonrpsee",
   "dep:tracing",
   "dep:anyhow",
   "dep:serde_json",
   "sov-accounts/serde",
-  "soft-confirmation-rule-enforcer/native",
+  "l2-block-rule-enforcer/native",
 ]

@@ -18,7 +18,7 @@ members = [
   "crates/risc0",
   "crates/sequencer",
   "crates/short-header-proof-provider",
-  "crates/soft-confirmation-rule-enforcer",
+  "crates/l2-block-rule-enforcer",
   # "crates/sp1",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
@@ -34,6 +34,7 @@ members = [
   "crates/sovereign-sdk/module-system/sov-modules-macros",
   "crates/sovereign-sdk/module-system/sov-modules-core",
   "crates/sovereign-sdk/module-system/sov-state",
+  "crates/sovereign-sdk/module-system/sov-keys",
   "crates/sovereign-sdk/module-system/sov-modules-api",
   "crates/sovereign-sdk/module-system/module-implementations/sov-accounts",
   "crates/sovereign-sdk/module-system/module-implementations/integration-tests",
@@ -71,7 +72,6 @@ constmuck = "1.1"
 crypto-bigint = "0.5.5"
 digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
 derive_more = { version = "1", default-features = false }
-ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
 faster-hex = "0.10.0"
 futures = "0.3"
 hyper = "1.6.0"
@@ -160,7 +160,7 @@ alloy-eips = { version = "0.4.2", default-features = false }
 alloy-consensus = { version = "0.4.2", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.4.2", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "d1ba17118cfafcf579c6ed6b0295f97667f11a62" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "7b392a2" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }

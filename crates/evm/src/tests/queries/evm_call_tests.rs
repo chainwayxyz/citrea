@@ -9,14 +9,15 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::{HookSoftConfirmationInfo, HookSoftConfirmationInfoV2};
+use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::smart_contracts::SimpleStorageContract;
+use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{get_fork_fn_only_fork2, get_fork_fn_only_kumquat};
+use crate::tests::utils::get_fork_fn_only_fork2;
 use crate::Evm;
 
 type C = DefaultContext;
@@ -79,15 +80,15 @@ fn test_state_change() {
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
-    let soft_confirmation_info = HookSoftConfirmationInfo::V2(HookSoftConfirmationInfoV2 {
+    let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Fork2,
-        pub_key: vec![],
+        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
-    });
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    };
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     let call_result = evm.get_call_inner(
         TransactionRequest {
@@ -107,7 +108,7 @@ fn test_state_change() {
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
@@ -224,7 +225,7 @@ fn call_to_nonexistent_contract() {
 
 #[test]
 fn call_with_high_gas_price() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Kumquat);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -244,14 +245,14 @@ fn call_with_high_gas_price() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_kumquat(),
+        get_fork_fn_only_fork2(),
     );
 
     assert_eq!(
         call_result,
         Err(RpcInvalidTransactionError::InsufficientFunds {
             cost: U256::from(1000000000000000000000000000u128),
-            balance: U256::from(99999573573161956429u128)
+            balance: U256::from(99999574234737852975u128)
         }
         .into())
     );
@@ -259,7 +260,7 @@ fn call_with_high_gas_price() {
 
 #[test]
 fn test_eip1559_fields_call() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Kumquat);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
 
     let default_result = eth_call_eip1559(
         &evm,
@@ -285,7 +286,7 @@ fn test_eip1559_fields_call() {
         high_fee_result,
         Err(RpcInvalidTransactionError::InsufficientFunds {
             cost: U256::from_str("34028236692093846346337460743176821145500000").unwrap(),
-            balance: U256::from(99999573573161956429u128)
+            balance: U256::from(99999574234737852975u128)
         }
         .into())
     );

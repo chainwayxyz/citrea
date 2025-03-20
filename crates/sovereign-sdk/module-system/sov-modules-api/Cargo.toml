@@ -15,8 +15,8 @@ resolver = "2"
 jsonrpsee = { workspace = true, optional = true }
 anyhow = { workspace = true }
 digest = { workspace = true }
-k256 = { workspace = true, features = ["ecdsa", "serde", "pem"]}
 sov-state = { path = "../sov-state" }
+sov-keys = { path = "../sov-keys" }
 sov-modules-core = { path = "../sov-modules-core" }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-macros = { path = "../sov-modules-macros", optional = true, default-features = false }
@@ -32,7 +32,6 @@ hex = { workspace = true }
 clap = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true, features = [] }
 
-ed25519-dalek = { workspace = true }
 rand = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -54,8 +53,6 @@ native = [
     "rand",
     "schemars",
     "serde",
-    "ed25519-dalek/default",
-    "ed25519-dalek/rand_core",
     "clap",
     "jsonrpsee",
     "macros",

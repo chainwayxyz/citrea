@@ -2,19 +2,18 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use borsh::BorshSerialize;
+use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::soft_confirmation::L2Block;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaBatch;
 
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::soft_confirmation::StoredSoftConfirmation;
-use crate::schema::types::{L2HeightRange, SlotNumber, SoftConfirmationNumber};
+use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
@@ -24,27 +23,27 @@ pub trait SharedLedgerOps {
     /// Returns the inner DB instance
     fn inner(&self) -> Arc<sov_schema_db::DB>;
 
-    /// Put soft confirmation to db
+    /// Put L2 block to db
     fn put_l2_block(
         &self,
-        batch: &StoredSoftConfirmation,
-        batch_number: &SoftConfirmationNumber,
+        l2_block: &StoredL2Block,
+        l2_block_number: &L2BlockNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 
-    /// Commits a soft confirmation to the database by inserting its transactions and batches before
-    fn commit_l2_block<Tx: Clone + BorshSerialize>(
+    /// Commits a l2 block to the database by inserting its transactions and batches before
+    fn commit_l2_block(
         &self,
-        l2_block: L2Block<'_, Tx>,
+        l2_block: L2Block,
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<()>;
 
-    /// Records the L2 height that was created as a soft confirmaiton of an L1 height
+    /// Records the L2 height that was created as a l2 block of an L1 height
     fn extend_l2_range_of_l1_slot(
         &self,
         l1_height: SlotNumber,
-        l2_height: SoftConfirmationNumber,
+        l2_height: L2BlockNumber,
     ) -> Result<()>;
 
     /// Sets l1 height of l1 hash
@@ -53,18 +52,18 @@ pub trait SharedLedgerOps {
     /// Gets l1 height of l1 hash
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 
-    /// Saves a soft confirmation status for a given L1 height
+    /// Saves a l2 block status for a given L1 height
     fn put_l2_block_status(
         &self,
-        height: SoftConfirmationNumber,
-        status: sov_rollup_interface::rpc::SoftConfirmationStatus,
+        height: L2BlockNumber,
+        status: sov_rollup_interface::rpc::L2BlockStatus,
     ) -> Result<()>;
 
-    /// Returns a soft confirmation status for a given L1 height
-    fn get_soft_confirmation_status(
+    /// Returns a l2 block status for a given L1 height
+    fn get_l2_block_status(
         &self,
-        height: SoftConfirmationNumber,
-    ) -> Result<Option<sov_rollup_interface::rpc::SoftConfirmationStatus>>;
+        height: L2BlockNumber,
+    ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>>;
 
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
@@ -80,29 +79,24 @@ pub trait SharedLedgerOps {
     /// Gets the L2 genesis state root
     fn get_l2_state_root(&self, l2_height: u64) -> anyhow::Result<Option<StorageRootHash>>;
 
-    /// Get the most recent committed soft confirmation, if any
-    fn get_head_soft_confirmation(
-        &self,
-    ) -> Result<Option<(SoftConfirmationNumber, StoredSoftConfirmation)>>;
+    /// Get the most recent committed l2 block, if any
+    fn get_head_l2_block(&self) -> Result<Option<(L2BlockNumber, StoredL2Block)>>;
 
-    /// Get the most recent committed soft confirmation height, if any
-    fn get_head_soft_confirmation_height(&self) -> Result<Option<u64>>;
+    /// Get the most recent committed l2 block height, if any
+    fn get_head_l2_block_height(&self) -> Result<Option<u64>>;
 
-    /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
+    /// Gets all l2 blocks with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
-    fn get_soft_confirmation_range(
+    fn get_l2_block_range(
         &self,
-        range: &std::ops::RangeInclusive<SoftConfirmationNumber>,
-    ) -> Result<Vec<StoredSoftConfirmation>>;
+        range: &std::ops::RangeInclusive<L2BlockNumber>,
+    ) -> Result<Vec<StoredL2Block>>;
 
-    /// Gets all soft confirmations by numbers
+    /// Gets all l2 blocks by numbers
 
-    fn get_soft_confirmation_by_number(
-        &self,
-        number: &SoftConfirmationNumber,
-    ) -> Result<Option<StoredSoftConfirmation>>;
+    fn get_l2_block_by_number(&self, number: &L2BlockNumber) -> Result<Option<StoredL2Block>>;
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
     fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<()>;
@@ -139,14 +133,14 @@ pub trait SharedLedgerOps {
     /// Returns stored short header proof by l1 hash
     fn get_short_header_proof_by_l1_hash(&self, hash: &[u8; 32])
         -> anyhow::Result<Option<Vec<u8>>>;
-    /// Set L2 range by soft confirmation hash merkle root
+    /// Set L2 range by l2 block hash merkle root
     fn set_l2_range_by_commitment_merkle_root(
         &self,
         root: [u8; 32],
         range: L2HeightRange,
     ) -> anyhow::Result<()>;
 
-    /// Get L2 range by soft confirmation hash merkle root
+    /// Get L2 range by l2 block hash merkle root
     fn get_l2_range_by_commitment_merkle_root(
         &self,
         root: [u8; 32],
@@ -189,14 +183,10 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
 
     /// Save a specific L2 range state diff
-    fn set_l2_state_diff(
-        &self,
-        l2_height: SoftConfirmationNumber,
-        state_diff: StateDiff,
-    ) -> Result<()>;
+    fn set_l2_state_diff(&self, l2_height: L2BlockNumber, state_diff: StateDiff) -> Result<()>;
 
     /// Returns an L2 state diff
-    fn get_l2_state_diff(&self, l2_height: SoftConfirmationNumber) -> Result<Option<StateDiff>>;
+    fn get_l2_state_diff(&self, l2_height: L2BlockNumber) -> Result<Option<StateDiff>>;
 
     /// Clears all pending proving sessions
     fn clear_pending_proving_sessions(&self) -> Result<()>;

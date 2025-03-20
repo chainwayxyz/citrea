@@ -431,7 +431,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          cache: false
 
       - name: Run Forge build
         run: |
@@ -459,6 +459,8 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          cache: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
