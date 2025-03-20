@@ -2275,7 +2275,6 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types",
  "alloy-rpc-types-eth",
- "alloy-sol-types",
  "anyhow",
  "async-trait",
  "backoff",
