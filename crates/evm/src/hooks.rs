@@ -258,6 +258,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 }
 
 /// Initializes system contracts
+#[cfg(feature = "native")]
 pub fn create_initial_system_events(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
@@ -278,11 +279,13 @@ pub fn create_initial_system_events(
 }
 
 /// If new l1 block arrives we set it in light client contract
+#[cfg(feature = "native")]
 pub fn populate_set_block_info_event(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
 ) -> SystemEvent {
+    tracing::info!("Populating BitcoinLightClientSetBlockInfo event with block hash {}, commitment {}, coinbase depth {}", hex::encode(current_slot_hash), hex::encode(current_da_txs_commitment), coinbase_depth);
     SystemEvent::BitcoinLightClientSetBlockInfo(
         current_slot_hash,
         current_da_txs_commitment,
@@ -291,7 +294,9 @@ pub fn populate_set_block_info_event(
 }
 
 /// Populates deposit system events.
+#[cfg(feature = "native")]
 pub fn populate_deposit_system_events(deposit_data: &[Vec<u8>]) -> Vec<SystemEvent> {
+    tracing::info!("Populating {} deposit transactions", deposit_data.len());
     let mut system_events = vec![];
     deposit_data.iter().for_each(|params| {
         system_events.push(SystemEvent::BridgeDeposit(params.clone()));
