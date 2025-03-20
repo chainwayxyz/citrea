@@ -57,6 +57,7 @@ where
 
 /// Will fail on the first error.
 /// Rendering the l2 block invalid
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
     db: EvmDb<C>,
     block_env: BlockEnv,
@@ -115,8 +116,12 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             }
         })?;
 
-        if !*should_be_end_of_sys_txs {
-            assert!(result_and_state.result.is_success());
+        if !*should_be_end_of_sys_txs && !result_and_state.result.is_success() {
+            native_error!(
+                "System transaction not successful. Result: {:?}",
+                result_and_state.result
+            );
+            return Err(L2BlockModuleCallError::EvmSystemTransactionFailed);
         }
 
         // Check if the transaction used more gas than the available block gas limit

@@ -287,6 +287,9 @@ where
                             L2BlockModuleCallError::EvmSystemTxParseError => {
                                 panic!("Sequencer produced incorrectly formatted system tx")
                             }
+                            L2BlockModuleCallError::EvmSystemTransactionFailed => {
+                                panic!("System tx failed")
+                            }
                         },
                     }
                 };
