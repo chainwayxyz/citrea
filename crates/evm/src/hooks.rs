@@ -10,6 +10,7 @@ use sov_rollup_interface::zk::StorageRootHash;
 use tracing::instrument;
 
 use crate::evm::primitive_types::Block;
+#[cfg(feature = "native")]
 use crate::evm::system_events::SystemEvent;
 use crate::Evm;
 
