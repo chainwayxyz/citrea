@@ -11,7 +11,7 @@ use tracing::{debug, error};
 
 /// Represents information about the current DA state.
 ///
-/// Contains previous height, latest finalized block and fee rate.
+/// Contains latest finalized block and fee rate.
 pub(crate) type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
 pub(crate) async fn da_block_monitor<Da>(
@@ -49,31 +49,26 @@ pub(crate) async fn get_da_block_data<Da>(da_service: Arc<Da>) -> anyhow::Result
 where
     Da: DaService,
 {
-    let last_finalized_height = match da_service.get_last_finalized_block_header().await {
-        Ok(header) => header.height(),
-        Err(e) => {
-            return Err(anyhow!("Finalized L1 height: {}", e));
-        }
-    };
+    let last_finalized_height = da_service
+        .get_last_finalized_block_header()
+        .await
+        .map(|v| v.height())
+        .map_err(|e| anyhow!("{:?}", e))?;
 
-    let last_finalized_block = match da_service.get_block_at(last_finalized_height).await {
-        Ok(block) => block,
-        Err(e) => {
-            return Err(anyhow!("Finalized L1 block: {}", e));
-        }
-    };
+    let last_finalized_block = da_service
+        .get_block_at(last_finalized_height)
+        .await
+        .map_err(|e| anyhow!("{:?}", e))?;
 
     debug!(
         "Sequencer: last finalized L1 height: {:?}",
         last_finalized_height
     );
 
-    let l1_fee_rate = match da_service.get_fee_rate().await {
-        Ok(fee_rate) => fee_rate,
-        Err(e) => {
-            return Err(anyhow!("L1 fee rate: {}", e));
-        }
-    };
+    let l1_fee_rate = da_service
+        .get_fee_rate()
+        .await
+        .map_err(|e| anyhow!("{:?}", e))?;
 
     Ok((last_finalized_block, l1_fee_rate))
 }
