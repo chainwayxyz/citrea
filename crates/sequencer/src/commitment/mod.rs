@@ -235,18 +235,13 @@ where
             pending_mempool_commitments
         );
 
-        // to determine which L1 block to start scannign from
+        // to determine which L1 block to start scanning from
         let start_scanning_l1_from: u64 = {
-            let l2_height = {
-                let last_commitment = self.ledger_db.get_last_commitment()?;
-
-                if let Some(last_commitment) = last_commitment {
-                    last_commitment.l2_end_block_number
-                } else {
-                    // if no commitment yet, just use block number 1
-                    1
-                }
-            };
+            let l2_height = self
+                .ledger_db
+                .get_last_commitment()?
+                .map(|c| c.l2_end_block_number)
+                .unwrap_or(1);
 
             // set state to end of evm block l2_height
             working_set.set_archival_version(l2_height + 1);
@@ -257,7 +252,7 @@ where
             )
             .expect("There must be a last l1 height");
 
-            l1_height.to::<u64>() + 1u64
+            l1_height.to::<u64>() + 1
         };
 
         let mut mined_commitments = self
