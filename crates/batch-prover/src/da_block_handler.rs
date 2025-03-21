@@ -24,7 +24,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -50,7 +50,7 @@ where
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
-    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     backup_manager: Arc<BackupManager>,
 }
 
@@ -87,12 +87,14 @@ where
             elfs_by_spec,
             skip_submission_until_l1,
             l1_block_cache,
-            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            pending_l1_blocks: VecDeque::new(),
             backup_manager,
         }
     }
 
     pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
+        let (l1_sender, mut l1_receiver) = mpsc::channel(10);
+
         if self.prover_config.enable_recovery {
             if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
                 error!("Failed to recover ongoing proving sessions: {:?}", e);
@@ -107,7 +109,7 @@ where
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            self.pending_l1_blocks.clone(),
+            l1_sender,
             self.l1_block_cache.clone(),
             BATCH_PROVER_METRICS.scan_l1_block.clone(),
         );
@@ -123,6 +125,9 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
+                Some(l1_block) = l1_receiver.recv() => {
+                    self.pending_l1_blocks.push_back(l1_block);
+                }
                 _ = interval.tick() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_l1_block().await {
@@ -134,10 +139,9 @@ where
     }
 
     async fn process_l1_block(&mut self) -> Result<(), anyhow::Error> {
-        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
-
-        while !pending_l1_blocks.is_empty() {
-            let l1_block = pending_l1_blocks
+        while !self.pending_l1_blocks.is_empty() {
+            let l1_block = self
+                .pending_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
@@ -171,7 +175,7 @@ where
 
                 BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                pending_l1_blocks.pop_front();
+                self.pending_l1_blocks.pop_front();
                 continue;
             }
 
@@ -197,7 +201,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        pending_l1_blocks.pop_front();
+                        self.pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::DuplicateCommitments { l1_height } => {
@@ -216,7 +220,7 @@ where
 
                         BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-                        pending_l1_blocks.pop_front();
+                        self.pending_l1_blocks.pop_front();
                         continue;
                     }
                     L1ProcessingError::L2RangeMissing {
@@ -276,7 +280,7 @@ where
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
-            pending_l1_blocks.pop_front();
+            self.pending_l1_blocks.pop_front();
         }
         Ok(())
     }

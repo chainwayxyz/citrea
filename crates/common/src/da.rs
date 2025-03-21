@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -9,9 +8,9 @@ use metrics::Histogram;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::cache::L1BlockCache;
 
@@ -19,7 +18,7 @@ use crate::cache::L1BlockCache;
 pub async fn sync_l1<Da>(
     mut start_from: u64,
     da_service: Arc<Da>,
-    block_queue: Arc<Mutex<VecDeque<Da::FilteredBlock>>>,
+    l1_sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     l1_block_scan_histogram: Histogram,
 ) where
@@ -56,13 +55,12 @@ pub async fn sync_l1<Da>(
                     }
                 };
 
-            let mut queue = block_queue.lock().await;
-
-            if queue.len() < 10 {
-                queue.push_back(l1_block.clone());
-            } else {
-                debug!("Block queue is full, will try later...");
-                break;
+            let l1_height = l1_block.header().height();
+            if let Err(e) = l1_sender.send(l1_block).await {
+                error!(
+                    "Failed to notify about new L1 block at height {:?} because: {:?}",
+                    l1_height, e
+                );
             }
 
             // we know this won't change the for loop range

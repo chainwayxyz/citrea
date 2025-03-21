@@ -20,7 +20,7 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::select;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
@@ -50,7 +50,7 @@ where
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     backup_manager: Arc<BackupManager>,
     circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
@@ -84,7 +84,7 @@ where
             light_client_proof_code_commitments,
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
-            queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            queued_l1_blocks: VecDeque::new(),
             backup_manager,
             circuit: LightClientProofCircuit::new(),
         }
@@ -105,6 +105,7 @@ where
         //         .clear_pending_proving_sessions()
         //         .expect("Failed to clear pending proving sessions");
         // }
+        let (l1_sender, mut l1_receiver) = mpsc::channel(10);
         let start_l1_height = match last_l1_height_scanned {
             StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
             StartVariant::FromBlock(height) => height,       // first block to scan
@@ -112,7 +113,7 @@ where
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            self.queued_l1_blocks.clone(),
+            l1_sender,
             self.l1_block_cache.clone(),
             LIGHT_CLIENT_METRICS.scan_l1_block.clone(),
         );
@@ -129,6 +130,9 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
+                Some(l1_block) = l1_receiver.recv() => {
+                    self.queued_l1_blocks.push_back(l1_block);
+                }
                 _ = interval.tick() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_queued_l1_blocks().await {
@@ -141,11 +145,11 @@ where
 
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         loop {
-            let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
+            let Some(l1_block) = self.queued_l1_blocks.front().cloned() else {
                 break;
             };
             self.process_l1_block(l1_block).await?;
-            self.queued_l1_blocks.lock().await.pop_front();
+            self.queued_l1_blocks.pop_front();
         }
 
         Ok(())

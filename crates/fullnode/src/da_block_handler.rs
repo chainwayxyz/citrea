@@ -22,7 +22,7 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -41,7 +41,7 @@ where
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     backup_manager: Arc<BackupManager>,
 }
 
@@ -68,7 +68,7 @@ where
             prover_da_pub_key,
             code_commitments_by_spec,
             l1_block_cache,
-            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            pending_l1_blocks: VecDeque::new(),
             backup_manager,
         }
     }
@@ -77,10 +77,11 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
+        let (l1_sender, mut l1_receiver) = mpsc::channel(10);
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            self.pending_l1_blocks.clone(),
+            l1_sender,
             self.l1_block_cache.clone(),
             FULLNODE_METRICS.scan_l1_block.clone(),
         );
@@ -93,6 +94,9 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
+                Some(l1_block) = l1_receiver.recv() => {
+                    self.pending_l1_blocks.push_back(l1_block);
+                }
                 _ = interval.tick() => {
                     self.process_l1_block().await
                 },
@@ -102,9 +106,8 @@ where
 
     async fn process_l1_block(&mut self) {
         let _l1_lock = self.backup_manager.start_l1_processing().await;
-        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
 
-        let Some(l1_block) = pending_l1_blocks.front() else {
+        let Some(l1_block) = self.pending_l1_blocks.front() else {
             return;
         };
 
@@ -199,7 +202,7 @@ where
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
-        pending_l1_blocks.pop_front();
+        self.pending_l1_blocks.pop_front();
     }
 
     async fn process_sequencer_commitment(
