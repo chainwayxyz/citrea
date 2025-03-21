@@ -163,6 +163,40 @@ where
         }
     }
 
+    pub async fn run_new(&mut self, cancellation_token: CancellationToken) {
+        let (l2_tx, mut l2_rx) = mpsc::channel(1);
+        let l2_sync_worker = sync_l2(
+            self.start_l2_height,
+            self.sequencer_client.clone(),
+            l2_tx,
+            self.sync_blocks_count,
+        );
+        tokio::pin!(l2_sync_worker);
+
+        let backup_manager = self.backup_manager.clone();
+
+        loop {
+            select! {
+                _ = &mut l2_sync_worker => {},
+                Some(l2_blocks) = l2_rx.recv() => {
+                    // While syncing, we'd like to process L2 blocks as they come without any delays.
+                    for l2_block in l2_blocks {
+                        let _l2_lock = backup_manager.start_l2_processing().await;
+                        if let Err(e) = self.process_l2_block(&l2_block).await {
+                            error!("Could not process L2 block: {}", e);
+                            break;
+                        }
+                    }
+                },
+                _ = cancellation_token.cancelled() => {
+                    info!("Shutting down L2 sync worker");
+                    l2_rx.close();
+                    return;
+                },
+            }
+        }
+    }
+
     async fn process_l2_block(
         &mut self,
         l2_block_response: &L2BlockResponse,
