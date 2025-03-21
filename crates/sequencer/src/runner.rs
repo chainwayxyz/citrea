@@ -287,7 +287,7 @@ where
                             L2BlockModuleCallError::EvmSystemTxParseError => {
                                 panic!("Sequencer produced incorrectly formatted system tx")
                             }
-                            L2BlockModuleCallError::EvmSystemTransactionFailed => {
+                            L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
                                 panic!("System tx failed")
                             }
                         },
@@ -926,7 +926,7 @@ where
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
 
-                info!("Initializign Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height());
+                info!("Initializign Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 
                 let initialize_events = create_initial_system_events(
                     l1_block.header().hash().into(),

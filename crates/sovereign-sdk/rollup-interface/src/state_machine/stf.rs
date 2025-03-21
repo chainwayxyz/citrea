@@ -144,7 +144,7 @@ pub enum L2BlockModuleCallError {
     /// System tx failed to parse
     EvmSystemTxParseError,
     /// System tx not run successfully
-    EvmSystemTransactionFailed,
+    EvmSystemTransactionNotSuccessful,
 }
 
 #[derive(Debug, PartialEq)]
@@ -262,8 +262,8 @@ impl std::fmt::Display for L2BlockModuleCallError {
             L2BlockModuleCallError::EvmSystemTxParseError => {
                 write!(f, "EVM system transaction parse error")
             }
-            L2BlockModuleCallError::EvmSystemTransactionFailed => {
-                write!(f, "EVM system transaction failed")
+            L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
+                write!(f, "EVM system transaction reverted or halted")
             }
         }
     }

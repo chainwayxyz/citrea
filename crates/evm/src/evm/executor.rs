@@ -121,7 +121,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 "System transaction not successful. Result: {:?}",
                 result_and_state.result
             );
-            return Err(L2BlockModuleCallError::EvmSystemTransactionFailed);
+            return Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful);
         }
 
         // Check if the transaction used more gas than the available block gas limit
