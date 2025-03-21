@@ -32,6 +32,7 @@ pub struct ProcessL2BlockResult {
     pub l2_block_hash: L2BlockHash,
     pub state_root: StorageRootHash,
     pub state_diff: StateDiff,
+    pub process_duration: f64,
 }
 
 enum SyncError {
