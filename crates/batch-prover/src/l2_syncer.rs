@@ -192,16 +192,16 @@ where
         self.state_root = state_root;
         self.l2_block_hash = l2_block_hash;
 
-        self.ledger_db.set_l2_state_diff(
-            L2BlockNumber(l2_height),
-            state_diff,
-        )?;
+        self.ledger_db
+            .set_l2_state_diff(L2BlockNumber(l2_height), state_diff)?;
 
         // Only errors when there are no receivers
         let _ = self.l2_block_tx.send(l2_height);
 
         BATCH_PROVER_METRICS.current_l2_block.set(l2_height as f64);
-        BATCH_PROVER_METRICS.process_l2_block.record(process_duration);
+        BATCH_PROVER_METRICS
+            .process_l2_block
+            .record(process_duration);
 
         Ok(())
     }
