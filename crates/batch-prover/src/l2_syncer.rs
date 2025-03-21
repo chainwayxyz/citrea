@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use backoff::backoff::Backoff;
+use backoff::ExponentialBackoff;
 use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
@@ -174,17 +176,23 @@ where
         tokio::pin!(l2_sync_worker);
 
         let backup_manager = self.backup_manager.clone();
-
         loop {
             select! {
                 _ = &mut l2_sync_worker => {},
                 Some(l2_blocks) = l2_rx.recv() => {
                     // While syncing, we'd like to process L2 blocks as they come without any delays.
                     for l2_block in l2_blocks {
-                        let _l2_lock = backup_manager.start_l2_processing().await;
-                        if let Err(e) = self.process_l2_block(&l2_block).await {
-                            error!("Could not process L2 block: {}", e);
-                            break;
+                        let mut backoff = ExponentialBackoff::default();
+                        loop {
+                            let _l2_lock = backup_manager.start_l2_processing().await;
+                            match self.process_l2_block(&l2_block).await {
+                                Ok(_) => break,
+                                Err(e) => {
+                                    error!("Failed to process L2 block {}: {}", l2_block.header.height, e);
+                                    let backoff_duration = backoff.next_backoff().expect("Failed to process L2 block multiple times. Killing L2Syncer...");
+                                    tokio::time::sleep(backoff_duration).await;
+                                }
+                            }
                         }
                     }
                 },
