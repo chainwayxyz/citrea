@@ -623,12 +623,15 @@ impl BitcoinService {
             if let TestMempoolAcceptResult {
                 allowed: Some(false) | None,
                 reject_reason,
+                package_error,
                 ..
             } = res
             {
                 bail!(
                     "{}",
-                    reject_reason.unwrap_or("[testmempoolaccept] Unknown rejection".to_string())
+                    reject_reason
+                        .or(package_error)
+                        .unwrap_or("[testmempoolaccept] Unknown rejection".to_string())
                 )
             }
         }
