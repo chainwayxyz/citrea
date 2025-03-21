@@ -42,6 +42,7 @@ enum SyncError {
     Unknown(String),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     l2_block_response: &L2BlockResponse,
     storage_manager: &ProverStorageManager,
