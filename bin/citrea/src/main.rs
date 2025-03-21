@@ -125,7 +125,9 @@ where
         builder
             .idle_timeout(
                 MetricKindMask::GAUGE | MetricKindMask::HISTOGRAM,
-                Some(Duration::from_secs(30)),
+                // Keep the idle timeout larger than one L1 block production.
+                // Setting this here for 30 minutes.
+                Some(Duration::from_secs(30 * 60)),
             )
             .install()
             .map_err(|_| anyhow!("failed to install Prometheus recorder"))?;

@@ -63,7 +63,7 @@ where
                     BATCH_PROVER_METRICS.process_l2_block.record(l2_block.process_duration);
                 }
                 _ = cancellation_token.cancelled() => {
-                    info!("Shutting down fullnode");
+                    info!("Shutting down batch prover");
                     self.l2_signal_rx.close();
                     break;
                 },
