@@ -36,7 +36,5 @@ impl ZkvmGuest for SP1Guest {
         io::commit_slice(&buf);
     }
 
-    fn verify_with_assumptions(_journal: &[u8], _code_commitment: &Self::CodeCommitment) {
-        unimplemented!()
-    }
+    fn verify_with_assumptions(_journal: &[u8], _code_commitment: &Self::CodeCommitment) {}
 }

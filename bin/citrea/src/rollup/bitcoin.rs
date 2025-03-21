@@ -159,7 +159,6 @@ impl RollupBlueprint for BitcoinRollup {
         })
     }
 
-    #[cfg(feature = "r0")]
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
         match self.network {
             Network::Mainnet => BATCH_PROOF_MAINNET_GUESTS
@@ -185,12 +184,6 @@ impl RollupBlueprint for BitcoinRollup {
         }
     }
 
-    #[cfg(feature = "sp1")]
-    fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
-        todo!()
-    }
-
-    #[cfg(feature = "r0")]
     fn get_light_client_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
         match self.network {
             Network::Mainnet => LIGHT_CLIENT_MAINNET_GUESTS
@@ -212,12 +205,6 @@ impl RollupBlueprint for BitcoinRollup {
         }
     }
 
-    #[cfg(feature = "sp1")]
-    fn get_light_client_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
-        todo!()
-    }
-
-    #[cfg(feature = "r0")]
     fn get_batch_proof_code_commitments(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
@@ -245,14 +232,6 @@ impl RollupBlueprint for BitcoinRollup {
         }
     }
 
-    #[cfg(feature = "sp1")]
-    fn get_batch_proof_code_commitments(
-        &self,
-    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
-        todo!()
-    }
-
-    #[cfg(feature = "r0")]
     fn get_light_client_proof_code_commitments(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
@@ -274,13 +253,6 @@ impl RollupBlueprint for BitcoinRollup {
                 .map(|(k, (id, _))| (*k, *id))
                 .collect(),
         }
-    }
-
-    #[cfg(feature = "sp1")]
-    fn get_light_client_proof_code_commitments(
-        &self,
-    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
-        todo!()
     }
 
     #[instrument(level = "trace", skip_all)]

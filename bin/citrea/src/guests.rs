@@ -46,11 +46,11 @@ lazy_static! {
 
 #[cfg(feature = "sp1")]
 lazy_static! {
-    pub(crate) static ref BATCH_PROOF_LATEST_MOCK_GUESTS: HashMap<SpecId, (citrea_sp1_host::VerifyingKey, Vec<u8>)> = {
+    pub(crate) static ref BATCH_PROOF_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
         m
     };
-    pub(crate) static ref LIGHT_CLIENT_LATEST_MOCK_GUESTS: HashMap<SpecId, (citrea_sp1_host::VerifyingKey, Vec<u8>)> = {
+    pub(crate) static ref LIGHT_CLIENT_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
         m
     };
@@ -58,38 +58,44 @@ lazy_static! {
 
 lazy_static! {
     pub(crate) static ref BATCH_PROOF_REGTEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "r0")] {
-                HashMap::from(
-                    [
-                        (SpecId::Tangerine,
-                            (citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into(),
-                            citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
-                        )
-                    ]
-                )
-            } else {
-                HashMap::new()
-            }
-        }
+        let mut m = HashMap::new();
+
+        #[cfg(feature = "r0")]
+        m.insert(
+            SpecId::Tangerine,
+            (citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into(),
+            citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+        );
+
+        #[cfg(feature = "sp1")]
+        m.insert(
+            SpecId::Tangerine,
+            (Digest::new([0; 8]),
+            citrea_sp1_host::ELF.to_vec())
+        );
+
+        m
     };
 
     /// The following 2 are used as latest guest builds for tests that use Bitcoin DA.
     pub(crate) static ref BATCH_PROOF_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "r0")] {
-                HashMap::from(
-                    [
-                        (SpecId::Tangerine,
-                            (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                            citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
-                        )
-                    ]
-                )
-            } else {
-                HashMap::new()
-            }
-        }
+        let mut m = HashMap::new();
+
+        #[cfg(feature = "r0")]
+        m.insert(
+            SpecId::Tangerine,
+            (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+            citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+        );
+
+        #[cfg(feature = "sp1")]
+        m.insert(
+            SpecId::Tangerine,
+            (Digest::new([0; 8]),
+            citrea_sp1_host::ELF.to_vec())
+        );
+
+        m
     };
 
     pub(crate) static ref LIGHT_CLIENT_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {

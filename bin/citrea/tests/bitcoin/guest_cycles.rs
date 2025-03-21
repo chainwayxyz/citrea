@@ -12,7 +12,6 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_sequencer::SequencerRpcClient;
-use risc0_zkvm::{default_prover, ExecutorEnvBuilder, ProveInfo, ProverOpts};
 
 /// Helper test to generate a batch proof input. Risc0 host code should be modified
 /// to save the input to a file if it will be used in `guest_cycles` test. If the input
@@ -141,9 +140,12 @@ async fn generate_proof_input() -> Result<()> {
     .await
 }
 
+#[cfg(feature = "r0")]
 #[tokio::test]
 #[ignore]
 async fn guest_cycles() {
+    use risc0_zkvm::{default_prover, ExecutorEnvBuilder, ProveInfo, ProverOpts};
+
     let input = fs::read("tests/bitcoin/test-data/kumquat-input.bin").unwrap();
     println!("Input size: {}", input.len());
 

@@ -5,7 +5,7 @@ use citrea_sp1_guest::SP1Guest;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
-use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Digest, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
 use sp1_sdk::{
     cpu::execute::CpuExecuteBuilder, include_elf, network::B256, EnvProver, NetworkProver, Prover,
     ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
@@ -193,22 +193,19 @@ impl ZkvmHost for SP1Host {
     }
 
     fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
-        unimplemented!()
+        unimplemented!("add_assumption")
     }
 }
 
 impl Zkvm for SP1Host {
-    type CodeCommitment = VerifyingKey;
+    type CodeCommitment = Digest;
     type Error = anyhow::Error;
 
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<(), Self::Error> {
-        let proof: SP1ProofWithPublicValues = bincode::deserialize(serialized_proof)?;
-
-        CLIENT.verify(&proof, &code_commitment.0)?;
-
+        // TODO: Verify the proof
         Ok(())
     }
 
@@ -222,11 +219,11 @@ impl Zkvm for SP1Host {
 
     fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
+        _code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
         let proof: SP1ProofWithPublicValues = bincode::deserialize(serialized_proof)?;
 
-        CLIENT.verify(&proof, &code_commitment.0)?;
+        // TODO: Verify the proof
 
         Ok(T::try_from_slice(proof.public_values.as_slice())?)
     }
