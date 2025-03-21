@@ -619,7 +619,9 @@ where
         );
         if self.l2_block_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
-            commitment_service.resubmit_pending_commitments().await?;
+            commitment_service
+                .resubmit_pending_commitments(working_set)
+                .await?;
         }
 
         tokio::spawn(commitment_service.run(cancellation_token.child_token()));
