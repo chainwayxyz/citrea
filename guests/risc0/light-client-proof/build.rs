@@ -13,6 +13,11 @@ fn main() {
     println!("cargo:rerun-if-env-changed=BATCH_PROOF_METHOD_ID");
     println!("cargo:rerun-if-env-changed=PROVER_DA_PUB_KEY");
 
+    println!("cargo:rerun-if-env-changed=TEST_SKIP_GUEST_BUILD");
+    if let Ok("1" | "true") = std::env::var("TEST_SKIP_GUEST_BUILD").as_deref() {
+        println!("cargo:warning=Skipping guest build in test. Exiting");
+        return;
+    }
     match std::env::var("SKIP_GUEST_BUILD") {
         Ok(value) => match value.as_str() {
             "1" | "true" => {
