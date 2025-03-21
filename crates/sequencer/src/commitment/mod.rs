@@ -178,9 +178,12 @@ where
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
 
-        ledger_db
-            .put_commitment_by_index(&commitment)
-            .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
+        // Even though the commitment service does not shutdown before we get a response from the DA service,
+        // we still need to store the commitment in the pending commitments, so that if anything happens
+        // from the time we send the tx to the DA service and until we get a response (so the tx wasn't even submitted yet),
+        // e.g. server shutdown, we can resubmit the pending commitments.
+        //
+        // So pending status for a commitment spans from da service submission to entrance to mempool.
         ledger_db.put_pending_commitment(&commitment).map_err(|_| {
             anyhow!("Sequencer: Failed to store sequencer commitment in pending commitments")
         })?;
@@ -195,6 +198,10 @@ where
                 .saturating_duration_since(start)
                 .as_secs_f64(),
         );
+
+        ledger_db
+            .put_commitment_by_index(&commitment)
+            .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
 
         ledger_db.delete_pending_commitment(commitment.index)?;
         ledger_db
@@ -211,8 +218,7 @@ where
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
         info!("Resubmitting pending commitments");
 
-        let pending_db_commitments = self.ledger_db.get_pending_commitments()?;
-        info!("Pending db commitments: {:?}", pending_db_commitments);
+        let mut pending_db_commitments = self.ledger_db.get_pending_commitments()?;
 
         let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
         info!(
@@ -220,6 +226,7 @@ where
             pending_mempool_commitments
         );
 
+        // fix this in this pr
         let last_commitment_l1_height = self
             .ledger_db
             .get_l1_height_of_last_commitment()?
@@ -235,6 +242,16 @@ where
         let mut pending_commitments_to_remove = vec![];
         pending_commitments_to_remove.extend(pending_mempool_commitments);
         pending_commitments_to_remove.extend(mined_commitments);
+
+        pending_commitments_to_remove.sort();
+        pending_commitments_to_remove.dedup();
+        info!(
+            "Pending commitments to remove: {:?}",
+            pending_commitments_to_remove
+        );
+
+        pending_db_commitments.sort();
+        info!("Pending db commitments: {:?}", pending_db_commitments);
 
         for pending_db_comm in pending_db_commitments {
             if pending_commitments_to_remove
