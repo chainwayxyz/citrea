@@ -11,6 +11,7 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
+#[cfg(feature = "native")]
 pub use hooks::{
     create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
 };
@@ -109,6 +110,11 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// And not in any place such as functions that might be called from RPC etc.
     #[memory]
     pub(crate) block_env: BlockEnv,
+
+    /// Module level flag used to indicate that the current L2 block should not contain system
+    /// transactions after a user transaction has been processed.
+    #[memory]
+    pub(crate) should_be_end_of_sys_txs: bool,
 
     /// Transactions that will be added to the current block.
     /// Valid transactions are added to the vec on every call message.

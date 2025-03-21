@@ -10,6 +10,7 @@ use sov_rollup_interface::zk::StorageRootHash;
 use tracing::instrument;
 
 use crate::evm::primitive_types::Block;
+#[cfg(feature = "native")]
 use crate::evm::system_events::SystemEvent;
 use crate::Evm;
 
@@ -83,6 +84,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // set early. so that if underlying calls use `self.block_env`
         // they don't use the wrong value
         self.block_env = new_pending_env;
+
+        self.should_be_end_of_sys_txs = false;
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
@@ -171,6 +174,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.head.set(&block, working_set);
 
+        self.should_be_end_of_sys_txs = false;
+
         #[cfg(not(feature = "native"))]
         pending_transactions.clear();
 
@@ -254,6 +259,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 }
 
 /// Initializes system contracts
+#[cfg(feature = "native")]
 pub fn create_initial_system_events(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
@@ -274,11 +280,13 @@ pub fn create_initial_system_events(
 }
 
 /// If new l1 block arrives we set it in light client contract
+#[cfg(feature = "native")]
 pub fn populate_set_block_info_event(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
 ) -> SystemEvent {
+    tracing::info!("Populating BitcoinLightClientSetBlockInfo event with block hash {}, commitment {}, coinbase depth {}", hex::encode(current_slot_hash), hex::encode(current_da_txs_commitment), coinbase_depth);
     SystemEvent::BitcoinLightClientSetBlockInfo(
         current_slot_hash,
         current_da_txs_commitment,
@@ -287,7 +295,9 @@ pub fn populate_set_block_info_event(
 }
 
 /// Populates deposit system events.
+#[cfg(feature = "native")]
 pub fn populate_deposit_system_events(deposit_data: &[Vec<u8>]) -> Vec<SystemEvent> {
+    tracing::info!("Populating {} deposit transactions", deposit_data.len());
     let mut system_events = vec![];
     deposit_data.iter().for_each(|params| {
         system_events.push(SystemEvent::BridgeDeposit(params.clone()));
