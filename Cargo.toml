@@ -5,7 +5,6 @@ members = [
   "bin/citrea",
   "bin/cli",
   "crates/batch-prover",
-  "crates/batch-prover-new",
   "crates/bitcoin-da",
   "crates/citrea-stf",
   "crates/common",
