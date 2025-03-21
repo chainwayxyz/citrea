@@ -14,7 +14,9 @@ use alloy_rpc_types::{
 };
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, TraceResult};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
 use alloy_serde::OtherFields;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
@@ -1279,6 +1281,84 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
         Ok(traces)
+    }
+
+    /// Returns the trace of a call
+    /// Returns trace for given tx request call.
+    ///
+    /// Handler for `debug_traceCall`
+    #[rpc_method(name = "debug_traceCall")]
+    pub fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> RpcResult<GethTrace> {
+        let block_number = match block_id {
+            Some(BlockId::Number(block_num)) => block_num,
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = self
+                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+                BlockNumberOrTag::Number(block_number)
+            }
+            None => BlockNumberOrTag::Latest,
+        };
+
+        let block_env = match block_number {
+            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
+            _ => {
+                let block = self
+                    .get_sealed_block_by_number(Some(block_number), working_set)?
+                    .ok_or(EthApiError::HeaderNotFound(
+                        block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
+                    ))?;
+
+                sealed_block_to_block_env(&block.header)
+            }
+        };
+
+        let block_num: u64 = block_env.number.saturating_to();
+
+        // Set evm state to block if needed
+        match block_number {
+            BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
+            _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
+        };
+
+        let citrea_spec_id = fork_from_block_number(block_num).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+
+        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+
+        let sealed_block = self
+            .get_sealed_block_by_number(Some(block_number), working_set)?
+            .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
+        let l1_fee_rate = sealed_block.l1_fee_rate;
+
+        let account = self
+            .account_info(&request.from.unwrap_or_default(), working_set)
+            .unwrap_or_default();
+
+        let mut evm_db = self.get_db(working_set);
+
+        // create tx env
+        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;
+        let trace = trace_call(
+            opts.unwrap_or_default(),
+            cfg_env,
+            block_env,
+            tx_env,
+            &mut evm_db,
+            l1_fee_rate,
+        )?;
+        Ok(trace)
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
