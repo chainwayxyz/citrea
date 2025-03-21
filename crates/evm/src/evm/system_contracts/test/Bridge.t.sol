@@ -234,6 +234,34 @@ contract BridgeTest is Test {
         doDeposit();
     }
 
+    function testReplaceDeposit() public {
+        vm.startPrank(operator);
+        version = hex"03000000";
+        vin = hex"0161d6a81afeee162b02263453162a43c3d0874264fae4fb8325ce0830a22d057d0000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"0340f70c6ba17da3a8ba5b30495f869c537190ba49c708f6b8cf1a0425a4a4ffef5daabae4115e5b48ec5f65ae78245180285a14f231a4b3ecc8cb52611876c962e24a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+        intermediate_nodes = hex"0000000000000000000000000000000000000000000000000000000000000000a8d5764cf42bb21ec583d97fa0160e3969abf6d64790ceb25706cb97b8f8f96e1f1aac337ed626086645c4556722da89c4cee3757944b650aa383ab600dbd898";
+        witnessRoot = hex"b1701bed33c8fe60fd755c939ad857a6cc41299249f46ddea25b3b06cc70d793";
+        index = 1;
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 3);
+        vm.stopPrank();
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"");
+        bridge.setReplaceScript(hex"54203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d63697472656152", hex"");
+        vm.stopPrank();
+        vm.startPrank(operator);
+        Bridge.TransactionParams memory depositToBeReplacedParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
+        bridge.deposit(depositToBeReplacedParams);
+        vin = hex"016712f7c7641cacf70b1549b346e08576af09e0a2ef7b09d3d40aaefa207786ab0000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"034077b3ac411ef95e90398e54686a7fa0a4d0d78ccc9da62befd62250254245a435fbfca5a33d351feb45c5479df126a8828446a68b6d1bc9bd38bdab712a78fedf54203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c6163652017cec92a58d987380ae223d4a991199b3b970e493b1c67defd2d4c67ecc4e7086821c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51";
+        intermediate_nodes =hex"0000000000000000000000000000000000000000000000000000000000000000069b3f62c3d1da9edc47c280146694dc1a267ef6f27d36bde7f2c6c6c9beed4f";
+        witnessRoot = hex"72ae33ada5c13b2779f3b626e2d3b02c425e6e0f1fce223f8b84edf10a0337a0";
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_3"), witnessRoot, 2);
+        Bridge.TransactionParams memory replaceParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 2, index);
+        bridge.replaceDeposit(replaceParams, 0);
+    }
+
     function testBytesEqual() public view {
         bytes memory a = hex"1234";
         bytes memory b = hex"1234";

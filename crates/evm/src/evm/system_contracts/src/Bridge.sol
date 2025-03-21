@@ -197,9 +197,9 @@ contract Bridge is Ownable2StepUpgradeable {
 
         uint256 len = replacePrefix.length;
         bytes memory _replacePrefix = script.slice(0, len);
-        require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid script prefix");
+        require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid replace script prefix");
         bytes memory _replaceSuffix = script.slice(script.length - replaceSuffix.length, replaceSuffix.length);
-        require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid script suffix");
+        require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid replace cript suffix");
 
         bytes32 txId = extractTxId(script);
         require(txId == txIdToReplace, "Invalid txId to replace provided");
