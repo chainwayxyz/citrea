@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 use backoff::backoff::Backoff;
@@ -22,7 +21,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
-use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -95,77 +93,8 @@ where
         })
     }
 
-    /// Runs the rollup.
+    /// Runs the L2Syncer in a blocking manner.
     pub async fn run(&mut self, cancellation_token: CancellationToken) {
-        let (l2_tx, mut l2_rx) = mpsc::channel(1);
-        let l2_sync_worker = sync_l2(
-            self.start_l2_height,
-            self.sequencer_client.clone(),
-            l2_tx,
-            self.sync_blocks_count,
-        );
-        tokio::pin!(l2_sync_worker);
-
-        // Store L2 blocks and make sure they are processed in order.
-        // Otherwise, processing N+1 L2 block before N would emit prev_hash mismatch.
-        let mut pending_l2_blocks = VecDeque::new();
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        interval.tick().await;
-
-        let backup_manager = self.backup_manager.clone();
-
-        loop {
-            select! {
-                _ = &mut l2_sync_worker => {},
-                Some(l2_blocks) = l2_rx.recv() => {
-                    // While syncing, we'd like to process L2 blocks as they come without any delays.
-                    // However, when an L2 block fails to process for whatever reason, we want to block this process
-                    // and make sure that we start processing L2 blocks in queue.
-                    if pending_l2_blocks.is_empty() {
-                        for (index, l2_block) in l2_blocks.iter().enumerate() {
-                            let _l2_lock = backup_manager.start_l2_processing().await;
-                            if let Err(e) = self.process_l2_block(l2_block).await {
-
-                                error!("Could not process L2 block: {}", e);
-                                // This block failed to process, add remaining L2 blocks to queue including this one.
-                                let remaining_l2s = l2_blocks.into_iter().skip(index);
-                                pending_l2_blocks.extend(remaining_l2s);
-                                break;
-                            }
-                        }
-                        continue;
-                    } else {
-                        pending_l2_blocks.extend(l2_blocks);
-                    }
-                },
-                _ = interval.tick() => {
-                    if pending_l2_blocks.is_empty() {
-                        continue;
-                    }
-                    while let Some(l2_block) = pending_l2_blocks.front() {
-                        let _l2_lock = backup_manager.start_l2_processing().await;
-                        match self.process_l2_block(l2_block).await {
-                            Ok(_) => {
-                                pending_l2_blocks.pop_front();
-                            },
-                            Err(e) => {
-                                error!("Could not process L2 block: {}", e);
-                                // Get out of the while loop to go back to the outer one.
-                                break;
-                            }
-                        }
-                    }
-                },
-                _ = cancellation_token.cancelled() => {
-                    info!("Shutting down L2 sync worker");
-                    l2_rx.close();
-                    return;
-                },
-            }
-        }
-    }
-
-    pub async fn run_new(&mut self, cancellation_token: CancellationToken) {
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
             self.start_l2_height,
