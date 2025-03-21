@@ -714,14 +714,6 @@ impl SequencerLedgerOps for LedgerDB {
             .map(|diff| diff.unwrap_or_default())
     }
 
-    // TODO Rewrite to properly get da_slot_height
-    /// Get the most recent commitment's l1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>> {
-        // TODO: https://github.com/chainwayxyz/citrea/issues/1998
-        Ok(None)
-    }
-
     fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<MempoolTxs>(&tx_hash, &tx)?;

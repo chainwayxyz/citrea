@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_db::schema::types::L2BlockNumber;
 use sov_modules_api::{StateDiff, WorkingSet};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
