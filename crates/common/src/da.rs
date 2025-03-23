@@ -15,7 +15,6 @@ use tracing::{debug, error, info};
 
 use crate::cache::L1BlockCache;
 
-#[allow(clippy::mut_range_bound)]
 pub async fn sync_l1<Da>(
     mut start_from: u64,
     da_service: Arc<Da>,
@@ -59,7 +58,7 @@ pub async fn sync_l1<Da>(
             let mut queue = block_queue.lock().await;
 
             if queue.len() < 10 {
-                queue.push_back(l1_block.clone());
+                queue.push_back(l1_block);
             } else {
                 debug!("Block queue is full, will try later...");
                 break;
