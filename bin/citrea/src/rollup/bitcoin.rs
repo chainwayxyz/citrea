@@ -271,6 +271,7 @@ impl RollupBlueprint for BitcoinRollup {
                 let vm = SP1Host::new(
                     citrea_sp1_host::ELF,
                     ledger_db.clone(),
+                    self.network,
                 );
             } else {
                 use citrea_risc0_adapter::host::Risc0Host;

@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Digest, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
+use sov_rollup_interface::Network;
 use sp1_sdk::{
     cpu::execute::CpuExecuteBuilder, include_elf, network::B256, EnvProver, NetworkProver, Prover,
     ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
@@ -30,6 +31,8 @@ pub struct SP1Host {
     verifying_key: SP1VerifyingKey,
     input_buf: Vec<u8>,
     ledger_db: LedgerDB,
+    #[cfg(feature = "testing")]
+    network: Network,
 }
 
 impl SP1Host {
@@ -47,6 +50,8 @@ impl SP1Host {
             verifying_key,
             input_buf: vec![],
             ledger_db,
+            #[cfg(feature = "testing")]
+            network: _network,
         }
     }
 

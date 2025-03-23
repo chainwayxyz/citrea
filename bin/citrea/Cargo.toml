@@ -93,6 +93,7 @@ futures = { workspace = true }
 jmt = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
+risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rs_merkle = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -121,6 +122,7 @@ testing = [
   "citrea-primitives/testing",
   "citrea-risc0-batch-proof/testing",
   "citrea-risc0-light-client/testing",
+  "citrea-sp1-host/testing",
   "sov-rollup-interface/testing",
 ]
 r0 = [
@@ -128,6 +130,7 @@ r0 = [
     "dep:citrea-risc0-batch-proof",
     "dep:citrea-risc0-light-client",
     "dep:risc0-binfmt",
+    "citrea-risc0-adapter/r0",
     "citrea-primitives/r0",
     "citrea-light-client-prover/r0",
 ]

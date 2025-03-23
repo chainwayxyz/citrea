@@ -30,3 +30,4 @@ sp1-build.workspace = true
 
 [features]
 cuda = ["sp1-sdk/cuda"]
+testing = []
