@@ -279,7 +279,7 @@ where
     ) -> Result<Proof, anyhow::Error> {
         let prover_service = self.prover_service.as_ref();
         let data = ProofData {
-            input: borsh::to_vec(&circuit_input)?,
+            inputs: vec![borsh::to_vec(&circuit_input)?],
             assumptions,
             elf: light_client_elf,
         };

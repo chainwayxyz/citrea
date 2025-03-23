@@ -105,14 +105,17 @@ where
         self.reserve_proof_slot().await;
 
         let ProofData {
-            input,
+            inputs,
             assumptions,
             elf,
         } = data;
 
         let mut vm = self.vm.clone();
 
-        vm.add_hint(input);
+        for input in inputs {
+            vm.add_hint(input);
+        }
+
         for assumption in assumptions {
             vm.add_assumption(assumption);
         }

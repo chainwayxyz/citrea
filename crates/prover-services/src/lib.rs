@@ -22,8 +22,8 @@ pub enum ProofGenMode {
     ),
 }
 
-/// Borsh serialized input to the guest
-pub type Input = Vec<u8>;
+/// Borsh serialized inputs to the guest
+pub type Inputs = Vec<Vec<u8>>;
 
 /// Vector of assumption to the proving session
 pub type Assumptions = Vec<Vec<u8>>;
@@ -33,8 +33,8 @@ pub type Elf = Vec<u8>;
 
 /// Data used for generating a proof.
 pub struct ProofData {
-    /// The input data to be processed
-    pub input: Input,
+    /// The inputs data to be processed
+    pub inputs: Inputs,
 
     /// Collection of assumptions used in the proving process
     pub assumptions: Assumptions,

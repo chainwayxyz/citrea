@@ -29,7 +29,7 @@ pub struct SP1Host {
     elf: &'static [u8],
     proving_key: SP1ProvingKey,
     verifying_key: SP1VerifyingKey,
-    input_buf: Vec<u8>,
+    input_bufs: Vec<Vec<u8>>,
     ledger_db: LedgerDB,
     #[cfg(feature = "testing")]
     network: Network,
@@ -41,14 +41,14 @@ impl SP1Host {
     /// Possible values are `local`, `mock`, `network`.
     /// If set value is `network`, `SP1_PRIVATE_KEY` environment variable
     /// must also be set. Default is `local`
-    pub fn new(elf: &'static [u8], ledger_db: LedgerDB) -> Self {
+    pub fn new(elf: &'static [u8], ledger_db: LedgerDB, _network: Network) -> Self {
         let (proving_key, verifying_key) = CLIENT.setup(elf);
 
         Self {
             elf,
             proving_key,
             verifying_key,
-            input_buf: vec![],
+            input_bufs: vec![],
             ledger_db,
             #[cfg(feature = "testing")]
             network: _network,
@@ -58,8 +58,11 @@ impl SP1Host {
     fn collect_input_buf(&mut self) -> SP1Stdin {
         // Write local buffer to guest stdin and clear local buffer
         let mut stdin = SP1Stdin::new();
-        let input_buf = std::mem::take(&mut self.input_buf);
-        stdin.write_vec(input_buf);
+        for buf in self.input_bufs.iter_mut() {
+            let input_buf = std::mem::take(buf);
+            stdin.write_vec(input_buf);
+        }
+
         stdin
     }
 
@@ -141,10 +144,10 @@ impl ZkvmHost for SP1Host {
     type Guest = SP1Guest;
 
     fn add_hint(&mut self, buf: Vec<u8>) {
-        // write buf
-        self.input_buf.extend_from_slice(&buf);
+        info!("Adding hint to guest with size {}", buf.len());
 
-        info!("Added hint to guest with size {}", buf.len());
+        // write buf
+        self.input_bufs.push(buf);
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {

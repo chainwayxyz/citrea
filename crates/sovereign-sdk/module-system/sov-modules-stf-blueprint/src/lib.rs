@@ -1,6 +1,9 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+use std::collections::VecDeque;
+use std::iter::zip;
+
 use borsh::BorshDeserialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
@@ -349,9 +352,9 @@ where
         let mut current_state_root = *initial_state_root;
         let mut prev_l2_block_hash: Option<[u8; 32]> = None;
 
-        let group_count: u32 = guest.read_from_host();
+        let inputs = guest.read_from_host::<VecDeque<Vec<(u64, L2Block, Witness, Witness)>>>();
 
-        assert_eq!(group_count, sequencer_commitments.len() as u32);
+        assert_eq!(inputs.len(), sequencer_commitments.len());
 
         // Get tangerine
         let tangerine = forks
@@ -404,7 +407,9 @@ where
         let mut state_roots = Vec::with_capacity(sequencer_commitments.len() + 1);
         state_roots.push(*initial_state_root);
 
-        for sequencer_commitment in sequencer_commitments.into_iter() {
+        for (sequencer_commitment, input) in
+            zip(sequencer_commitments.into_iter(), inputs.into_iter())
+        {
             // if the commitment is not sequential, then the proof is invalid.
 
             assert_eq!(
@@ -418,16 +423,10 @@ where
             // we must verify given DA headers match the commitments
 
             let mut l2_height = sequencer_commitment_l2_start_height;
+            let mut l2_block_hashes = Vec::with_capacity(input.len());
 
-            let state_change_count: u32 = guest.read_from_host();
-            let mut l2_block_hashes = Vec::with_capacity(state_change_count as usize);
-
-            for _ in 0..state_change_count {
-                let l2_block_l2_height = guest.read_from_host::<u64>();
+            for (l2_block_l2_height, l2_block, state_witness, offchain_witness) in input {
                 fork_manager.register_block(l2_block_l2_height).unwrap();
-
-                let (l2_block, state_witness, offchain_witness) =
-                    guest.read_from_host::<(L2Block, Witness, Witness)>();
 
                 assert_eq!(
                     l2_block.height(),
