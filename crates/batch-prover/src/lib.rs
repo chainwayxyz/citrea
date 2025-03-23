@@ -27,6 +27,7 @@ use tokio::sync::{broadcast, Mutex};
 pub mod da_block_handler;
 pub mod db_migrations;
 mod errors;
+mod l1_syncer;
 mod l2_syncer;
 mod metrics;
 mod proving;
