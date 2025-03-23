@@ -26,6 +26,7 @@ where
     ledger_db: DB,
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
+    scan_l1_start_height: u64,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     backup_manager: Arc<BackupManager>,
@@ -41,6 +42,7 @@ where
         ledger_db: DB,
         da_service: Arc<Da>,
         public_keys: RollupPublicKeys,
+        scan_l1_start_height: u64,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
         backup_manager: Arc<BackupManager>,
     ) -> Self {
@@ -48,15 +50,23 @@ where
             ledger_db,
             da_service,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
+            scan_l1_start_height,
             l1_block_cache,
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, cancellation_token: CancellationToken) {
+        let l1_start_height = self
+            .ledger_db
+            .get_last_scanned_l1_height()
+            .expect("Failed to get last scanned l1 height when starting l1 syncer")
+            .map(|h| h.0)
+            .unwrap_or(self.scan_l1_start_height);
+
         let l1_sync_worker = sync_l1(
-            start_l1_height,
+            l1_start_height,
             self.da_service.clone(),
             self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
@@ -110,11 +120,12 @@ where
                 )
                 .expect("Should save short header proof to ledger db");
 
-
-            let sequencer_commitments =
-                extract_sequencer_commitments::<Da>(self.da_service.clone(), l1_block, &self.sequencer_da_pub_key);
-
-            // TODO: Make sure commitment indexes are sequential
+            // Extract sequencer commitments
+            let sequencer_commitments = extract_sequencer_commitments::<Da>(
+                self.da_service.clone(),
+                l1_block,
+                &self.sequencer_da_pub_key,
+            );
 
             // Store commitments by index
             for commitment in sequencer_commitments.iter() {
@@ -123,6 +134,7 @@ where
                     .expect("Should store commitment");
             }
 
+            // Set last scanned l1 height
             self.ledger_db
                 .set_last_scanned_l1_height(SlotNumber(l1_height))
                 .unwrap_or_else(|e| {
