@@ -143,11 +143,11 @@ impl LedgerDB {
     fn put_l2_block(
         &self,
         l2_block: &StoredL2Block,
-        l2_block_number: &L2BlockNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<L2BlockByNumber>(l2_block_number, l2_block)?;
-        schema_batch.put::<L2BlockByHash>(&l2_block.hash, l2_block_number)
+        let l2_block_number = L2BlockNumber(l2_block.height);
+        schema_batch.put::<L2BlockByNumber>(&l2_block_number, l2_block)?;
+        schema_batch.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number)
     }
 
     /// Write raw rocksdb WriteBatch
@@ -216,11 +216,7 @@ impl SharedLedgerOps for LedgerDB {
             timestamp: l2_block.timestamp(),
             tx_merkle_root: l2_block.tx_merkle_root(),
         };
-        self.put_l2_block(
-            &l2_block_to_store,
-            &L2BlockNumber(height),
-            &mut schema_batch,
-        )?;
+        self.put_l2_block(&l2_block_to_store, &mut schema_batch)?;
 
         self.db.write_schemas(schema_batch)?;
 
