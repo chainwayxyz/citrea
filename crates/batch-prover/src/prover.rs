@@ -117,7 +117,7 @@ where
         let head_l2_height = self
             .ledger_db
             .get_head_l2_block_height()?
-            .expect("Head l2 block height must exist in db");
+            .unwrap_or(0);
         let l2_end_block_number = commitments
             .last()
             .expect("Commitments must not be empty")
