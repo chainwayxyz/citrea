@@ -65,7 +65,9 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
         // EIP-4844 related fields
         blob_hashes: tx.blob_versioned_hashes().unwrap_or_default(),
         max_fee_per_blob_gas: tx.max_fee_per_blob_gas().map(U256::from),
-        authorization_list: None,
+        authorization_list: tx
+            .authorization_list()
+            .map(|a| revm::primitives::AuthorizationList::Signed(a.to_vec())),
     };
 
     tx_env

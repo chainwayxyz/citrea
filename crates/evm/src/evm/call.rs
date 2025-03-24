@@ -167,6 +167,7 @@ pub(crate) fn create_txn_env(
         nonce,
         access_list,
         chain_id,
+        authorization_list,
         ..
     } = request;
 
@@ -229,7 +230,8 @@ pub(crate) fn create_txn_env(
         // and as CitreaEvm ignores type3 txs, we can safely ignore these fields
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
-        authorization_list: None,
+        authorization_list: authorization_list
+            .map(|a| revm::primitives::AuthorizationList::Signed(a)),
     };
 
     Ok(env)
