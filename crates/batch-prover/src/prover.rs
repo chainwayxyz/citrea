@@ -91,10 +91,11 @@ where
         Ok(())
     }
 
-    fn get_unproven_commitments(&self, filter_status: Option<UnprovenCommitmentStatus>) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let unproven_commitment_indices = self
-            .ledger_db
-            .get_unproven_commitments(filter_status)?;
+    fn get_unproven_commitments(
+        &self,
+        filter_status: Option<UnprovenCommitmentStatus>,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let unproven_commitment_indices = self.ledger_db.get_unproven_commitments(filter_status)?;
 
         let mut commitments = Vec::with_capacity(unproven_commitment_indices.len());
         for index in unproven_commitment_indices {
