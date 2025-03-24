@@ -207,9 +207,6 @@ where
             .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
 
         ledger_db.delete_pending_commitment(commitment.index)?;
-        ledger_db
-            .set_last_commitment(&commitment)
-            .map_err(|_| anyhow!("Sequencer: Failed to set last sequencer commitment L2 height"))?;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
@@ -280,21 +277,9 @@ where
                 .iter()
                 .any(|commitment| commitment.index == pending_db_comm.index)
             {
-                // thins pending commiment is either mined or in the L1 mempool
-                // so we can delete it from the pending db
-                // and also update last sequencer commitment l2 height
-
-                // Update last sequencer commitment l2 height
-                match self.ledger_db.get_last_commitment()? {
-                    Some(last_commitment) if last_commitment.index >= pending_db_comm.index => {
-                        // do nothing, last commitment is already higher or equal
-                    }
-                    _ => {
-                        info!("Updating last commitment to {:?}", pending_db_comm);
-                        self.ledger_db.set_last_commitment(&pending_db_comm)?;
-                    }
-                };
-
+                // this pending commitment is either mined or in the L1 mempool
+                // so we can delete it from the pending db and put it to commitment by index
+                self.ledger_db.put_commitment_by_index(&pending_db_comm)?;
                 self.ledger_db
                     .delete_pending_commitment(pending_db_comm.index)?;
             } else {

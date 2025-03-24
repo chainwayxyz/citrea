@@ -15,10 +15,9 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock,
-    LastSequencerCommitmentSent, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
@@ -141,6 +140,16 @@ impl LedgerDB {
         }
     }
 
+    fn put_l2_block(
+        &self,
+        l2_block: &StoredL2Block,
+        l2_block_number: &L2BlockNumber,
+        schema_batch: &mut SchemaBatch,
+    ) -> Result<(), anyhow::Error> {
+        schema_batch.put::<L2BlockByNumber>(l2_block_number, l2_block)?;
+        schema_batch.put::<L2BlockByHash>(&l2_block.hash, l2_block_number)
+    }
+
     /// Write raw rocksdb WriteBatch
     pub fn write(&self, batch: WriteBatch) -> anyhow::Result<()> {
         self.db.write(batch)
@@ -161,17 +170,6 @@ impl SharedLedgerOps for LedgerDB {
     /// Returns the inner DB instance
     fn inner(&self) -> Arc<DB> {
         self.db.clone()
-    }
-
-    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_l2_block(
-        &self,
-        l2_block: &StoredL2Block,
-        l2_block_number: &L2BlockNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<L2BlockByNumber>(l2_block_number, l2_block)?;
-        schema_batch.put::<L2BlockByHash>(&l2_block.hash, l2_block_number)
     }
 
     /// Commits a l2 block to the database by inserting its transactions and batches before
@@ -388,23 +386,17 @@ impl SharedLedgerOps for LedgerDB {
         self.db.get::<L2BlockByNumber>(number)
     }
 
-    /// Get the most recent committed batch
-    /// Returns last sequencer commitment.
+    /// Returns the commitment with highest index.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_commitment(&self) -> anyhow::Result<Option<SequencerCommitment>> {
-        let index = self.db.get::<LastSequencerCommitmentSent>(&())?;
-        match index {
-            Some(index) => self.db.get::<SequencerCommitmentByIndex>(&index),
-            None => Ok(None),
-        }
-    }
+        let mut iter = self.db.iter::<SequencerCommitmentByIndex>()?;
+        iter.seek_to_last();
 
-    /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
-    /// For a sequencer, the last commitment is set when the block is produced.
-    /// For a full node the last commitment is set when a commitment is read from a finalized DA layer block.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<(), anyhow::Error> {
-        self.db.put::<LastSequencerCommitmentSent>(&(), &seqcomm.index)
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.value)),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
     }
 
     /// Get the last scanned slot by the prover
@@ -466,7 +458,8 @@ impl SharedLedgerOps for LedgerDB {
     }
 
     fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()> {
-        self.db.put::<SequencerCommitmentByIndex>(&commitment.index, commitment)
+        self.db
+            .put::<SequencerCommitmentByIndex>(&commitment.index, commitment)
     }
 
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {
