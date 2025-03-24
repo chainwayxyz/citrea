@@ -65,6 +65,11 @@ contract Bridge is Ownable2StepUpgradeable {
         _;
     }
 
+    modifier onlySystemOrOperator() {
+        require(msg.sender == SYSTEM_CALLER || msg.sender == operator, "caller is not the system caller or operator");
+        _;
+    }
+
     /// @notice Initializes the bridge contract and sets the deposit script
     /// @param _depositPrefix First part of the deposit script expected in the witness field for all L1 deposits 
     /// @param _depositSuffix The suffix of the deposit script that follows the receiver address
@@ -79,10 +84,6 @@ contract Bridge is Ownable2StepUpgradeable {
         depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
         
-        // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
-        operator = SYSTEM_CALLER;
-
-        emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
     }
 
@@ -99,6 +100,10 @@ contract Bridge is Ownable2StepUpgradeable {
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
     }
 
+    /// @notice Sets the replace script of the replacement transaction on Bitcoin, contained in the witness
+    /// @dev Replace script contains a fixed script that checks signatures of verifiers and pushes txId of the deposit transaction to be replaced
+    /// @param _replacePrefix The new replace prefix
+    /// @param _replaceSuffix The part of the replace script that succeeds the txId
     function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
         require(_replacePrefix.length != 0, "Replace script cannot be empty");
 
@@ -112,7 +117,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param moveTp Transaction parameters of the move transaction on Bitcoin
     function deposit(
         TransactionParams calldata moveTp 
-    ) external onlyOperator {
+    ) external onlySystemOrOperator {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
@@ -187,12 +192,18 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
-    function replaceDeposit(TransactionParams calldata replaceTp, uint256 index) external {
+    /// @notice Anyone can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
+    /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
+    /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
+    function replaceDeposit(TransactionParams calldata replaceTp, uint256 index) external onlyOperator {
         validateAndCheckInclusion(replaceTp);
         require(index < depositTxIds.length, "Invalid index");
+        require(replacePrefix.length != 0, "Replace script is not set");
         bytes32 txIdToReplace = depositTxIds[index];
 
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
+        (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
+        require(nItems == 3, "Invalid witness items"); // musig + script + witness script
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
 
         uint256 len = replacePrefix.length;

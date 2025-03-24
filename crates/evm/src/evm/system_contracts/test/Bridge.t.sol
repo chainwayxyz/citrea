@@ -209,7 +209,7 @@ contract BridgeTest is Test {
     }
 
     function testNonOperatorCannotDeposit() public {
-        vm.expectRevert("caller is not the operator");
+        vm.expectRevert("caller is not the system caller or operator");
         Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
         bridge.deposit(depositParams);
     }
