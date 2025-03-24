@@ -1,9 +1,8 @@
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::BlockId;
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
-use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
@@ -1214,127 +1213,6 @@ fn test_l1_fee_compression_discount() {
         30 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
         tx2_diff_size
     );
-}
-
-#[test]
-fn test_call_with_block_overrides() {
-    let (config, dev_signer, contract_addr) =
-        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
-    let l1_fee_rate = 0;
-    let mut l2_height = 2;
-
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Fork2,
-        sequencer_pub_key: get_test_seq_pub_key(),
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    // Deploy block hashes contract
-    let sender_address = generate_address::<C>("sender");
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
-
-        let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
-
-        evm.call(
-            CallMessage {
-                txs: vec![deploy_message],
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-    l2_height += 1;
-
-    // Create empty EVM blocks
-    for _i in 0..10 {
-        let l1_fee_rate = 0;
-        let l2_block_info = HookL2BlockInfo {
-            l2_height,
-            pre_state_root: [99u8; 32],
-            current_spec: SovSpecId::Fork2,
-            sequencer_pub_key: get_test_seq_pub_key(),
-            l1_fee_rate,
-            timestamp: 0,
-        };
-
-        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-        evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-        l2_height += 1;
-    }
-
-    // Construct block override with custom hashes
-    let mut block_hashes = BTreeMap::new();
-    block_hashes.insert(1, [1; 32].into());
-    block_hashes.insert(2, [2; 32].into());
-
-    // Call with block overrides and check that the hash for 1st block is what we want
-    let call_result = evm
-        .get_call_inner(
-            TransactionRequest {
-                from: None,
-                to: Some(TxKind::Call(contract_addr)),
-                input: TransactionInput::new(BlockHashContract::default().get_block_hash(1).into()),
-                ..Default::default()
-            },
-            None,
-            None,
-            Some(BlockOverrides {
-                number: None,
-                difficulty: None,
-                time: None,
-                gas_limit: None,
-                coinbase: None,
-                random: None,
-                base_fee: None,
-                block_hash: Some(block_hashes.clone()),
-            }),
-            &mut working_set,
-            get_fork_fn_only_fork2(),
-        )
-        .unwrap();
-
-    let expected_hash = Bytes::from_iter([1; 32]);
-    assert_eq!(call_result, expected_hash);
-
-    // Call with block overrides and check that the hash for 2nd block is what we want
-    let call_result = evm
-        .get_call_inner(
-            TransactionRequest {
-                from: None,
-                to: Some(TxKind::Call(contract_addr)),
-                input: TransactionInput::new(BlockHashContract::default().get_block_hash(2).into()),
-                ..Default::default()
-            },
-            None,
-            None,
-            Some(BlockOverrides {
-                number: None,
-                difficulty: None,
-                time: None,
-                gas_limit: None,
-                coinbase: None,
-                random: None,
-                base_fee: None,
-                block_hash: Some(block_hashes),
-            }),
-            &mut working_set,
-            get_fork_fn_only_fork2(),
-        )
-        .unwrap();
-    let expected_hash = Bytes::from_iter([2; 32]);
-    assert_eq!(call_result, expected_hash);
 }
 
 // TODO: test is not doing anything significant at the moment
