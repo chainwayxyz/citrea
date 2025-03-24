@@ -4,7 +4,7 @@ use sov_rollup_interface::da::SequencerCommitment;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 pub struct Prover<DB>
 where
@@ -50,12 +50,12 @@ where
                 l2_signal = self.l2_block_rx.recv() => {
                     let l2_height = l2_signal.expect("L2 signal sender channel closed abruptly");
                     let Some(sync_target_l2_height) = self.sync_target_l2_height else {
-                        // if we are already fully synced or no commitments are waiting for l2 blocks, ignore
+                        // we are already fully synced or no commitments are waiting for l2 blocks, ignore
                         continue;
                     };
 
                     if l2_height < sync_target_l2_height {
-                        // if new l2 height has not yet reached the next sync target, ignore
+                        // new l2 height has not yet reached the next sync target, ignore
                         continue;
                     }
                 }
@@ -76,7 +76,7 @@ where
             let commitment = self
                 .ledger_db
                 .get_commitment_by_index(index)?
-                .expect("Commitment with status must exist");
+                .expect("Unproven commitment must exist by index");
             commitments.push(commitment);
         }
 
@@ -94,6 +94,11 @@ where
         };
 
         let commitments = self.filter_unsynced_commitments(commitments)?;
+        info!("Have {} provable commitment(s)", commitments.len());
+
+        if commitments.is_empty() {
+            return Ok(());
+        }
 
         Ok(())
     }
