@@ -4,10 +4,12 @@ use alloy_eips::BlockId;
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
+use rand::thread_rng;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
 use revm::primitives::{KECCAK_EMPTY, U256};
 use revm::Database;
+use secp256k1::SecretKey;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -1257,4 +1259,147 @@ fn test_blob_tx() {
             L2BlockModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string())
         );
     }
+}
+
+#[test]
+fn test_eip7702_tx() {
+    // two signers
+    // create log contract and set arg contract
+    // get authorization from signer 1 that delegates to log contract
+    // signer 2 sends transaction to signer1's adress and we see log contract is called
+    // assert both adresses nonce went up
+    // then we assert receipts
+    // then signer 1 delegates to set arg contract
+    // signer 2 sends transaction to signer1's adress
+    // we check for storage of signer1 and see it has changed now
+
+    let signer1 = TestSigner::new_random(); // use set seed so we can test deterministically
+    let signer2 = TestSigner::new(SecretKey::new(&mut thread_rng()));
+
+    let config = EvmConfig {
+        data: vec![
+            AccountData {
+                address: signer1.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+            AccountData {
+                address: signer2.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+        ],
+        ..Default::default()
+    };
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+
+    let log_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
+    let set_arg_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
+
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![
+            create_contract_transaction(&signer1, 0, LogsContract::default()),
+            create_contract_transaction(&signer1, 1, SimpleStorageContract::default()),
+        ];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_height += 1;
+
+    let account_info_pre_delegate = evm
+        .account_info(&signer1.address(), &mut working_set)
+        .unwrap();
+
+    assert_eq!(account_info_pre_delegate.nonce, 2);
+
+    // signer1 delegates to log contract
+    let auth = signer1
+        .get_signed_authorization(log_contract_address, 5)
+        .unwrap();
+
+    // signer2 executes the transaction
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![signer2
+            .sign_eip7702_transaction(
+                signer1.address(),
+                LogsContract::default().publish_event("helo".to_string()),
+                0,
+                vec![auth],
+            )
+            .unwrap()];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_height += 1;
+
+    let signer1_account_info = evm
+        .account_info(&signer1.address(), &mut working_set)
+        .unwrap();
+
+    assert_eq!(signer1_account_info.nonce, 2);
+
+    assert_eq!(
+        evm.get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
+            .unwrap()
+            .unwrap()
+            .len(),
+        1
+    );
 }

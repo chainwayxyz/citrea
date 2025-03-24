@@ -69,11 +69,13 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     type Error = DBError;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+        println!("address: {:?}", address);
         let db_account = self.evm.account_info(&address, self.working_set);
         Ok(db_account.map(Into::into))
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+        println!("code_hash: {:?}", code_hash);
         // TODO move to new_raw_with_hash for better performance
 
         if let Some(code) = self.evm.offchain_code.get_with_verification_on_no_cache(
