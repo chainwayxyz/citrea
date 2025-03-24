@@ -243,12 +243,7 @@ impl SharedLedgerOps for LedgerDB {
             None => (l2_height, l2_height),
         };
 
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<L2RangeByL1Height>(&l1_height, &new_range)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2RangeByL1Height>(&l1_height, &new_range)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -288,12 +283,7 @@ impl SharedLedgerOps for LedgerDB {
         height: L2BlockNumber,
         status: sov_rollup_interface::rpc::L2BlockStatus,
     ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<L2BlockStatus>(&height, &status)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2BlockStatus>(&height, &status)
     }
 
     /// Saves a l2 block status for a given L1 height
@@ -302,9 +292,7 @@ impl SharedLedgerOps for LedgerDB {
         &self,
         height: L2BlockNumber,
     ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>, anyhow::Error> {
-        let status = self.db.get::<L2BlockStatus>(&height)?;
-
-        Ok(status)
+        self.db.get::<L2BlockStatus>(&height)
     }
 
     /// Gets the commitments in the da slot with given height if any
@@ -340,12 +328,7 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip_all, err, ret)]
     fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()> {
         let buf = bincode::serialize(state_root)?;
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2GenesisStateRoot>(&(), &buf)
     }
 
     /// Get the state root by L2 height
@@ -421,12 +404,7 @@ impl SharedLedgerOps for LedgerDB {
     /// For a full node the last commitment is set when a commitment is read from a finalized DA layer block.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastSequencerCommitmentSent>(&(), &seqcomm.index)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<LastSequencerCommitmentSent>(&(), &seqcomm.index)
     }
 
     /// Get the last scanned slot by the prover
@@ -439,12 +417,7 @@ impl SharedLedgerOps for LedgerDB {
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<ProverLastScannedSlot>(&(), &l1_height)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -455,12 +428,7 @@ impl SharedLedgerOps for LedgerDB {
     /// Set the last pruned L2 block number
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_pruned_l2_height(&self, l2_height: u64) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastPrunedBlock>(&(), &l2_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<LastPrunedBlock>(&(), &l2_height)
     }
 
     /// Gets all executed migrations.
@@ -498,11 +466,7 @@ impl SharedLedgerOps for LedgerDB {
     }
 
     fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<SequencerCommitmentByIndex>(&commitment.index, commitment)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<SequencerCommitmentByIndex>(&commitment.index, commitment)
     }
 
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {
