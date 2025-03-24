@@ -48,11 +48,11 @@ const STORAGE_VALUE_SIZE: usize = 32;
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
 /// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 l2 blocks
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
-pub const L1_FEE_OVERHEAD: usize = 3;
+pub const L1_FEE_OVERHEAD: usize = 2;
 
 /// The brotli average compression ratio (compressed size / uncompressed size) was calculated as 0.33 by measuring the size of state diffs of batches before and after brotli compression.
 /// calculated diff size * BROTLI_COMPRESSION_PERCENTAGE/100 gives the estimated size of the state diff that is written to the da.
-pub const BROTLI_COMPRESSION_PERCENTAGE: usize = 33;
+pub const BROTLI_COMPRESSION_PERCENTAGE: usize = 43;
 
 /// We want to charge the user for the amount of data written as fairly as possible, the problem is at the time of when we write batch proof to the da we cannot know the exact state diff
 /// So we calculate the state diff created by a single transaction and use that to charge user
@@ -72,7 +72,7 @@ Let's consider a batch of 1 block with the following transactions:
     If every user pays 0.75 of the account info state diff they created, the total state diff will be covered
 */
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
-const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
+const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 32;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
