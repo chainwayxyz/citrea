@@ -64,20 +64,15 @@ where
     }
 
     async fn try_proving(&mut self) -> anyhow::Result<()> {
-        let unproven_commitment_indices = self
-            .ledger_db
-            .get_unproven_commitments(UnprovenCommitmentStatus::Pending)?;
-        if unproven_commitment_indices.is_empty() {
+        let commitments = self.get_unproven_commitments(Some(UnprovenCommitmentStatus::Pending))?;
+        if commitments.is_empty() {
             return Ok(());
         }
 
-        let mut commitments = Vec::with_capacity(unproven_commitment_indices.len());
-        for index in unproven_commitment_indices {
-            let commitment = self
-                .ledger_db
-                .get_commitment_by_index(index)?
-                .expect("Unproven commitment must exist by index");
-            commitments.push(commitment);
+        let commitments = self.filter_unsynced_commitments(commitments)?;
+        info!("Have {} provable commitment(s)", commitments.len());
+        if commitments.is_empty() {
+            return Ok(());
         }
 
         let start_block_number = if commitments[0].index == 0 {
@@ -93,14 +88,24 @@ where
                 + 1
         };
 
-        let commitments = self.filter_unsynced_commitments(commitments)?;
-        info!("Have {} provable commitment(s)", commitments.len());
+        Ok(())
+    }
 
-        if commitments.is_empty() {
-            return Ok(());
+    fn get_unproven_commitments(&self, filter_status: Option<UnprovenCommitmentStatus>) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let unproven_commitment_indices = self
+            .ledger_db
+            .get_unproven_commitments(filter_status)?;
+
+        let mut commitments = Vec::with_capacity(unproven_commitment_indices.len());
+        for index in unproven_commitment_indices {
+            let commitment = self
+                .ledger_db
+                .get_commitment_by_index(index)?
+                .expect("Unproven commitment must exist by index");
+            commitments.push(commitment);
         }
 
-        Ok(())
+        Ok(commitments)
     }
 
     /// Filters out the commitments that prover l2 blocks not synced to yet

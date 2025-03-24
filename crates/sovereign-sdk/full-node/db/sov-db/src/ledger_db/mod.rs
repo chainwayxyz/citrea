@@ -573,7 +573,7 @@ impl BatchProverLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn get_unproven_commitments(
         &self,
-        filter_status: UnprovenCommitmentStatus,
+        filter_status: Option<UnprovenCommitmentStatus>,
     ) -> anyhow::Result<Vec<u32>> {
         let mut iter = self.db.iter::<UnprovenCommitmentStatusByIndex>()?;
         iter.seek_to_first();
@@ -581,7 +581,7 @@ impl BatchProverLedgerOps for LedgerDB {
         let mut commitment_indices = vec![];
         for el in iter {
             let (index, status) = el?.into_tuple();
-            if status == filter_status {
+            if filter_status.map_or(true, |fs| status == fs) {
                 commitment_indices.push(index);
             }
         }

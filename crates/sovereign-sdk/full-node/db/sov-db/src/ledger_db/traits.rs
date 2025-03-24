@@ -189,7 +189,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get indices of unproven commitments with status
     fn get_unproven_commitments(
         &self,
-        filter_status: UnprovenCommitmentStatus,
+        filter_status: Option<UnprovenCommitmentStatus>,
     ) -> anyhow::Result<Vec<u32>>;
 
     /// Delete unproven commitment by index
