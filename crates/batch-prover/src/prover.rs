@@ -88,6 +88,8 @@ where
                 + 1
         };
 
+        let partitioned_commitments = self.partition_commitments(&commitments, PartitionMode::Normal)?;
+
         Ok(())
     }
 
@@ -114,10 +116,7 @@ where
         &mut self,
         mut commitments: Vec<SequencerCommitment>,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let head_l2_height = self
-            .ledger_db
-            .get_head_l2_block_height()?
-            .unwrap_or(0);
+        let head_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
         let l2_end_block_number = commitments
             .last()
             .expect("Commitments must not be empty")
@@ -147,4 +146,23 @@ where
 
         Ok(commitments)
     }
+
+    fn partition_commitments(
+        &self,
+        commitments: &[SequencerCommitment],
+        mode: PartitionMode,
+    ) -> anyhow::Result<Vec<&[SequencerCommitment]>> {
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Enum to determine how to group commitments
+pub enum PartitionMode {
+    /// Groups commitments the normal way
+    /// Generates proof(s) given l1 height using the same strategy of batch prover
+    Normal,
+    /// Every commitment is a group on their own
+    /// Generates a proof for every commitment
+    OneByOne,
 }
