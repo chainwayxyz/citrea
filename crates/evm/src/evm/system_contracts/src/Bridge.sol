@@ -83,6 +83,9 @@ contract Bridge is Ownable2StepUpgradeable {
         depositPrefix = _depositPrefix;
         depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
+
+        // Set initial operator to SYSTEM_CALLER
+        operator = SYSTEM_CALLER;
         
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
     }
