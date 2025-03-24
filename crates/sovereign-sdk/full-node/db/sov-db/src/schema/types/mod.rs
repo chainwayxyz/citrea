@@ -38,9 +38,9 @@ pub type L2HeightRange = (L2BlockNumber, L2BlockNumber);
     ::serde::Deserialize,
 )]
 pub struct L2HeightAndIndex {
-    /// Last L2 end height
+    /// L2 end height
     pub height: u64,
-    /// Index of last sequencer commitment
+    /// Commitment's index
     pub commitment_index: u32,
 }
 
