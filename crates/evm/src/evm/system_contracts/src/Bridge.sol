@@ -87,6 +87,7 @@ contract Bridge is Ownable2StepUpgradeable {
         // Set initial operator to SYSTEM_CALLER
         operator = SYSTEM_CALLER;
         
+        emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
     }
 
