@@ -153,9 +153,6 @@ where
                         self.ledger_db
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
-                        self.ledger_db
-                            .set_commitment_l1_hash(index, &l1_block_hash)
-                            .expect("Should store l1 hash of commitment");
                     }
                 }
             }
