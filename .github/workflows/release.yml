@@ -112,7 +112,7 @@ jobs:
 
       - name: rename file
         run: |
-          mv citrea-cli-${{ github.ref_name }}-linux-amd64 release/citrea-cli-${{ github.ref_name }}-linux-amd64
+          mv citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-amd64
 
       - name: Download citrea-cli osx-arm64 Binary
         uses: actions/download-artifact@v4
@@ -121,7 +121,7 @@ jobs:
 
       - name: rename file
         run: |
-          mv citrea-cli-${{ github.ref_name }}-osx-arm64 release/citrea-cli-${{ github.ref_name }}-osx-arm64
+          mv citrea-cli release/citrea-cli-${{ github.ref_name }}-osx-arm64
 
       - name: Release
         uses: softprops/action-gh-release@v2
