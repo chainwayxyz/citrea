@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use alloy::network::TransactionBuilder7702;
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
@@ -22,6 +23,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{BlockId, BlockNumberOrTag};
+use revm::primitives::SignedAuthorization;
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
@@ -264,6 +266,38 @@ impl TestClient {
             .nonce(nonce)
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
+
+        self.client
+            .send_transaction(req)
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn send_eip7702_transaction(
+        &self,
+        to_addr: Address,
+        data: Vec<u8>,
+        nonce: Option<u64>,
+        authorization_list: Vec<SignedAuthorization>,
+    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
+        };
+
+        let req = TransactionRequest::default()
+            .from(self.from_addr)
+            .to(to_addr)
+            .input(data.into())
+            .nonce(nonce)
+            .with_authorization_list(authorization_list);
+
+        let gas = self.client.estimate_gas(&req).await.unwrap();
+
+        let req = req
+            .gas_limit(gas)
+            .max_priority_fee_per_gas(10)
+            .max_fee_per_gas(MAX_FEE_PER_GAS);
 
         self.client
             .send_transaction(req)

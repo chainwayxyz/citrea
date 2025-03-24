@@ -899,6 +899,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<EstimatedTxExpenses> {
         // Disabled because eth_estimateGas is sometimes used with eoa senders
         // See <https://github.com/paradigmxyz/reth/issues/1959>
+        // TODO: how can we set this when the feature is not enabled?
         cfg_env.disable_eip3607 = true;
 
         // The basefee should be ignored for eth_estimateGas and similar
