@@ -1,9 +1,9 @@
 //! Consist of types adjacent to the fee history cache and its configs
 use std::fmt::Debug;
 
-use alloy_network::AnyNetwork;
+use alloy_network::{AnyNetwork, AnyRpcBlock, AnyTransactionReceipt};
 use alloy_primitives::B256;
-use alloy_rpc_types::{AnyNetworkBlock, AnyTransactionReceipt, BlockTransactions, TxGasAndReward};
+use alloy_rpc_types::{BlockTransactions, TxGasAndReward};
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::EthApiError;
 use schnellru::{ByLength, LruMap};
@@ -72,7 +72,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     }
 
     /// Processing of the arriving blocks
-    pub fn insert_blocks(&mut self, blocks: Vec<(AnyNetworkBlock, Vec<AnyTransactionReceipt>)>) {
+    pub fn insert_blocks(&mut self, blocks: Vec<(AnyRpcBlock, Vec<AnyTransactionReceipt>)>) {
         let percentiles = self.predefined_percentiles();
         // Insert all new blocks and calculate approximated rewards
         for (block, receipts) in blocks {
@@ -81,16 +81,16 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
                 BlockTransactions::Full(transactions) => transactions,
                 _ => unreachable!(),
             };
-            fee_history_entry.rewards = calculate_reward_percentiles_for_block(
-                &percentiles,
-                fee_history_entry.gas_used,
-                fee_history_entry.base_fee_per_gas,
-                transactions,
-                &receipts,
-            )
-            .unwrap_or_default();
-            let block_number = block.header.number;
-            self.entries.insert(block_number, fee_history_entry);
+            // fee_history_entry.rewards = calculate_reward_percentiles_for_block(
+            //     &percentiles,
+            //     fee_history_entry.gas_used,
+            //     fee_history_entry.base_fee_per_gas,
+            //     transactions,
+            //     &receipts,
+            // )
+            // .unwrap_or_default();
+            // let block_number = block.header.number;
+            // self.entries.insert(block_number, fee_history_entry);
         }
     }
 
@@ -244,7 +244,7 @@ impl FeeHistoryEntry {
     /// Creates a new entry from a sealed block.
     ///
     /// Note: This does not calculate the rewards for the block.
-    pub fn new(block: &AnyNetworkBlock) -> Self {
+    pub fn new(block: &AnyRpcBlock) -> Self {
         let base_fee_per_gas = block.header.base_fee_per_gas.unwrap_or_default();
 
         let gas_used = block.header.gas_used;

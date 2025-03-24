@@ -132,7 +132,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let receipts: Vec<_> = pending_transactions
             .into_iter()
-            .map(|tx| tx.receipt.receipt.with_bloom_ref())
+            .map(|tx| tx.receipt.receipt.clone())
             .collect();
 
         let header = AlloyHeader {

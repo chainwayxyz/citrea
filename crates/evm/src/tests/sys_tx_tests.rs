@@ -182,7 +182,7 @@ fn test_sys_bitcoin_light_client() {
                     success: true,
                     cumulative_gas_used: 50714,
                     logs: vec![]
-                },
+                }.into(),
                 gas_used: 50714,
                 log_index_start: 0,
                 l1_diff_size: 19,
@@ -201,7 +201,7 @@ fn test_sys_bitcoin_light_client() {
                             ).unwrap(),
                         }
                     ]
-                },
+                }.into(),
                 gas_used: 83322,
                 log_index_start: 0,
                 l1_diff_size: 49,
@@ -353,7 +353,7 @@ fn test_sys_bitcoin_light_client() {
                             ).unwrap(),
                         }
                     ]
-                },
+                }.into(),
                 gas_used: 83322,
                 log_index_start: 0,
                 l1_diff_size: 49,

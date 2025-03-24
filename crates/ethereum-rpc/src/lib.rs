@@ -5,10 +5,14 @@ mod trace;
 
 use std::sync::Arc;
 
+use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_network::AnyNetwork;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
-use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
+use alloy_rpc_types::{
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index,
+    Transaction,
+};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_evm::{Evm, Filter};
 use citrea_sequencer::SequencerRpcClient;
@@ -20,7 +24,6 @@ use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule};
-use reth_primitives::{BlockId, BlockNumberOrTag, KECCAK_EMPTY};
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::EthApiError;
 use serde_json::{json, Value};
@@ -151,7 +154,7 @@ pub trait EthereumRpc {
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>>;
+    ) -> RpcResult<Option<Transaction>>;
 
     /// Gets sync status (full node only).
     #[method(name = "citrea_syncStatus")]
@@ -346,7 +349,7 @@ where
         fn generate_storage_proof<C>(
             evm: &Evm<C>,
             account: &Address,
-            key: &U256,
+            key: JsonStorageKey,
             version: u64,
             working_set: &mut WorkingSet<C::Storage>,
         ) -> EIP1186StorageProof
@@ -354,13 +357,14 @@ where
             C: sov_modules_api::Context,
             C::Storage: NativeStorage,
         {
-            let kaddr = Evm::<C>::get_storage_address(account, key);
+            let key_b = key.as_b256().into();
+            let kaddr = Evm::<C>::get_storage_address(account, &key_b);
             let storage_key = StorageKey::new(
                 evm.storage.prefix(),
                 &kaddr,
                 evm.storage.codec().key_codec(),
             );
-            let value = evm.storage_get(account, key, working_set);
+            let value = evm.storage_get(account, &key_b, working_set);
             let proof = working_set.get_with_proof(storage_key, version);
             let value_exists = if proof.value.is_some() {
                 Bytes::from("y")
@@ -370,7 +374,7 @@ where
             let value_proof = borsh::to_vec(&proof.proof).expect("Serialization shouldn't fail");
             let value_proof = Bytes::from(value_proof);
             EIP1186StorageProof {
-                key: JsonStorageKey(key.to_le_bytes().into()),
+                key,
                 value: value.unwrap_or_default(),
                 proof: vec![value_proof, value_exists],
             }
@@ -380,9 +384,7 @@ where
 
         let mut storage_proof = vec![];
         for key in keys {
-            let key: U256 = key.0.into();
-
-            let proof = generate_storage_proof(&evm, &address, &key, version, &mut working_set);
+            let proof = generate_storage_proof(&evm, &address, key, version, &mut working_set);
             storage_proof.push(proof);
         }
 
@@ -530,7 +532,7 @@ where
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>> {
+    ) -> RpcResult<Option<Transaction>> {
         match mempool_only {
             Some(true) => {
                 match self

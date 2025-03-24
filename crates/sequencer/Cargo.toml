@@ -14,6 +14,7 @@ resolver = "2"
 [dependencies]
 # 3rd-party deps
 alloy-rlp = { workspace = true }
+alloy-serde = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
@@ -51,6 +52,7 @@ reth-rpc-types-compat = { workspace = true }
 reth-tasks = { workspace = true }
 reth-transaction-pool = { workspace = true }
 reth-trie = { workspace = true }
+revm = { workspace = true }
 
 # Sovereign SDK deps
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }

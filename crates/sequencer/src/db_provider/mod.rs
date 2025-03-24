@@ -1,28 +1,28 @@
 use core::ops::RangeInclusive;
 
-use alloy_eips::BlockId;
-use alloy_primitives::map::{HashMap, HashSet};
+use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
+use alloy_primitives::map::{B256Map, HashMap, HashSet};
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
 };
-use alloy_rpc_types::{AnyNetworkBlock, BlockTransactions};
+use alloy_rpc_types::{BlockTransactions, Withdrawals};
+use alloy_rpc_types_eth::Block as AlloyRpcBlock;
+use alloy_serde::WithOtherFields;
 use citrea_evm::{Evm, EvmChainConfig};
 use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
 use reth_chainspec::{ChainInfo, ChainSpec};
-use reth_db::models::StoredBlockBodyIndices;
-use reth_primitives::{
-    Account, BlockHashOrNumber, BlockNumberOrTag, BlockWithSenders, Bytecode,
-    SealedBlockWithSenders, SealedHeader,
-};
+use reth_primitives::{Account, Bytecode, RecoveredBlock, SealedHeader};
 use reth_provider::{
-    AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt,
-    ChainSpecProvider, HeaderProvider, ProviderResult, ReceiptProvider, ReceiptProviderIdExt,
-    RequestsProvider, StateProofProvider, StateProvider, StateProviderFactory, StateRootProvider,
-    StorageRootProvider, TransactionsProvider, WithdrawalsProvider,
+    AccountReader, BlockBodyIndicesProvider, BlockHashReader, BlockIdReader, BlockNumReader,
+    BlockReader, BlockReaderIdExt, ChainSpecProvider, HashedPostStateProvider, HeaderProvider,
+    OmmersProvider, ProviderResult, ReceiptProvider, ReceiptProviderIdExt, StateProofProvider,
+    StateProvider, StateProviderFactory, StateRootProvider, StorageRootProvider,
+    TransactionsProvider, WithdrawalsProvider,
 };
 use reth_trie::updates::TrieUpdates;
-use reth_trie::{HashedPostState, HashedStorage, StorageProof};
+use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof};
+use revm::db::states::BundleState;
 use sov_modules_api::{Spec, WorkingSet};
 
 #[derive(Clone)]
@@ -52,7 +52,7 @@ impl DbProvider {
         }
     }
 
-    pub fn last_block(&self) -> RpcResult<Option<AnyNetworkBlock>> {
+    pub fn last_block(&self) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self
             .evm
@@ -60,7 +60,7 @@ impl DbProvider {
         Ok(rich_block)
     }
 
-    pub fn genesis_block(&self) -> RpcResult<Option<AnyNetworkBlock>> {
+    pub fn genesis_block(&self) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self.evm.get_block_by_number(
             Some(BlockNumberOrTag::Earliest),
@@ -76,7 +76,7 @@ impl AccountReader for DbProvider {
     #[doc = r" Get basic account information."]
     #[doc = r""]
     #[doc = r" Returns `None` if the account doesn't exist."]
-    fn basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
+    fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         let account = {
             let mut working_set = WorkingSet::new(self.storage.clone());
             self.evm
@@ -87,27 +87,35 @@ impl AccountReader for DbProvider {
     }
 }
 
-impl RequestsProvider for DbProvider {
-    fn requests_by_block(
+impl OmmersProvider for DbProvider {
+    fn ommers(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<Vec<Self::Header>>> {
+        unimplemented!("ommers")
+    }
+}
+
+impl BlockBodyIndicesProvider for DbProvider {
+    fn block_body_indices(
         &self,
-        _id: BlockHashOrNumber,
-        _timestamp: u64,
-    ) -> ProviderResult<Option<reth_primitives::Requests>> {
-        unimplemented!("requests_by_block")
+        _num: u64,
+    ) -> ProviderResult<Option<reth_db::models::StoredBlockBodyIndices>> {
+        unimplemented!("block_body_indices")
+    }
+    fn block_body_indices_range(
+        &self,
+        _range: RangeInclusive<BlockNumber>,
+    ) -> ProviderResult<Vec<reth_db::models::StoredBlockBodyIndices>> {
+        unimplemented!("block_body_indices_range")
     }
 }
 
 impl BlockReaderIdExt for DbProvider {
-    fn block_by_id(&self, _id: reth_primitives::BlockId) -> ProviderResult<Option<Self::Block>> {
+    fn block_by_id(&self, _id: BlockId) -> ProviderResult<Option<Self::Block>> {
         unimplemented!("block_by_id")
     }
     fn finalized_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
         unimplemented!("finalized_header")
     }
-    fn header_by_id(
-        &self,
-        _id: reth_primitives::BlockId,
-    ) -> ProviderResult<Option<reth_primitives::Header>> {
+    fn header_by_id(&self, _id: BlockId) -> ProviderResult<Option<reth_primitives::Header>> {
         unimplemented!("header_by_id")
     }
     fn header_by_number_or_tag(
@@ -116,10 +124,7 @@ impl BlockReaderIdExt for DbProvider {
     ) -> ProviderResult<Option<reth_primitives::Header>> {
         unimplemented!("header_by_number_or_tag")
     }
-    fn ommers_by_id(
-        &self,
-        _id: reth_primitives::BlockId,
-    ) -> ProviderResult<Option<Vec<reth_primitives::Header>>> {
+    fn ommers_by_id(&self, _id: BlockId) -> ProviderResult<Option<Vec<reth_primitives::Header>>> {
         unimplemented!("ommers_by_id")
     }
     fn ommers_by_number_or_tag(
@@ -133,7 +138,7 @@ impl BlockReaderIdExt for DbProvider {
     }
     fn sealed_header_by_id(
         &self,
-        _id: reth_primitives::BlockId,
+        _id: BlockId,
     ) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
         unimplemented!("sealed_header_by_id")
     }
@@ -168,7 +173,7 @@ impl HeaderProvider for DbProvider {
     fn sealed_header(
         &self,
         _number: BlockNumber,
-    ) -> ProviderResult<Option<reth_primitives::SealedHeader<Self::Header>>> {
+    ) -> ProviderResult<Option<SealedHeader<Self::Header>>> {
         unimplemented!("sealed_header")
     }
     fn sealed_headers_while(
@@ -236,19 +241,19 @@ impl BlockIdReader for DbProvider {
     fn finalized_block_hash(&self) -> ProviderResult<Option<B256>> {
         unimplemented!("finalized_block_hash")
     }
-    fn finalized_block_num_hash(&self) -> ProviderResult<Option<reth_primitives::BlockNumHash>> {
+    fn finalized_block_num_hash(&self) -> ProviderResult<Option<alloy_eips::BlockNumHash>> {
         unimplemented!("finalized_block_num_hash")
     }
     fn finalized_block_number(&self) -> ProviderResult<Option<BlockNumber>> {
         unimplemented!("finalized_block_number")
     }
-    fn pending_block_num_hash(&self) -> ProviderResult<Option<reth_primitives::BlockNumHash>> {
+    fn pending_block_num_hash(&self) -> ProviderResult<Option<alloy_eips::BlockNumHash>> {
         unimplemented!("pending_block_num_hash")
     }
     fn safe_block_hash(&self) -> ProviderResult<Option<B256>> {
         unimplemented!("safe_block_hash")
     }
-    fn safe_block_num_hash(&self) -> ProviderResult<Option<reth_primitives::BlockNumHash>> {
+    fn safe_block_num_hash(&self) -> ProviderResult<Option<alloy_eips::BlockNumHash>> {
         unimplemented!("safe_block_num_hash")
     }
     fn safe_block_number(&self) -> ProviderResult<Option<BlockNumber>> {
@@ -257,20 +262,15 @@ impl BlockIdReader for DbProvider {
 }
 
 impl BlockReader for DbProvider {
-    fn block(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<reth_primitives::Block>> {
+    type Block = reth_primitives::Block;
+    fn block(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<Self::Block>> {
         unimplemented!("block")
-    }
-    fn block_by_hash(&self, _hash: B256) -> ProviderResult<Option<reth_primitives::Block>> {
-        unimplemented!("block_by_hash")
-    }
-    fn block_by_number(&self, _num: u64) -> ProviderResult<Option<reth_primitives::Block>> {
-        unimplemented!("block_by_number")
     }
     fn block_with_senders(
         &self,
         _id: BlockHashOrNumber,
         _transaction_kind: reth_provider::TransactionVariant,
-    ) -> ProviderResult<Option<reth_primitives::BlockWithSenders>> {
+    ) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
         unimplemented!("block_with_senders")
     }
     fn find_block_by_hash(
@@ -294,15 +294,13 @@ impl BlockReader for DbProvider {
     ) -> ProviderResult<Vec<reth_primitives::Block>> {
         unimplemented!("block_range")
     }
-    fn pending_block_with_senders(
-        &self,
-    ) -> ProviderResult<Option<reth_primitives::SealedBlockWithSenders>> {
+    fn pending_block_with_senders(&self) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
         unimplemented!("pending_block_with_senders")
     }
     fn block_with_senders_range(
         &self,
         _range: RangeInclusive<BlockNumber>,
-    ) -> ProviderResult<Vec<BlockWithSenders>> {
+    ) -> ProviderResult<Vec<RecoveredBlock<Self::Block>>> {
         unimplemented!("block_with_senders_range")
     }
 
@@ -310,14 +308,14 @@ impl BlockReader for DbProvider {
         &self,
         _id: BlockHashOrNumber,
         _transaction_kind: reth_provider::TransactionVariant,
-    ) -> ProviderResult<Option<SealedBlockWithSenders>> {
+    ) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
         unimplemented!("sealed_block_with_senders")
     }
 
     fn sealed_block_with_senders_range(
         &self,
         _range: RangeInclusive<BlockNumber>,
-    ) -> ProviderResult<Vec<SealedBlockWithSenders>> {
+    ) -> ProviderResult<Vec<RecoveredBlock<Self::Block>>> {
         unimplemented!("sealed_block_with_senders_range")
     }
 }
@@ -333,10 +331,7 @@ impl TransactionsProvider for DbProvider {
     fn transaction_block(&self, _id: TxNumber) -> ProviderResult<Option<BlockNumber>> {
         unimplemented!("transaction_block")
     }
-    fn transaction_by_hash(
-        &self,
-        _hash: TxHash,
-    ) -> ProviderResult<Option<Self::TransactionSigned>> {
+    fn transaction_by_hash(&self, _hash: TxHash) -> ProviderResult<Option<Self::Transaction>> {
         unimplemented!("transaction_by_hash")
     }
     fn transaction_by_hash_with_meta(
@@ -350,12 +345,12 @@ impl TransactionsProvider for DbProvider {
     > {
         unimplemented!("transaction_by_hash_with_meta")
     }
-    fn transaction_by_id(&self, _id: TxNumber) -> ProviderResult<Option<Self::TransactionSigned>> {
+    fn transaction_by_id(&self, _id: TxNumber) -> ProviderResult<Option<Self::Transaction>> {
         unimplemented!("transaction_by_id")
     }
     fn transaction_by_id_unhashed(
         &self,
-        id: TxNumber,
+        _id: TxNumber,
     ) -> ProviderResult<Option<Self::Transaction>> {
         unimplemented!("transaction_by_id_unhashed")
     }
@@ -368,68 +363,53 @@ impl TransactionsProvider for DbProvider {
     fn transactions_by_block(
         &self,
         _block: BlockHashOrNumber,
-    ) -> ProviderResult<Option<Vec<Self::TransactionSigned>>> {
+    ) -> ProviderResult<Option<Vec<Self::Transaction>>> {
         unimplemented!("transactions_by_block")
     }
     fn transactions_by_block_range(
         &self,
         _range: impl std::ops::RangeBounds<BlockNumber>,
-    ) -> ProviderResult<Vec<Vec<Self::TransactionSigned>>> {
+    ) -> ProviderResult<Vec<Vec<Self::Transaction>>> {
         unimplemented!("transactions_by_block_range")
     }
     fn transactions_by_tx_range(
         &self,
         _range: impl std::ops::RangeBounds<TxNumber>,
-    ) -> ProviderResult<Vec<reth_primitives::TransactionSignedNoHash>> {
+    ) -> ProviderResult<Vec<Self::Transaction>> {
         unimplemented!("transactions_by_tx_range")
     }
 }
 
 impl ReceiptProvider for DbProvider {
-    fn receipt(&self, _id: TxNumber) -> ProviderResult<Option<reth_primitives::Receipt>> {
+    type Receipt = reth_primitives::Receipt;
+    fn receipt(&self, _id: TxNumber) -> ProviderResult<Option<Self::Receipt>> {
         unimplemented!("receipt")
     }
-    fn receipt_by_hash(&self, _hash: TxHash) -> ProviderResult<Option<reth_primitives::Receipt>> {
+    fn receipt_by_hash(&self, _hash: TxHash) -> ProviderResult<Option<Self::Receipt>> {
         unimplemented!("receipt_by_hash")
     }
     fn receipts_by_block(
         &self,
         _block: BlockHashOrNumber,
-    ) -> ProviderResult<Option<Vec<reth_primitives::Receipt>>> {
+    ) -> ProviderResult<Option<Vec<Self::Receipt>>> {
         unimplemented!("receipts_by_block")
     }
     fn receipts_by_tx_range(
         &self,
         _range: impl std::ops::RangeBounds<TxNumber>,
-    ) -> ProviderResult<Vec<reth_primitives::Receipt>> {
+    ) -> ProviderResult<Vec<Self::Receipt>> {
         unimplemented!("receipts_by_tx_range")
     }
 }
 
-impl ReceiptProviderIdExt for DbProvider {
-    fn receipts_by_block_id(
-        &self,
-        _block: reth_primitives::BlockId,
-    ) -> ProviderResult<Option<Vec<reth_primitives::Receipt>>> {
-        unimplemented!("receipts_by_block_id")
-    }
-    fn receipts_by_number_or_tag(
-        &self,
-        _number_or_tag: BlockNumberOrTag,
-    ) -> ProviderResult<Option<Vec<reth_primitives::Receipt>>> {
-        unimplemented!("receipts_by_number_or_tag")
-    }
-}
+impl ReceiptProviderIdExt for DbProvider {}
 
 impl WithdrawalsProvider for DbProvider {
-    fn latest_withdrawal(&self) -> ProviderResult<Option<reth_primitives::Withdrawal>> {
-        unimplemented!("latest_withdrawal")
-    }
     fn withdrawals_by_block(
         &self,
         _id: BlockHashOrNumber,
         _timestamp: u64,
-    ) -> ProviderResult<Option<reth_primitives::Withdrawals>> {
+    ) -> ProviderResult<Option<Withdrawals>> {
         unimplemented!("withdrawals_by_block")
     }
 }
@@ -474,7 +454,7 @@ impl StateProviderFactory for DbProvider {
     }
     fn state_by_block_id(
         &self,
-        _block_id: reth_primitives::BlockId,
+        _block_id: BlockId,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
         unimplemented!("state_by_block_id")
     }
@@ -512,7 +492,7 @@ impl StateProofProvider for DbProvider {
     fn multiproof(
         &self,
         _input: reth_trie::TrieInput,
-        _targets: HashMap<B256, HashSet<B256>>,
+        _targets: reth_trie::MultiProofTargets,
     ) -> ProviderResult<reth_trie::MultiProof> {
         unimplemented!("multiproof")
     }
@@ -530,14 +510,12 @@ impl StateProofProvider for DbProvider {
         &self,
         _overlay: reth_trie::TrieInput,
         _target: reth_trie::HashedPostState,
-    ) -> ProviderResult<HashMap<B256, Bytes>> {
+    ) -> ProviderResult<B256Map<Bytes>> {
         unimplemented!("hashed_proof")
     }
 }
 
 impl StorageRootProvider for DbProvider {
-    #[doc = " Returns the storage root of the `HashedStorage` for target address on top of the current"]
-    #[doc = " state."]
     fn storage_root(
         &self,
         _address: Address,
@@ -546,8 +524,6 @@ impl StorageRootProvider for DbProvider {
         unimplemented!("storage_root")
     }
 
-    #[doc = " Returns the storage proof of the `HashedStorage` for target slot on top of the current"]
-    #[doc = " state."]
     fn storage_proof(
         &self,
         _address: Address,
@@ -556,16 +532,24 @@ impl StorageRootProvider for DbProvider {
     ) -> ProviderResult<StorageProof> {
         unimplemented!("storage_proof")
     }
+
+    fn storage_multiproof(
+        &self,
+        _address: Address,
+        _slots: &[B256],
+        _hashed_storage: HashedStorage,
+    ) -> ProviderResult<StorageMultiProof> {
+        unimplemented!("storage_multiproof")
+    }
+}
+
+impl HashedPostStateProvider for DbProvider {
+    fn hashed_post_state(&self, _bundle_state: &BundleState) -> HashedPostState {
+        unimplemented!("hashed_post_state")
+    }
 }
 
 impl StateProvider for DbProvider {
-    fn account_balance(&self, _addr: Address) -> ProviderResult<Option<U256>> {
-        unimplemented!("account_balance")
-    }
-    fn account_code(&self, _addr: Address) -> ProviderResult<Option<reth_primitives::Bytecode>> {
-        unimplemented!("account_code")
-    }
-
     fn storage(
         &self,
         _account: Address,
@@ -574,11 +558,7 @@ impl StateProvider for DbProvider {
         unimplemented!("storage")
     }
 
-    fn bytecode_by_hash(&self, _code_hash: B256) -> ProviderResult<Option<Bytecode>> {
+    fn bytecode_by_hash(&self, _code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         unimplemented!("bytecode_by_hash")
-    }
-
-    fn account_nonce(&self, _addr: Address) -> ProviderResult<Option<u64>> {
-        unimplemented!("account_nonce")
     }
 }

@@ -33,68 +33,65 @@ impl CitreaMempool {
         client: DbProvider,
         mempool_conf: SequencerMempoolConfig,
     ) -> anyhow::Result<Self> {
-        let blob_store = NoopBlobStore::default();
-        let genesis_block = client
-            .genesis_block()
-            .map(|b| b.ok_or(anyhow!("Genesis block does not exist")))
-            .map_err(|e| anyhow!("{e}"))??;
-        let evm_config = client.cfg();
-        let Some(nonce) = genesis_block.header.nonce else {
-            bail!("Genesis nonce is not set");
-        };
-        let Some(genesis_mix_hash) = genesis_block.header.mix_hash else {
-            bail!("Genesis mix_hash is not set");
-        };
-        let chain_spec = ChainSpecBuilder::default()
-            .chain(Chain::from_id(evm_config.chain_id))
-            .shanghai_activated()
-            .genesis(
-                Genesis::default()
-                    .with_nonce(nonce.into())
-                    .with_timestamp(genesis_block.header.timestamp)
-                    .with_extra_data(genesis_block.header.extra_data.clone())
-                    .with_gas_limit(genesis_block.header.gas_limit)
-                    .with_difficulty(genesis_block.header.difficulty)
-                    .with_mix_hash(genesis_mix_hash)
-                    .with_coinbase(genesis_block.header.miner)
-                    .with_base_fee(genesis_block.header.base_fee_per_gas.map(Into::into)),
-            )
-            .build();
+        todo!()
+        // let blob_store = NoopBlobStore::default();
+        // let genesis_block = client
+        //     .genesis_block()
+        //     .map(|b| b.ok_or(anyhow!("Genesis block does not exist")))
+        //     .map_err(|e| anyhow!("{e}"))??;
+        // let evm_config = client.cfg();
+        // let nonce = genesis_block.header.nonce;
+        // let genesis_mix_hash = genesis_block.header.mix_hash;
+        // let chain_spec = ChainSpecBuilder::default()
+        //     .chain(Chain::from_id(evm_config.chain_id))
+        //     .shanghai_activated()
+        //     .genesis(
+        //         Genesis::default()
+        //             .with_nonce(nonce.into())
+        //             .with_timestamp(genesis_block.header.timestamp)
+        //             .with_extra_data(genesis_block.header.extra_data.clone())
+        //             .with_gas_limit(genesis_block.header.gas_limit)
+        //             .with_difficulty(genesis_block.header.difficulty)
+        //             .with_mix_hash(genesis_mix_hash)
+        //             .with_coinbase(genesis_block.header.miner)
+        //             .with_base_fee(genesis_block.header.base_fee_per_gas.map(Into::into)),
+        //     )
+        //     .build();
 
-        // Default 10x'ed from standard limits
-        let pool_config = Default::default();
-        let pool_config = PoolConfig {
-            pending_limit: SubPoolLimit {
-                max_txs: mempool_conf.pending_tx_limit as usize,
-                max_size: (mempool_conf.pending_tx_size * 1024 * 1024) as usize,
-            },
-            basefee_limit: SubPoolLimit {
-                max_txs: mempool_conf.base_fee_tx_limit as usize,
-                max_size: (mempool_conf.base_fee_tx_size * 1024 * 1024) as usize,
-            },
-            queued_limit: SubPoolLimit {
-                max_txs: mempool_conf.queue_tx_limit as usize,
-                max_size: (mempool_conf.queue_tx_size * 1024 * 1024) as usize,
-            },
-            blob_limit: SubPoolLimit {
-                max_txs: 0,
-                max_size: 0,
-            },
-            max_account_slots: mempool_conf.max_account_slots as usize,
-            ..pool_config
-        };
+        // // Default 10x'ed from standard limits
+        // let pool_config = Default::default();
+        // let pool_config = PoolConfig {
+        //     pending_limit: SubPoolLimit {
+        //         max_txs: mempool_conf.pending_tx_limit as usize,
+        //         max_size: (mempool_conf.pending_tx_size * 1024 * 1024) as usize,
+        //     },
+        //     basefee_limit: SubPoolLimit {
+        //         max_txs: mempool_conf.base_fee_tx_limit as usize,
+        //         max_size: (mempool_conf.base_fee_tx_size * 1024 * 1024) as usize,
+        //     },
+        //     queued_limit: SubPoolLimit {
+        //         max_txs: mempool_conf.queue_tx_limit as usize,
+        //         max_size: (mempool_conf.queue_tx_size * 1024 * 1024) as usize,
+        //     },
+        //     blob_limit: SubPoolLimit {
+        //         max_txs: 0,
+        //         max_size: 0,
+        //     },
+        //     max_account_slots: mempool_conf.max_account_slots as usize,
+        //     ..pool_config
+        // };
 
-        let validator = TransactionValidationTaskExecutor::eth_builder(Arc::new(chain_spec))
-            .no_cancun()
-            .no_eip4844()
-            // TODO: if we ever increase block gas limits, we need to pull this from
-            // somewhere else
-            .set_block_gas_limit(evm_config.block_gas_limit)
-            .set_shanghai(true)
-            .with_additional_tasks(0)
-            .build_with_tasks(client, blob_store);
+        // let validator = TransactionValidationTaskExecutor::eth_builder(Arc::new(chain_spec))
+        //     .no_cancun()
+        //     .no_eip4844()
+        //     // TODO: if we ever increase block gas limits, we need to pull this from
+        //     // somewhere else
+        //     .set_block_gas_limit(evm_config.block_gas_limit)
+        //     .set_shanghai(true)
+        //     .with_additional_tasks(0)
+        //     .build_with_tasks(client, blob_store);
 
-        Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
+        // Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
     }
 
     pub(crate) async fn add_external_transaction(

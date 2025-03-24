@@ -227,7 +227,8 @@ fn create_pending_transaction(index: u64, nonce: u64) -> PendingTransaction {
                 success: true,
                 cumulative_gas_used: 100u64 * index,
                 logs: vec![],
-            },
+            }
+            .into(),
             gas_used: 100,
             log_index_start: 0,
             l1_diff_size: 0,

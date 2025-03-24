@@ -127,7 +127,8 @@ fn call_multiple_test() {
                     success: true,
                     cumulative_gas_used: 132943,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 132943,
                 log_index_start: 0,
                 l1_diff_size: 23
@@ -138,7 +139,8 @@ fn call_multiple_test() {
                     success: true,
                     cumulative_gas_used: 176673,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 43730,
                 log_index_start: 0,
                 l1_diff_size: 19
@@ -149,7 +151,8 @@ fn call_multiple_test() {
                     success: true,
                     cumulative_gas_used: 203303,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 26630,
                 log_index_start: 0,
                 l1_diff_size: 19
@@ -160,7 +163,8 @@ fn call_multiple_test() {
                     success: true,
                     cumulative_gas_used: 229933,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 26630,
                 log_index_start: 0,
                 l1_diff_size: 19
@@ -235,7 +239,8 @@ fn call_test() {
                     success: true,
                     cumulative_gas_used: 132943,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 132943,
                 log_index_start: 0,
                 l1_diff_size: 23
@@ -246,7 +251,8 @@ fn call_test() {
                     success: true,
                     cumulative_gas_used: 176673,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 43730,
                 log_index_start: 0,
                 l1_diff_size: 19
@@ -438,7 +444,7 @@ fn self_destruct_test() {
         .collect::<Vec<_>>();
 
     // the tx should be a success
-    assert!(receipts[0].receipt.success);
+    assert!(receipts[0].receipt.status());
 
     // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
     let contract_info = evm
@@ -915,7 +921,8 @@ fn test_l1_fee_success() {
                     success: true,
                     cumulative_gas_used: 114235,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 114235,
                 log_index_start: 0,
                 l1_diff_size: 23
@@ -1088,7 +1095,8 @@ fn test_l1_fee_halt() {
                     success: true,
                     cumulative_gas_used: 106947,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 106947,
                 log_index_start: 0,
                 l1_diff_size: 23
@@ -1099,7 +1107,8 @@ fn test_l1_fee_halt() {
                     success: false,
                     cumulative_gas_used: 1106947,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 1000000,
                 log_index_start: 0,
                 l1_diff_size: 4

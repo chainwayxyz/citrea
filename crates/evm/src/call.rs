@@ -96,7 +96,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     success,
                     cumulative_gas_used,
                     logs,
-                },
+                }
+                .into(),
                 gas_used: gas_used as u128,
                 log_index_start,
                 l1_diff_size: tx_info.l1_diff_size,

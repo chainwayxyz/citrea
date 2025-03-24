@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use alloy_rpc_types::AnyNetworkBlock;
+use alloy_rpc_types::{Block, BlockNumberOrTag};
+use alloy_serde::WithOtherFields;
 use citrea_evm::{log_matches_filter, Evm, Filter, LogResponse};
 use futures::future;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use reth_primitives::BlockNumberOrTag;
 use sov_modules_api::WorkingSet;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::task::JoinHandle;
@@ -77,7 +77,7 @@ impl Drop for SubscriptionManager {
 }
 
 pub async fn new_heads_notifier(
-    mut rx: mpsc::Receiver<AnyNetworkBlock>,
+    mut rx: mpsc::Receiver<WithOtherFields<Block>>,
     head_subscriptions: Arc<RwLock<Vec<SubscriptionSink>>>,
 ) {
     while let Some(block) = rx.recv().await {
@@ -134,7 +134,7 @@ pub async fn logs_notifier(
 pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
     storage: C::Storage,
     mut l2_block_rx: broadcast::Receiver<u64>,
-    new_heads_tx: mpsc::Sender<AnyNetworkBlock>,
+    new_heads_tx: mpsc::Sender<WithOtherFields<Block>>,
     logs_tx: mpsc::Sender<Vec<LogResponse>>,
 ) {
     let evm = Evm::<C>::default();

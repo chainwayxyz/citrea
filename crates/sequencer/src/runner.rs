@@ -206,11 +206,7 @@ where
                     continue;
                 }
 
-                let mut buf = vec![];
-                evm_tx
-                    .to_recovered_transaction()
-                    .into_signed()
-                    .encode_2718(&mut buf);
+                let buf = evm_tx.to_consensus().into_tx().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
                     txs: vec![rlp_tx.clone()],
@@ -814,7 +810,7 @@ where
         for address in addresses {
             let account = self
                 .db_provider
-                .basic_account(address)?
+                .basic_account(&address)?
                 .expect("Account must exist");
             updates.push(ChangedAccount {
                 address,
@@ -979,14 +975,7 @@ where
 
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
         for sys_tx in sys_txs {
-            let sys_tx = sys_tx.into_signed();
-
-            // Cannot do into_ecrecovered here because we don't have a valid signature
-            let sys_tx_ec_recovered =
-                TransactionSignedEcRecovered::from_signed_transaction(sys_tx, SYSTEM_SIGNER);
-
-            let mut buf = vec![];
-            sys_tx_ec_recovered.encode_2718(&mut buf);
+            let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
             let call_txs = CallMessage {

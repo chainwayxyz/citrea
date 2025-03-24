@@ -187,7 +187,7 @@ impl Decodable for SealedBlock {
     Eq,
 )]
 pub(crate) struct Receipt {
-    pub(crate) receipt: reth_primitives::Receipt,
+    pub(crate) receipt: reth_primitives::ReceiptWithBloom<reth_primitives::Receipt>,
     pub(crate) gas_used: u128, // TODO u64?
     pub(crate) log_index_start: u64,
     pub(crate) l1_diff_size: u64,

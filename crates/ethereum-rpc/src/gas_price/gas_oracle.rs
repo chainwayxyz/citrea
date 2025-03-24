@@ -4,13 +4,13 @@
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
+use alloy_network::eip2718::Typed2718;
 use alloy_network::AnyNetwork;
 use alloy_primitives::{B256, U256};
-use alloy_rpc_types::{BlockTransactions, FeeHistory};
+use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions, FeeHistory, TransactionTrait};
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use parking_lot::Mutex;
-use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use serde::{Deserialize, Serialize};
@@ -433,27 +433,15 @@ pub(crate) fn effective_gas_tip(
     transaction: &RpcTransaction<AnyNetwork>,
     base_fee: Option<u128>,
 ) -> Option<u128> {
-    let priority_fee_or_price = match transaction.transaction_type {
-        Some(tx_type) => {
-            if tx_type == 2 {
-                transaction.max_priority_fee_per_gas.unwrap()
-            } else {
-                transaction.gas_price.unwrap()
-            }
-        }
-        _ => transaction.gas_price.unwrap(),
+    let priority_fee_or_price = match transaction.ty() {
+        2 => transaction.max_priority_fee_per_gas().unwrap(),
+        _ => transaction.gas_price().unwrap(),
     };
 
     if let Some(base_fee) = base_fee {
-        let max_fee_per_gas = match transaction.transaction_type {
-            Some(tx_type) => {
-                if tx_type == 2 {
-                    transaction.max_priority_fee_per_gas.unwrap()
-                } else {
-                    transaction.gas_price.unwrap()
-                }
-            }
-            _ => transaction.gas_price.unwrap(),
+        let max_fee_per_gas = match transaction.ty() {
+            2 => transaction.max_priority_fee_per_gas().unwrap(),
+            _ => transaction.gas_price().unwrap(),
         };
 
         if max_fee_per_gas < base_fee {
@@ -469,7 +457,7 @@ pub(crate) fn effective_gas_tip(
 
 #[cfg(test)]
 mod tests {
-    use reth_primitives::constants::GWEI_TO_WEI;
+    use alloy_consensus::constants::GWEI_TO_WEI;
 
     use super::*;
 
