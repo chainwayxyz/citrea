@@ -14,7 +14,12 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L1BlockHashByCommitmentIndex, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
+    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L1BlockHashByCommitmentIndex,
+    L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height,
+    LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs,
+    PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2,
+    ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
