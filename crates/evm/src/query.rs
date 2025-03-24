@@ -1763,6 +1763,7 @@ pub(crate) fn build_rpc_receipt(
     let transaction_kind = transaction.kind();
 
     let transaction_hash = transaction.hash;
+    let authorization_list = transaction.authorization_list().map(|a| a.to_vec());
     let transaction_index = tx_number - block.transactions.start;
     let block_hash = block.header.hash();
     let block_number = block.header.number;
@@ -1827,13 +1828,13 @@ pub(crate) fn build_rpc_receipt(
             Call(_) => None,
         },
         effective_gas_price: transaction.effective_gas_price(block_base_fee),
+        authorization_list,
         state_root: None,
         // EIP-4844 related
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         // None because eip-4844 txs are not accepted
         blob_gas_price: None,
         blob_gas_used: None,
-        authorization_list: None,
     };
     AnyTransactionReceipt {
         inner: res_receipt,
