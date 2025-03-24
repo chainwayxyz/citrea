@@ -203,7 +203,7 @@ where
         // Worst case scenario is that we will reprocess the same block after a restart
         let _ = self
             .ledger_db
-            .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
+            .set_last_scanned_l1_height(SlotNumber(l1_height))
             .map_err(|e| {
                 error!("Could not set last scanned l1 height: {}", e);
             });
@@ -309,8 +309,6 @@ where
 
         self.ledger_db
             .put_commitment_by_index(sequencer_commitment)?;
-
-        self.ledger_db.set_last_commitment(sequencer_commitment)?;
 
         self.ledger_db.set_l2_height_status(
             L2HeightStatus::Committed,

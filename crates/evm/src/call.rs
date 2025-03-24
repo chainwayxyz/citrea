@@ -61,6 +61,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
 
+        // since self is going to be borrowed in get_db
+        // we copy the value of should_be_end_of_sys_txs
+        // and pass it to executor as mutable reference
+        // then we update the value of self.should_be_end_of_sys_txs
+        // with the new value
+        //
+        // This whole scheme is done to avoid having to sov-tx for EVM module where each have
+        // system txs at the beginnging of their respective calls
+        let mut should_be_end_of_sys_txs = self.should_be_end_of_sys_txs;
+
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
         let results = executor::execute_multiple_tx(
@@ -71,7 +81,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             &mut citrea_handler_ext,
             cumulative_gas_used,
             context.slot_height(),
+            &mut should_be_end_of_sys_txs,
         )?;
+
+        self.should_be_end_of_sys_txs = should_be_end_of_sys_txs;
 
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair

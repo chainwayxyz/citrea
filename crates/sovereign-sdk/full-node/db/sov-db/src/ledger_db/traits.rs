@@ -6,7 +6,6 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::SchemaBatch;
 
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use crate::schema::types::l2_block::StoredL2Block;
@@ -24,14 +23,6 @@ pub trait SharedLedgerOps {
 
     /// Returns the inner DB instance
     fn inner(&self) -> Arc<sov_schema_db::DB>;
-
-    /// Put L2 block to db
-    fn put_l2_block(
-        &self,
-        l2_block: &StoredL2Block,
-        l2_block_number: &L2BlockNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
 
     /// Commits a l2 block to the database by inserting its transactions and batches before
     fn commit_l2_block(
@@ -99,9 +90,6 @@ pub trait SharedLedgerOps {
     /// Gets all l2 blocks by numbers
 
     fn get_l2_block_by_number(&self, number: &L2BlockNumber) -> Result<Option<StoredL2Block>>;
-
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<()>;
 
     /// Get the most recent committed batch
     /// Returns last sequencer commitment.
@@ -250,9 +238,6 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 
     /// Sets the latest state diff
     fn set_state_diff(&self, state_diff: &StateDiff) -> Result<()>;
-
-    /// Get the most recent commitment's l1 height
-    fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>>;
 
     /// Insert mempool transaction
     fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()>;

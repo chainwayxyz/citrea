@@ -3,15 +3,18 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::anyhow;
+use citrea_evm::{get_last_l1_height_in_light_client, Evm};
 use citrea_primitives::forks::get_fork2_activation_height_non_zero;
+use citrea_stf::runtime::DefaultContext;
 use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
-use sov_modules_api::StateDiff;
+use sov_db::schema::types::L2BlockNumber;
+use sov_modules_api::{StateDiff, WorkingSet};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
+use sov_state::ProverStorage;
 use tokio::select;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
@@ -178,9 +181,12 @@ where
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
 
-        ledger_db
-            .put_commitment_by_index(&commitment)
-            .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
+        // Even though the commitment service does not shutdown before we get a response from the DA service,
+        // we still need to store the commitment in the pending commitments, so that if anything happens
+        // from the time we send the tx to the DA service and until we get a response (so the tx wasn't even submitted yet),
+        // e.g. server shutdown, we can resubmit the pending commitments.
+        //
+        // So pending status for a commitment spans from da service submission to entrance to mempool.
         ledger_db.put_pending_commitment(&commitment).map_err(|_| {
             anyhow!("Sequencer: Failed to store sequencer commitment in pending commitments")
         })?;
@@ -196,10 +202,11 @@ where
                 .as_secs_f64(),
         );
 
-        ledger_db.delete_pending_commitment(commitment.index)?;
         ledger_db
-            .set_last_commitment(&commitment)
-            .map_err(|_| anyhow!("Sequencer: Failed to set last sequencer commitment L2 height"))?;
+            .put_commitment_by_index(&commitment)
+            .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
+
+        ledger_db.delete_pending_commitment(commitment.index)?;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
@@ -207,26 +214,48 @@ where
     }
 
     // TODO Re-write since da_slot_height is not indexed as part of L2Block. Ref https://github.com/chainwayxyz/citrea/issues/1998
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
+    #[instrument(level = "trace", skip(self, working_set), err, ret)]
+    pub async fn resubmit_pending_commitments(
+        &mut self,
+        mut working_set: WorkingSet<ProverStorage>,
+    ) -> anyhow::Result<()> {
         info!("Resubmitting pending commitments");
 
-        let pending_db_commitments = self.ledger_db.get_pending_commitments()?;
+        let mut pending_db_commitments = self.ledger_db.get_pending_commitments()?;
+        pending_db_commitments.sort();
         info!("Pending db commitments: {:?}", pending_db_commitments);
 
-        let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
+        let mut pending_mempool_commitments = self.get_pending_mempool_commitments().await;
+        pending_mempool_commitments.sort();
         info!(
             "Commitments that are already in DA mempool: {:?}",
             pending_mempool_commitments
         );
 
-        let last_commitment_l1_height = self
-            .ledger_db
-            .get_l1_height_of_last_commitment()?
-            .unwrap_or(SlotNumber(1));
-        let mined_commitments = self
-            .get_mined_commitments_from(last_commitment_l1_height)
+        // to determine which L1 block to start scanning from
+        let start_scanning_l1_from: u64 = {
+            let l2_height = self
+                .ledger_db
+                .get_last_commitment()?
+                .map(|c| c.l2_end_block_number)
+                .unwrap_or(1);
+
+            // set state to end of evm block l2_height
+            working_set.set_archival_version(l2_height + 1);
+
+            let l1_height = get_last_l1_height_in_light_client(
+                &Evm::<DefaultContext>::default(),
+                &mut working_set,
+            )
+            .expect("There must be a last l1 height");
+
+            l1_height.to::<u64>() + 1
+        };
+
+        let mut mined_commitments = self
+            .get_mined_commitments_from(start_scanning_l1_from)
             .await?;
+        mined_commitments.sort();
         info!(
             "Commitments that are already mined by DA: {:?}",
             mined_commitments
@@ -236,21 +265,21 @@ where
         pending_commitments_to_remove.extend(pending_mempool_commitments);
         pending_commitments_to_remove.extend(mined_commitments);
 
+        pending_commitments_to_remove.sort();
+        pending_commitments_to_remove.dedup();
+        info!(
+            "Pending commitments to remove: {:?}",
+            pending_commitments_to_remove
+        );
+
         for pending_db_comm in pending_db_commitments {
             if pending_commitments_to_remove
                 .iter()
                 .any(|commitment| commitment.index == pending_db_comm.index)
             {
-                // Update last sequencer commitment l2 height
-                match self.ledger_db.get_last_commitment()? {
-                    Some(last_commitment_l2_height)
-                        if last_commitment_l2_height.index >= pending_db_comm.index => {}
-                    _ => {
-                        self.ledger_db.set_last_commitment(&pending_db_comm)?;
-                    }
-                };
-
-                // Delete from pending db if it is already in DA mempool or mined
+                // this pending commitment is either mined or in the L1 mempool
+                // so we can delete it from the pending db and put it to commitment by index
+                self.ledger_db.put_commitment_by_index(&pending_db_comm)?;
                 self.ledger_db
                     .delete_pending_commitment(pending_db_comm.index)?;
             } else {
@@ -306,8 +335,13 @@ where
 
     async fn get_mined_commitments_from(
         &self,
-        _da_height: SlotNumber,
+        start_height: u64,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        info!(
+            "Getting mined commitments from DA service starting from height: {}",
+            start_height
+        );
+
         let head_da_height = self
             .da_service
             .get_head_block_header()
@@ -315,9 +349,8 @@ where
             .map_err(|e| anyhow!(e))?
             .height();
         let mut mined_commitments = vec![];
-        // TODO: UPDATE RESUBMISSION LOGIC BECAUSE AFTER FORK2 DA HEIGHT OF SC IS 0
-        // TODO: https://github.com/chainwayxyz/citrea/issues/1998
-        for height in 1..=head_da_height {
+
+        for height in start_height..=head_da_height {
             let block = self
                 .da_service
                 .get_block_at(height)
