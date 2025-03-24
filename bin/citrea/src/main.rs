@@ -302,7 +302,7 @@ where
                     .await
             });
 
-            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = prover.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }

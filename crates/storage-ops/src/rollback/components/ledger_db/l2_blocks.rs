@@ -1,4 +1,4 @@
-use sov_db::schema::tables::{L2BlockByNumber, LastSequencerCommitmentSent};
+use sov_db::schema::tables::{L2BlockByNumber, SequencerCommitmentByIndex};
 use sov_db::schema::types::L2BlockNumber;
 use sov_schema_db::{ScanDirection, DB};
 
@@ -17,10 +17,7 @@ pub(crate) fn rollback_l2_blocks(
 
     let mut deleted = 0;
     for record in l2_blocks {
-        let Ok(record) = record else {
-            continue;
-        };
-
+        let record = record?;
         let l2_block_number = record.key;
 
         if l2_block_number <= L2BlockNumber(target_l2) {
@@ -32,10 +29,26 @@ pub(crate) fn rollback_l2_blocks(
         deleted += 1;
     }
 
-    if matches!(node_type, StorageNodeType::Sequencer)
-        || matches!(node_type, StorageNodeType::FullNode)
-    {
-        ledger_db.put::<LastSequencerCommitmentSent>(&(), &last_sequencer_commitment_index)?;
+    if !matches!(
+        node_type,
+        StorageNodeType::Sequencer | StorageNodeType::FullNode
+    ) {
+        return Ok(deleted);
+    }
+
+    let mut comm_iter = ledger_db.iter_with_direction::<SequencerCommitmentByIndex>(
+        Default::default(),
+        ScanDirection::Backward,
+    )?;
+    comm_iter.seek_to_last();
+
+    for record in comm_iter {
+        let comm_idx = record?.key;
+        if comm_idx <= last_sequencer_commitment_index {
+            break;
+        }
+
+        ledger_db.delete::<SequencerCommitmentByIndex>(&comm_idx)?;
     }
 
     Ok(deleted)

@@ -54,7 +54,6 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
     PendingSequencerCommitment::table_name(),
-    LastSequencerCommitmentSent::table_name(),
     L2BlockStatus::table_name(),
     CommitmentsByNumber::table_name(),
     MempoolTxs::table_name(),
@@ -87,7 +86,6 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
-    LastSequencerCommitmentSent::table_name(),
     L2BlockStatus::table_name(),
     ProverLastScannedSlot::table_name(),
     CommitmentsByNumber::table_name(),
@@ -155,7 +153,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastStateDiff::table_name(),
     LightClientProofBySlotNumber::table_name(),
     PendingSequencerCommitment::table_name(),
-    LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     L2BlockStatus::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
@@ -378,11 +375,6 @@ define_table_with_default_codec!(
     /// The primary source for in progress sequencer commitments
     /// This table is used to store the pending sequencer commitments indexes
     (PendingSequencerCommitment) () => Vec<u32>
-);
-
-define_table_with_seek_key_codec!(
-    /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => u32
 );
 
 define_table_with_seek_key_codec!(
