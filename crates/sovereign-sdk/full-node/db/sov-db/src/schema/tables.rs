@@ -98,6 +98,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     #[cfg(test)]
     TestTableNew::table_name(),
     L2StatusHeights::table_name(),
+    PendingSequencerCommitments::table_name(),
 ];
 
 /// A list of all tables used by BatchProver LedgerDB
@@ -470,6 +471,11 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Stores L2 height and index per status
     (L2StatusHeights) (L2HeightStatus, u64) => u32
+);
+
+define_table_with_default_codec!(
+    /// Out of order sequencer commitments
+    (PendingSequencerCommitments) u32 => SequencerCommitment
 );
 
 #[cfg(test)]

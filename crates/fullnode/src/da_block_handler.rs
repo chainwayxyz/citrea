@@ -125,6 +125,10 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
+        if let Err(e) = self.process_pending_commitments(l1_block).await {
+            error!("Error processing pending commitments: {e:?}");
+        }
+
         let sequencer_commitments = extract_sequencer_commitments(
             self.da_service.clone(),
             l1_block,
@@ -221,15 +225,27 @@ where
         let start_l2_height = if sequencer_commitment.index == 0 {
             get_fork2_activation_height_non_zero()
         } else {
-            self.ledger_db
+            match self
+                .ledger_db
                 .get_commitment_by_index(sequencer_commitment.index - 1)?
-                .expect("Commitment must exist")
-                .l2_end_block_number
-                + 1
+            {
+                Some(previous_commitment) => previous_commitment.l2_end_block_number + 1,
+                None => {
+                    // Store this commitment as pending
+                    info!(
+                            "Commitment with index {} is missing its predecessor (index {}). Storing as pending.",
+                            sequencer_commitment.index,
+                            sequencer_commitment.index - 1
+                        );
+                    self.ledger_db
+                        .store_pending_commitment(sequencer_commitment.clone())?;
+                    return Ok(());
+                }
+            }
         };
         let end_l2_height = sequencer_commitment.l2_end_block_number;
 
-        tracing::info!(
+        info!(
             "Processing sequencer commitment for L2 Range = {}-{} at L1 height {}.",
             start_l2_height,
             end_l2_height,
@@ -242,10 +258,11 @@ where
             .unwrap_or_default();
 
         // Only proceed if the commitment height and index are higher than the stored one
+        // TODO revisit this for conflicting commitments
         if end_l2_height <= committed_height.height
             && sequencer_commitment.index <= committed_height.commitment_index
         {
-            tracing::info!(
+            info!(
                     "Skipping sequencer commitment with height {end_l2_height} and index {} as we already have commitment with height {} and index {}",
                     sequencer_commitment.index,
                     committed_height.height,
@@ -479,6 +496,36 @@ where
                 commitment_index: sequencer_commitment_index_range.1,
             },
         )?;
+
+        Ok(())
+    }
+
+    async fn process_pending_commitments(
+        &self,
+        l1_block: &Da::FilteredBlock,
+    ) -> Result<(), SyncError> {
+        let pending_commitments = self.ledger_db.get_pending_commitments()?;
+        if pending_commitments.is_empty() {
+            return Ok(());
+        }
+
+        for (index, commitment) in pending_commitments {
+            // Check if we can process this commitment now
+            if self.ledger_db.get_commitment_by_index(index - 1)?.is_some() {
+                if let Err(e) = self
+                    .process_sequencer_commitment(l1_block, &commitment)
+                    .await
+                {
+                    warn!("Failed to process pending commitment with index {index}: {e:?}");
+                    break;
+                }
+
+                self.ledger_db.remove_pending_commitment(index)?;
+            } else {
+                // Breaking since pending commitments are sorted and we won't be to process anymore from then on
+                break;
+            }
+        }
 
         Ok(())
     }

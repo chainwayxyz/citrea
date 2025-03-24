@@ -163,6 +163,15 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<Option<L2HeightAndIndex>>;
     /// Set L2 height by status
     fn set_l2_height_status(&self, status: L2HeightStatus, height: L2HeightAndIndex) -> Result<()>;
+
+    /// Store an out of order commitment for later processing
+    fn store_pending_commitment(&self, commitment: SequencerCommitment) -> Result<()>;
+
+    /// Get all out of order commitment to process
+    fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment)>>;
+
+    /// Remove pending commitment by index
+    fn remove_pending_commitment(&self, index: u32) -> Result<()>;
 }
 
 /// Prover ledger operations

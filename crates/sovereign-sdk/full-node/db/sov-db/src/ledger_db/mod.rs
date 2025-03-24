@@ -17,9 +17,9 @@ use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
     L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
     LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
-    PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs,
-    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    PendingSequencerCommitment, PendingSequencerCommitments, ProofsBySlotNumberV2,
+    ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -774,6 +774,39 @@ impl NodeLedgerOps for LedgerDB {
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<L2StatusHeights>(&(status, val.height), &val.commitment_index)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn store_pending_commitment(&self, commitment: SequencerCommitment) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<PendingSequencerCommitments>(&commitment.index, &commitment)?;
+        self.db.write_schemas(schema_batch)?;
+
+        println!("Stored pending commitment with index {}", commitment.index);
+
+        Ok(())
+    }
+
+    fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment)>> {
+        let mut pending = Vec::new();
+        let mut iter = self.db.iter::<PendingSequencerCommitments>()?;
+        iter.seek_to_first();
+
+        while let Some(Ok(item)) = iter.next() {
+            let (index, commitment) = item.into_tuple();
+            pending.push((index, commitment));
+        }
+
+        // Sort by index to make sure we process pending commitments in order
+        pending.sort_by_key(|(index, _)| *index);
+
+        Ok(pending)
+    }
+
+    fn remove_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<PendingSequencerCommitments>(&index)?;
         self.db.write_schemas(schema_batch)?;
         Ok(())
     }
