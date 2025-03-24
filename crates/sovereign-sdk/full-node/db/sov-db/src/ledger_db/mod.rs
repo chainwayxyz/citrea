@@ -784,8 +784,6 @@ impl NodeLedgerOps for LedgerDB {
         schema_batch.put::<PendingSequencerCommitments>(&commitment.index, &commitment)?;
         self.db.write_schemas(schema_batch)?;
 
-        println!("Stored pending commitment with index {}", commitment.index);
-
         Ok(())
     }
 
