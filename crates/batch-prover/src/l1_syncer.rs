@@ -8,10 +8,10 @@ use citrea_common::RollupPublicKeys;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::select;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
@@ -30,6 +30,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     backup_manager: Arc<BackupManager>,
+    commitment_tx: mpsc::Sender<Vec<SequencerCommitment>>,
 }
 
 impl<Da, DB> L1Syncer<Da, DB>
@@ -45,6 +46,7 @@ where
         scan_l1_start_height: u64,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
         backup_manager: Arc<BackupManager>,
+        commitment_tx: mpsc::Sender<Vec<SequencerCommitment>>,
     ) -> Self {
         Self {
             ledger_db,
@@ -54,6 +56,7 @@ where
             l1_block_cache,
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
+            commitment_tx,
         }
     }
 
@@ -97,6 +100,8 @@ where
     async fn process_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
 
+        let mut commitments = vec![];
+
         while !pending_l1_blocks.is_empty() {
             let l1_block = pending_l1_blocks
                 .front()
@@ -121,14 +126,14 @@ where
                 .expect("Should save short header proof to ledger db");
 
             // Extract sequencer commitments
-            let sequencer_commitments = extract_sequencer_commitments::<Da>(
+            let l1_commitments = extract_sequencer_commitments::<Da>(
                 self.da_service.clone(),
                 l1_block,
                 &self.sequencer_da_pub_key,
             );
 
             // Store commitments by index
-            for commitment in sequencer_commitments.iter() {
+            for commitment in l1_commitments.iter() {
                 let index = commitment.index;
 
                 match self.ledger_db.get_commitment_by_index(index)? {
@@ -164,8 +169,15 @@ where
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
+            commitments.extend(l1_commitments);
+
             pending_l1_blocks.pop_front();
         }
+
+        self.commitment_tx
+            .send(commitments)
+            .await
+            .expect("L1 commitment channel should never close");
 
         Ok(())
     }
