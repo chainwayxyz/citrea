@@ -174,10 +174,9 @@ where
             pending_l1_blocks.pop_front();
         }
 
-        self.commitment_tx
-            .send(commitments)
-            .await
-            .expect("L1 commitment channel should never close");
+        if let Err(_) = self.commitment_tx.send(commitments).await {
+            error!("L1 commitment tx channel closed for some reason");
+        }
 
         Ok(())
     }
