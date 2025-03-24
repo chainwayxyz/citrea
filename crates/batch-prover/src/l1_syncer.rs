@@ -6,7 +6,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
 use citrea_common::RollupPublicKeys;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::{CommitmentStatus, SlotNumber};
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -152,6 +152,9 @@ where
                         self.ledger_db
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
+                        self.ledger_db
+                            .set_commitment_status(index, CommitmentStatus::Pending)
+                            .expect("Should set commitment status to pending");
                     }
                 }
             }
@@ -173,7 +176,7 @@ where
 
         // signal that new l1 blocks are processed
         if let Err(_) = self.l1_signal_tx.send(()).await {
-            error!("L1 commitment tx channel closed for some reason");
+            error!("L1 signal channel closed for some reason");
         }
 
         Ok(())
