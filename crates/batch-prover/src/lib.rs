@@ -30,6 +30,7 @@ mod errors;
 mod l1_syncer;
 mod l2_syncer;
 mod metrics;
+mod prover;
 mod proving;
 pub mod rpc;
 mod runner;
