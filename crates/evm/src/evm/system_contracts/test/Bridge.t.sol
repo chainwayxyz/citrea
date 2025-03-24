@@ -90,7 +90,9 @@ contract BridgeTest is Test {
         bitcoinLightClient.setBlockInfo(mockBlockhash, witnessRoot, 3);
         vm.stopPrank();
 
-        operator = bridge.operator();
+        vm.prank(owner);
+        operator = makeAddr("citrea_operator");
+        bridge.setOperator(operator);
     }
 
     function testDeposit() public {
@@ -235,7 +237,7 @@ contract BridgeTest is Test {
     }
 
     function testReplaceDeposit() public {
-        vm.startPrank(operator);
+        vm.startPrank(SYSTEM_CALLER);
         version = hex"03000000";
         vin = hex"0161d6a81afeee162b02263453162a43c3d0874264fae4fb8325ce0830a22d057d0000000000fdffffff";
         vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
@@ -249,7 +251,7 @@ contract BridgeTest is Test {
         bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"");
         bridge.setReplaceScript(hex"54203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c61636520", hex"");
         vm.stopPrank();
-        vm.startPrank(operator);
+        vm.startPrank(SYSTEM_CALLER);
         Bridge.TransactionParams memory depositToBeReplacedParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
         bridge.deposit(depositToBeReplacedParams);
         vin = hex"016712f7c7641cacf70b1549b346e08576af09e0a2ef7b09d3d40aaefa207786ab0000000000fdffffff";
@@ -260,6 +262,8 @@ contract BridgeTest is Test {
         bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_3"), witnessRoot, 2);
         Bridge.TransactionParams memory replaceParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 2, index);
         assertEq(bridge.depositTxIds(0), hex"17cec92a58d987380ae223d4a991199b3b970e493b1c67defd2d4c67ecc4e708");
+        vm.stopPrank();
+        vm.prank(operator);
         bridge.replaceDeposit(replaceParams, 0);
         assertEq(bridge.depositTxIds(0), hex"4bb8086aabf03a596218fa99170ce39393c9d3dc7dd9949f417265f246569f10");
     }
