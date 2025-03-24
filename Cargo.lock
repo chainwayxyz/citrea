@@ -2422,6 +2422,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types",
  "alloy-rpc-types-eth",
+ "alloy-serde",
  "anyhow",
  "async-trait",
  "backoff",
@@ -2451,6 +2452,7 @@ dependencies = [
  "reth-tasks",
  "reth-transaction-pool",
  "reth-trie",
+ "revm",
  "rs_merkle",
  "schnellru",
  "sov-accounts",
@@ -3327,10 +3329,13 @@ dependencies = [
 name = "ethereum-rpc"
 version = "0.6.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-network",
  "alloy-primitives",
  "alloy-rpc-types",
+ "alloy-rpc-types-eth",
  "alloy-rpc-types-trace",
+ "alloy-serde",
  "async-trait",
  "borsh",
  "citrea-evm",
