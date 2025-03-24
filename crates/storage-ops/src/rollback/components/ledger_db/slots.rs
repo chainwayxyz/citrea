@@ -115,7 +115,6 @@ fn rollback_verified_proofs_by_slot_number(
         )?;
     verified_proofs_by_number.seek_to_last();
 
-    println!("slot_number : {:?}", slot_number);
     for record in verified_proofs_by_number {
         let Ok(record) = record else {
             continue;
@@ -128,8 +127,6 @@ fn rollback_verified_proofs_by_slot_number(
         ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
 
         let proofs = record.value;
-
-        println!("proofs : {:?}", proofs);
         for proof in proofs.into_iter().rev() {
             let output = proof.proof_output;
             ledger_db
