@@ -22,7 +22,8 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, CommitmentStatus, DbHash, JmtValue, L2BlockNumber, L2HeightRange, SlotNumber, StateKey
+    AccessoryKey, AccessoryStateValue, UnprovenCommitmentStatus, DbHash, JmtValue, L2BlockNumber,
+    L2HeightRange, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -118,7 +119,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
-    CommitmentStatusByIndex::table_name(),
+    UnprovenCommitmentStatusByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -166,7 +167,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
-    CommitmentStatusByIndex::table_name(),
+    UnprovenCommitmentStatusByIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -349,7 +350,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// L1 block has by commitment index
-    (CommitmentStatusByIndex) u32 => CommitmentStatus
+    (UnprovenCommitmentStatusByIndex) u32 => UnprovenCommitmentStatus
 );
 
 define_table_with_default_codec!(

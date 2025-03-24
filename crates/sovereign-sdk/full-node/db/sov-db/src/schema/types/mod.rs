@@ -57,13 +57,11 @@ macro_rules! u64_wrapper {
 u64_wrapper!(SlotNumber);
 u64_wrapper!(L2BlockNumber);
 
-/// Enum representing the current status of commitment
+/// Enum representing the status of an unproven commitment
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub enum CommitmentStatus {
+pub enum UnprovenCommitmentStatus {
     /// Commitment is pending
     Pending,
     /// Commitment is currently being proven
     Running,
-    /// Commitmenent is proven
-    Proven,
 }

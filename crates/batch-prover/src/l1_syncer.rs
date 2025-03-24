@@ -6,7 +6,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
 use citrea_common::RollupPublicKeys;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{CommitmentStatus, SlotNumber};
+use sov_db::schema::types::{SlotNumber, UnprovenCommitmentStatus};
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -153,7 +153,7 @@ where
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
                         self.ledger_db
-                            .set_commitment_status(index, CommitmentStatus::Pending)
+                            .set_unproven_commitment_status(index, UnprovenCommitmentStatus::Pending)
                             .expect("Should set commitment status to pending");
                     }
                 }

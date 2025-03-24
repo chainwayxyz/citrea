@@ -14,7 +14,7 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentMerkleRoots, CommitmentStatusByIndex, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
+    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, UnprovenCommitmentStatusByIndex, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -23,7 +23,7 @@ use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{CommitmentStatus, L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber, UnprovenCommitmentStatus};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -556,13 +556,29 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn set_commitment_status(&self, index: u32, status: CommitmentStatus) -> anyhow::Result<()> {
-        self.db.put::<CommitmentStatusByIndex>(&index, &status)
+    fn set_unproven_commitment_status(&self, index: u32, status: UnprovenCommitmentStatus) -> anyhow::Result<()> {
+        self.db.put::<UnprovenCommitmentStatusByIndex>(&index, &status)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_commitment_status(&self, index: u32) -> anyhow::Result<Option<CommitmentStatus>> {
-        self.db.get::<CommitmentStatusByIndex>(&index)
+    fn get_unproven_commitments(&self, filter_status: UnprovenCommitmentStatus) -> anyhow::Result<Vec<u32>> {
+        let mut iter = self.db.iter::<UnprovenCommitmentStatusByIndex>()?;
+        iter.seek_to_first();
+
+        let mut commitment_indices = vec![];
+        for el in iter {
+            let (index, status) = el?.into_tuple();
+            if status == filter_status {
+                commitment_indices.push(index);
+            }
+        }
+
+        Ok(commitment_indices)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn delete_unproven_commitment(&self, index: u32) -> anyhow::Result<()> {
+        self.db.delete::<UnprovenCommitmentStatusByIndex>(&index)
     }
 }
 

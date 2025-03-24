@@ -12,7 +12,7 @@ use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{CommitmentStatus, L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber, UnprovenCommitmentStatus};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
@@ -179,11 +179,14 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Clears all pending proving sessions
     fn clear_pending_proving_sessions(&self) -> Result<()>;
 
-    /// Set status of the commitment by index
-    fn set_commitment_status(&self, index: u32, status: CommitmentStatus) -> Result<()>;
+    /// Set status of the unproven commitment by index
+    fn set_unproven_commitment_status(&self, index: u32, status: UnprovenCommitmentStatus) -> Result<()>;
 
-    /// Get status of the commitment by index
-    fn get_commitment_status(&self, index: u32) -> anyhow::Result<Option<CommitmentStatus>>;
+    /// Get indices of unproven commitments with status
+    fn get_unproven_commitments(&self, filter_status: UnprovenCommitmentStatus) -> anyhow::Result<Vec<u32>>;
+
+    /// Delete unproven commitment by index
+    fn delete_unproven_commitment(&self, index: u32) -> Result<()>;
 }
 
 /// Light client prover ledger operations
