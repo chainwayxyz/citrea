@@ -14,7 +14,7 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::metrics::BATCH_PROVER_METRICS;
 
@@ -129,9 +129,27 @@ where
 
             // Store commitments by index
             for commitment in sequencer_commitments.iter() {
-                self.ledger_db
-                    .put_commitment_by_index(commitment)
-                    .expect("Should store commitment");
+                let index = commitment.index;
+
+                match self.ledger_db.get_commitment_by_index(index)? {
+                    Some(db_commitment) => {
+                        warn!("Got commitment index {} that was already in db", index);
+                        // Sanity check
+                        assert_eq!(
+                            commitment.l2_end_block_number, db_commitment.l2_end_block_number,
+                            "Found duplicate commitment with different l2 block numbers"
+                        );
+                        assert_eq!(
+                            commitment.merkle_root, db_commitment.merkle_root,
+                            "Found duplicate commitment with different merkle roots"
+                        );
+                    }
+                    None => {
+                        self.ledger_db
+                            .put_commitment_by_index(commitment)
+                            .expect("Should store commitment");
+                    }
+                }
             }
 
             // Set last scanned l1 height
