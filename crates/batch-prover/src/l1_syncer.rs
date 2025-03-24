@@ -134,7 +134,7 @@ where
                 match self.ledger_db.get_commitment_by_index(index)? {
                     Some(db_commitment) => {
                         warn!("Got commitment index {} that was already in db", index);
-                        // Sanity check
+                        // Sanity checks
                         assert_eq!(
                             commitment.l2_end_block_number, db_commitment.l2_end_block_number,
                             "Found duplicate commitment with different l2 block numbers"
