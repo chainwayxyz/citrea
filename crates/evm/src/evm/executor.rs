@@ -42,13 +42,7 @@ where
         tx: &TransactionSignedEcRecovered,
     ) -> Result<ResultAndState, EVMError<DB::Error>> {
         self.evm.context.external.set_current_tx_hash(tx.hash());
-        *self.evm.tx_mut() = {
-            let env = create_tx_env(tx);
-
-            println!("env: {:?}", env);
-
-            env
-        };
+        *self.evm.tx_mut() = create_tx_env(tx);
         self.evm.transact()
     }
 
@@ -111,10 +105,6 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             return Err(L2BlockModuleCallError::EvmTxTypeNotSupported(
                 "EIP-4844".to_string(),
             ));
-        }
-
-        if tx.is_eip7702() {
-            println!("EIP-7702 transaction incoming");
         }
 
         let result_and_state = evm.transact(tx).map_err(|e| {

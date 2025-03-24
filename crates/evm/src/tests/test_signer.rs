@@ -174,8 +174,6 @@ impl TestSigner {
             nonce,
         };
 
-        println!("Authorization: {:?}", authorization);
-
         self.signer.sign_authorization(authorization, self.address)
     }
 

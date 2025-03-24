@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use alloy_eips::eip7702::SignedAuthorization;

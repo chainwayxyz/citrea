@@ -1391,12 +1391,14 @@ fn test_eip7702_tx() {
     l2_height += 1;
 
     assert_eq!(
-        evm.get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
+        evm.receipts
+            .iter(&mut working_set.accessory_state())
+            .last()
             .unwrap()
-            .unwrap()
+            .receipt
+            .logs
             .len(),
-        // TODO: directly assert the receipt
-        1
+        2
     );
 
     let signer1_account_info_post_tx = evm
@@ -1458,15 +1460,17 @@ fn test_eip7702_tx() {
     l2_height += 1;
 
     assert_eq!(
-        evm.get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
+        evm.receipts
+            .iter(&mut working_set.accessory_state())
+            .last()
             .unwrap()
-            .unwrap()
+            .receipt
+            .logs
             .len(),
-        // TODO: directly assert the receipt
-        1
+        2
     );
 
-    // signer1 delegates to log contract
+    // signer1 delegates to simple storage contract
     let auth = signer1
         .get_signed_authorization(set_arg_contract_address, 3)
         .unwrap();
@@ -1571,6 +1575,65 @@ fn test_eip7702_tx() {
             .unwrap()
     );
 
-    // TODO: try broken auth
-    // TODO: try bad nocne for auth
+    // signer1 delegates to log contract with wrong nonce
+    let auth = signer1
+        .get_signed_authorization(log_contract_address, 1)
+        .unwrap();
+
+    // signer2 executes the transaction
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![signer2
+            .sign_eip7702_transaction(
+                Address::ZERO,
+                LogsContract::default().publish_event("helo".to_string()),
+                4,
+                vec![auth],
+            )
+            .unwrap()];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // since nonce was wrong we should see no change
+    assert_eq!(
+        evm.offchain_code.get(
+            &signer1_account_info_post_tx.code_hash.unwrap(),
+            &mut working_set.offchain_state()
+        ),
+        Some(revm::primitives::Bytecode::Eip7702(Eip7702Bytecode {
+            delegated_address: set_arg_contract_address,
+            version: 0,
+            raw: [
+                Bytes::from_hex("0xef0100").unwrap(),
+                Bytes::from(set_arg_contract_address.to_vec())
+            ]
+            .concat()
+            .into()
+        }))
+    );
+
+    assert_eq!(signer1_account_info_post_tx.nonce, 4);
 }
