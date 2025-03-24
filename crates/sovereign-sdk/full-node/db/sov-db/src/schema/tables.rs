@@ -22,8 +22,8 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, UnprovenCommitmentStatus, DbHash, JmtValue, L2BlockNumber,
-    L2HeightRange, SlotNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2BlockNumber, L2HeightRange, SlotNumber,
+    StateKey, UnprovenCommitmentStatus,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning

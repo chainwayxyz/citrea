@@ -180,10 +180,17 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn clear_pending_proving_sessions(&self) -> Result<()>;
 
     /// Set status of the unproven commitment by index
-    fn set_unproven_commitment_status(&self, index: u32, status: UnprovenCommitmentStatus) -> Result<()>;
+    fn set_unproven_commitment_status(
+        &self,
+        index: u32,
+        status: UnprovenCommitmentStatus,
+    ) -> Result<()>;
 
     /// Get indices of unproven commitments with status
-    fn get_unproven_commitments(&self, filter_status: UnprovenCommitmentStatus) -> anyhow::Result<Vec<u32>>;
+    fn get_unproven_commitments(
+        &self,
+        filter_status: UnprovenCommitmentStatus,
+    ) -> anyhow::Result<Vec<u32>>;
 
     /// Delete unproven commitment by index
     fn delete_unproven_commitment(&self, index: u32) -> Result<()>;

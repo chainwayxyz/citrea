@@ -153,7 +153,10 @@ where
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
                         self.ledger_db
-                            .set_unproven_commitment_status(index, UnprovenCommitmentStatus::Pending)
+                            .set_unproven_commitment_status(
+                                index,
+                                UnprovenCommitmentStatus::Pending,
+                            )
                             .expect("Should set commitment status to pending");
                     }
                 }

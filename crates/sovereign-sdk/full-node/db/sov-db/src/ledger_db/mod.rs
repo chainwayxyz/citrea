@@ -14,7 +14,12 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, UnprovenCommitmentStatusByIndex, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
+    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
+    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, UnprovenCommitmentStatusByIndex,
+    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -556,12 +561,20 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn set_unproven_commitment_status(&self, index: u32, status: UnprovenCommitmentStatus) -> anyhow::Result<()> {
-        self.db.put::<UnprovenCommitmentStatusByIndex>(&index, &status)
+    fn set_unproven_commitment_status(
+        &self,
+        index: u32,
+        status: UnprovenCommitmentStatus,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<UnprovenCommitmentStatusByIndex>(&index, &status)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_unproven_commitments(&self, filter_status: UnprovenCommitmentStatus) -> anyhow::Result<Vec<u32>> {
+    fn get_unproven_commitments(
+        &self,
+        filter_status: UnprovenCommitmentStatus,
+    ) -> anyhow::Result<Vec<u32>> {
         let mut iter = self.db.iter::<UnprovenCommitmentStatusByIndex>()?;
         iter.seek_to_first();
 
