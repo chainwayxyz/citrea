@@ -60,6 +60,7 @@ pub fn main() {
     let guest = SP1Guest::new();
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
+    let forks = get_forks();
 
     let mut stf_verifier: StateTransitionVerifier<
         ZkDefaultContext,
@@ -71,7 +72,7 @@ pub fn main() {
         &guest,
         storage,
         &SEQUENCER_PUBLIC_KEY,
-        FORKS,
+        forks,
     );
 
     guest.commit(&out);
