@@ -14,12 +14,7 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L1BlockHashByCommitmentIndex,
-    L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height,
-    LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    CommitmentMerkleRoots, CommitmentStatusByIndex, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -28,7 +23,7 @@ use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{CommitmentStatus, L2BlockNumber, L2HeightRange, SlotNumber};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -561,13 +556,13 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn set_commitment_l1_hash(&self, index: u32, l1_hash: &[u8; 32]) -> anyhow::Result<()> {
-        self.db.put::<L1BlockHashByCommitmentIndex>(&index, l1_hash)
+    fn set_commitment_status(&self, index: u32, status: CommitmentStatus) -> anyhow::Result<()> {
+        self.db.put::<CommitmentStatusByIndex>(&index, &status)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_commitment_l1_hash(&self, index: u32) -> anyhow::Result<Option<[u8; 32]>> {
-        self.db.get::<L1BlockHashByCommitmentIndex>(&index)
+    fn get_commitment_status(&self, index: u32) -> anyhow::Result<Option<CommitmentStatus>> {
+        self.db.get::<CommitmentStatusByIndex>(&index)
     }
 }
 
