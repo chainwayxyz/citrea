@@ -22,8 +22,7 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2BlockNumber, L2HeightRange, SlotNumber,
-    StateKey,
+    AccessoryKey, AccessoryStateValue, CommitmentStatus, DbHash, JmtValue, L2BlockNumber, L2HeightRange, SlotNumber, StateKey
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -351,6 +350,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// L1 block has by commitment index
     (L1BlockHashByCommitmentIndex) u32 => DbHash
+);
+
+define_table_with_default_codec!(
+    /// L1 block has by commitment index
+    (CommitmentStatusByIndex) u32 => CommitmentStatus
 );
 
 define_table_with_default_codec!(
