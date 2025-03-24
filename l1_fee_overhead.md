@@ -17,6 +17,13 @@ f90207f901fda070e6b35a8f667038d4eec0ac240c44902a34350e75f9645fffae275e29e4a265a0
 
 44 * 256 = 11264 bytes in a batch
 
+### account amount
+```452f6e2f``` = 4 bytes
+
+```1700000000000000``` = 8 bytes
+
+4 + 8 = 12 bytes
+
 ## L2 Block Rule Enforcer
 ### data
 ```4c2f646174612f``` = 7 bytes
@@ -30,14 +37,6 @@ f90207f901fda070e6b35a8f667038d4eec0ac240c44902a34350e75f9645fffae275e29e4a265a0
 ```b0066359d64f97eb279947feeb083a96343d5f5a0a2c9cf82842f6f4749ff5340100000000000000``` = 40 bytes
 
 37 + 40 = 77 bytes
-
-## account amount
-```452f6e2f``` = 4 bytes
-
-```1700000000000000``` = 8 bytes
-
-4 + 8 = 12 bytes
-
 
 ## Bitcoin
 ### Sequencer Commitment
@@ -68,10 +67,10 @@ Full Snark Receipt except for journal is 408 bytes
 
 1761+408 = 2169
 
-
-650 + 39 + 18432 + 82 + 93 + 2169 = 21465
+## Sum
+526 + 11264 + 12 + 55 + 77 + 2169 = 14103
 
 ethereum 10 min batch avg number of txs = 7439.137755
 
-`21465/7439.137755 = 2.8854150`
+`14103/7439.137755 = 1.8957842`
 
