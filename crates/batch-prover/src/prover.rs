@@ -1,3 +1,5 @@
+use std::slice;
+
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::UnprovenCommitmentStatus;
 use sov_rollup_interface::da::SequencerCommitment;
@@ -88,7 +90,8 @@ where
                 + 1
         };
 
-        let partitioned_commitments = self.partition_commitments(&commitments, PartitionMode::Normal)?;
+        let partitioned_commitments =
+            self.partition_commitments(&commitments, PartitionMode::Normal)?;
 
         Ok(())
     }
@@ -147,11 +150,18 @@ where
         Ok(commitments)
     }
 
-    fn partition_commitments(
+    fn partition_commitments<'a>(
         &self,
-        commitments: &[SequencerCommitment],
+        commitments: &'a [SequencerCommitment],
         mode: PartitionMode,
-    ) -> anyhow::Result<Vec<&[SequencerCommitment]>> {
+    ) -> anyhow::Result<Vec<&'a [SequencerCommitment]>> {
+        if mode == PartitionMode::OneByOne {
+            return Ok(commitments
+                .iter()
+                .map(|comm| slice::from_ref(comm))
+                .collect());
+        }
+
         todo!()
     }
 }
