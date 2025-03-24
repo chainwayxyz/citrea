@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use alloy::hex::FromHex;
 use alloy_eips::BlockId;
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
@@ -7,7 +8,7 @@ use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use rand::thread_rng;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
-use revm::primitives::{KECCAK_EMPTY, U256};
+use revm::primitives::{Eip7702Bytecode, KECCAK_EMPTY, U256};
 use revm::Database;
 use secp256k1::SecretKey;
 use sov_modules_api::default_context::DefaultContext;
@@ -1339,15 +1340,15 @@ fn test_eip7702_tx() {
 
     l2_height += 1;
 
-    let account_info_pre_delegate = evm
+    let signer1_account_info_pre_delegate = evm
         .account_info(&signer1.address(), &mut working_set)
         .unwrap();
 
-    assert_eq!(account_info_pre_delegate.nonce, 2);
+    assert_eq!(signer1_account_info_pre_delegate.nonce, 2);
 
     // signer1 delegates to log contract
     let auth = signer1
-        .get_signed_authorization(log_contract_address, 5)
+        .get_signed_authorization(log_contract_address, 2)
         .unwrap();
 
     // signer2 executes the transaction
@@ -1389,11 +1390,72 @@ fn test_eip7702_tx() {
 
     l2_height += 1;
 
-    let signer1_account_info = evm
+    assert_eq!(
+        evm.get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
+            .unwrap()
+            .unwrap()
+            .len(),
+        // TODO: directly assert the receipt
+        1
+    );
+
+    let signer1_account_info_post_tx = evm
         .account_info(&signer1.address(), &mut working_set)
         .unwrap();
 
-    assert_eq!(signer1_account_info.nonce, 2);
+    assert_eq!(signer1_account_info_post_tx.nonce, 3);
+
+    assert_eq!(
+        signer1_account_info_post_tx.balance,
+        signer1_account_info_pre_delegate.balance,
+    );
+
+    assert_eq!(
+        evm.offchain_code.get(
+            &signer1_account_info_post_tx.code_hash.unwrap(),
+            &mut working_set.offchain_state()
+        ),
+        Some(revm::primitives::Bytecode::Eip7702(Eip7702Bytecode {
+            delegated_address: log_contract_address,
+            version: 0,
+            raw: [
+                Bytes::from_hex("0xef0100").unwrap(),
+                Bytes::from(log_contract_address.to_vec())
+            ]
+            .concat()
+            .into()
+        }))
+    );
+
+    // now let's see if we can call signer1 like it's log contract again
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![signer2
+            .sign_default_transaction(
+                TxKind::Call(signer1.address()),
+                LogsContract::default().publish_event("helo".to_string()),
+                1,
+                0,
+            )
+            .unwrap()];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_height += 1;
 
     assert_eq!(
         evm.get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
@@ -1403,10 +1465,111 @@ fn test_eip7702_tx() {
         // TODO: directly assert the receipt
         1
     );
-    // TODO: make balance assertion before / after the transaction
 
-    // TODO: authorize simple storage contract
+    // signer1 delegates to log contract
+    let auth = signer1
+        .get_signed_authorization(set_arg_contract_address, 3)
+        .unwrap();
+
+    // signer2 executes the transaction
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![
+            signer2
+                .sign_eip7702_transaction(
+                    Address::ZERO,
+                    LogsContract::default().publish_event("helo".to_string()),
+                    2,
+                    vec![auth],
+                )
+                .unwrap(),
+            signer2
+                .sign_default_transaction(
+                    TxKind::Call(signer1.address()),
+                    SimpleStorageContract::default().set_call_data(100),
+                    3,
+                    0,
+                )
+                .unwrap(),
+        ];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_height += 1;
+
+    let signer1_account_info_post_tx = evm
+        .account_info(&signer1.address(), &mut working_set)
+        .unwrap();
+
+    assert_eq!(signer1_account_info_post_tx.nonce, 4);
+
+    assert_eq!(
+        signer1_account_info_post_tx.balance,
+        signer1_account_info_pre_delegate.balance,
+    );
+
+    assert_eq!(
+        evm.offchain_code.get(
+            &signer1_account_info_post_tx.code_hash.unwrap(),
+            &mut working_set.offchain_state()
+        ),
+        Some(revm::primitives::Bytecode::Eip7702(Eip7702Bytecode {
+            delegated_address: set_arg_contract_address,
+            version: 0,
+            raw: [
+                Bytes::from_hex("0xef0100").unwrap(),
+                Bytes::from(set_arg_contract_address.to_vec())
+            ]
+            .concat()
+            .into()
+        }))
+    );
     // and assert storage change
+    assert_eq!(
+        evm.storage_get(&signer1.address(), &U256::ZERO, &mut working_set)
+            .unwrap_or_default(),
+        U256::from(100)
+    );
+    // let's try the same thing with eth_call
+    assert_eq!(
+        evm.get_call(
+            TransactionRequest::default()
+                .to(signer1.address())
+                .input(TransactionInput::from(
+                    SimpleStorageContract::default().get_call_data()
+                )),
+            None,
+            None,
+            None,
+            &mut working_set
+        )
+        .unwrap(),
+        Bytes::from_str("0x0000000000000000000000000000000000000000000000000000000000000064")
+            .unwrap()
+    );
 
     // TODO: try broken auth
     // TODO: try bad nocne for auth
