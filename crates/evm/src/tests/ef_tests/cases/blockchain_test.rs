@@ -244,12 +244,12 @@ impl Case for BlockchainTestCase {
                             }
                         }
                     }
-                    (None, Some(expected_state_root)) => {
-                        // Insert state hashes into the provider based on the expected state root.
-                        assert_eq!(
-                            *evm.head.get(&mut working_set).unwrap().header.state_root,
-                            **expected_state_root
-                        );
+                    (None, Some(_expected_state_root)) => {
+                        // This kind of tests wont work for us, as we are not using the same tree as Ethereum
+                        // assert_eq!(
+                        //     *evm.head.get(&mut working_set).unwrap().header.state_root,
+                        //     **expected_state_root
+                        // );
                     }
                     _ => return Err(Error::MissingPostState),
                 }

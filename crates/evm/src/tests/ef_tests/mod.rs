@@ -1,3 +1,5 @@
+// TODO: reference reth here
+
 //! Abstractions and runners for EF tests.
 
 #![allow(invalid_doc_attributes)]
@@ -45,6 +47,9 @@ mod general_state_tests {
     general_state_test!(st_chain_id, stChainId);
     general_state_test!(st_code_copy_test, stCodeCopyTest);
     general_state_test!(st_code_size_limit, stCodeSizeLimit);
+    // TODO: add more missing
+    general_state_test!(st_create2, stCreate2);
+    general_state_test!(st_create, stCreateTest);
     general_state_test!(st_delegate_call_test_homestead, stDelegatecallTestHomestead);
     general_state_test!(st_homestead, stHomesteadSpecific);
     general_state_test!(st_log, stLogTests);
