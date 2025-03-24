@@ -1,16 +1,25 @@
+use sov_db::ledger_db::BatchProverLedgerOps;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-pub struct Prover {
+pub struct Prover<DB>
+where 
+    DB: BatchProverLedgerOps,
+{
+    ledger_db: DB,
     l1_signal_rx: mpsc::Receiver<()>,
     l2_block_rx: broadcast::Receiver<u64>,
 }
 
-impl Prover {
-    pub fn new(l1_signal_rx: mpsc::Receiver<()>, l2_block_rx: broadcast::Receiver<u64>) -> Self {
+impl<DB> Prover<DB>
+where 
+    DB: BatchProverLedgerOps,
+{
+    pub fn new(ledger_db: DB, l1_signal_rx: mpsc::Receiver<()>, l2_block_rx: broadcast::Receiver<u64>) -> Self {
         Self {
+            ledger_db,
             l1_signal_rx,
             l2_block_rx,
         }
