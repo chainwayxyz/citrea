@@ -1,15 +1,12 @@
-use std::cmp::min;
 use std::sync::Arc;
 
 use alloy_primitives::U64;
 use async_trait::async_trait;
-use bitcoin_da::rpc::DaRpcClient;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_common::tasks::manager::{TaskManager, TaskType};
-use citrea_e2e::bitcoin::BitcoinNode;
-use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -17,12 +14,11 @@ use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_primitives::REVEAL_TX_PREFIX;
-use sov_db::schema::types::L2BlockNumber;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 
-use super::get_citrea_path;
+use super::{get_citrea_cli_path, get_citrea_path};
 
 struct FullNodeRestartTest;
 
@@ -111,28 +107,31 @@ impl TestCase for L2StatusTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
+        let full_node_http_client = full_node.client.http_client().clone();
 
         let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        let initial_committed_height = full_node
-            .client
-            .http_client()
-            .get_last_committed_l2_height()
-            .await?;
+        let initial_committed_height = full_node_http_client.get_last_committed_l2_height().await?;
         assert_eq!(initial_committed_height, None);
 
-        let initial_proven_height = full_node
-            .client
-            .http_client()
-            .get_last_proven_l2_height()
-            .await?;
+        let initial_proven_height = full_node_http_client.get_last_proven_l2_height().await?;
         assert_eq!(initial_proven_height, None);
+
+        let initial_heights_by_l1 = full_node_http_client
+            .get_l2_status_heights_by_l1_height(0)
+            .await?;
+        assert_eq!(initial_heights_by_l1.committed, 0);
+        assert_eq!(initial_heights_by_l1.proven, 0);
 
         for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -147,9 +146,7 @@ impl TestCase for L2StatusTest {
             .wait_for_l1_height(commitment_l1_height, None)
             .await?;
 
-        let committed_height = full_node
-            .client
-            .http_client()
+        let committed_height = full_node_http_client
             .get_last_committed_l2_height()
             .await?
             .unwrap();
@@ -157,13 +154,18 @@ impl TestCase for L2StatusTest {
         assert_eq!(committed_height.height, min_l2_blocks_per_commitment);
         assert_eq!(committed_height.commitment_index, 0);
 
-        let proven_height = full_node
-            .client
-            .http_client()
-            .get_last_proven_l2_height()
-            .await?;
+        let proven_height = full_node_http_client.get_last_proven_l2_height().await?;
 
         assert!(proven_height.is_none());
+
+        let status_at_commitment_l1_height = full_node_http_client
+            .get_l2_status_heights_by_l1_height(commitment_l1_height)
+            .await?;
+        assert_eq!(
+            status_at_commitment_l1_height.committed,
+            min_l2_blocks_per_commitment
+        );
+        assert_eq!(status_at_commitment_l1_height.proven, 0);
 
         batch_prover
             .wait_for_l1_height(commitment_l1_height, None)
@@ -179,9 +181,7 @@ impl TestCase for L2StatusTest {
             .await?;
 
         // Check that the proof was properly stored
-        let proven_height = full_node
-            .client
-            .http_client()
+        let proven_height = full_node_http_client
             .get_last_proven_l2_height()
             .await?
             .unwrap();
@@ -191,6 +191,20 @@ impl TestCase for L2StatusTest {
         assert_eq!(
             proven_height.commitment_index,
             committed_height.commitment_index
+        );
+
+        let status_at_proof_l1_height = full_node
+            .client
+            .http_client()
+            .get_l2_status_heights_by_l1_height(batch_proof_l1_height)
+            .await?;
+        assert_eq!(
+            status_at_proof_l1_height.committed,
+            min_l2_blocks_per_commitment
+        );
+        assert_eq!(
+            status_at_proof_l1_height.proven,
+            min_l2_blocks_per_commitment
         );
 
         for _ in 0..min_l2_blocks_per_commitment {
@@ -206,9 +220,7 @@ impl TestCase for L2StatusTest {
             .wait_for_l1_height(second_commitment_l1_height, None)
             .await?;
 
-        let committed_height2 = full_node
-            .client
-            .http_client()
+        let committed_height2 = full_node_http_client
             .get_last_committed_l2_height()
             .await?
             .unwrap();
@@ -217,15 +229,23 @@ impl TestCase for L2StatusTest {
         assert_eq!(committed_height2.commitment_index, 1);
 
         // Proven height should still be at the first commitment
-        let proven_height2 = full_node
-            .client
-            .http_client()
+        let proven_height2 = full_node_http_client
             .get_last_proven_l2_height()
             .await?
             .unwrap();
 
         assert_eq!(proven_height2.height, min_l2_blocks_per_commitment);
         assert_eq!(proven_height2.commitment_index, 0);
+
+        // Try a future non-existent L1 height
+        let future_l1_height = second_commitment_l1_height + 1_000;
+        let status = full_node
+            .client
+            .http_client()
+            .get_l2_status_heights_by_l1_height(future_l1_height)
+            .await?;
+        assert_eq!(status.committed, min_l2_blocks_per_commitment * 2);
+        assert_eq!(status.proven, min_l2_blocks_per_commitment);
 
         full_node.wait_until_stopped().await?;
 
@@ -250,21 +270,21 @@ impl TestCase for L2StatusTest {
 
         full_node.start(None, None).await?;
 
-        let proven_height = full_node
-            .client
-            .http_client()
-            .get_last_proven_l2_height()
-            .await?;
+        let proven_height = full_node_http_client.get_last_proven_l2_height().await?;
 
         assert!(proven_height.is_none());
 
-        let committed_height = full_node
-            .client
-            .http_client()
-            .get_last_committed_l2_height()
-            .await?;
+        let committed_height = full_node_http_client.get_last_committed_l2_height().await?;
 
         assert!(committed_height.is_none());
+
+        let status_after_rollback = full_node
+            .client
+            .http_client()
+            .get_l2_status_heights_by_l1_height(0)
+            .await?;
+        assert_eq!(status_after_rollback.committed, 0);
+        assert_eq!(status_after_rollback.proven, 0);
 
         Ok(())
     }
@@ -274,6 +294,7 @@ impl TestCase for L2StatusTest {
 async fn test_l2_status_heights() -> Result<()> {
     TestCaseRunner::new(L2StatusTest)
         .set_citrea_path(get_citrea_path())
+        .set_citrea_cli_path(get_citrea_cli_path())
         .run()
         .await
 }
@@ -301,7 +322,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(146)
+        Some(150)
     }
 
     async fn cleanup(&self) -> Result<()> {

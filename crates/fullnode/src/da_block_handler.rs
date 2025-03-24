@@ -254,7 +254,7 @@ where
 
         let committed_height = self
             .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Committed)?
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
             .unwrap_or_default();
 
         // Only proceed if the commitment height and index are higher than the stored one
@@ -379,7 +379,7 @@ where
 
         let proven_height = self
             .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Proven)?
+            .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)?
             .unwrap_or_default();
 
         let end_l2_height = batch_proof_output.last_l2_height();
@@ -399,7 +399,7 @@ where
 
         let committed_height = self
             .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Committed)?
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
             .unwrap_or_default();
 
         if proven_height > committed_height {

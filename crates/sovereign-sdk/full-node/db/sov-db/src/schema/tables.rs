@@ -93,12 +93,12 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     VerifiedBatchProofsBySlotNumber::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    L2StatusHeights::table_name(),
+    PendingSequencerCommitments::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
     TestTableNew::table_name(),
-    L2StatusHeights::table_name(),
-    PendingSequencerCommitments::table_name(),
 ];
 
 /// A list of all tables used by BatchProver LedgerDB
@@ -168,6 +168,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    L2StatusHeights::table_name(),
+    PendingSequencerCommitments::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]

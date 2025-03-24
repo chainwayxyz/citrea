@@ -160,9 +160,17 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     fn get_highest_l2_height_for_status(
         &self,
         status: L2HeightStatus,
+        height: Option<u64>,
     ) -> Result<Option<L2HeightAndIndex>>;
+
     /// Set L2 height by status
     fn set_l2_height_status(&self, status: L2HeightStatus, height: L2HeightAndIndex) -> Result<()>;
+
+    /// Get highest committed and proven L2 heights up to a specific L1 height
+    fn get_l2_status_heights_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)>;
 
     /// Store an out of order commitment for later processing
     fn store_pending_commitment(&self, commitment: SequencerCommitment) -> Result<()>;

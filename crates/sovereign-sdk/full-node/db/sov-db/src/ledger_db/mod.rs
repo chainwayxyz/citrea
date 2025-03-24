@@ -747,11 +747,12 @@ impl NodeLedgerOps for LedgerDB {
     fn get_highest_l2_height_for_status(
         &self,
         status: L2HeightStatus,
+        height: Option<u64>,
     ) -> anyhow::Result<Option<L2HeightAndIndex>> {
         let mut iter = self
             .db
             .iter_with_direction::<L2StatusHeights>(Default::default(), ScanDirection::Backward)?;
-        iter.seek_for_prev(&(status, u64::MAX))?;
+        iter.seek_for_prev(&(status, height.unwrap_or(u64::MAX)))?;
 
         match iter.next() {
             Some(Ok(item)) if item.key.0 == status => {
@@ -809,6 +810,18 @@ impl NodeLedgerOps for LedgerDB {
         schema_batch.delete::<PendingSequencerCommitments>(&index)?;
         self.db.write_schemas(schema_batch)?;
         Ok(())
+    }
+
+    fn get_l2_status_heights_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)> {
+        let committed_height =
+            self.get_highest_l2_height_for_status(L2HeightStatus::Committed, Some(l1_height))?;
+        let proven_height =
+            self.get_highest_l2_height_for_status(L2HeightStatus::Proven, Some(l1_height))?;
+
+        Ok((committed_height, proven_height))
     }
 }
 

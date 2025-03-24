@@ -38,6 +38,7 @@ metrics = { workspace = true }
 metrics-derive = { workspace = true }
 once_cell = { workspace = true, default-features = true }
 rs_merkle = { workspace = true }
+serde = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
