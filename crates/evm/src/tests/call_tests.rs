@@ -1400,6 +1400,14 @@ fn test_eip7702_tx() {
             .unwrap()
             .unwrap()
             .len(),
+        // TODO: directly assert the receipt
         1
     );
+    // TODO: make balance assertion before / after the transaction
+
+    // TODO: authorize simple storage contract
+    // and assert storage change
+
+    // TODO: try broken auth
+    // TODO: try bad nocne for auth
 }

@@ -449,6 +449,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
     }
 }
 
+// TODO: check if anything needs to be udpated regarding authorization lists
 /// Calculates the diff of the modified state.
 #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
 fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(

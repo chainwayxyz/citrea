@@ -755,3 +755,7 @@ fn test_call_with_block_overrides() {
     let expected_hash = Bytes::from_iter([2; 32]);
     assert_eq!(call_result, expected_hash);
 }
+
+// TODO: add eth_call with authorization list
+
+// TODO: add eth_estimateGas with authorization list
