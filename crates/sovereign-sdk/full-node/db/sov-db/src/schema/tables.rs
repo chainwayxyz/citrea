@@ -119,6 +119,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    L1BlockHashByCommitmentIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -166,6 +167,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    L1BlockHashByCommitmentIndex::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -344,6 +346,11 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// The primary source for l2 block data
     (L2BlockByNumber) L2BlockNumber => StoredL2Block
+);
+
+define_table_with_default_codec!(
+    /// L1 block has by commitment index
+    (L1BlockHashByCommitmentIndex) u32 => DbHash
 );
 
 define_table_with_default_codec!(

@@ -178,6 +178,12 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Clears all pending proving sessions
     fn clear_pending_proving_sessions(&self) -> Result<()>;
+
+    /// Sets l1 hash of the commitment index
+    fn set_commitment_l1_hash(&self, index: u32, l1_hash: &[u8; 32]) -> Result<()>;
+
+    /// Gets l1 hash of the commitment index
+    fn get_commitment_l1_hash(&self, index: u32) -> anyhow::Result<Option<[u8; 32]>>;
 }
 
 /// Light client prover ledger operations

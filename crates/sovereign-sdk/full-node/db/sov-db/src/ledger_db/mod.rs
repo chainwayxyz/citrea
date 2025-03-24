@@ -14,11 +14,7 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
-    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L1BlockHashByCommitmentIndex, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -557,6 +553,16 @@ impl BatchProverLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn set_commitment_l1_hash(&self, index: u32, l1_hash: &[u8; 32]) -> anyhow::Result<()> {
+        self.db.put::<L1BlockHashByCommitmentIndex>(&index, l1_hash)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_commitment_l1_hash(&self, index: u32) -> anyhow::Result<Option<[u8; 32]>> {
+        self.db.get::<L1BlockHashByCommitmentIndex>(&index)
     }
 }
 
