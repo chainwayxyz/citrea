@@ -129,7 +129,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 23
+                l1_diff_size: 32
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -140,7 +140,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 19
+                l1_diff_size: 26
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -151,7 +151,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 19
+                l1_diff_size: 26
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -162,7 +162,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 19
+                l1_diff_size: 26
             }
         ]
     );
@@ -237,7 +237,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 23
+                l1_diff_size: 32
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -248,7 +248,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 19
+                l1_diff_size: 26
             }
         ]
     );

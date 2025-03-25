@@ -102,7 +102,7 @@ fn test_tx_request_fields_gas_fork1() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x4"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x7"}])
             .unwrap()
     );
 
@@ -119,7 +119,7 @@ fn test_tx_request_fields_gas_fork1() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x4"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x7"}])
             .unwrap()
     );
 
