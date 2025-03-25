@@ -224,7 +224,7 @@ pub(crate) fn create_txn_env(
         transact_to: to.unwrap_or_default(),
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
-        access_list: access_list.unwrap_or_default().to_vec(),
+        access_list: access_list.unwrap_or_default().0,
         authorization_list: authorization_list.map(revm::primitives::AuthorizationList::Signed),
 
         // EIP-4844 related fields
