@@ -230,9 +230,7 @@ where
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
-                if i == 0 {
-                    panic!("Got single commitment bigger than txbody limit");
-                }
+                assert_ne!(i, 0, "Got single commitment bigger than txbody limit");
 
                 cumulative_state_diff = commitment_state_diff;
                 partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or(0)..i]);
