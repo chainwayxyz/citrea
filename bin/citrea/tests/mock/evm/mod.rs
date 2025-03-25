@@ -4,11 +4,12 @@ use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
 use alloy::hex::FromHex;
+use alloy::network::{TransactionBuilder, TransactionBuilder7702};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_rpc_types::{Authorization, EIP1186AccountProofResponse};
+use alloy_rpc_types::{Authorization, EIP1186AccountProofResponse, TransactionRequest};
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_evm::system_contracts::BitcoinLightClient;
@@ -912,7 +913,13 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     let signed_authorization = authorization.into_signed(signature);
 
     let _set_code_tx = test_client
-        .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_authorization])
+        .send_eip7702_transaction(
+            Address::ZERO,
+            vec![],
+            None,
+            vec![signed_authorization],
+            None,
+        )
         .await
         .unwrap();
 
@@ -1007,6 +1014,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                 // and the assert's below can be fixed
                 vec![signed_auth_wrong_nonce.clone(), signed_auth_wrong_nonce],
                 // vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
+                None,
             )
             .await
             .unwrap();
@@ -1029,6 +1037,98 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         //         .unwrap(),
         //     Bytes::new()
         // );
+    }
+
+    // combine access list with eip7702 tx
+    {
+        // random signer for authorization list
+        let new_signer = PrivateKeySigner::random();
+
+        let authorization = Authorization {
+            chain_id: U256::ZERO, // let's also show chain id 0 works
+            address: contract_address,
+            nonce: 0,
+        };
+
+        let signature = new_signer.sign_hash_sync(&authorization.signature_hash())?;
+        let signed_authorization = authorization.into_signed(signature);
+
+        let gas = test_client
+            .eth_estimate_diff_size(
+                TransactionRequest::default()
+                    .from(test_client.from_addr)
+                    .to(new_signer.address())
+                    .input(SimpleStorageContract::default().set_call_data(100).into())
+                    .with_authorization_list(vec![signed_authorization.clone()]),
+            )
+            .await
+            .unwrap();
+
+        let gas_es = test_client
+            .eth_estimate_gas(
+                TransactionRequest::default()
+                    .from(test_client.from_addr)
+                    .to(new_signer.address())
+                    .input(SimpleStorageContract::default().set_call_data(100).into())
+                    .with_authorization_list(vec![signed_authorization.clone()]),
+            )
+            .await
+            .unwrap();
+
+        println!("gas_es: {}", gas_es.to::<u64>());
+
+        let access_list = test_client
+            .eth_create_access_list(
+                TransactionRequest::default()
+                    .from(test_client.from_addr)
+                    .to(new_signer.address())
+                    .input(SimpleStorageContract::default().set_call_data(100).into())
+                    .with_authorization_list(vec![signed_authorization.clone()]),
+            )
+            .await
+            .unwrap();
+
+        println!("access list: {:?}", access_list);
+
+        let gas2 = test_client
+            .eth_estimate_diff_size(
+                TransactionRequest::default()
+                    .from(test_client.from_addr)
+                    .to(new_signer.address())
+                    .input(SimpleStorageContract::default().set_call_data(100).into())
+                    .with_authorization_list(vec![signed_authorization.clone()])
+                    .with_access_list(access_list.access_list.clone()),
+            )
+            .await
+            .unwrap();
+
+        let set_code_tx = test_client
+            .send_eip7702_transaction(
+                new_signer.address(),
+                SimpleStorageContract::default().set_call_data(100),
+                None,
+                vec![signed_authorization],
+                Some(access_list.access_list),
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        let storage_value: U256 = test_client
+            .contract_call(new_signer.address(), contract.get_call_data(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(storage_value, U256::from(100));
+
+        let receipt = set_code_tx.get_receipt().await.unwrap();
+
+        println!("Gas used: {}", receipt.gas_used);
+        println!("Gas estimate: {}", gas.gas);
+
+        println!("Gas 2: {}", gas2.gas);
+        assert!(receipt.gas_used < gas.gas.to::<u128>());
     }
 
     rollup_task.abort();

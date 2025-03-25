@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use alloy::eips::eip2930::AccessListWithGasUsed;
 use alloy::network::TransactionBuilder7702;
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
@@ -11,12 +12,12 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::{AnyNetworkBlock, EIP1186AccountProofResponse};
+use alloy_rpc_types::{AccessList, AnyNetworkBlock, EIP1186AccountProofResponse};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use citrea_batch_prover::GroupCommitments;
-use citrea_evm::{Filter, LogResponse};
+use citrea_evm::{EstimatedDiffSize, Filter, LogResponse};
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -279,18 +280,23 @@ impl TestClient {
         data: Vec<u8>,
         nonce: Option<u64>,
         authorization_list: Vec<SignedAuthorization>,
+        access_list: Option<AccessList>,
     ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
 
-        let req = TransactionRequest::default()
+        let mut req = TransactionRequest::default()
             .from(self.from_addr)
             .to(to_addr)
             .input(data.into())
             .nonce(nonce)
             .with_authorization_list(authorization_list);
+
+        if let Some(access_list) = access_list {
+            req = req.access_list(access_list);
+        }
 
         let gas = self.client.estimate_gas(&req).await.unwrap();
 
@@ -534,6 +540,36 @@ impl TestClient {
     ) -> Result<EIP1186AccountProofResponse, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_getProof", rpc_params![address, keys, block_number])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn eth_create_access_list(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<AccessListWithGasUsed, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_createAccessList", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn eth_estimate_diff_size(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<EstimatedDiffSize, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_estimateDiffSize", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn eth_estimate_gas(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<U256, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_estimateGas", rpc_params![tx])
             .await
             .map_err(|e| e.into())
     }
