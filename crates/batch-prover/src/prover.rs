@@ -200,15 +200,16 @@ where
 
         let mut partitioned_commitments = Vec::new();
         let mut cumulative_state_diff = StateDiff::new();
-        let mut start_l2_height = start_l2_height;
+        let mut commitment_start_height = start_l2_height;
+        let mut partition_start_height = start_l2_height;
         let mut partition_start_idx = 0;
 
         for (i, commitment) in commitments.iter().enumerate() {
-            let end_l2_height = commitment.l2_end_block_number;
-            assert!(end_l2_height >= start_l2_height);
+            let commitment_end_height = commitment.l2_end_block_number;
+            assert!(commitment_end_height >= commitment_start_height);
 
             let mut commitment_state_diff = StateDiff::new();
-            for l2_height in start_l2_height..=end_l2_height {
+            for l2_height in commitment_start_height..=commitment_end_height {
                 let state_diff = self
                     .ledger_db
                     .get_l2_state_diff(L2BlockNumber(l2_height))?
@@ -219,8 +220,9 @@ where
             // check index gap
             if i != 0 && commitment.index != commitments[i - 1].index + 1 {
                 let partition = &commitments[partition_start_idx..i];
-                log_partition(partition, start_l2_height, "indexgap");
-                start_l2_height = end_l2_height + 1;
+                log_partition(partition, partition_start_height, "indexgap");
+                commitment_start_height = commitment_end_height + 1;
+                partition_start_height = commitment_start_height;
 
                 assert_state_diff_threshold(&commitment_state_diff);
                 partitioned_commitments.push(partition);
@@ -230,13 +232,14 @@ where
             }
 
             // check spec change
-            let current_spec = fork_from_block_number(commitment.l2_end_block_number);
+            let current_spec = fork_from_block_number(commitment_end_height);
             if i != 0
                 && current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number)
             {
                 let partition = &commitments[partition_start_idx..i];
-                log_partition(partition, start_l2_height, "specchange");
-                start_l2_height = end_l2_height + 1;
+                log_partition(partition, partition_start_height, "specchange");
+                commitment_start_height = commitment_end_height + 1;
+                partition_start_height = commitment_start_height;
 
                 assert_state_diff_threshold(&commitment_state_diff);
                 partitioned_commitments.push(partition);
@@ -255,8 +258,9 @@ where
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
                 let partition = &commitments[partition_start_idx..i];
-                log_partition(partition, start_l2_height, "statediff");
-                start_l2_height = end_l2_height + 1;
+                log_partition(partition, partition_start_height, "statediff");
+                commitment_start_height = commitment_end_height + 1;
+                partition_start_height = commitment_start_height;
 
                 assert_state_diff_threshold(&commitment_state_diff);
                 partitioned_commitments.push(partition);
@@ -265,12 +269,12 @@ where
                 continue;
             }
 
-            start_l2_height = end_l2_height + 1;
+            commitment_start_height = commitment_end_height + 1;
         }
 
         // Add all remaining commitments as last partition
         let partition = &commitments[partition_start_idx..];
-        log_partition(partition, start_l2_height, "end");
+        log_partition(partition, partition_start_height, "end");
         partitioned_commitments.push(partition);
 
         Ok(partitioned_commitments)
@@ -283,11 +287,13 @@ where
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
         let end_l2_height = partition.last().expect("Must have 1").l2_end_block_number;
 
-        let initial_state_root = self.ledger_db
+        let initial_state_root = self
+            .ledger_db
             .get_l2_state_root(start_l2_height - 1)
             .context("Failed to get initial state root")?
             .expect("Start l2 height must have state root");
-        let final_state_root = self.ledger_db
+        let final_state_root = self
+            .ledger_db
             .get_l2_state_root(end_l2_height)
             .context("Failed to get final state root")?
             .expect("End l2 height must have state root");
@@ -357,11 +363,15 @@ fn assert_state_diff_threshold(state_diff: &StateDiff) {
 }
 
 #[inline(always)]
-fn log_partition(partition: &[SequencerCommitment], start_l2_height: u64, reason: &str) {
+fn log_partition(partition: &[SequencerCommitment], partition_start_height: u64, reason: &str) {
     let first_comm = partition.first().expect("Must have 1 element");
     let last_comm = partition.last().expect("Must have 1 element");
     info!(
         "Commitment partition: indices=[{},{}] blocks=[{},{}] reason={}",
-        first_comm.index, last_comm.index, start_l2_height, last_comm.l2_end_block_number, reason
+        first_comm.index,
+        last_comm.index,
+        partition_start_height,
+        last_comm.l2_end_block_number,
+        reason
     );
 }
