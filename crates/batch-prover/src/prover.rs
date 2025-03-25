@@ -1,7 +1,12 @@
 use std::slice;
 
+use citrea_common::utils::merge_state_diffs;
+use citrea_primitives::compression::compress_blob;
+use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::MAX_TXBODY_SIZE;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::UnprovenCommitmentStatus;
+use sov_db::schema::types::{L2BlockNumber, UnprovenCommitmentStatus};
+use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::SequencerCommitment;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
@@ -77,7 +82,7 @@ where
             return Ok(());
         }
 
-        let start_block_number = if commitments[0].index == 0 {
+        let start_l2_height = if commitments[0].index == 0 {
             // If this is the first commitment ever, start from 1
             1
         } else {
@@ -91,7 +96,7 @@ where
         };
 
         let partitioned_commitments =
-            self.partition_commitments(&commitments, PartitionMode::Normal)?;
+            self.partition_commitments(&commitments, start_l2_height, PartitionMode::Normal)?;
 
         Ok(())
     }
@@ -110,6 +115,8 @@ where
                 .expect("Unproven commitment must exist by index");
             commitments.push(commitment);
         }
+
+        commitments.sort();
 
         Ok(commitments)
     }
@@ -150,19 +157,81 @@ where
         Ok(commitments)
     }
 
+    /// Partition the commitments into provable chunks. Here are the rules when partitioning in Normal mode:
+    /// 1. If there is an index gap in between commitments, group is formed, e.g. [1,2,4,6,7] -> [[1,2],[4],[6,7]]
+    /// 2. If ƒork has changed, group is formed
+    /// 3. If max state diff limit is surpassed, group is formed
     fn partition_commitments<'a>(
         &self,
         commitments: &'a [SequencerCommitment],
+        start_l2_height: u64,
         mode: PartitionMode,
     ) -> anyhow::Result<Vec<&'a [SequencerCommitment]>> {
         if mode == PartitionMode::OneByOne {
-            return Ok(commitments
-                .iter()
-                .map(|comm| slice::from_ref(comm))
-                .collect());
+            return Ok(commitments.iter().map(slice::from_ref).collect());
         }
 
-        todo!()
+        // normal partition mode
+
+        let mut partitioned_commitments = Vec::new();
+        let mut cumulative_state_diff = StateDiff::new();
+        let mut start_l2_height = start_l2_height;
+        let mut partition_start_idx = None;
+
+        for (i, commitment) in commitments.iter().enumerate() {
+            let end_l2_height = commitment.l2_end_block_number;
+            assert!(end_l2_height >= start_l2_height);
+
+            let mut commitment_state_diff = StateDiff::new();
+            for l2_height in start_l2_height..=end_l2_height {
+                let state_diff = self
+                    .ledger_db
+                    .get_l2_state_diff(L2BlockNumber(l2_height))?
+                    .expect("L2 state diff must exist");
+                commitment_state_diff = merge_state_diffs(commitment_state_diff, state_diff);
+            }
+
+            start_l2_height = end_l2_height + 1;
+
+            // check index gap
+            if i != 0 && commitment.index != commitments[i - 1].index + 1 {
+                assert_state_diff_threshold(&commitment_state_diff);
+
+                cumulative_state_diff = commitment_state_diff;
+                partitioned_commitments
+                    .push(&commitments[partition_start_idx.unwrap_or_default()..i]);
+                partition_start_idx = Some(i);
+                continue;
+            }
+
+            // check spec change
+            if i != 0
+                && fork_from_block_number(commitment.l2_end_block_number)
+                    != fork_from_block_number(commitments[i - 1].l2_end_block_number)
+            {
+                assert_state_diff_threshold(&commitment_state_diff);
+
+                cumulative_state_diff = commitment_state_diff;
+                partitioned_commitments
+                    .push(&commitments[partition_start_idx.unwrap_or_default()..i]);
+                partition_start_idx = Some(i);
+                continue;
+            }
+
+            cumulative_state_diff =
+                merge_state_diffs(cumulative_state_diff, commitment_state_diff.clone());
+            let compressed_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?)?;
+
+            // check state diff threshold
+            if compressed_diff.len() > MAX_TXBODY_SIZE {
+                cumulative_state_diff = commitment_state_diff;
+                partitioned_commitments
+                    .push(&commitments[partition_start_idx.unwrap_or_default()..i]);
+                partition_start_idx = Some(i);
+            }
+        }
+
+        Ok(partitioned_commitments)
     }
 }
 
@@ -175,4 +244,14 @@ pub enum PartitionMode {
     /// Every commitment is a group on their own
     /// Generates a proof for every commitment
     OneByOne,
+}
+
+fn assert_state_diff_threshold(state_diff: &StateDiff) {
+    let compressed_diff =
+        compress_blob(&borsh::to_vec(state_diff).expect("State diff serialization must not fail"))
+            .expect("State diff compression must not fail");
+    assert!(
+        compressed_diff.len() > MAX_TXBODY_SIZE,
+        "Got single commitment bigger than txbody limit, its so over..."
+    );
 }
