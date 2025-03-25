@@ -178,22 +178,19 @@ where
         let mut start_l2_height = start_l2_height;
         let mut partition_start_idx = None;
 
-        let mut finalize_partition =
-            |commitment_state_diff: &StateDiff, next_partition_idx: usize| {
-                let serialized_diff =
-                    borsh::to_vec(commitment_state_diff).expect("Diff serialization cannot fail");
-                let compressed_diff =
-                    compress_blob(&serialized_diff).expect("Diff compression cannot fail");
-                assert!(
-                    compressed_diff.len() > MAX_TXBODY_SIZE,
-                    "Got single commitment bigger than txbody limit"
-                );
+        let mut finalize_partition = |commitment_state_diff: &StateDiff, i: usize| {
+            let serialized_diff =
+                borsh::to_vec(commitment_state_diff).expect("Diff serialization cannot fail");
+            let compressed_diff =
+                compress_blob(&serialized_diff).expect("Diff compression cannot fail");
+            assert!(
+                compressed_diff.len() > MAX_TXBODY_SIZE,
+                "Got single commitment bigger than txbody limit"
+            );
 
-                partitioned_commitments.push(
-                    &commitments[partition_start_idx.unwrap_or_default()..next_partition_idx],
-                );
-                partition_start_idx = Some(next_partition_idx);
-            };
+            partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or_default()..i]);
+            partition_start_idx = Some(i);
+        };
 
         for (i, commitment) in commitments.iter().enumerate() {
             let end_l2_height = commitment.l2_end_block_number;
