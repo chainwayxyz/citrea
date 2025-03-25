@@ -892,7 +892,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
     let contract = SimpleStorageContract::default();
 
-    let deploy_tx = test_client
+    let _deploy_tx = test_client
         .deploy_contract(contract.byte_code(), None)
         .await
         .unwrap();
