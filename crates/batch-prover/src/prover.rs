@@ -195,11 +195,14 @@ where
 
             // check index gap
             if i != 0 && commitment.index != commitments[i - 1].index + 1 {
-                assert_state_diff_threshold(&commitment_state_diff);
+                let compressed_diff = compress_blob(&borsh::to_vec(&commitment_state_diff)?)?;
+                assert!(
+                    compressed_diff.len() > MAX_TXBODY_SIZE,
+                    "Got single commitment bigger than txbody limit"
+                );
 
                 cumulative_state_diff = commitment_state_diff;
-                partitioned_commitments
-                    .push(&commitments[partition_start_idx.unwrap_or_default()..i]);
+                partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or(0)..i]);
                 partition_start_idx = Some(i);
                 continue;
             }
@@ -209,11 +212,14 @@ where
                 && fork_from_block_number(commitment.l2_end_block_number)
                     != fork_from_block_number(commitments[i - 1].l2_end_block_number)
             {
-                assert_state_diff_threshold(&commitment_state_diff);
+                let compressed_diff = compress_blob(&borsh::to_vec(&commitment_state_diff)?)?;
+                assert!(
+                    compressed_diff.len() > MAX_TXBODY_SIZE,
+                    "Got single commitment bigger than txbody limit"
+                );
 
                 cumulative_state_diff = commitment_state_diff;
-                partitioned_commitments
-                    .push(&commitments[partition_start_idx.unwrap_or_default()..i]);
+                partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or(0)..i]);
                 partition_start_idx = Some(i);
                 continue;
             }
@@ -224,9 +230,12 @@ where
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
+                if i == 0 {
+                    panic!("Got single commitment bigger than txbody limit");
+                }
+
                 cumulative_state_diff = commitment_state_diff;
-                partitioned_commitments
-                    .push(&commitments[partition_start_idx.unwrap_or_default()..i]);
+                partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or(0)..i]);
                 partition_start_idx = Some(i);
             }
         }
@@ -247,14 +256,4 @@ pub enum PartitionMode {
     /// Every commitment is a group on their own
     /// Generates a proof for every commitment
     OneByOne,
-}
-
-fn assert_state_diff_threshold(state_diff: &StateDiff) {
-    let compressed_diff =
-        compress_blob(&borsh::to_vec(state_diff).expect("State diff serialization must not fail"))
-            .expect("State diff compression must not fail");
-    assert!(
-        compressed_diff.len() > MAX_TXBODY_SIZE,
-        "Got single commitment bigger than txbody limit, its so over..."
-    );
 }
