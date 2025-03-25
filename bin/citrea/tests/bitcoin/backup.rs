@@ -26,10 +26,10 @@ impl TestCase for BackupRestoreTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
 
-        let min_soft_confirmations = sequencer.min_soft_confirmations_per_commitment();
+        let min_l2_blocks = sequencer.min_l2_blocks_per_commitment();
         let sequencer_base_dir = &sequencer.config.base.dir;
 
-        for _ in 0..min_soft_confirmations {
+        for _ in 0..min_l2_blocks {
             sequencer.client.send_publish_batch_request().await?;
         }
         da.wait_mempool_len(2, None).await?;
@@ -42,10 +42,7 @@ impl TestCase for BackupRestoreTest {
             .await?;
 
         let backup_path = sequencer_base_dir.join("backup");
-        let backup_height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
+        let backup_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         // Go through a full craete/validate/info flow
         sequencer
@@ -72,14 +69,11 @@ impl TestCase for BackupRestoreTest {
         assert!(backup_info.contains_key("state"));
         assert!(backup_info.contains_key("native-db"));
 
-        for _ in 0..min_soft_confirmations {
+        for _ in 0..min_l2_blocks {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        let height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
+        let height = sequencer.client.ledger_get_head_l2_block_height().await?;
         assert!(height > backup_height);
 
         let extra_args = vec![
@@ -89,10 +83,7 @@ impl TestCase for BackupRestoreTest {
         sequencer.restart(None, Some(extra_args)).await?;
 
         // Verify state was properly restored by checking block height
-        let restored_height = sequencer
-            .client
-            .ledger_get_head_soft_confirmation_height()
-            .await?;
+        let restored_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         assert_eq!(restored_height, backup_height,);
 

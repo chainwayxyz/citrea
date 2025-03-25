@@ -12,7 +12,7 @@ use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::transaction::TransactionWrapper;
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
-use citrea_common::tasks::manager::TaskManager;
+use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
@@ -69,7 +69,9 @@ pub async fn get_service(
     .expect("Error initializing BitcoinService");
 
     let da_service = Arc::new(da_service);
-    task_manager.spawn(|tk| da_service.clone().run_da_queue(rx, tk));
+    task_manager.spawn(TaskType::Secondary, |tk| {
+        da_service.clone().run_da_queue(rx, tk)
+    });
 
     da_service
 }
@@ -293,7 +295,7 @@ pub fn get_mock_nonsegwit_block() -> BitcoinBlock {
         6,
         2,
         WitnessMerkleNode::from_str(
-            "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            "dd7cd5d27f0a6d032c51d3873e5328193438abd4e9cfd2788d83bdf1eb4847a4",
         )
         .unwrap()
         .to_raw_hash()

@@ -1,6 +1,7 @@
 use proc_macro2::{self, Ident, Span};
 use syn::{
-    Attribute, DataStruct, DeriveInput, ImplGenerics, PathArguments, TypeGenerics, WhereClause,
+    Attribute, DataStruct, DeriveInput, ImplGenerics, LitStr, PathArguments, TypeGenerics,
+    WhereClause,
 };
 
 use self::parsing::{ModuleField, ModuleFieldAttribute, StructDef};
@@ -33,6 +34,7 @@ pub(crate) fn derive_module_info(
 fn impl_prefix_functions(struct_def: &StructDef) -> Result<proc_macro2::TokenStream, syn::Error> {
     let StructDef {
         ident,
+        struct_rename,
         impl_generics,
         type_generics,
         fields,
@@ -44,7 +46,7 @@ fn impl_prefix_functions(struct_def: &StructDef) -> Result<proc_macro2::TokenStr
         .iter()
         // Don't generate prefix functions for modules or addresses; only state.
         .filter(|field| matches!(field.attr, ModuleFieldAttribute::State { .. }))
-        .map(|field| make_prefix_func(field, ident));
+        .map(|field| make_prefix_func(field, ident, struct_rename));
 
     Ok(quote::quote! {
         impl #impl_generics #ident #type_generics #where_clause{
@@ -62,6 +64,7 @@ fn impl_module_info(
 
     let StructDef {
         ident,
+        struct_rename,
         impl_generics,
         type_generics,
         generic_param,
@@ -102,7 +105,12 @@ fn impl_module_info(
                 modules.push(&field.ident);
             }
             ModuleFieldAttribute::Address => {
-                impl_self_init.push(make_init_address(field, ident, generic_param)?);
+                impl_self_init.push(make_init_address(
+                    field,
+                    ident,
+                    struct_rename,
+                    generic_param,
+                )?);
                 impl_self_body.push(&field.ident);
             }
             ModuleFieldAttribute::Gas => {
@@ -117,7 +125,7 @@ fn impl_module_info(
 
     let fn_address = make_fn_address(&module_address.ident)?;
     let fn_dependencies = make_fn_dependencies(modules);
-    let fn_prefix = make_module_prefix_fn(ident);
+    let fn_prefix = make_module_prefix_fn(ident, struct_rename);
 
     Ok(quote::quote! {
         impl #impl_generics ::std::default::Default for #ident #type_generics #where_clause{
@@ -149,6 +157,7 @@ fn default_codec_builder() -> syn::Path {
 fn make_prefix_func(
     field: &ModuleField,
     module_ident: &proc_macro2::Ident,
+    module_rename: &Option<LitStr>,
 ) -> proc_macro2::TokenStream {
     let ModuleFieldAttribute::State { rename, .. } = &field.attr else {
         unreachable!("Prefix is implemented for state only");
@@ -166,10 +175,15 @@ fn make_prefix_func(
     //      let module_path = "some_module";
     //      sov_modules_api::ModulePrefix::new_storage(module_path, module_name, field_ident)
     //   }
+    let module_name = if let Some(name) = module_rename {
+        quote::quote! { #name }
+    } else {
+        quote::quote! { stringify!(#module_ident) }
+    };
     quote::quote! {
         fn #prefix_func_ident() -> sov_modules_api::ModulePrefix {
             let module_path = module_path!();
-            sov_modules_api::ModulePrefix::new_storage(module_path, stringify!(#module_ident), #field_name)
+            sov_modules_api::ModulePrefix::new_storage(module_path, #module_name, #field_name)
         }
     }
 }
@@ -257,29 +271,42 @@ fn make_init_module(
     })
 }
 
-fn make_module_prefix_fn(struct_ident: &Ident) -> proc_macro2::TokenStream {
-    let body = make_module_prefix_fn_body(struct_ident);
+fn make_module_prefix_fn(
+    struct_ident: &Ident,
+    struct_rename: &Option<LitStr>,
+) -> proc_macro2::TokenStream {
+    let prefix_body = make_module_prefix_fn_body(struct_ident, struct_rename);
     quote::quote! {
         fn prefix(&self) -> sov_modules_api::ModulePrefix {
-           #body
+            #prefix_body
         }
     }
 }
 
-fn make_module_prefix_fn_body(struct_ident: &Ident) -> proc_macro2::TokenStream {
+fn make_module_prefix_fn_body(
+    struct_ident: &Ident,
+    struct_rename: &Option<LitStr>,
+) -> proc_macro2::TokenStream {
+    let struct_name = if let Some(name) = struct_rename {
+        quote::quote! { #name }
+    } else {
+        quote::quote! { stringify!(#struct_ident) }
+    };
+
     quote::quote! {
         let module_path = module_path!();
-        sov_modules_api::ModulePrefix::new_module(module_path, stringify!(#struct_ident))
+        sov_modules_api::ModulePrefix::new_module(module_path, #struct_name)
     }
 }
 
 fn make_init_address(
     field: &ModuleField,
     struct_ident: &Ident,
+    struct_rename: &Option<LitStr>,
     generic_param: &Ident,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let field_ident = &field.ident;
-    let generate_prefix = make_module_prefix_fn_body(struct_ident);
+    let generate_prefix = make_module_prefix_fn_body(struct_ident, struct_rename);
 
     Ok(quote::quote! {
         use ::sov_modules_api::digest::Digest as _;
@@ -307,10 +334,13 @@ fn make_init_memory(field: &ModuleField) -> Result<proc_macro2::TokenStream, syn
 }
 /// Internal `proc macro` parsing utilities.
 pub mod parsing {
+    use syn::{Lit, Meta, MetaList, MetaNameValue};
+
     use super::*;
 
     pub struct StructDef<'a> {
         pub ident: &'a proc_macro2::Ident,
+        pub struct_rename: Option<LitStr>,
         pub impl_generics: ImplGenerics<'a>,
         pub type_generics: TypeGenerics<'a>,
         pub generic_param: Ident,
@@ -319,9 +349,37 @@ pub mod parsing {
         pub where_clause: Option<&'a WhereClause>,
     }
 
+    /// Extracts the value of `rename` from `#[module(rename = "NewName")]`
+    fn get_module_rename(attrs: &[Attribute]) -> Option<LitStr> {
+        for attr in attrs {
+            // Look for `#[module(...)]`
+            if let Ok(Meta::List(MetaList { path, nested, .. })) = attr.parse_meta() {
+                if path.is_ident("module") {
+                    // Iterate over key-value pairs inside `module(...)`
+                    for meta in nested {
+                        if let syn::NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                            path,
+                            lit,
+                            ..
+                        })) = meta
+                        {
+                            if path.is_ident("rename") {
+                                if let Lit::Str(lit_str) = lit {
+                                    return Some(lit_str);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     impl<'a> StructDef<'a> {
         pub fn parse(input: &'a DeriveInput) -> syn::Result<Self> {
             let ident = &input.ident;
+            let module_rename = get_module_rename(&input.attrs);
             let generic_param = get_generics_type_param(&input.generics, Span::call_site())?;
             let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
             let fields = parse_module_fields(&input.data)?;
@@ -330,6 +388,7 @@ pub mod parsing {
 
             Ok(StructDef {
                 ident,
+                struct_rename: module_rename,
                 fields,
                 impl_generics,
                 type_generics,

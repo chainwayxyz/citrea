@@ -245,7 +245,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "batch_prover_process_soft_confirmation",
+          "expr": "batch_prover_process_l2_block",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -254,7 +254,7 @@
           "useBackend": false
         }
       ],
-      "title": "Process soft confirmation",
+      "title": "Process l2 block",
       "type": "timeseries"
     },
     {
@@ -284,7 +284,7 @@
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "linear",
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
@@ -294,7 +294,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -341,7 +341,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "proving_session_cycle_count",
+          "expr": "proving_session_cycle_count{quantile=\"1.0\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",

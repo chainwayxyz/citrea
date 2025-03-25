@@ -5,7 +5,7 @@ use jsonrpsee::RpcModule;
 use tokio::sync::oneshot;
 use tracing::{error, info};
 
-use crate::tasks::manager::TaskManager;
+use crate::tasks::manager::{TaskManager, TaskType};
 use crate::RpcConfig;
 
 /// Starts a RPC server with provided rpc methods.
@@ -38,7 +38,7 @@ pub fn start_rpc_server(
         .layer_fn(move |s| super::auth::Auth::new(s, rpc_config.api_key.clone()))
         .layer_fn(super::Logger);
 
-    task_manager.spawn(move |cancellation_token| async move {
+    task_manager.spawn(TaskType::Secondary, move |cancellation_token| async move {
         let server = ServerBuilder::default()
             .max_connections(max_connections)
             .max_subscriptions_per_connection(max_subscriptions_per_connection)

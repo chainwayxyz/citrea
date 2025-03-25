@@ -1,10 +1,7 @@
-use borsh::BorshDeserialize;
-use sov_modules_api::default_signature::DefaultPublicKey;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::TxHooks;
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    Address, Context, SoftConfirmationHookError, SpecId, StateMapAccessor, WorkingSet,
-};
+use sov_modules_api::{Address, Context, L2BlockHookError, SpecId, StateMapAccessor, WorkingSet};
+use sov_rollup_interface::transaction::Transaction;
 
 use crate::{Account, Accounts};
 
@@ -17,26 +14,12 @@ pub struct AccountsTxHook {
 impl<C: Context> Accounts<C> {
     fn get_or_create_default(
         &self,
-        pubkey: &[u8],
+        pubkey: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
-        spec_id: SpecId,
-    ) -> Result<Account, SoftConfirmationHookError> {
-        if spec_id >= SpecId::Fork2 {
-            self.accounts.get(pubkey, working_set).map_or_else(
-                || self.create_default_account(pubkey, working_set, spec_id),
-                Ok,
-            )
-        } else {
-            self.accounts_pre_fork2
-                .get(
-                    &DefaultPublicKey::try_from_slice(pubkey).expect("Should be a valid pub key"),
-                    working_set,
-                )
-                .map_or_else(
-                    || self.create_default_account(pubkey, working_set, spec_id),
-                    Ok,
-                )
-        }
+    ) -> Result<Account, L2BlockHookError> {
+        self.accounts
+            .get(pubkey, working_set)
+            .map_or_else(|| self.create_default_account(pubkey, working_set), Ok)
     }
 }
 
@@ -50,13 +33,13 @@ impl<C: Context> TxHooks for Accounts<C> {
         tx: &Transaction,
         working_set: &mut WorkingSet<C::Storage>,
         _sequencer: &Self::PreArg,
-        spec_id: SpecId,
-    ) -> Result<AccountsTxHook, SoftConfirmationHookError> {
-        let sender = self.get_or_create_default(tx.pub_key(), working_set, spec_id)?;
+        _spec_id: SpecId,
+    ) -> Result<AccountsTxHook, L2BlockHookError> {
+        let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
         let tx_nonce = tx.nonce();
 
         if sender.nonce != tx_nonce {
-            return Err(SoftConfirmationHookError::SovTxBadNonce);
+            return Err(L2BlockHookError::SovTxBadNonce);
         }
 
         Ok(AccountsTxHook {
@@ -69,25 +52,14 @@ impl<C: Context> TxHooks for Accounts<C> {
         tx: &Transaction,
         _ctx: &C,
         working_set: &mut WorkingSet<C::Storage>,
-        spec_id: SpecId,
-    ) -> Result<(), SoftConfirmationHookError> {
-        if spec_id >= SpecId::Fork2 {
-            let mut account = self
-                .accounts
-                .get_or_err(tx.pub_key(), working_set)
-                .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
-            account.nonce += 1;
-            self.accounts.set(tx.pub_key(), &account, working_set);
-        } else {
-            let pub_key =
-                DefaultPublicKey::try_from_slice(tx.pub_key()).expect("Should be a valid pub key");
-            let mut account = self
-                .accounts_pre_fork2
-                .get_or_err(&pub_key, working_set)
-                .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
-            account.nonce += 1;
-            self.accounts_pre_fork2.set(&pub_key, &account, working_set);
-        }
+        _spec_id: SpecId,
+    ) -> Result<(), L2BlockHookError> {
+        let mut account = self
+            .accounts
+            .get_or_err(tx.pub_key(), working_set)
+            .map_err(|_| L2BlockHookError::SovTxAccountNotFound)?;
+        account.nonce += 1;
+        self.accounts.set(tx.pub_key(), &account, working_set);
 
         Ok(())
     }

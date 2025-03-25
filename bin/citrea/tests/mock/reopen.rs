@@ -383,7 +383,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     // prover should not have any blocks saved
     assert_eq!(prover_node_test_client.eth_block_number().await, 0);
-    // publish 3 soft confirmations, no commitment should be sent
+    // publish 3 l2 blocks, no commitment should be sent
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
@@ -533,8 +533,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     wait_for_prover_l1_height_proofs(&prover_node_test_client, 6, None).await?;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
-    // there is an extra soft confirmation due to the prover publishing a proof. This causes
-    // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
+    // there is an extra l2 block due to the prover publishing a proof. This causes
+    // a new MockDa block, which in turn causes the sequencer to publish an extra l2 block
     // TODO: Debug why this is not including block 9 in the commitment
     // https://github.com/chainwayxyz/citrea/issues/684
     assert!(prover_node_test_client.eth_block_number().await >= 8);

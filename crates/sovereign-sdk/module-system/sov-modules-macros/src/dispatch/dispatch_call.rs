@@ -68,7 +68,7 @@ impl<'a> StructDef<'a> {
                     decodable: Self::Decodable,
                     working_set: &mut ::sov_modules_api::WorkingSet<<Self::Context as Spec>::Storage>,
                     context: &Self::Context,
-                ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::SoftConfirmationModuleCallError> {
+                ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::L2BlockModuleCallError> {
 
                     match decodable {
                         #(#match_legs)*

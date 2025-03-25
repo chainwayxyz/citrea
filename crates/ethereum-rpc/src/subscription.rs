@@ -10,7 +10,7 @@ use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::task::JoinHandle;
 
 pub(crate) struct SubscriptionManager {
-    soft_confirmation_handle: JoinHandle<()>,
+    l2_block_handle: JoinHandle<()>,
     logs_notifier_handle: JoinHandle<()>,
     heads_notifier_handle: JoinHandle<()>,
     head_subscriptions: Arc<RwLock<Vec<SubscriptionSink>>>,
@@ -20,7 +20,7 @@ pub(crate) struct SubscriptionManager {
 impl SubscriptionManager {
     pub(crate) fn new<C: sov_modules_api::Context>(
         storage: C::Storage,
-        soft_confirmation_rx: broadcast::Receiver<u64>,
+        l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
         let (new_heads_tx, new_heads_rx) = mpsc::channel(16);
         let (logs_tx, logs_rx) = mpsc::channel(16);
@@ -28,12 +28,12 @@ impl SubscriptionManager {
         let head_subscriptions = Arc::new(RwLock::new(vec![]));
         let logs_subscriptions = Arc::new(RwLock::new(vec![]));
 
-        let soft_confirmation_rx = soft_confirmation_rx;
-        // Spawn the task that will listen for new soft confirmation heights
+        let l2_block_rx = l2_block_rx;
+        // Spawn the task that will listen for new l2 block heights
         // and send the corresponding ethereum block to subscribers
-        let soft_confirmation_handle = tokio::spawn(soft_confirmation_event_handler::<C>(
+        let l2_block_handle = tokio::spawn(l2_block_event_handler::<C>(
             storage,
-            soft_confirmation_rx,
+            l2_block_rx,
             new_heads_tx.clone(),
             logs_tx.clone(),
         ));
@@ -43,7 +43,7 @@ impl SubscriptionManager {
             tokio::spawn(new_heads_notifier(new_heads_rx, head_subscriptions.clone()));
 
         Self {
-            soft_confirmation_handle,
+            l2_block_handle,
             logs_notifier_handle,
             heads_notifier_handle,
             head_subscriptions,
@@ -70,7 +70,7 @@ impl SubscriptionManager {
 
 impl Drop for SubscriptionManager {
     fn drop(&mut self) {
-        self.soft_confirmation_handle.abort();
+        self.l2_block_handle.abort();
         self.logs_notifier_handle.abort();
         self.heads_notifier_handle.abort();
     }
@@ -131,14 +131,14 @@ pub async fn logs_notifier(
     }
 }
 
-pub async fn soft_confirmation_event_handler<C: sov_modules_api::Context>(
+pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
     storage: C::Storage,
-    mut soft_confirmation_rx: broadcast::Receiver<u64>,
+    mut l2_block_rx: broadcast::Receiver<u64>,
     new_heads_tx: mpsc::Sender<AnyNetworkBlock>,
     logs_tx: mpsc::Sender<Vec<LogResponse>>,
 ) {
     let evm = Evm::<C>::default();
-    while let Ok(height) = soft_confirmation_rx.recv().await {
+    while let Ok(height) = l2_block_rx.recv().await {
         let mut working_set = WorkingSet::new(storage.clone());
         let block = evm
             .get_block_by_number(

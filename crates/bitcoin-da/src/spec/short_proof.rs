@@ -53,6 +53,14 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
             return Err(ShortHeaderProofVerificationError::InvalidCoinbaseMerkleProof);
         }
 
+        // If block has only coinbase tx claimed tx commitment should equal to [0u8; 32]
+        if self.header.tx_count == 1 && self.header.txs_commitment != [0u8; 32] {
+            return Err(ShortHeaderProofVerificationError::WrongTxCommitment {
+                expected: [0u8; 32],
+                actual: self.header.txs_commitment,
+            });
+        }
+
         // Then extract the wtxid root from the coinbase tx
         // and compare with self.header.txs_comitment()
         let commitment_idx = self.coinbase_tx.output.iter().rev().position(|output| {
@@ -65,8 +73,10 @@ impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
         match commitment_idx {
             None => {
                 // If non-segwit block, claimed tx commitment should equal to
-                // header.merkle_root
-                if self.header.merkle_root() != Into::<[u8; 32]>::into(self.header.txs_commitment())
+                // header.merkle_root if there are more than one tx
+                if self.header.tx_count > 1
+                    && self.header.merkle_root()
+                        != Into::<[u8; 32]>::into(self.header.txs_commitment())
                 {
                     return Err(ShortHeaderProofVerificationError::WrongTxCommitment {
                         expected: self.header.merkle_root(),

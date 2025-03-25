@@ -30,7 +30,6 @@ else:
         raise Exception("CHAIN_ID environment variable is not set")
     evm_json["chain_id"] = os.getenv("CHAIN_ID")
 evm_json["limit_contract_code_size"] = None
-evm_json["spec"] = {"0": "SHANGHAI"}
 evm_json["coinbase"] = "0x3100000000000000000000000000000000000005"
 evm_json["starting_base_fee"] = 1000000000
 evm_json["block_gas_limit"] = 30000000

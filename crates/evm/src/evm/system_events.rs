@@ -16,8 +16,6 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 pub enum SystemEvent {
     /// Initializes the Bitcoin light client with the given block number.
     BitcoinLightClientInitialize(/*block number*/ u64),
-    /// Sets the block info for the Bitcoin light client. (pre fork2)
-    BitcoinLightClientSetBlockInfoPreFork2(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
     /// Sets the block info for the Bitcoin light client.
     BitcoinLightClientSetBlockInfo(
         /*hash*/ [u8; 32],
@@ -44,18 +42,6 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
-        SystemEvent::BitcoinLightClientSetBlockInfoPreFork2(block_hash, txs_commitments) => {
-            TxEip1559 {
-                to: TxKind::Call(BitcoinLightClient::address()),
-                input: BitcoinLightClient::set_block_info_pre_fork2(block_hash, txs_commitments),
-                nonce,
-                chain_id,
-                value: U256::ZERO,
-                gas_limit: 1_000_000u64,
-                max_fee_per_gas: u64::MAX as u128,
-                ..Default::default()
-            }
-        }
         SystemEvent::BitcoinLightClientSetBlockInfo(
             block_hash,
             txs_commitments,

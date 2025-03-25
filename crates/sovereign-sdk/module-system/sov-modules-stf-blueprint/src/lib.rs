@@ -1,32 +1,23 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use std::collections::VecDeque;
-
+use borsh::BorshDeserialize;
 use citrea_primitives::EMPTY_TX_ROOT;
-use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::default_signature::{
-    DefaultPublicKey, DefaultSignature, K256PublicKey, K256Signature,
-};
-use sov_modules_api::digest::Digest;
+use sov_keys::default_signature::{K256PublicKey, K256Signature};
+use sov_keys::Signature;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
-    ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
+    ApplyL2BlockHooks, FinalizeHook, HookL2BlockInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    native_debug, Context, DaSpec, DispatchCall, Genesis, Signature, Spec, WorkingSet,
-};
+use sov_modules_api::{native_debug, Context, DaSpec, DispatchCall, Genesis, Spec, WorkingSet};
+use sov_rollup_interface::block::{L2Block, SignedL2Header};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::soft_confirmation::{L2Block, SignedL2Header};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{
-    SoftConfirmationError, SoftConfirmationResult, StateTransitionError,
-};
+use sov_rollup_interface::stf::{L2BlockError, L2BlockResult, StateTransitionError};
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::{ReadWriteLog, Storage, Witness};
@@ -55,7 +46,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     + TxHooks<Context = C, PreArg = RuntimeTxHook, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
-    + ApplySoftConfirmationHooks<Da, Context = C>
+    + ApplyL2BlockHooks<Da, Context = C>
     + Default
 {
     /// GenesisConfig type.
@@ -90,8 +81,8 @@ pub struct ApplySequencerCommitmentsOutput {
     pub state_diff: CumulativeStateDiff,
     /// Last processed L2 block height
     pub last_l2_height: u64,
-    /// Last soft confirmation hash
-    pub final_soft_confirmation_hash: [u8; 32],
+    /// Last l2 block hash
+    pub final_l2_block_hash: [u8; 32],
     /// Sequencer commitment hashes
     pub sequencer_commitment_hashes: Vec<[u8; 32]>,
     /// The range of sequencer commitments that were processed.
@@ -110,199 +101,77 @@ where
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
-    /// Begin a soft confirmation for blocks post fork2
+    /// Begin a l2 block for blocks post fork2
     /// There are no slot hash comparisons with l2 blocks
-    pub fn begin_soft_confirmation(
+    pub fn begin_l2_block(
         &mut self,
-        sequencer_public_key: &[u8],
+        sequencer_public_key: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
     ) -> Result<(), StateTransitionError> {
-        // check if soft confirmation is coming from our sequencer
-        if soft_confirmation_info.sequencer_pub_key() != sequencer_public_key {
-            return Err(StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::SequencerPublicKeyMismatch,
+        // check if l2 block is coming from our sequencer
+        if l2_block_info.sequencer_pub_key() != sequencer_public_key {
+            return Err(StateTransitionError::L2BlockError(
+                L2BlockError::SequencerPublicKeyMismatch,
             ));
         };
 
-        self.begin_soft_confirmation_inner(working_set, soft_confirmation_info)
+        self.begin_l2_block_inner(working_set, l2_block_info)
             .map_err(StateTransitionError::HookError)
     }
 
-    /// Begin a soft confirmation for blocks before fork2
-    /// We still do the slot hash checks here
-    pub fn begin_soft_confirmation_pre_fork2(
+    /// Apply l2 block transactions
+    pub fn apply_l2_block_txs(
         &mut self,
-        sequencer_public_key: &[u8],
-        working_set: &mut WorkingSet<C::Storage>,
-        slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> Result<(), StateTransitionError> {
-        // check if soft confirmation is coming from our sequencer
-        if soft_confirmation_info.sequencer_pub_key() != sequencer_public_key {
-            return Err(StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::SequencerPublicKeyMismatch,
-            ));
-        };
-
-        // then verify da hashes match
-        if soft_confirmation_info.da_slot_hash().unwrap() != slot_header.hash().into() {
-            return Err(StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::InvalidDaHash,
-            ));
-        }
-
-        // then verify da transactions commitment match
-        if soft_confirmation_info.da_slot_txs_commitment().unwrap()
-            != slot_header.txs_commitment().into()
-        {
-            return Err(StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::InvalidDaTxsCommitment,
-            ));
-        }
-
-        self.begin_soft_confirmation_inner(working_set, soft_confirmation_info)
-            .map_err(StateTransitionError::HookError)
-    }
-
-    /// Apply soft confirmation transactions
-    pub fn apply_soft_confirmation_txs(
-        &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
         txs: &[Transaction],
         batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
-    }
-
-    /// Verify l2_block hash and signature pre fork2
-    /// Da checks are made here because soft confirmations still include da data pre fork2
-    pub fn verify_soft_confirmation_pre_fork2(
-        &self,
-        current_spec: SpecId,
-        l2_block: &L2Block<Transaction>,
-        sequencer_public_key: &[u8],
-        da_slot_height: u64,
-        da_slot_hash: [u8; 32],
-        da_slot_txs_commitment: [u8; 32],
-    ) -> Result<(), StateTransitionError> {
-        let l2_header = &l2_block.header;
-
-        match current_spec {
-            SpecId::Genesis => {
-                let blobs = l2_block.compute_blobs();
-
-                let Ok((expected_hash, raw)) = l2_header
-                    .inner
-                    .hash_v1::<<C as Spec>::Hasher>(
-                        da_slot_height,
-                        da_slot_hash,
-                        da_slot_txs_commitment,
-                        blobs,
-                        l2_block.deposit_data().to_owned(),
-                    )
-                    .map(|(hash, raw)| (Into::<[u8; 32]>::into(hash), raw))
-                else {
-                    return Err(StateTransitionError::SoftConfirmationError(
-                        SoftConfirmationError::InvalidDaHash,
-                    ));
-                };
-
-                if l2_block.hash() != expected_hash {
-                    return Err(StateTransitionError::SoftConfirmationError(
-                        SoftConfirmationError::InvalidSoftConfirmationHash,
-                    ));
-                }
-
-                verify_genesis_signature(&raw, &l2_header.signature, sequencer_public_key)
-            }
-            SpecId::Kumquat => {
-                let blobs = l2_block.compute_blobs();
-                let expected_hash: [u8; 32] = l2_header
-                    .inner
-                    .hash_v2::<<C as Spec>::Hasher>(
-                        da_slot_height,
-                        da_slot_hash,
-                        da_slot_txs_commitment,
-                        blobs,
-                        l2_block.deposit_data().to_owned(),
-                    )
-                    .into();
-
-                if l2_block.hash() != expected_hash {
-                    return Err(StateTransitionError::SoftConfirmationError(
-                        SoftConfirmationError::InvalidSoftConfirmationHash,
-                    ));
-                }
-
-                verify_kumquat_signature(l2_header, sequencer_public_key)
-            }
-            _ => {
-                panic!("This should not be called for post fork2 blocks")
-            }
-        }
-        .map_err(|_| {
-            StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::InvalidSoftConfirmationSignature,
-            )
-        })
+        self.apply_sov_txs_inner(l2_block_info, txs, batch_workspace)
     }
 
     /// Verify l2_block hash and signature post fork2
     /// No da slot hash, height and txs commitment checks are done here
-    pub fn verify_soft_confirmation(
+    pub fn verify_l2_block(
         &self,
-        current_spec: SpecId,
-        l2_block: &L2Block<Transaction>,
-        sequencer_public_key: &[u8],
+        l2_block: &L2Block,
+        sequencer_public_key: &K256PublicKey,
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        verify_tx_merkle_root::<C>(current_spec, l2_block).map_err(|_| {
-            StateTransitionError::SoftConfirmationError(SoftConfirmationError::InvalidTxMerkleRoot)
-        })?;
+        verify_tx_merkle_root::<C>(l2_block)
+            .map_err(|_| StateTransitionError::L2BlockError(L2BlockError::InvalidTxMerkleRoot))?;
 
-        match current_spec {
-            SpecId::Genesis | SpecId::Kumquat => {
-                panic!("This should not be called for pre fork2 blocks")
-            }
-            _ => {
-                let expected_hash =
-                    Into::<[u8; 32]>::into(l2_header.inner.compute_digest::<<C as Spec>::Hasher>());
+        let expected_hash =
+            Into::<[u8; 32]>::into(l2_header.inner.compute_digest::<<C as Spec>::Hasher>());
 
-                if l2_block.hash() != expected_hash {
-                    return Err(StateTransitionError::SoftConfirmationError(
-                        SoftConfirmationError::InvalidSoftConfirmationHash,
-                    ));
-                }
-
-                verify_soft_confirmation_signature(l2_header, sequencer_public_key)
-            }
+        if l2_block.hash() != expected_hash {
+            return Err(StateTransitionError::L2BlockError(
+                L2BlockError::InvalidL2BlockHash,
+            ));
         }
-        .map_err(|_| {
-            StateTransitionError::SoftConfirmationError(
-                SoftConfirmationError::InvalidSoftConfirmationSignature,
-            )
-        })
+
+        verify_signature(l2_header, sequencer_public_key)
+            .map_err(|_| StateTransitionError::L2BlockError(L2BlockError::InvalidL2BlockSignature))
     }
 
-    /// End a soft confirmation
-    pub fn end_soft_confirmation(
+    /// End a l2 block
+    pub fn end_l2_block(
         &mut self,
-        soft_confirmation_info: HookSoftConfirmationInfo,
+        l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        self.end_soft_confirmation_inner(soft_confirmation_info, working_set)
+        self.end_l2_block_inner(l2_block_info, working_set)
             .map_err(StateTransitionError::HookError)
     }
 
-    /// Finalizes a soft confirmation
-    pub fn finalize_soft_confirmation(
+    /// Finalizes a l2 block
+    pub fn finalize_l2_block(
         &self,
         _current_spec: SpecId,
         working_set: WorkingSet<C::Storage>,
         pre_state: C::Storage,
-    ) -> SoftConfirmationResult<C::Storage, Witness, ReadWriteLog> {
+    ) -> L2BlockResult<C::Storage, Witness, ReadWriteLog> {
         let (
             state_root_transition,
             state_log,
@@ -345,7 +214,7 @@ where
             )
         };
 
-        SoftConfirmationResult {
+        L2BlockResult {
             state_root_transition,
             state_log,
             offchain_log,
@@ -395,89 +264,26 @@ where
         (genesis_hash, pre_state)
     }
 
-    /// Apply soft confirmation
+    /// Apply l2 block
     #[allow(clippy::too_many_arguments)]
-    pub fn apply_soft_confirmation_pre_fork2(
+    pub fn apply_l2_block(
         &mut self,
         current_spec: SpecId,
-        sequencer_public_key: &[u8],
+        sequencer_public_key: &K256PublicKey,
         pre_state_root: &StorageRootHash,
         pre_state: C::Storage,
         cumulative_state_log: Option<ReadWriteLog>,
         cumulative_offchain_log: Option<ReadWriteLog>,
         state_witness: Witness,
         offchain_witness: Witness,
-        // the header hash does not need to be verified here because the full
-        // nodes construct the header on their own
-        slot_header: &<Da as DaSpec>::BlockHeader,
-        l2_block: &L2Block<Transaction>,
-    ) -> Result<SoftConfirmationResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError>
-    {
-        let soft_confirmation_info =
-            HookSoftConfirmationInfo::new(l2_block, *pre_state_root, current_spec);
-
-        let mut working_set = if let Some(state_log) = cumulative_state_log {
-            WorkingSet::with_witness_and_log(
-                pre_state.clone(),
-                state_witness,
-                offchain_witness,
-                state_log,
-                cumulative_offchain_log.expect("Both logs must be provided"),
-            )
-        } else {
-            WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness)
-        };
-
-        native_debug!("Applying soft confirmation in STF Blueprint");
-
-        self.verify_soft_confirmation_pre_fork2(
-            current_spec,
+        l2_block: &L2Block,
+    ) -> Result<L2BlockResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError> {
+        let l2_block_info = HookL2BlockInfo::new(
             l2_block,
-            sequencer_public_key,
-            slot_header.height(),
-            slot_header.hash().into(),
-            slot_header.txs_commitment().into(),
-        )?;
-
-        self.begin_soft_confirmation_pre_fork2(
-            sequencer_public_key,
-            &mut working_set,
-            slot_header,
-            &soft_confirmation_info,
-        )?;
-
-        self.apply_soft_confirmation_txs(&soft_confirmation_info, &l2_block.txs, &mut working_set)?;
-
-        self.end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
-
-        let res = self.finalize_soft_confirmation(current_spec, working_set, pre_state);
-
-        native_debug!(
-            "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
-            hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
+            *pre_state_root,
+            current_spec,
+            sequencer_public_key.clone(),
         );
-
-        Ok(res)
-    }
-
-    /// Apply soft confirmation
-    #[allow(clippy::too_many_arguments)]
-    pub fn apply_soft_confirmation(
-        &mut self,
-        current_spec: SpecId,
-        sequencer_public_key: &[u8],
-        pre_state_root: &StorageRootHash,
-        pre_state: C::Storage,
-        cumulative_state_log: Option<ReadWriteLog>,
-        cumulative_offchain_log: Option<ReadWriteLog>,
-        state_witness: Witness,
-        offchain_witness: Witness,
-        l2_block: &L2Block<Transaction>,
-    ) -> Result<SoftConfirmationResult<C::Storage, Witness, ReadWriteLog>, StateTransitionError>
-    {
-        let soft_confirmation_info =
-            HookSoftConfirmationInfo::new(l2_block, *pre_state_root, current_spec);
 
         let mut working_set = if let Some(state_log) = cumulative_state_log {
             WorkingSet::with_witness_and_log(
@@ -491,46 +297,42 @@ where
             WorkingSet::with_witness(pre_state.clone(), state_witness, offchain_witness)
         };
 
-        native_debug!("Applying soft confirmation in STF Blueprint");
+        native_debug!("Applying l2 block in STF Blueprint");
 
-        self.verify_soft_confirmation(current_spec, l2_block, sequencer_public_key)?;
+        self.verify_l2_block(l2_block, sequencer_public_key)?;
 
-        self.begin_soft_confirmation(
-            sequencer_public_key,
-            &mut working_set,
-            &soft_confirmation_info,
-        )?;
+        self.begin_l2_block(sequencer_public_key, &mut working_set, &l2_block_info)?;
 
-        self.apply_soft_confirmation_txs(&soft_confirmation_info, &l2_block.txs, &mut working_set)?;
+        self.apply_l2_block_txs(&l2_block_info, &l2_block.txs, &mut working_set)?;
 
-        self.end_soft_confirmation(soft_confirmation_info, &mut working_set)?;
+        self.end_l2_block(l2_block_info, &mut working_set)?;
 
-        let res = self.finalize_soft_confirmation(current_spec, working_set, pre_state);
+        let res = self.finalize_l2_block(current_spec, working_set, pre_state);
 
         native_debug!(
-            "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
+            "l2 block with hash: {:?} has been successfully applied",
             hex::encode(l2_block.hash()),
-            hex::encode(l2_block.sequencer_pub_key()),
         );
 
         Ok(res)
     }
 
-    /// Apply soft confirmation from sequencer commitments
+    /// Apply l2 block from sequencer commitments
     #[allow(clippy::too_many_arguments)]
-    pub fn apply_soft_confirmations_from_sequencer_commitments(
+    pub fn apply_l2_blocks_from_sequencer_commitments(
         &mut self,
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
-        sequencer_k256_public_key: &[u8],
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
         sequencer_commitments: Vec<SequencerCommitment>,
-        slot_headers: VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         cache_prune_l2_heights: &[u64],
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput {
+        let sequencer_public_key = K256PublicKey::try_from_slice(sequencer_public_key)
+            .expect("Sequencer public key must be valid");
+
         let mut state_diff = CumulativeStateDiff::default();
 
         let sequencer_commitment_hashes = sequencer_commitments
@@ -545,7 +347,7 @@ where
 
         // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
-        let mut prev_soft_confirmation_hash: Option<[u8; 32]> = None;
+        let mut prev_l2_block_hash: Option<[u8; 32]> = None;
 
         let group_count: u32 = guest.read_from_host();
 
@@ -598,9 +400,7 @@ where
         let mut cumulative_offchain_log = None;
         let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();
 
-        for (sequencer_commitment, da_block_headers) in
-            sequencer_commitments.into_iter().zip_eq(slot_headers)
-        {
+        for sequencer_commitment in sequencer_commitments.into_iter() {
             // if the commitment is not sequential, then the proof is invalid.
 
             assert_eq!(
@@ -616,55 +416,39 @@ where
             let mut l2_height = sequencer_commitment_l2_start_height;
 
             let state_change_count: u32 = guest.read_from_host();
-            let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
-
-            let mut index_headers = 0;
+            let mut l2_block_hashes = Vec::with_capacity(state_change_count as usize);
 
             for _ in 0..state_change_count {
-                let soft_confirmation_l2_height = guest.read_from_host::<u64>();
-                fork_manager
-                    .register_block(soft_confirmation_l2_height)
-                    .unwrap();
+                let l2_block_l2_height = guest.read_from_host::<u64>();
+                fork_manager.register_block(l2_block_l2_height).unwrap();
 
                 let (l2_block, state_witness, offchain_witness) =
-                    guest.read_from_host::<(L2Block<Transaction>, Witness, Witness)>();
+                    guest.read_from_host::<(L2Block, Witness, Witness)>();
 
                 assert_eq!(
-                    l2_block.l2_height(),
+                    l2_block.height(),
                     l2_height,
-                    "Soft confirmation height is not equal to the expected height"
+                    "L2 block height is not equal to the expected height"
                 );
 
-                if let Some(hash) = prev_soft_confirmation_hash {
+                if let Some(hash) = prev_l2_block_hash {
                     assert_eq!(
                         l2_block.prev_hash(),
                         hash,
-                        "Soft confirmation previous hash must match the hash of the block before"
+                        "L2 block previous hash must match the hash of the block before"
                     );
                 }
 
                 assert_eq!(
-                    l2_block.l2_height(),
+                    l2_block.height(),
                     l2_height,
-                    "Soft confirmation heights not sequential"
+                    "L2 block heights not sequential"
                 );
 
-                if fork_manager.active_fork().spec_id < SpecId::Fork2
-                    && l2_block.da_slot_hash() != da_block_headers[index_headers].hash().into()
-                {
-                    index_headers += 1;
-                }
-
-                let sequencer_pub_key = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
-                    sequencer_k256_public_key
-                } else {
-                    sequencer_public_key
-                };
-
-                let result = if fork_manager.active_fork().spec_id >= SpecId::Fork2 {
-                    self.apply_soft_confirmation(
+                let result = self
+                    .apply_l2_block(
                         fork_manager.active_fork().spec_id,
-                        sequencer_pub_key,
+                        &sequencer_public_key,
                         &current_state_root,
                         pre_state.clone(),
                         cumulative_state_log,
@@ -674,27 +458,9 @@ where
                         &l2_block,
                     )
                     // TODO: this can be just ignoring the failing seq. com.
-                    // We can count a failed soft confirmation as a valid state transition.
+                    // We can count a failed l2 block as a valid state transition.
                     // for now we don't allow "broken" seq. com.s
-                    .expect("Soft confirmation must succeed")
-                } else {
-                    self.apply_soft_confirmation_pre_fork2(
-                        fork_manager.active_fork().spec_id,
-                        sequencer_pub_key,
-                        &current_state_root,
-                        pre_state.clone(),
-                        cumulative_state_log,
-                        cumulative_offchain_log,
-                        state_witness,
-                        offchain_witness,
-                        &da_block_headers[index_headers],
-                        &l2_block,
-                    )
-                    // TODO: this can be just ignoring the failing seq. com.
-                    // We can count a failed soft confirmation as a valid state transition.
-                    // for now we don't allow "broken" seq. com.s
-                    .expect("Soft confirmation must succeed")
-                };
+                    .expect("L2 block must succeed");
 
                 assert_eq!(current_state_root, result.state_root_transition.init_root);
                 current_state_root = result.state_root_transition.final_root;
@@ -702,9 +468,9 @@ where
 
                 l2_height += 1;
 
-                prev_soft_confirmation_hash = Some(l2_block.hash());
+                prev_l2_block_hash = Some(l2_block.hash());
 
-                soft_confirmation_hashes.push(l2_block.hash());
+                l2_block_hashes.push(l2_block.hash());
 
                 let mut state_log = result.state_log;
                 let mut offchain_log = result.offchain_log;
@@ -721,9 +487,9 @@ where
                 cumulative_offchain_log = Some(offchain_log);
             }
 
-            // now verify the claimed merkle root of soft confirmation hashes
+            // now verify the claimed merkle root of l2 block hashes
             let calculated_root =
-                MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
+                MerkleTree::<Sha256>::from_leaves(l2_block_hashes.as_slice()).root();
 
             assert_eq!(
                 calculated_root,
@@ -741,7 +507,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height,
-            final_soft_confirmation_hash: prev_soft_confirmation_hash.unwrap(),
+            final_l2_block_hash: prev_l2_block_hash.unwrap(),
             sequencer_commitment_hashes,
             sequencer_commitment_index_range,
             cumulative_state_log: cumulative_state_log.unwrap(),
@@ -751,66 +517,25 @@ where
     }
 }
 
-fn verify_soft_confirmation_signature(
+fn verify_signature(
     header: &SignedL2Header,
-    sequencer_public_key: &[u8],
+    sequencer_public_key: &K256PublicKey,
 ) -> Result<(), anyhow::Error> {
     let signature = K256Signature::try_from(header.signature.as_slice())?;
 
-    signature.verify(
-        &K256PublicKey::try_from(sequencer_public_key)?,
-        &header.hash,
-    )?;
+    signature.verify(sequencer_public_key, &header.hash)?;
 
-    Ok(())
-}
-
-fn verify_kumquat_signature(
-    header: &SignedL2Header,
-    sequencer_public_key: &[u8],
-) -> Result<(), anyhow::Error> {
-    let signature = DefaultSignature::try_from(header.signature.as_slice())?;
-
-    signature.verify(
-        &DefaultPublicKey::try_from(sequencer_public_key)?,
-        &header.hash,
-    )?;
-
-    Ok(())
-}
-
-fn verify_genesis_signature(
-    message: &[u8],
-    signature: &[u8],
-    sequencer_public_key: &[u8],
-) -> anyhow::Result<()> {
-    let signature = DefaultSignature::try_from(signature)?;
-    let public_key = DefaultPublicKey::try_from(sequencer_public_key)?;
-
-    signature.verify(&public_key, message)?;
     Ok(())
 }
 
 fn verify_tx_merkle_root<C: Context + Spec>(
-    current_spec: SpecId,
-    l2_block: &L2Block<'_, Transaction>,
+    l2_block: &L2Block,
 ) -> Result<(), StateTransitionError> {
-    let tx_hashes: Vec<[u8; 32]> = if current_spec >= SpecId::Kumquat {
-        l2_block
-            .txs
-            .iter()
-            .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
-            .collect()
-    } else {
-        l2_block
-            .txs
-            .iter()
-            .map(|tx| {
-                let serialized = borsh::to_vec(tx).expect("Tx serialization shouldn't fail");
-                <C as Spec>::Hasher::digest(&serialized).into()
-            })
-            .collect()
-    };
+    let tx_hashes: Vec<[u8; 32]> = l2_block
+        .txs
+        .iter()
+        .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
+        .collect();
 
     let tx_merkle_root = if tx_hashes.is_empty() {
         EMPTY_TX_ROOT
@@ -821,8 +546,8 @@ fn verify_tx_merkle_root<C: Context + Spec>(
     };
 
     if tx_merkle_root != l2_block.tx_merkle_root() {
-        return Err(StateTransitionError::SoftConfirmationError(
-            SoftConfirmationError::InvalidTxMerkleRoot,
+        return Err(StateTransitionError::L2BlockError(
+            L2BlockError::InvalidTxMerkleRoot,
         ));
     }
     Ok(())

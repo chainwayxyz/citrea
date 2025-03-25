@@ -855,7 +855,7 @@ dependencies = [
  "hex",
  "secp256k1",
  "serde",
- "soft-confirmation-rule-enforcer",
+ "l2-block-rule-enforcer",
  "sov-accounts",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
@@ -2638,7 +2638,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "soft-confirmation-rule-enforcer"
+name = "l2-block-rule-enforcer"
 version = "0.5.0-rc.1"
 dependencies = [
  "borsh",

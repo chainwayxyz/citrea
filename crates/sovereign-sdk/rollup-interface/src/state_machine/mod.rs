@@ -1,8 +1,9 @@
 //! Defines types, traits, and helpers that are used by the core state-machine of the rollup.
 //! Items in this module must be fully deterministic, since they are expected to be executed inside of zkVMs.
+pub mod block;
 pub mod da;
-pub mod soft_confirmation;
 pub mod stf;
+pub mod transaction;
 pub mod witness;
 pub mod zk;
 

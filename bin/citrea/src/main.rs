@@ -10,6 +10,7 @@ use citrea::{
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::tasks::manager::TaskType;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
@@ -38,8 +39,6 @@ use tracing::{debug, error, info, instrument};
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
 
 mod cli;
-#[cfg(test)]
-mod test_rpc;
 
 /// Main runner. Initializes a DA service, and starts a node using the provided arguments.
 #[tokio::main]
@@ -50,11 +49,8 @@ async fn main() -> anyhow::Result<()> {
         args.verbose = 0;
     }
     let logging_level = match args.verbose {
-        0 => tracing::Level::ERROR,
-        1 => tracing::Level::WARN,
-        2 => tracing::Level::INFO,
-        3 => tracing::Level::DEBUG,
-        4 => tracing::Level::TRACE,
+        1 => tracing::Level::DEBUG,
+        2 => tracing::Level::TRACE,
         _ => tracing::Level::INFO,
     };
     initialize_logging(logging_level);
@@ -129,7 +125,9 @@ where
         builder
             .idle_timeout(
                 MetricKindMask::GAUGE | MetricKindMask::HISTOGRAM,
-                Some(Duration::from_secs(30)),
+                // Keep the idle timeout larger than one L1 block production.
+                // Setting this here for 30 minutes.
+                Some(Duration::from_secs(30 * 60)),
             )
             .install()
             .map_err(|_| anyhow!("failed to install Prometheus recorder"))?;
@@ -195,7 +193,7 @@ where
     let Dependencies {
         da_service,
         mut task_manager,
-        soft_confirmation_channel,
+        l2_block_channel,
     } = rollup_blueprint
         .setup_dependencies(
             &rollup_config,
@@ -204,14 +202,14 @@ where
         )
         .await?;
 
+    let (l2_block_tx, l2_block_rx) = l2_block_channel;
+
     let sequencer_client_url = rollup_config
         .runner
         .clone()
         .map(|runner| runner.sequencer_client_url);
-    let soft_confirmation_rx = match node_type {
-        NodeType::Sequencer(_) | NodeType::BatchProver(_) | NodeType::FullNode => {
-            soft_confirmation_channel.1
-        }
+    let l2_block_rx = match node_type {
+        NodeType::Sequencer(_) | NodeType::BatchProver(_) | NodeType::FullNode => l2_block_rx,
         _ => None,
     };
 
@@ -229,7 +227,7 @@ where
         ledger_db.clone(),
         da_service.clone(),
         sequencer_client_url,
-        soft_confirmation_rx,
+        l2_block_rx,
         &backup_manager,
     )?;
 
@@ -243,7 +241,7 @@ where
                     da_service,
                     ledger_db,
                     storage_manager,
-                    soft_confirmation_channel.0,
+                    l2_block_tx,
                     rpc_module,
                     backup_manager,
                 )
@@ -256,7 +254,7 @@ where
                 None,
             );
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = sequencer.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
@@ -272,7 +270,7 @@ where
                     da_service,
                     ledger_db.clone(),
                     storage_manager,
-                    soft_confirmation_channel.0,
+                    l2_block_tx,
                     rpc_module,
                     backup_manager,
                 )
@@ -298,13 +296,13 @@ where
                 }
             };
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(l1_start_height, cancellation_token)
                     .await
             });
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = prover.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
@@ -340,13 +338,13 @@ where
                 None,
             );
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(starting_block, cancellation_token)
                     .await
             });
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = prover.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
@@ -361,7 +359,7 @@ where
                     da_service,
                     ledger_db.clone(),
                     storage_manager,
-                    soft_confirmation_channel.0,
+                    l2_block_tx,
                     backup_manager,
                 )
                 .await
@@ -386,7 +384,7 @@ where
                 }
             };
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_block_handler
                     .run(l1_start_height, cancellation_token)
                     .await
@@ -394,14 +392,14 @@ where
 
             // Spawn pruner if configs are set
             if let Some(pruner_service) = pruner_service {
-                task_manager.spawn(|cancellation_token| async move {
+                task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                     pruner_service
                         .run(StorageNodeType::FullNode, cancellation_token)
                         .await
                 });
             }
 
-            task_manager.spawn(|cancellation_token| async move {
+            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
                 if let Err(e) = full_node.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }

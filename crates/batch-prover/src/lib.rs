@@ -2,17 +2,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
+use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::L2SyncWorker;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
+use l2_syncer::L2Syncer;
 use prover_services::ParallelProverService;
 pub use proving::GroupCommitments;
 pub use runner::*;
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{SpecId, Zkvm};
@@ -20,11 +22,12 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, Mutex};
 
 pub mod da_block_handler;
 pub mod db_migrations;
 mod errors;
+mod l2_syncer;
 mod metrics;
 mod proving;
 pub mod rpc;
@@ -45,7 +48,7 @@ pub async fn build_services<DA, DB, Vm>(
     prover_service: Arc<ParallelProverService<DA, Vm>>,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    l2_block_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     elfs: HashMap<SpecId, Vec<u8>>,
@@ -69,16 +72,14 @@ where
         ledger_db.clone(),
         storage_manager.clone(),
         public_keys.sequencer_da_pub_key.clone(),
-        public_keys.sequencer_public_key.clone(),
-        public_keys.sequencer_k256_public_key.clone(),
+        K256PublicKey::try_from_slice(&public_keys.sequencer_public_key.clone())?,
         l1_block_cache,
         code_commitments.clone(),
         elfs.clone(),
     );
     let rpc_module = rpc::register_rpc_methods::<DA, Vm, DB>(rpc_context, rpc_module)?;
 
-    let (l2_signal_tx, l2_signal_rx) = mpsc::channel(1);
-    let l2_sync_worker = L2SyncWorker::new(
+    let l2_syncer = L2Syncer::new(
         runner_config,
         init_params,
         native_stf,
@@ -87,13 +88,12 @@ where
         ledger_db.clone(),
         storage_manager.clone(),
         fork_manager,
-        soft_confirmation_tx,
+        l2_block_tx,
         backup_manager.clone(),
-        l2_signal_tx,
         true,
     )?;
 
-    let batch_prover = CitreaBatchProver::new(ledger_db.clone(), l2_sync_worker, l2_signal_rx)?;
+    let batch_prover = CitreaBatchProver::new(l2_syncer)?;
 
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));

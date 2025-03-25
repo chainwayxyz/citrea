@@ -34,8 +34,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::fee::{BumpFeeMethod, FeeService};
-use crate::helpers::builders::body_builders::{create_light_client_transactions, DaTxs, RawTxData};
-use crate::helpers::builders::{TxListWithReveal, TxWithId};
+use crate::helpers::builders::body_builders::{
+    backup_chunked_txs, backup_complete_txs, create_light_client_transactions, DaTxs, RawTxData,
+};
+use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
@@ -49,7 +51,7 @@ use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::verifier::BitcoinVerifier;
+use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 #[cfg(feature = "testing")]
@@ -355,12 +357,15 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
                 match inscription_txs {
                     DaTxs::Complete { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            self.tx_backup_dir.clone(),
+                            "complete_zk_proof",
+                        )
+                        .await
                     }
                     DaTxs::Chunked {
                         commit_chunks,
@@ -368,8 +373,14 @@ impl BitcoinService {
                         commit,
                         reveal,
                     } => {
-                        self.send_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
-                            .await
+                        self.send_chunked_transaction(
+                            commit_chunks,
+                            reveal_chunks,
+                            commit,
+                            reveal,
+                            self.tx_backup_dir.clone(),
+                        )
+                        .await
                     }
                     _ => panic!("ZKProof tx must be either complete or chunked"),
                 }
@@ -397,12 +408,15 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
                 match inscription_txs {
                     DaTxs::SequencerCommitment { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            self.tx_backup_dir.clone(),
+                            "sequencer_commitment",
+                        )
+                        .await
                     }
                     _ => panic!("Tx must be SequencerCommitment"),
                 }
@@ -431,12 +445,15 @@ impl BitcoinService {
                 })
                 .await??;
 
-                // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
-
                 match inscription_txs {
                     DaTxs::BatchProofMethodId { commit, reveal } => {
-                        self.send_complete_transaction(commit, reveal).await
+                        self.send_complete_transaction(
+                            commit,
+                            reveal,
+                            self.tx_backup_dir.clone(),
+                            "method_id_update",
+                        )
+                        .await
                     }
                     _ => panic!("Tx must be BatchProofMethodId"),
                 }
@@ -444,12 +461,13 @@ impl BitcoinService {
         }
     }
 
-    pub async fn send_chunked_transaction(
+    async fn send_chunked_transaction(
         &self,
         commit_chunks: Vec<Transaction>,
         reveal_chunks: Vec<Transaction>,
         commit: Transaction,
         reveal: TxWithId,
+        back_up_path: PathBuf,
     ) -> Result<Vec<Txid>> {
         assert!(!commit_chunks.is_empty(), "Received empty chunks");
         assert_eq!(
@@ -490,6 +508,11 @@ impl BitcoinService {
                 .client
                 .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
                 .await?;
+
+            if let Some(errors) = signed_raw_commit_tx.errors {
+                bail!("Failed to sign commit transaction: {:?}", errors);
+            }
+
             raw_txs.push(signed_raw_commit_tx.hex);
 
             let serialized_reveal_tx = encode::serialize(&reveal);
@@ -516,12 +539,22 @@ impl BitcoinService {
             .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
             .await?;
 
+        if let Some(errors) = signed_raw_commit_tx.errors {
+            bail!(
+                "Failed to sign the aggregate commit transaction: {:?}",
+                errors
+            );
+        }
+
         raw_txs.push(signed_raw_commit_tx.hex);
 
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         raw_txs.push(serialized_reveal_tx);
 
         self.test_mempool_accept(&raw_txs).await?;
+
+        // backup tx only if it passes mempool accept test
+        backup_chunked_txs(back_up_path, &raw_txs)?;
 
         // Track the sum of all chunked transactions sizes
         let raw_txs_size_sum: usize = raw_txs.iter().map(|tx| tx.len()).sum();
@@ -540,15 +573,22 @@ impl BitcoinService {
         Ok(txids)
     }
 
-    pub async fn send_complete_transaction(
+    async fn send_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
+        back_up_path: PathBuf,
+        back_up_name: &str,
     ) -> Result<Vec<Txid>> {
         let signed_raw_commit_tx = self
             .client
             .sign_raw_transaction_with_wallet(&commit, None, None)
             .await?;
+
+        if let Some(errors) = signed_raw_commit_tx.errors {
+            bail!("Failed to sign commit transaction: {:?}", errors);
+        }
+
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         let raw_txs = [signed_raw_commit_tx.hex, serialized_reveal_tx];
 
@@ -557,6 +597,9 @@ impl BitcoinService {
         histogram!("da_transaction_size").record(raw_txs_size_sum as f64);
 
         self.test_mempool_accept(&raw_txs).await?;
+
+        // backup tx only if it passes mempool accept test
+        backup_complete_txs(back_up_path, &raw_txs, back_up_name)?;
 
         let txids = self.send_raw_transactions(&raw_txs).await?;
         info!("Blob inscribe tx sent. Hash: {}", txids[1]);
@@ -580,12 +623,15 @@ impl BitcoinService {
             if let TestMempoolAcceptResult {
                 allowed: Some(false) | None,
                 reject_reason,
+                package_error,
                 ..
             } = res
             {
                 bail!(
                     "{}",
-                    reject_reason.unwrap_or("[testmempoolaccept] Unknown rejection".to_string())
+                    reject_reason
+                        .or(package_error)
+                        .unwrap_or("[testmempoolaccept] Unknown rejection".to_string())
                 )
             }
         }
@@ -1127,11 +1173,12 @@ impl DaService for BitcoinService {
                     .map(|transaction| transaction.into())
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        let tx_count = txs.len();
 
-        let witness_root = calculate_witness_root(&txs);
+        let witness_root = calculate_witness_root(&txs, tx_count);
 
         Ok(BitcoinBlock {
-            header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
+            header: HeaderWrapper::new(header, tx_count as u32, block.height, witness_root),
             txdata: txs,
         })
     }
@@ -1282,14 +1329,29 @@ fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     }
 }
 
-fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
+fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8; 32] {
+    // If there is only one transaction in the block, the witness root is all zeros
+    // So the merkle root is all zeros as well
+    if tx_count == 1 {
+        return [0u8; 32];
+    }
+
     let hashes = txdata
         .iter()
         .enumerate()
         .map(|(i, t)| {
             if i == 0 {
-                // Replace the first hash with zeroes.
-                Wtxid::all_zeros().to_raw_hash().to_byte_array()
+                let commitment_idx = t.output.iter().rev().position(|output| {
+                    output
+                        .script_pubkey
+                        .as_bytes()
+                        .starts_with(WITNESS_COMMITMENT_PREFIX)
+                });
+                // If non-segwit block, the coinbase tx should also use the txid instead of all zeros
+                match commitment_idx {
+                    Some(_) => Wtxid::all_zeros().to_raw_hash().to_byte_array(),
+                    None => t.compute_wtxid().to_raw_hash().to_byte_array(),
+                }
             } else {
                 t.compute_wtxid().to_raw_hash().to_byte_array()
             }

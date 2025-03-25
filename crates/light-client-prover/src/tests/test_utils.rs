@@ -28,7 +28,7 @@ pub(crate) fn create_mock_batch_proof(
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        final_soft_confirmation_hash: [4; 32],
+        final_l2_block_hash: [4; 32],
         state_diff: BTreeMap::new(),
         last_l2_height,
         // TODO: Update this
@@ -75,7 +75,7 @@ pub(crate) fn create_serialized_mock_proof(
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         initial_state_root,
         final_state_root,
-        final_soft_confirmation_hash: [4; 32],
+        final_l2_block_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
         last_l2_height,
         // TODO: Update this
@@ -172,7 +172,7 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
 /// MockDA MockZkvm native context circuit runner implementation
 pub struct NativeCircuitRunner {
     circuit: LightClientProofCircuit<ProverStorage, MockDaSpec, MockZkvm>,
-    prover_storage_manager: ProverStorageManager,
+    pub(crate) prover_storage_manager: ProverStorageManager,
 }
 
 impl NativeCircuitRunner {

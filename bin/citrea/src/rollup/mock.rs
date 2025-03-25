@@ -50,7 +50,7 @@ impl RollupBlueprint for MockDemoRollup {
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
-        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
@@ -67,7 +67,7 @@ impl RollupBlueprint for MockDemoRollup {
             ledger_db.clone(),
             &mut rpc_methods,
             sequencer_client_url,
-            soft_confirmation_rx,
+            l2_block_rx,
         )?;
 
         register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;

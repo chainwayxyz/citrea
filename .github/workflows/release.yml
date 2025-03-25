@@ -105,12 +105,35 @@ jobs:
         run: |
             mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
 
+      - name: Download citrea-cli linux-amd64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-cli-${{ github.ref_name }}-linux-amd64
+          path: release
+
+
+      - name: rename file
+        run: |
+          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-amd64
+
+      - name: Download citrea-cli osx-arm64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-cli-${{ github.ref_name }}-osx-arm64
+          path: release
+
+      - name: rename file
+        run: |
+          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-osx-arm64
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release/citrea-${{ github.ref_name }}-osx-arm64
             release/citrea-${{ github.ref_name }}-linux-amd64
+            release/citrea-cli-${{ github.ref_name }}-linux-amd64
+            release/citrea-cli-${{ github.ref_name }}-osx-arm64
           name: Release ${{ github.ref_name }}
           body: |
             This is the release for version ${{ github.ref_name }}.
@@ -118,6 +141,8 @@ jobs:
             It includes:
             - citrea-${{ github.ref_name }}-linux-amd64
             - citrea-${{ github.ref_name }}-osx-arm64
+            - citrea-cli-${{ github.ref_name }}-linux-amd64
+            - citrea-cli-${{ github.ref_name }}-osx-arm64
 
   update-dockerhub:
     runs-on: ubuntu-latest

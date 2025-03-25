@@ -1,13 +1,11 @@
 use sov_accounts::AccountsTxHook;
 use sov_modules_api::hooks::{
-    ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
+    ApplyL2BlockHooks, FinalizeHook, HookL2BlockInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    AccessoryWorkingSet, Context, SoftConfirmationHookError, SpecId, WorkingSet,
-};
+use sov_modules_api::{AccessoryWorkingSet, Context, L2BlockHookError, SpecId, WorkingSet};
 use sov_modules_stf_blueprint::RuntimeTxHook;
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -26,7 +24,7 @@ impl<C: Context, Da: DaSpec> TxHooks for CitreaRuntime<C, Da> {
         working_set: &mut WorkingSet<C::Storage>,
         arg: &RuntimeTxHook,
         spec_id: SpecId,
-    ) -> Result<C, SoftConfirmationHookError> {
+    ) -> Result<C, L2BlockHookError> {
         let RuntimeTxHook {
             height,
             current_spec,
@@ -46,7 +44,7 @@ impl<C: Context, Da: DaSpec> TxHooks for CitreaRuntime<C, Da> {
         ctx: &C,
         working_set: &mut WorkingSet<C::Storage>,
         spec_id: SpecId,
-    ) -> Result<(), SoftConfirmationHookError> {
+    ) -> Result<(), L2BlockHookError> {
         self.accounts
             .post_dispatch_tx_hook(tx, ctx, working_set, spec_id)?;
 
@@ -54,40 +52,32 @@ impl<C: Context, Da: DaSpec> TxHooks for CitreaRuntime<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for CitreaRuntime<C, Da> {
+impl<C: Context, Da: DaSpec> ApplyL2BlockHooks<Da> for CitreaRuntime<C, Da> {
     type Context = C;
 
     #[cfg_attr(
         feature = "native",
         instrument(level = "trace", skip(self, working_set), err, ret)
     )]
-    fn begin_soft_confirmation_hook(
+    fn begin_l2_block_hook(
         &mut self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        l2_block_info: &HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<(), SoftConfirmationHookError> {
-        if soft_confirmation_info.current_spec() < SpecId::Fork2 {
-            self.soft_confirmation_rule_enforcer
-                .begin_soft_confirmation_hook(soft_confirmation_info, working_set)?;
-        }
-        self.evm
-            .begin_soft_confirmation_hook(soft_confirmation_info, working_set);
+    ) -> Result<(), L2BlockHookError> {
+        self.evm.begin_l2_block_hook(l2_block_info, working_set);
 
         Ok(())
     }
 
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
-    fn end_soft_confirmation_hook(
+    fn end_l2_block_hook(
         &mut self,
-        soft_confirmation_info: HookSoftConfirmationInfo,
+        l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<(), SoftConfirmationHookError> {
-        if soft_confirmation_info.current_spec() >= SpecId::Fork2 {
-            self.soft_confirmation_rule_enforcer
-                .end_soft_confirmation_hook(&soft_confirmation_info, working_set)?;
-        }
-        self.evm
-            .end_soft_confirmation_hook(&soft_confirmation_info, working_set);
+    ) -> Result<(), L2BlockHookError> {
+        self.l2_block_rule_enforcer
+            .end_l2_block_hook(&l2_block_info, working_set)?;
+        self.evm.end_l2_block_hook(&l2_block_info, working_set);
         Ok(())
     }
 }
