@@ -230,7 +230,11 @@ where
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
-                assert_ne!(i, 0, "Got single commitment bigger than txbody limit");
+                let compressed_diff = compress_blob(&borsh::to_vec(&commitment_state_diff)?)?;
+                assert!(
+                    compressed_diff.len() > MAX_TXBODY_SIZE,
+                    "Got single commitment bigger than txbody limit"
+                );
 
                 cumulative_state_diff = commitment_state_diff;
                 partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or(0)..i]);
