@@ -218,9 +218,9 @@ where
             }
 
             // check spec change
+            let current_spec = fork_from_block_number(commitment.l2_end_block_number);
             if i != 0
-                && fork_from_block_number(commitment.l2_end_block_number)
-                    != fork_from_block_number(commitments[i - 1].l2_end_block_number)
+                && current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number)
             {
                 finalize_partition(&commitment_state_diff, i);
                 cumulative_state_diff = commitment_state_diff;
