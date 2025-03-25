@@ -204,10 +204,14 @@ async fn guest_cycles_sp1() {
     let client = ProverClient::from_env();
 
     // Setup the inputs.
-    let mut stdin = SP1Stdin::new();
+    let input = fs::read("tests/bitcoin/test-data/kumquat-input1.bin").unwrap();
 
+    let stdin = bincode::deserialize(&input).unwrap();
+
+    let start = std::time::Instant::now();
     let (_output, report) = client.execute(citrea_sp1_host::ELF, &stdin).run().unwrap();
 
-    // Record the number of cycles executed.
-    println!("Number of cycles: {}", report.total_instruction_count());
+    println!("Report:\n{}", report);
+
+    println!("Elapsed: {}", start.elapsed().as_secs_f32());
 }
