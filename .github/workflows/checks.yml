@@ -482,8 +482,8 @@ jobs:
         uses: docker/login-action@v3
         continue-on-error: true
         with:
-          username: ""
-          password: ""
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Cache Docker images
         id: cache-docker
