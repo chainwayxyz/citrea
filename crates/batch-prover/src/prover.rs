@@ -178,20 +178,6 @@ where
         let mut start_l2_height = start_l2_height;
         let mut partition_start_idx = 0;
 
-        let mut add_partition = |commitment_diff: &StateDiff, end_idx: usize, reason: &str| {
-            let serialized_diff =
-                borsh::to_vec(commitment_diff).expect("Diff serialization cannot fail");
-            let compressed_diff =
-                compress_blob(&serialized_diff).expect("Diff compression cannot fail");
-            assert!(
-                compressed_diff.len() > MAX_TXBODY_SIZE,
-                "Got single commitment bigger than txbody limit"
-            );
-
-            partitioned_commitments.push(&commitments[partition_start_idx..end_idx]);
-            partition_start_idx = end_idx;
-        };
-
         for (i, commitment) in commitments.iter().enumerate() {
             let end_l2_height = commitment.l2_end_block_number;
             assert!(end_l2_height >= start_l2_height);
@@ -209,7 +195,9 @@ where
 
             // check index gap
             if i != 0 && commitment.index != commitments[i - 1].index + 1 {
-                add_partition(&commitment_state_diff, i, "indexgap");
+                assert_state_diff_threshold(&commitment_state_diff);
+                partitioned_commitments.push(&commitments[partition_start_idx..i]);
+                partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
                 continue;
             }
@@ -219,7 +207,9 @@ where
             if i != 0
                 && current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number)
             {
-                add_partition(&commitment_state_diff, i, "specchange");
+                assert_state_diff_threshold(&commitment_state_diff);
+                partitioned_commitments.push(&commitments[partition_start_idx..i]);
+                partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
                 continue;
             }
@@ -233,8 +223,11 @@ where
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
-                add_partition(&commitment_state_diff, i, "statediff");
+                assert_state_diff_threshold(&commitment_state_diff);
+                partitioned_commitments.push(&commitments[partition_start_idx..i]);
+                partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
+                continue;
             }
         }
 
@@ -254,4 +247,13 @@ pub enum PartitionMode {
     /// Every commitment is a group on their own
     /// Generates a proof for every commitment
     OneByOne,
+}
+
+fn assert_state_diff_threshold(state_diff: &StateDiff) {
+    let serialized_diff = borsh::to_vec(state_diff).expect("Diff serialization cannot fail");
+    let compressed_diff = compress_blob(&serialized_diff).expect("Diff compression cannot fail");
+    assert!(
+        compressed_diff.len() > MAX_TXBODY_SIZE,
+        "Got single commitment bigger than txbody limit"
+    );
 }
