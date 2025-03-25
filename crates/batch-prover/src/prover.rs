@@ -176,7 +176,7 @@ where
         let mut partitioned_commitments = Vec::new();
         let mut cumulative_state_diff = StateDiff::new();
         let mut start_l2_height = start_l2_height;
-        let mut partition_start_idx = None;
+        let mut partition_start_idx = 0;
 
         let mut finalize_partition = |commitment_state_diff: &StateDiff, i: usize| {
             let serialized_diff =
@@ -188,8 +188,8 @@ where
                 "Got single commitment bigger than txbody limit"
             );
 
-            partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or_default()..i]);
-            partition_start_idx = Some(i);
+            partitioned_commitments.push(&commitments[partition_start_idx..i]);
+            partition_start_idx = i;
         };
 
         for (i, commitment) in commitments.iter().enumerate() {
@@ -239,7 +239,7 @@ where
         }
 
         // Add all remaining commitments as last partition
-        partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or_default()..]);
+        partitioned_commitments.push(&commitments[partition_start_idx..]);
 
         Ok(partitioned_commitments)
     }
