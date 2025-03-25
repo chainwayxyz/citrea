@@ -244,7 +244,9 @@ where
         }
 
         // Add all remaining commitments as last partition
-        partitioned_commitments.push(&commitments[partition_start_idx..]);
+        let partition = &commitments[partition_start_idx..];
+        log_partition(partition, start_l2_height, "end");
+        partitioned_commitments.push(partition);
 
         Ok(partitioned_commitments)
     }
@@ -261,6 +263,7 @@ pub enum PartitionMode {
     OneByOne,
 }
 
+#[inline(always)]
 fn assert_state_diff_threshold(state_diff: &StateDiff) {
     let serialized_diff = borsh::to_vec(state_diff).expect("Diff serialization cannot fail");
     let compressed_diff = compress_blob(&serialized_diff).expect("Diff compression cannot fail");
@@ -270,6 +273,7 @@ fn assert_state_diff_threshold(state_diff: &StateDiff) {
     );
 }
 
+#[inline(always)]
 fn log_partition(partition: &[SequencerCommitment], start_l2_height: u64, reason: &str) {
     let first_comm = partition.first().expect("Must have 1 element");
     let last_comm = partition.last().expect("Must have 1 element");
