@@ -191,12 +191,14 @@ where
                 commitment_state_diff = merge_state_diffs(commitment_state_diff, state_diff);
             }
 
-            start_l2_height = end_l2_height + 1;
-
             // check index gap
             if i != 0 && commitment.index != commitments[i - 1].index + 1 {
+                let partition = &commitments[partition_start_idx..i];
+                log_partition(partition, start_l2_height, "indexgap");
+                start_l2_height = end_l2_height + 1;
+
                 assert_state_diff_threshold(&commitment_state_diff);
-                partitioned_commitments.push(&commitments[partition_start_idx..i]);
+                partitioned_commitments.push(partition);
                 partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
                 continue;
@@ -207,8 +209,12 @@ where
             if i != 0
                 && current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number)
             {
+                let partition = &commitments[partition_start_idx..i];
+                log_partition(partition, start_l2_height, "specchange");
+                start_l2_height = end_l2_height + 1;
+
                 assert_state_diff_threshold(&commitment_state_diff);
-                partitioned_commitments.push(&commitments[partition_start_idx..i]);
+                partitioned_commitments.push(partition);
                 partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
                 continue;
@@ -223,12 +229,18 @@ where
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
+                let partition = &commitments[partition_start_idx..i];
+                log_partition(partition, start_l2_height, "statediff");
+                start_l2_height = end_l2_height + 1;
+
                 assert_state_diff_threshold(&commitment_state_diff);
-                partitioned_commitments.push(&commitments[partition_start_idx..i]);
+                partitioned_commitments.push(partition);
                 partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
                 continue;
             }
+
+            start_l2_height = end_l2_height + 1;
         }
 
         // Add all remaining commitments as last partition
@@ -255,5 +267,14 @@ fn assert_state_diff_threshold(state_diff: &StateDiff) {
     assert!(
         compressed_diff.len() > MAX_TXBODY_SIZE,
         "Got single commitment bigger than txbody limit"
+    );
+}
+
+fn log_partition(partition: &[SequencerCommitment], start_l2_height: u64, reason: &str) {
+    let first_comm = partition.first().expect("Must have 1 element");
+    let last_comm = partition.last().expect("Must have 1 element");
+    info!(
+        "Commitment partition: indices=[{},{}] blocks=[{},{}] reason={}",
+        first_comm.index, last_comm.index, start_l2_height, last_comm.l2_end_block_number, reason
     );
 }
