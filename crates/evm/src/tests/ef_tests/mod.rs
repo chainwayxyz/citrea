@@ -1,4 +1,6 @@
-// TODO: reference reth here
+// Code for the module is taken from Reth repository https://github.com/paradigmxyz/reth/blob/main/testing/ef-tests/tests/tests.rs
+// As importing and using the module from Reth is not possible, the code is copied here.
+// This is due to the differences between our executors.
 
 //! Abstractions and runners for EF tests.
 
