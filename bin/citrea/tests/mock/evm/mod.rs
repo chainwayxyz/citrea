@@ -930,6 +930,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     }
 
     // if we don't do this in a seperate block, gas estimation is off since the delegation is not done yet
+    // this also shows estimate gas works
     let _set_storage_tx = test_client
         .contract_transaction(
             delegating_signer.address(),
@@ -965,12 +966,70 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         )
     );
 
+    // this also shows eth_call works
     let get_storage_tx: U256 = test_client
         .contract_call(delegating_signer.address(), contract.get_call_data(), None)
         .await
         .unwrap();
 
     assert_eq!(get_storage_tx, U256::from(11));
+
+    // now let's try a failing auth
+    // followed by a clear delegation tx
+    // TODO: for now we send multiple wrong nonce auths in a single tx
+    // as current version of revm does not support clearing delegation
+    {
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: contract_address,
+            nonce: 0, // wrong nonce
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth_wrong_nonce = auth.into_signed(signature);
+
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: Address::ZERO,
+            nonce: 1, // wrong nonce
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let _signed_auth_clear_delegation = auth.into_signed(signature);
+
+        let _ = test_client
+            .send_eip7702_transaction(
+                Address::ZERO,
+                vec![],
+                None,
+                // TODO: our version of revm does not support clearing delegation yet
+                // once we update revm, we can uncomment the following line
+                // and the assert's below can be fixed
+                vec![signed_auth_wrong_nonce.clone(), signed_auth_wrong_nonce],
+                // vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        assert_eq!(
+            test_client
+                .eth_get_transaction_count(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            1 // TODO: this would be 2 if the clear delegation worked
+        );
+
+        // TODO: this should work when the clear delegation work
+        // assert_eq!(
+        //     test_client
+        //         .eth_get_code(delegating_signer.address(), None)
+        //         .await
+        //         .unwrap(),
+        //     Bytes::new()
+        // );
+    }
 
     rollup_task.abort();
     Ok(())

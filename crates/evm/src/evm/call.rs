@@ -225,12 +225,13 @@ pub(crate) fn create_txn_env(
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
         access_list: access_list.unwrap_or_default().to_vec(),
+        authorization_list: authorization_list.map(revm::primitives::AuthorizationList::Signed),
+
         // EIP-4844 related fields
         // as the `TxEnv` returned from this function is given to plain revm::Evm
         // and as CitreaEvm ignores type3 txs, we can safely ignore these fields
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
-        authorization_list: authorization_list.map(revm::primitives::AuthorizationList::Signed),
     };
 
     Ok(env)
