@@ -139,10 +139,12 @@ contract Bridge is Ownable2StepUpgradeable {
         require(nItems == 3, "Invalid witness items"); // musig + script + witness script
 
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
-        uint256 len = depositPrefix.length;
-        bytes memory _depositPrefix = script.slice(0, len);
+        uint256 prefixLen = depositPrefix.length;
+        uint256 suffixLen = depositSuffix.length;
+        require(script.length == prefixLen + 20 + suffixLen, "Invalid script length");
+        bytes memory _depositPrefix = script.slice(0, prefixLen);
         require(isBytesEqual(_depositPrefix, depositPrefix), "Invalid deposit script");
-        bytes memory _depositSuffix = script.slice(script.length - depositSuffix.length, depositSuffix.length);
+        bytes memory _depositSuffix = script.slice(script.length - suffixLen, suffixLen);
         require(isBytesEqual(_depositSuffix, depositSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
@@ -210,11 +212,13 @@ contract Bridge is Ownable2StepUpgradeable {
         require(nItems == 3, "Invalid witness items"); // musig + script + witness script
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
 
-        uint256 len = replacePrefix.length;
-        bytes memory _replacePrefix = script.slice(0, len);
+        uint256 prefixLen = replacePrefix.length;
+        uint256 suffixLen = replaceSuffix.length;
+        require(script.length == prefixLen + 32 + suffixLen, "Invalid script length");
+        bytes memory _replacePrefix = script.slice(0, prefixLen);
         require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid replace script prefix");
-        bytes memory _replaceSuffix = script.slice(script.length - replaceSuffix.length, replaceSuffix.length);
-        require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid replace cript suffix");
+        bytes memory _replaceSuffix = script.slice(script.length - suffixLen, suffixLen);
+        require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid replace script suffix");
 
         bytes32 txId = extractTxId(script);
         require(txId == txIdToReplace, "Invalid txId to replace provided");
