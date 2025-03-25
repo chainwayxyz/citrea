@@ -239,7 +239,7 @@ where
         }
 
         // Add all remaining commitments as last partition
-        partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or_default()..]);
+        partitioned_commitments.push(&commitments[partition_start_idx.unwrap_or(0)..]);
 
         Ok(partitioned_commitments)
     }
