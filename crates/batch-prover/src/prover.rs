@@ -1,5 +1,6 @@
 use std::slice;
 
+use anyhow::Context;
 use citrea_common::utils::merge_state_diffs;
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
@@ -8,6 +9,7 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, UnprovenCommitmentStatus};
 use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
@@ -97,6 +99,12 @@ where
 
         let partitioned_commitments =
             self.partition_commitments(&commitments, start_l2_height, PartitionMode::Normal)?;
+
+        for partition in partitioned_commitments {
+            let input = self
+                .create_circuit_input(partition, start_l2_height)
+                .context("Failed to create circuit input")?;
+        }
 
         Ok(())
     }
@@ -249,6 +257,14 @@ where
         partitioned_commitments.push(partition);
 
         Ok(partitioned_commitments)
+    }
+
+    fn create_circuit_input(
+        &self,
+        partition: &[SequencerCommitment],
+        start_l2_height: u64,
+    ) -> anyhow::Result<BatchProofCircuitInputV3> {
+        todo!()
     }
 }
 
