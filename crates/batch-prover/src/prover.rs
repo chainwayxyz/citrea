@@ -180,10 +180,10 @@ where
 
         let mut finalize_partition =
             |commitment_state_diff: &StateDiff, next_partition_idx: usize| {
-                let serialized_diff = borsh::to_vec(commitment_state_diff)
-                    .expect("State diff serialization cannot fail");
+                let serialized_diff =
+                    borsh::to_vec(commitment_state_diff).expect("Diff serialization cannot fail");
                 let compressed_diff =
-                    compress_blob(&serialized_diff).expect("State diff compression cannot fail");
+                    compress_blob(&serialized_diff).expect("Diff compression cannot fail");
                 assert!(
                     compressed_diff.len() > MAX_TXBODY_SIZE,
                     "Got single commitment bigger than txbody limit"
@@ -229,7 +229,10 @@ where
 
             cumulative_state_diff =
                 merge_state_diffs(cumulative_state_diff, commitment_state_diff.clone());
-            let compressed_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?)?;
+            let serialized_diff =
+                borsh::to_vec(&cumulative_state_diff).expect("Diff serialization cannot fail");
+            let compressed_diff =
+                compress_blob(&serialized_diff).expect("Diff compression cannot fail");
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
