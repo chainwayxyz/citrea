@@ -158,9 +158,9 @@ where
     }
 
     /// Partition the commitments into provable chunks. Here are the rules when partitioning in Normal mode:
-    /// 1. If there is an index gap in between commitments, group is formed, e.g. [1,2,4,6,7] -> [[1,2],[4],[6,7]]
-    /// 2. If ƒork has changed, group is formed
-    /// 3. If max state diff limit is surpassed, group is formed
+    /// 1. If there is an index gap in between commitments, partition is formed
+    /// 2. If ƒork has changed, partition is formed
+    /// 3. If max state diff limit is surpassed, partition is formed
     fn partition_commitments<'a>(
         &self,
         commitments: &'a [SequencerCommitment],
