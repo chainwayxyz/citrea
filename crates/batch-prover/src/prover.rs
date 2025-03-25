@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::slice;
 
 use anyhow::Context;
@@ -7,38 +8,53 @@ use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, UnprovenCommitmentStatus};
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::StateDiff;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
-pub struct Prover<DB>
+use crate::proving::get_batch_proof_circuit_input_from_commitments;
+
+pub struct Prover<Da, DB>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps,
 {
     ledger_db: DB,
+    storage_manager: ProverStorageManager,
+    sequencer_pub_key: K256PublicKey,
     l1_signal_rx: mpsc::Receiver<()>,
     l2_block_rx: broadcast::Receiver<u64>,
     sync_target_l2_height: Option<u64>,
+    _phantom: PhantomData<Da>,
 }
 
-impl<DB> Prover<DB>
+impl<Da, DB> Prover<Da, DB>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps,
 {
     pub fn new(
         ledger_db: DB,
+        storage_manager: ProverStorageManager,
+        sequencer_pub_key: K256PublicKey,
         l1_signal_rx: mpsc::Receiver<()>,
         l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
         Self {
             ledger_db,
+            storage_manager,
+            sequencer_pub_key,
             l1_signal_rx,
             l2_block_rx,
             sync_target_l2_height: None,
+            _phantom: PhantomData,
         }
     }
 
@@ -89,7 +105,7 @@ where
             1
         } else {
             let previous_commitment_index = commitments[0].index - 1;
-            // If this is not the first commitment in fork2, the start l2 height will be the end block number of the previous commitment
+            // If this is not the first commitment in fork2, the start l2 height will be the end block number + 1 of the previous commitment
             self.ledger_db
                 .get_commitment_by_index(previous_commitment_index)?
                 .expect("Previous commitment must exist")
@@ -103,6 +119,7 @@ where
         for partition in partitioned_commitments {
             let input = self
                 .create_circuit_input(partition, start_l2_height)
+                .await
                 .context("Failed to create circuit input")?;
         }
 
@@ -259,12 +276,62 @@ where
         Ok(partitioned_commitments)
     }
 
-    fn create_circuit_input(
+    async fn create_circuit_input(
         &self,
         partition: &[SequencerCommitment],
         start_l2_height: u64,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
-        todo!()
+        let end_l2_height = partition.last().expect("Must have 1").l2_end_block_number;
+
+        let initial_state_root = self.ledger_db
+            .get_l2_state_root(start_l2_height - 1)
+            .context("Failed to get initial state root")?
+            .expect("Start l2 height must have state root");
+        let final_state_root = self.ledger_db
+            .get_l2_state_root(end_l2_height)
+            .context("Failed to get final state root")?
+            .expect("End l2 height must have state root");
+
+        // TODO: REPLACE THIS
+        let (
+            short_header_proofs,
+            state_transition_witnesses,
+            cache_prune_l2_heights,
+            l2_blocks,
+            last_l1_hash_witness,
+        ) = get_batch_proof_circuit_input_from_commitments::<Da, _>(
+            start_l2_height,
+            partition,
+            &self.ledger_db,
+            &self.storage_manager,
+            &self.sequencer_pub_key,
+        )
+        .await
+        .context("Failed to get circuit input from commitments")?;
+
+        let previous_sequencer_commitment = partition
+            .first()
+            .expect("Must have 1")
+            .index
+            .checked_sub(1)
+            .map(|index| {
+                self.ledger_db
+                    .get_commitment_by_index(index)
+                    .expect("Should get commitment")
+                    .expect("Commitment should exist")
+            });
+
+        Ok(BatchProofCircuitInputV3 {
+            initial_state_root,
+            final_state_root,
+            l2_blocks,
+            state_transition_witnesses,
+            short_header_proofs,
+            sequencer_commitments: partition.to_vec(),
+            cache_prune_l2_heights,
+            last_l1_hash_witness,
+            previous_sequencer_commitment,
+        })
     }
 }
 
