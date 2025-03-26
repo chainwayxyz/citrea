@@ -1,5 +1,3 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-
 /// Batch proof related storage types
 pub mod batch_proof;
 /// L2 block related storage types
@@ -56,12 +54,3 @@ macro_rules! u64_wrapper {
 
 u64_wrapper!(SlotNumber);
 u64_wrapper!(L2BlockNumber);
-
-/// Enum representing the status of an unproven commitment
-#[derive(Debug, Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub enum UnprovenCommitmentStatus {
-    /// Commitment is pending
-    Pending,
-    /// Commitment is currently being proven
-    Running,
-}

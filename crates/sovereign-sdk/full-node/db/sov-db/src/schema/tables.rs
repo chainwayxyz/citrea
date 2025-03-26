@@ -23,7 +23,7 @@ use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
     AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2BlockNumber, L2HeightRange, SlotNumber,
-    StateKey, UnprovenCommitmentStatus,
+    StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -106,20 +106,12 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     L2BlockByNumber::table_name(),
     L2BlockByHash::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
-    L2RangeByL1Height::table_name(),
-    L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
     ProverLastScannedSlot::table_name(),
-    L2BlockStatus::table_name(),
-    CommitmentsByNumber::table_name(),
-    ProofsBySlotNumber::table_name(),
-    ProofsBySlotNumberV2::table_name(),
-    PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
-    CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
-    UnprovenCommitmentStatusByIndex::table_name(),
+    ProverPendingCommitments::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -167,7 +159,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
-    UnprovenCommitmentStatusByIndex::table_name(),
+    ProverPendingCommitments::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -349,8 +341,8 @@ define_table_with_seek_key_codec!(
 );
 
 define_table_with_default_codec!(
-    /// L1 block has by commitment index
-    (UnprovenCommitmentStatusByIndex) u32 => UnprovenCommitmentStatus
+    /// Commitment indices waiting to be proven
+    (ProverPendingCommitments) u32 => ()
 );
 
 define_table_with_default_codec!(

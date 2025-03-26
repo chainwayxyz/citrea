@@ -10,7 +10,7 @@ use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::{ParallelProverService, ProofData};
 use rand::Rng;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{L2BlockNumber, UnprovenCommitmentStatus};
+use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{SpecId, StateDiff, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -107,7 +107,7 @@ where
             return Ok(());
         }
 
-        let commitments = self.get_unproven_commitments(Some(UnprovenCommitmentStatus::Pending))?;
+        let commitments = self.get_pending_commitments()?;
         if commitments.is_empty() {
             info!("No pending commitments found");
             return Ok(());
@@ -135,10 +135,7 @@ where
 
             for commitment in partition.commitments {
                 self.ledger_db
-                    .set_unproven_commitment_status(
-                        commitment.index,
-                        UnprovenCommitmentStatus::Running,
-                    )
+                    .delete_pending_commitment(commitment.index)
                     .context("Failed to set commitment status to running")?;
             }
         }
@@ -149,14 +146,11 @@ where
         Ok(())
     }
 
-    fn get_unproven_commitments(
-        &self,
-        filter_status: Option<UnprovenCommitmentStatus>,
-    ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let unproven_commitment_indices = self.ledger_db.get_unproven_commitments(filter_status)?;
+    fn get_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let pending_commitment_indices = self.ledger_db.get_pending_commitments()?;
 
-        let mut commitments = Vec::with_capacity(unproven_commitment_indices.len());
-        for index in unproven_commitment_indices {
+        let mut commitments = Vec::with_capacity(pending_commitment_indices.len());
+        for index in pending_commitment_indices {
             let commitment = self
                 .ledger_db
                 .get_commitment_by_index(index)?

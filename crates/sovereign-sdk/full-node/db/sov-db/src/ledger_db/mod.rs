@@ -17,8 +17,8 @@ use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
     L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, UnprovenCommitmentStatusByIndex,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs,
+    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
     VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
@@ -28,7 +28,7 @@ use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber, UnprovenCommitmentStatus};
+use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -561,37 +561,27 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn set_unproven_commitment_status(
-        &self,
-        index: u32,
-        status: UnprovenCommitmentStatus,
-    ) -> anyhow::Result<()> {
-        self.db
-            .put::<UnprovenCommitmentStatusByIndex>(&index, &status)
+    fn put_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
+        self.db.put::<ProverPendingCommitments>(&index, &())
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_unproven_commitments(
-        &self,
-        filter_status: Option<UnprovenCommitmentStatus>,
-    ) -> anyhow::Result<Vec<u32>> {
-        let mut iter = self.db.iter::<UnprovenCommitmentStatusByIndex>()?;
+    fn get_pending_commitments(&self) -> anyhow::Result<Vec<u32>> {
+        let mut iter = self.db.iter::<ProverPendingCommitments>()?;
         iter.seek_to_first();
 
         let mut commitment_indices = vec![];
         for el in iter {
-            let (index, status) = el?.into_tuple();
-            if filter_status.map_or(true, |fs| status == fs) {
-                commitment_indices.push(index);
-            }
+            let (index, _) = el?.into_tuple();
+            commitment_indices.push(index);
         }
 
         Ok(commitment_indices)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn delete_unproven_commitment(&self, index: u32) -> anyhow::Result<()> {
-        self.db.delete::<UnprovenCommitmentStatusByIndex>(&index)
+    fn delete_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
+        self.db.delete::<ProverPendingCommitments>(&index)
     }
 }
 
