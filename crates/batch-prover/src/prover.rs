@@ -192,13 +192,17 @@ where
         start_l2_height: u64,
         mode: PartitionMode,
     ) -> anyhow::Result<Vec<&'a [SequencerCommitment]>> {
+        let mut state = PartitionState::new(commitments, start_l2_height);
+
         if mode == PartitionMode::OneByOne {
-            return Ok(commitments.iter().map(slice::from_ref).collect());
+            for i in 0..commitments.len() {
+                state.add_partition(i, "onebyone");
+            }
+            return Ok(state.into_inner());
         }
 
         // normal partition mode
 
-        let mut state = PartitionState::new(commitments, start_l2_height);
         let mut cumulative_state_diff = StateDiff::new();
         let mut commitment_start_height = start_l2_height;
 
@@ -385,6 +389,13 @@ impl<'a> PartitionState<'a> {
         );
         self.partitioned_commitments
     }
+}
+
+/// Helper wrapper struct to hold start and end heights with the commitment partition
+struct Partition<'a> {
+    commitments: &'a [SequencerCommitment],
+    start_height: u64,
+    end_height: u64,
 }
 
 #[inline(always)]
