@@ -24,7 +24,7 @@ risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rzup = { workspace = true, optional = true }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
-sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface"}
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 thiserror = { workspace = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true }
