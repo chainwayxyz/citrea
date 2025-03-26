@@ -1,3 +1,3 @@
 mod controller;
 mod helpers;
-mod service;
+pub(crate) mod service;

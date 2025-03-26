@@ -8,7 +8,7 @@ use sov_db::schema::types::L2BlockNumber;
 use sov_modules_api::StateDiff;
 use tracing::{debug, warn};
 
-use super::CommitmentRange;
+use super::service::CommitmentRange;
 
 // Based on the test runs, brotli is able to compress the state diff 58% to 70%,
 // with an average of 66% for both empty and full blocks. This is a super safe

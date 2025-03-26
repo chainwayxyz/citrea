@@ -26,7 +26,7 @@ use super::helpers::load_next_commitment_index;
 use crate::metrics::SEQUENCER_METRICS;
 
 /// L2 heights to commit
-type CommitmentRange = RangeInclusive<L2BlockNumber>;
+pub(crate) type CommitmentRange = RangeInclusive<L2BlockNumber>;
 
 pub struct CommitmentService<Da, Db>
 where
