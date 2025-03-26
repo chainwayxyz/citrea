@@ -535,8 +535,6 @@ where
         self.state_root = next_state_root;
         self.l2_block_hash = l2_block_hash;
 
-        // this was saving L2 block
-
         Ok(l2_block_result.state_diff)
     }
 
