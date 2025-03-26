@@ -1,4 +1,5 @@
-use std::marker::PhantomData;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Context;
 use citrea_common::utils::merge_state_diffs;
@@ -6,47 +7,54 @@ use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
+use prover_services::{ParallelProverService, ProofData};
 use rand::Rng;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, UnprovenCommitmentStatus};
 use sov_keys::default_signature::K256PublicKey;
-use sov_modules_api::StateDiff;
+use sov_modules_api::{SpecId, StateDiff, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
+use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use tokio::select;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::proving::get_batch_proof_circuit_input_from_commitments;
 
-pub struct Prover<Da, DB>
+pub struct Prover<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps,
+    Vm: ZkvmHost + Zkvm + 'static,
 {
     prover_config: BatchProverConfig,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
+    prover_service: Arc<ParallelProverService<Da, Vm>>,
     sequencer_pub_key: K256PublicKey,
+    elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_signal_rx: mpsc::Receiver<()>,
     l2_block_rx: broadcast::Receiver<u64>,
     sync_target_l2_height: Option<u64>,
-    _phantom: PhantomData<Da>,
 }
 
-impl<Da, DB> Prover<Da, DB>
+impl<Da, DB, Vm> Prover<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps,
+    Vm: ZkvmHost + Zkvm,
 {
     pub fn new(
         prover_config: BatchProverConfig,
         ledger_db: DB,
         storage_manager: ProverStorageManager,
+        prover_service: Arc<ParallelProverService<Da, Vm>>,
         sequencer_pub_key: K256PublicKey,
+        elfs_by_spec: HashMap<SpecId, Vec<u8>>,
         l1_signal_rx: mpsc::Receiver<()>,
         l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
@@ -54,11 +62,12 @@ where
             prover_config,
             ledger_db,
             storage_manager,
+            prover_service,
             sequencer_pub_key,
+            elfs_by_spec,
             l1_signal_rx,
             l2_block_rx,
             sync_target_l2_height: None,
-            _phantom: PhantomData,
         }
     }
 
@@ -114,14 +123,19 @@ where
         let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
         info!("Partitioned commitments into {} parts", partitions.len());
 
+        let mut proof_rxs = Vec::with_capacity(partitions.len());
         for partition in partitions {
             let input = self
                 .create_circuit_input(&partition)
                 .await
                 .context("Failed to create circuit input")?;
 
-            self.start_proving(input).await;
+            let rx = self.start_proving(input).await;
+            proof_rxs.push(rx);
+            // TODO: update commitment statuses in ledger db to running
         }
+
+        // TODO: spawn a task that waits for proof tasks and delete their status
 
         Ok(())
     }
@@ -334,7 +348,33 @@ where
         })
     }
 
-    async fn start_proving(&self, input: BatchProofCircuitInputV3) {}
+    async fn start_proving(&self, input: BatchProofCircuitInputV3) -> oneshot::Receiver<Proof> {
+        let end_l2_height = input
+            .sequencer_commitments
+            .last()
+            .expect("Must have 1")
+            .l2_end_block_number;
+        let current_spec = fork_from_block_number(end_l2_height).spec_id;
+
+        let elf = self
+            .elfs_by_spec
+            .get(&current_spec)
+            .expect("Every fork should have an elf attached")
+            .clone();
+
+        tracing::info!("Starting proving with ELF of spec: {:?}", current_spec);
+
+        let input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
+
+        let proof_data = ProofData {
+            input,
+            assumptions: vec![],
+            elf,
+        };
+        self.prover_service
+            .start_proving(proof_data, ReceiptType::Groth16)
+            .await
+    }
 
     fn get_state_diff(&self, start_height: u64, end_height: u64) -> anyhow::Result<StateDiff> {
         let mut commitment_state_diff = StateDiff::new();

@@ -152,6 +152,7 @@ where
                         self.ledger_db
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
+                        // TODO: update commitments on da slot?
                         self.ledger_db
                             .set_unproven_commitment_status(
                                 index,
