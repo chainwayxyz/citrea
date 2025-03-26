@@ -2,9 +2,11 @@ use std::marker::PhantomData;
 
 use anyhow::Context;
 use citrea_common::utils::merge_state_diffs;
+use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
+use rand::Rng;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, UnprovenCommitmentStatus};
 use sov_keys::default_signature::K256PublicKey;
@@ -25,6 +27,7 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps,
 {
+    prover_config: BatchProverConfig,
     ledger_db: DB,
     storage_manager: ProverStorageManager,
     sequencer_pub_key: K256PublicKey,
@@ -40,6 +43,7 @@ where
     DB: BatchProverLedgerOps,
 {
     pub fn new(
+        prover_config: BatchProverConfig,
         ledger_db: DB,
         storage_manager: ProverStorageManager,
         sequencer_pub_key: K256PublicKey,
@@ -47,6 +51,7 @@ where
         l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
         Self {
+            prover_config,
             ledger_db,
             storage_manager,
             sequencer_pub_key,
@@ -88,24 +93,34 @@ where
     }
 
     async fn try_proving(&mut self) -> anyhow::Result<()> {
+        if !self.should_prove() {
+            info!("Skipping proving due to sampling");
+            return Ok(());
+        }
+
         let commitments = self.get_unproven_commitments(Some(UnprovenCommitmentStatus::Pending))?;
         if commitments.is_empty() {
+            info!("No pending commitments found");
             return Ok(());
         }
+        info!("Have {} pending commitment(s)", commitments.len());
 
         let commitments = self.filter_unsynced_commitments(commitments)?;
-        info!("Have {} provable commitment(s)", commitments.len());
         if commitments.is_empty() {
             return Ok(());
         }
+        info!("Processing {} commitment(s)", commitments.len());
 
         let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
+        info!("Partitioned commitments into {} parts", partitions.len());
 
         for partition in partitions {
             let input = self
                 .create_circuit_input(&partition)
                 .await
                 .context("Failed to create circuit input")?;
+
+            self.start_proving(input).await;
         }
 
         Ok(())
@@ -319,6 +334,8 @@ where
         })
     }
 
+    async fn start_proving(&self, input: BatchProofCircuitInputV3) {}
+
     fn get_state_diff(&self, start_height: u64, end_height: u64) -> anyhow::Result<StateDiff> {
         let mut commitment_state_diff = StateDiff::new();
         for l2_height in start_height..=end_height {
@@ -330,6 +347,19 @@ where
         }
 
         Ok(commitment_state_diff)
+    }
+
+    fn should_prove(&self) -> bool {
+        match self.prover_config.proving_mode {
+            // Unconditionally call `prove_l1()`
+            ProverGuestRunConfig::ProveWithFakeProofs => true,
+            // Call `prove_l1()` with a probability
+            _ => {
+                self.prover_config.proof_sampling_number == 0
+                    || rand::thread_rng().gen_range(0..self.prover_config.proof_sampling_number)
+                        == 0
+            }
+        }
     }
 }
 
