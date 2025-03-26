@@ -274,26 +274,26 @@ where
             l1_block.header().height(),
         );
 
-        let committed_height = self
+        if let Some(committed_height) = self
             .ledger_db
             .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
-            .unwrap_or_default();
+        {
+            // Only proceed if the commitment height and index are higher than the stored one
+            if end_l2_height <= committed_height.height {
+                info!(
+                        "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
+                        committed_height.height,
+                    );
+                return Ok(());
+            }
 
-        // Only proceed if the commitment height and index are higher than the stored one
-        if end_l2_height <= committed_height.height {
-            info!(
-                    "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
-                    committed_height.height,
+            if sequencer_commitment.index != committed_height.commitment_index + 1 {
+                info!(
+                    "Skipping sequencer commitment with index {} as it is not increasing by one",
+                    sequencer_commitment.index,
                 );
-            return Ok(());
-        }
-
-        if sequencer_commitment.index != committed_height.commitment_index + 1 {
-            info!(
-                "Skipping sequencer commitment with index {} as it is not increasing by one",
-                sequencer_commitment.index,
-            );
-            return Ok(());
+                return Ok(());
+            }
         }
 
         // Traverse each item's field of vector of transactions, put them in merkle tree
