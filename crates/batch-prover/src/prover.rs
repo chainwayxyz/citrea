@@ -29,6 +29,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
 use tracing::{error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
+use uuid::Uuid;
 
 pub struct Prover<Da, DB, Vm>
 where
@@ -357,7 +358,7 @@ where
         })
     }
 
-    async fn start_proving(&self, input: BatchProofCircuitInputV3) -> oneshot::Receiver<Proof> {
+    async fn start_proving(&self, input: BatchProofCircuitInputV3) -> (Uuid, oneshot::Receiver<Proof>) {
         let end_l2_height = input
             .sequencer_commitments
             .last()
