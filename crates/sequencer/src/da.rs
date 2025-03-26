@@ -22,6 +22,7 @@ pub(crate) async fn da_block_monitor<Da>(
 ) where
     Da: DaService,
 {
+    let mut last_l1_data = None;
     loop {
         tokio::select! {
             biased;
@@ -30,14 +31,17 @@ pub(crate) async fn da_block_monitor<Da>(
             }
             l1_data = get_da_block_data(da_service.clone()) => {
                 let l1_data = match l1_data {
-                    Ok(l1_data) => l1_data,
+                    Ok(l1_data) => Some(l1_data),
                     Err(e) => {
                         error!("Could not fetch L1 data, {}", e);
                         continue;
                     }
                 };
 
-                let _ = sender.send(l1_data).await;
+                if l1_data != last_l1_data {
+                    last_l1_data = l1_data;
+                    let _ = sender.send(last_l1_data.clone().unwrap()).await;
+                }
 
                 sleep(Duration::from_millis(loop_interval)).await;
             },
