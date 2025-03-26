@@ -109,19 +109,22 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: citrea-cli-${{ github.ref_name }}-linux-amd64
+          path: release
+
 
       - name: rename file
         run: |
-          mv citrea-cli-${{ github.ref_name }}-linux-amd64 release/citrea-cli-${{ github.ref_name }}-linux-amd64
+          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-amd64
 
       - name: Download citrea-cli osx-arm64 Binary
         uses: actions/download-artifact@v4
         with:
           name: citrea-cli-${{ github.ref_name }}-osx-arm64
+          path: release
 
       - name: rename file
         run: |
-          mv citrea-cli-${{ github.ref_name }}-osx-arm64 release/citrea-cli-${{ github.ref_name }}-osx-arm64
+          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-osx-arm64
 
       - name: Release
         uses: softprops/action-gh-release@v2

@@ -15,10 +15,9 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock,
-    LastSequencerCommitmentSent, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
@@ -141,6 +140,16 @@ impl LedgerDB {
         }
     }
 
+    fn put_l2_block(
+        &self,
+        l2_block: &StoredL2Block,
+        schema_batch: &mut SchemaBatch,
+    ) -> Result<(), anyhow::Error> {
+        let l2_block_number = L2BlockNumber(l2_block.height);
+        schema_batch.put::<L2BlockByNumber>(&l2_block_number, l2_block)?;
+        schema_batch.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number)
+    }
+
     /// Write raw rocksdb WriteBatch
     pub fn write(&self, batch: WriteBatch) -> anyhow::Result<()> {
         self.db.write(batch)
@@ -161,17 +170,6 @@ impl SharedLedgerOps for LedgerDB {
     /// Returns the inner DB instance
     fn inner(&self) -> Arc<DB> {
         self.db.clone()
-    }
-
-    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_l2_block(
-        &self,
-        l2_block: &StoredL2Block,
-        l2_block_number: &L2BlockNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<L2BlockByNumber>(l2_block_number, l2_block)?;
-        schema_batch.put::<L2BlockByHash>(&l2_block.hash, l2_block_number)
     }
 
     /// Commits a l2 block to the database by inserting its transactions and batches before
@@ -218,11 +216,7 @@ impl SharedLedgerOps for LedgerDB {
             timestamp: l2_block.timestamp(),
             tx_merkle_root: l2_block.tx_merkle_root(),
         };
-        self.put_l2_block(
-            &l2_block_to_store,
-            &L2BlockNumber(height),
-            &mut schema_batch,
-        )?;
+        self.put_l2_block(&l2_block_to_store, &mut schema_batch)?;
 
         self.db.write_schemas(schema_batch)?;
 
@@ -243,12 +237,7 @@ impl SharedLedgerOps for LedgerDB {
             None => (l2_height, l2_height),
         };
 
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<L2RangeByL1Height>(&l1_height, &new_range)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2RangeByL1Height>(&l1_height, &new_range)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -288,12 +277,7 @@ impl SharedLedgerOps for LedgerDB {
         height: L2BlockNumber,
         status: sov_rollup_interface::rpc::L2BlockStatus,
     ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<L2BlockStatus>(&height, &status)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2BlockStatus>(&height, &status)
     }
 
     /// Saves a l2 block status for a given L1 height
@@ -302,9 +286,7 @@ impl SharedLedgerOps for LedgerDB {
         &self,
         height: L2BlockNumber,
     ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>, anyhow::Error> {
-        let status = self.db.get::<L2BlockStatus>(&height)?;
-
-        Ok(status)
+        self.db.get::<L2BlockStatus>(&height)
     }
 
     /// Gets the commitments in the da slot with given height if any
@@ -340,12 +322,7 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip_all, err, ret)]
     fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()> {
         let buf = bincode::serialize(state_root)?;
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2GenesisStateRoot>(&(), &buf)
     }
 
     /// Get the state root by L2 height
@@ -405,28 +382,17 @@ impl SharedLedgerOps for LedgerDB {
         self.db.get::<L2BlockByNumber>(number)
     }
 
-    /// Get the most recent committed batch
-    /// Returns last sequencer commitment.
+    /// Returns the commitment with highest index.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_commitment(&self) -> anyhow::Result<Option<SequencerCommitment>> {
-        let index = self.db.get::<LastSequencerCommitmentSent>(&())?;
-        match index {
-            Some(index) => self.db.get::<SequencerCommitmentByIndex>(&index),
-            None => Ok(None),
+        let mut iter = self.db.iter::<SequencerCommitmentByIndex>()?;
+        iter.seek_to_last();
+
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.value)),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
         }
-    }
-
-    /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
-    /// For a sequencer, the last commitment is set when the block is produced.
-    /// For a full node the last commitment is set when a commitment is read from a finalized DA layer block.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastSequencerCommitmentSent>(&(), &seqcomm.index)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
     }
 
     /// Get the last scanned slot by the prover
@@ -439,12 +405,7 @@ impl SharedLedgerOps for LedgerDB {
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<ProverLastScannedSlot>(&(), &l1_height)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -455,12 +416,7 @@ impl SharedLedgerOps for LedgerDB {
     /// Set the last pruned L2 block number
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_pruned_l2_height(&self, l2_height: u64) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastPrunedBlock>(&(), &l2_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<LastPrunedBlock>(&(), &l2_height)
     }
 
     /// Gets all executed migrations.
@@ -498,11 +454,8 @@ impl SharedLedgerOps for LedgerDB {
     }
 
     fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<SequencerCommitmentByIndex>(&commitment.index, commitment)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db
+            .put::<SequencerCommitmentByIndex>(&commitment.index, commitment)
     }
 
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {

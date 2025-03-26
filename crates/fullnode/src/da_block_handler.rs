@@ -281,8 +281,6 @@ where
         self.ledger_db
             .put_commitment_by_index(sequencer_commitment)?;
 
-        self.ledger_db.set_last_commitment(sequencer_commitment)?;
-
         Ok(())
     }
 
