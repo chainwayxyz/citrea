@@ -18,6 +18,8 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 
+use crate::bitcoin::batch_prover_test::wait_for_zkproofs;
+
 use super::{get_citrea_cli_path, get_citrea_path};
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
@@ -552,6 +554,7 @@ impl TestCase for ConflictingCommitmentsTest {
             node_password: da_config.rpc_password.clone(),
             network: bitcoin::Network::Regtest,
             da_private_key: Some(
+                // Sequencer da private key
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(),
             ),
             tx_backup_dir: Self::test_config()
@@ -721,6 +724,273 @@ impl TestCase for ConflictingCommitmentsTest {
 async fn test_conflicting_commitments() -> Result<()> {
     TestCaseRunner::new(ConflictingCommitmentsTest::default())
         .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+#[derive(Default)]
+struct OutOfRangeProofTest {
+    task_manager: TaskManager<()>,
+}
+
+#[async_trait]
+impl TestCase for OutOfRangeProofTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_citrea_cli: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            // Extra args required for dropping wallet txs on bitcoin restart
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(&self) -> Result<()> {
+        self.task_manager.abort().await;
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let citrea_cli = f.citrea_cli.as_ref().unwrap();
+
+        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+
+        println!("f.initial_da_height : {:?}", f.initial_da_height);
+
+        let da_config = &da.config;
+        let bitcoin_da_service_config = BitcoinServiceConfig {
+            node_url: format!(
+                "http://127.0.0.1:{}/wallet/{}",
+                da_config.rpc_port,
+                NodeKind::Bitcoin
+            ),
+            node_username: da_config.rpc_user.clone(),
+            node_password: da_config.rpc_password.clone(),
+            network: bitcoin::Network::Regtest,
+            // Prover DA private key for sending ZK proofs
+            da_private_key: Some(
+                "0BC643E7F5ED05A39E11B28B11D149BB3DC0210AE7A7A8EF365554DFC06E5F14".to_string(),
+            ),
+            tx_backup_dir: Self::test_config()
+                .dir
+                .join("tx_backup_dir")
+                .display()
+                .to_string(),
+            monitoring: Default::default(),
+            mempool_space_url: None,
+        };
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let bitcoin_da_service = Arc::new(
+            BitcoinService::new_with_wallet_check(
+                bitcoin_da_service_config,
+                RollupParams {
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+                },
+                tx,
+            )
+            .await
+            .unwrap(),
+        );
+
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
+
+        // Generate two commitments to test pending proof over commitment ranges
+        for _ in 0..min_l2_blocks_per_commitment * 2 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(4, None).await?;
+        println!("got seqcoms");
+        da.generate(FINALITY_DEPTH).await?;
+        let commitments_l1_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+        println!("got batch proofs");
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+
+        println!("Waiting for height {proof_l1_height} fullnode");
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        let first_range = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(U64::from(1), U64::from(min_l2_blocks_per_commitment))
+            .await?;
+        let first_merkle_root = calculate_merkle_root(&first_range);
+        let commitment0 = SequencerCommitment {
+            merkle_root: first_merkle_root,
+            l2_end_block_number: min_l2_blocks_per_commitment,
+            index: 0,
+        };
+
+        let second_range = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(
+                U64::from(min_l2_blocks_per_commitment + 1),
+                U64::from(min_l2_blocks_per_commitment * 2),
+            )
+            .await?;
+        let second_merkle_root = calculate_merkle_root(&second_range);
+        let commitment1 = SequencerCommitment {
+            merkle_root: second_merkle_root,
+            l2_end_block_number: min_l2_blocks_per_commitment * 2,
+            index: 1,
+        };
+
+        let proof = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof;
+
+        // Rollback bitcoin to initial height and drop existing txs so that we can re-send them out of order
+        let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
+        da.invalidate_block(&initial_height_hash).await?;
+        let block_count = da.get_block_count().await?;
+        assert_eq!(block_count, f.initial_da_height);
+
+        // Rollback full node to genesis
+        full_node.wait_until_stopped().await?;
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "full-node",
+                    "--db-path",
+                    full_node.config.rollup.storage.path.to_str().unwrap(),
+                    "--l2-target",
+                    "0",
+                    "--l1-target",
+                    "0",
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
+            .await?;
+
+        full_node.start(None, None).await?;
+
+        // Send the proof first and should be kept as pending
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        // The proof should be stored as pending and not be processed
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?;
+        assert!(
+            proven_height.is_none(),
+            "No proof should be processed yet without commitments"
+        );
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment0), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitment0_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(commitment0_l1_height, None)
+            .await?;
+
+        // The first commitment should be processed but the proof should still be pending
+        // since it depends on both commitments
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.height, min_l2_blocks_per_commitment);
+        assert_eq!(committed_height.commitment_index, 0);
+
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?;
+        assert!(
+            proven_height.is_none(),
+            "Proof should still be pending without the second commitment"
+        );
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment1), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitment1_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(commitment1_l1_height, None)
+            .await?;
+
+        // Both commitments should be processed and the pending proof should now be processed too
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.height, min_l2_blocks_per_commitment * 2);
+        assert_eq!(committed_height.commitment_index, 1);
+
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(proven_height.height, min_l2_blocks_per_commitment * 2);
+        assert_eq!(proven_height.commitment_index, 1);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_out_of_range_proof() -> Result<()> {
+    TestCaseRunner::new(OutOfRangeProofTest::default())
+        .set_citrea_path(get_citrea_path())
+        .set_citrea_cli_path(get_citrea_cli_path())
         .run()
         .await
 }
