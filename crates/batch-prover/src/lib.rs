@@ -80,7 +80,7 @@ where
     let rpc_module = rpc::register_rpc_methods::<DA, Vm, DB>(rpc_context, rpc_module)?;
 
     let l2_syncer = L2Syncer::new(
-        runner_config,
+        runner_config.clone(),
         init_params,
         native_stf,
         public_keys.clone(),
@@ -95,10 +95,6 @@ where
 
     let runner = CitreaBatchProver::new(l2_syncer)?;
 
-    // TODO: handle this
-    let skip_submission_until_l1 =
-        std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
-
     // TODO: convert this to notify channel? else consider buf size? else make l1 syncer not block when channel is full.
     let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);
 
@@ -106,7 +102,7 @@ where
         ledger_db.clone(),
         da_service,
         public_keys.clone(),
-        0, // TODO: fix
+        runner_config.scan_l1_start_height,
         l1_block_cache,
         backup_manager,
         l1_signal_tx,

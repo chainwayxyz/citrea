@@ -284,18 +284,6 @@ where
                 None,
             );
 
-            let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
-                Some(l1_height) => l1_height.0,
-                None => {
-                    rollup_config
-                        .runner
-                        .ok_or(anyhow!(
-                    "Failed to start batch prover L1 block handler: Runner config not present"
-                ))?
-                        .scan_l1_start_height
-                }
-            };
-
             task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
                 l1_syncer.run(cancellation_token).await
             });
