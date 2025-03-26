@@ -52,7 +52,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2BlockByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
-    LastStateDiff::table_name(),
+    StateDiffByBlockNumber::table_name(),
     PendingSequencerCommitment::table_name(),
     L2BlockStatus::table_name(),
     CommitmentsByNumber::table_name(),
@@ -150,7 +150,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
-    LastStateDiff::table_name(),
+    StateDiffByBlockNumber::table_name(),
     LightClientProofBySlotNumber::table_name(),
     PendingSequencerCommitment::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -328,7 +328,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// The State diff storage
-    (LastStateDiff) () => StateDiff
+    (StateDiffByBlockNumber) L2BlockNumber => StateDiff
 );
 
 define_table_with_default_codec!(
