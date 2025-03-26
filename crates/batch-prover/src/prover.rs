@@ -130,18 +130,25 @@ where
         let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
         info!("Partitioned commitments into {} parts", partitions.len());
 
-        let mut proof_rxs = Vec::with_capacity(partitions.len());
+        let mut proof_jobs = Vec::with_capacity(partitions.len());
         for partition in partitions {
             let input = self
                 .create_circuit_input(&partition)
                 .await
                 .context("Failed to create circuit input")?;
 
-            let rx = self.start_proving(input).await;
-            proof_rxs.push(rx);
+            let (id, rx) = self.start_proving(input).await;
+            proof_jobs.push((id, rx));
 
-            let commitment_indices = partition.commitments.into_iter().map(|comm| comm.index).collect::<Vec<_>>();
+            let commitment_indices = partition
+                .commitments
+                .into_iter()
+                .map(|comm| comm.index)
+                .collect::<Vec<_>>();
 
+            self.ledger_db
+                .insert_prover_job(id, &commitment_indices)
+                .context("Failed to insert prover job")?;
             self.ledger_db
                 .delete_pending_commitments(commitment_indices)
                 .context("Failed to delete pending commitments")?;
@@ -358,7 +365,10 @@ where
         })
     }
 
-    async fn start_proving(&self, input: BatchProofCircuitInputV3) -> (Uuid, oneshot::Receiver<Proof>) {
+    async fn start_proving(
+        &self,
+        input: BatchProofCircuitInputV3,
+    ) -> (Uuid, oneshot::Receiver<Proof>) {
         let end_l2_height = input
             .sequencer_commitments
             .last()
@@ -381,7 +391,8 @@ where
             assumptions: vec![],
             elf,
         };
-        let (id, rx) = self.prover_service
+        let (id, rx) = self
+            .prover_service
             .start_proving(proof_data, ReceiptType::Groth16)
             .await;
 

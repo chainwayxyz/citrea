@@ -9,6 +9,7 @@ use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
+use uuid::Uuid;
 
 use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
@@ -17,8 +18,8 @@ use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
     L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs,
-    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverRunningJobs,
+    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
     VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
@@ -582,6 +583,16 @@ impl BatchProverLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn delete_pending_commitments(&self, indices: Vec<u32>) -> anyhow::Result<()> {
         self.db.delete_batch::<ProverPendingCommitments>(indices)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn insert_prover_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> anyhow::Result<()> {
+        self.db.put::<ProverRunningJobs>(&id, commitment_indices)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn delete_prover_job(&self, id: Uuid) -> anyhow::Result<()> {
+        self.db.delete::<ProverRunningJobs>(&id)
     }
 }
 

@@ -6,6 +6,7 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use uuid::Uuid;
 
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use crate::schema::types::l2_block::StoredL2Block;
@@ -187,6 +188,12 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Delete commitment indices from pending commitments table
     fn delete_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
+
+    /// Inserts a new prover job with its corresponding commitment indices
+    fn insert_prover_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
+
+    /// Deletes a prover job
+    fn delete_prover_job(&self, id: Uuid) -> Result<()>;
 }
 
 /// Light client prover ledger operations
