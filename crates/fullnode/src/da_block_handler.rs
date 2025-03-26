@@ -580,15 +580,17 @@ where
         }
 
         'proofs: for ((min_index, max_index), proof) in pending_proofs {
-            for index in min_index..=max_index {
-                if self.ledger_db.get_commitment_by_index(index)?.is_none() {
-                    debug!(
-                        "Commitment with index {} is missing for pending proof. Keep proof with {min_index}-{max_index} as pending",
-                        index
+            if self
+                .ledger_db
+                .get_commitment_by_range(min_index..=max_index)?
+                .len()
+                != (max_index - min_index) as usize
+            {
+                debug!(
+                        "Commitment in range {min_index}-{max_index} is missing for pending proof. Keeping proof as pending"
                     );
-                    // Breaking since pending proofs are sorted by commitment index and we won't be to process anymore from then on
-                    break 'proofs;
-                }
+                // Breaking since pending proofs are sorted by commitment index and we won't be to process anymore from then on
+                break 'proofs;
             }
 
             if let Err(e) = self.process_zk_proof(l1_block, proof).await {

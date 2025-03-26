@@ -141,6 +141,12 @@ pub trait SharedLedgerOps {
 
     /// Get commitment by index
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>>;
+
+    /// Get commitment by index range
+    fn get_commitment_by_range(
+        &self,
+        range: std::ops::RangeInclusive<u32>,
+    ) -> anyhow::Result<Vec<SequencerCommitment>>;
 }
 
 /// Node ledger operations

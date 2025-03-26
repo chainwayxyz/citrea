@@ -464,6 +464,15 @@ impl SharedLedgerOps for LedgerDB {
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {
         self.db.get::<SequencerCommitmentByIndex>(&index)
     }
+
+    fn get_commitment_by_range(
+        &self,
+        range: std::ops::RangeInclusive<u32>,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let start = *range.start();
+        let end = range.end() + 1;
+        self.get_data_range::<SequencerCommitmentByIndex, _, _>(&(start..end))
+    }
 }
 
 impl LightClientProverLedgerOps for LedgerDB {
