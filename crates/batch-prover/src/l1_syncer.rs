@@ -107,11 +107,10 @@ where
             let l1_height = l1_block.header().height();
             let l1_hash = l1_block.header().hash().into();
 
-            // TODO: this maybe not needed
-            // // Set the l1 height of the l1 hash
-            // self.ledger_db
-            //     .set_l1_height_of_l1_hash(l1_block_hash, l1_height)
-            //     .unwrap();
+            // Set the l1 height of the l1 hash
+            self.ledger_db
+                .set_l1_height_of_l1_hash(l1_block_hash, l1_height)
+                .unwrap();
 
             // Set short header proof
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
