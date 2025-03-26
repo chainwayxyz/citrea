@@ -351,9 +351,9 @@ where
 
     fn should_prove(&self) -> bool {
         match self.prover_config.proving_mode {
-            // Unconditionally call `prove_l1()`
+            // Unconditionally call prove
             ProverGuestRunConfig::ProveWithFakeProofs => true,
-            // Call `prove_l1()` with a probability
+            // Call prove with a probability
             _ => {
                 self.prover_config.proof_sampling_number == 0
                     || rand::thread_rng().gen_range(0..self.prover_config.proof_sampling_number)
