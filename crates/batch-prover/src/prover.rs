@@ -132,10 +132,19 @@ where
 
             let rx = self.start_proving(input).await;
             proof_rxs.push(rx);
-            // TODO: update commitment statuses in ledger db to running
+
+            for commitment in partition.commitments {
+                self.ledger_db
+                    .set_unproven_commitment_status(
+                        commitment.index,
+                        UnprovenCommitmentStatus::Running,
+                    )
+                    .context("Failed to set commitment status to running")?;
+            }
         }
 
-        // TODO: spawn a task that waits for proof tasks and delete their status
+        // TODO: spawn a task that waits for proof tasks and delete their status, and update l2 block status to proven
+        // TODO: think about how to handle insert_batch_proof_data_by_l1_height
 
         Ok(())
     }
