@@ -99,25 +99,11 @@ where
             return Ok(());
         }
 
-        let start_l2_height = if commitments[0].index == 0 {
-            // If this is the first commitment ever, start from 1
-            1
-        } else {
-            let previous_commitment_index = commitments[0].index - 1;
-            // If this is not the first commitment in fork2, the start l2 height will be the end block number + 1 of the previous commitment
-            self.ledger_db
-                .get_commitment_by_index(previous_commitment_index)?
-                .expect("Previous commitment must exist")
-                .l2_end_block_number
-                + 1
-        };
+        let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
 
-        let partitioned_commitments =
-            self.partition_commitments(&commitments, start_l2_height, PartitionMode::Normal)?;
-
-        for partition in partitioned_commitments {
+        for partition in partitions {
             let input = self
-                .create_circuit_input(partition, start_l2_height)
+                .create_circuit_input(partition)
                 .await
                 .context("Failed to create circuit input")?;
         }
@@ -188,9 +174,21 @@ where
     fn partition_commitments<'a>(
         &self,
         commitments: &'a [SequencerCommitment],
-        start_l2_height: u64,
         mode: PartitionMode,
-    ) -> anyhow::Result<Vec<&'a [SequencerCommitment]>> {
+    ) -> anyhow::Result<Vec<Partition<'a>>> {
+        let start_l2_height = if commitments[0].index == 0 {
+            // If this is the first commitment ever, start from 1
+            1
+        } else {
+            let previous_commitment_index = commitments[0].index - 1;
+            // If this is not the first commitment, start l2 height will be end block number + 1 of the previous commitment
+            self.ledger_db
+                .get_commitment_by_index(previous_commitment_index)?
+                .expect("Previous commitment must exist")
+                .l2_end_block_number
+                + 1
+        };
+
         let mut state = PartitionState::new(commitments, start_l2_height);
 
         if mode == PartitionMode::OneByOne {
@@ -265,19 +263,16 @@ where
 
     async fn create_circuit_input(
         &self,
-        partition: &[SequencerCommitment],
-        start_l2_height: u64,
+        partition: Partition<'_>,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
-        let end_l2_height = partition.last().expect("Must have 1").l2_end_block_number;
-
         let initial_state_root = self
             .ledger_db
-            .get_l2_state_root(start_l2_height - 1)
+            .get_l2_state_root(partition.start_height - 1)
             .context("Failed to get initial state root")?
             .expect("Start l2 height must have state root");
         let final_state_root = self
             .ledger_db
-            .get_l2_state_root(end_l2_height)
+            .get_l2_state_root(partition.end_height)
             .context("Failed to get final state root")?
             .expect("End l2 height must have state root");
 
@@ -289,8 +284,8 @@ where
             l2_blocks,
             last_l1_hash_witness,
         ) = get_batch_proof_circuit_input_from_commitments::<Da, _>(
-            start_l2_height,
-            partition,
+            partition.start_height,
+            partition.commitments,
             &self.ledger_db,
             &self.storage_manager,
             &self.sequencer_pub_key,
@@ -299,6 +294,7 @@ where
         .context("Failed to get circuit input from commitments")?;
 
         let previous_sequencer_commitment = partition
+            .commitments
             .first()
             .expect("Must have 1")
             .index
@@ -316,7 +312,7 @@ where
             l2_blocks,
             state_transition_witnesses,
             short_header_proofs,
-            sequencer_commitments: partition.to_vec(),
+            sequencer_commitments: partition.commitments.to_vec(),
             cache_prune_l2_heights,
             last_l1_hash_witness,
             previous_sequencer_commitment,
@@ -350,7 +346,7 @@ pub enum PartitionMode {
 
 struct PartitionState<'a> {
     commitments: &'a [SequencerCommitment],
-    partitioned_commitments: Vec<&'a [SequencerCommitment]>,
+    partitions: Vec<Partition<'a>>,
     partition_start_height: u64,
     partition_start_idx: usize,
 }
@@ -359,7 +355,7 @@ impl<'a> PartitionState<'a> {
     fn new(commitments: &'a [SequencerCommitment], start_l2_height: u64) -> Self {
         Self {
             commitments,
-            partitioned_commitments: vec![],
+            partitions: vec![],
             partition_start_height: start_l2_height,
             partition_start_idx: 0,
         }
@@ -388,20 +384,24 @@ impl<'a> PartitionState<'a> {
             reason
         );
 
-        let partition = &self.commitments[self.partition_start_idx..=end_idx];
-        self.partitioned_commitments.push(partition);
+        let commitments = &self.commitments[self.partition_start_idx..=end_idx];
+        self.partitions.push(Partition {
+            commitments,
+            start_height: self.partition_start_height,
+            end_height: last_commitment.l2_end_block_number,
+        });
 
         self.partition_start_idx = end_idx + 1;
         self.partition_start_height = last_commitment.l2_end_block_number + 1;
     }
 
-    fn into_inner(self) -> Vec<&'a [SequencerCommitment]> {
+    fn into_inner(self) -> Vec<Partition<'a>> {
         assert_eq!(
             self.partition_start_idx,
             self.commitments.len(),
             "trying to finalize partition without adding all commitments"
         );
-        self.partitioned_commitments
+        self.partitions
     }
 }
 
