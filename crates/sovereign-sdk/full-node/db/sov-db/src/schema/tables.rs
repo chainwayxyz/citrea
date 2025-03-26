@@ -15,6 +15,7 @@ use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::mmr::{MMRChunk, MMRNodeHash, Wtxid};
 use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::zk::Proof;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
@@ -95,6 +96,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     SequencerCommitmentByIndex::table_name(),
     L2StatusHeights::table_name(),
     PendingSequencerCommitments::table_name(),
+    PendingProofs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -170,6 +172,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     SequencerCommitmentByIndex::table_name(),
     L2StatusHeights::table_name(),
     PendingSequencerCommitments::table_name(),
+    PendingProofs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -478,6 +481,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Out of order sequencer commitments
     (PendingSequencerCommitments) u32 => SequencerCommitment
+);
+
+define_table_with_default_codec!(
+    /// Out of order proofs
+    (PendingProofs) (u32, u32) => Proof
 );
 
 #[cfg(test)]

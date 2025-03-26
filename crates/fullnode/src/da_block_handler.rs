@@ -25,7 +25,7 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
 
@@ -124,6 +124,10 @@ where
         self.ledger_db
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
+
+        if let Err(e) = self.process_pending_proofs(l1_block).await {
+            error!("Error processing pending proofs: {e:?}");
+        }
 
         if let Err(e) = self.process_pending_commitments(l1_block).await {
             error!("Error processing pending commitments: {e:?}");
@@ -458,6 +462,24 @@ where
             None => get_fork2_activation_height_non_zero(),
         };
 
+        for index in sequencer_commitment_index_range.0..=sequencer_commitment_index_range.1 {
+            if self.ledger_db.get_commitment_by_index(index)?.is_none() {
+                info!(
+                    "Commitment with index {} is missing for proof. Storing proof as pending.",
+                    index
+                );
+
+                // Store as pending for later processing
+                self.ledger_db.store_pending_proof(
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1,
+                    raw_proof,
+                )?;
+
+                return Ok(());
+            }
+        }
+
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
             .zip(batch_proof_output.sequencer_commitment_hashes())
@@ -546,6 +568,35 @@ where
                 // Breaking since pending commitments are sorted and we won't be to process anymore from then on
                 break;
             }
+        }
+
+        Ok(())
+    }
+
+    async fn process_pending_proofs(&self, l1_block: &Da::FilteredBlock) -> Result<(), SyncError> {
+        let pending_proofs = self.ledger_db.get_pending_proofs()?;
+        if pending_proofs.is_empty() {
+            return Ok(());
+        }
+
+        'proofs: for ((min_index, max_index), proof) in pending_proofs {
+            for index in min_index..=max_index {
+                if self.ledger_db.get_commitment_by_index(index)?.is_none() {
+                    debug!(
+                        "Commitment with index {} is missing for pending proof. Keep proof with {min_index}-{max_index} as pending",
+                        index
+                    );
+                    // Breaking since pending proofs are sorted by commitment index and we won't be to process anymore from then on
+                    break 'proofs;
+                }
+            }
+
+            if let Err(e) = self.process_zk_proof(l1_block, proof).await {
+                warn!("Failed to process pending proof with index {min_index}-{max_index}: {e:?}");
+                break;
+            }
+
+            self.ledger_db.remove_pending_proof(min_index, max_index)?;
         }
 
         Ok(())

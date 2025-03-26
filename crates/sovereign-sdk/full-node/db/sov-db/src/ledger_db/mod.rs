@@ -16,7 +16,7 @@ use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
     L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
-    LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
+    LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProofs, PendingProvingSessions,
     PendingSequencerCommitment, PendingSequencerCommitments, ProofsBySlotNumberV2,
     ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
@@ -806,6 +806,41 @@ impl NodeLedgerOps for LedgerDB {
     fn remove_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.delete::<PendingSequencerCommitments>(&index)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn store_pending_proof(
+        &self,
+        min_commitment_index: u32,
+        max_commitment_index: u32,
+        proof: Proof,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<PendingProofs>(&(min_commitment_index, max_commitment_index), &proof)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn get_pending_proofs(&self) -> anyhow::Result<Vec<((u32, u32), Proof)>> {
+        let mut pending = Vec::new();
+        let mut iter = self.db.iter::<PendingProofs>()?;
+        iter.seek_to_first();
+
+        while let Some(Ok(item)) = iter.next() {
+            let (index_range, proof) = item.into_tuple();
+            pending.push((index_range, proof));
+        }
+
+        // Sort by min commitment index to ensure we process in order
+        pending.sort_by_key(|((min_index, _), _)| *min_index);
+
+        Ok(pending)
+    }
+
+    fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<PendingProofs>(&(min_index, max_index))?;
         self.db.write_schemas(schema_batch)?;
         Ok(())
     }

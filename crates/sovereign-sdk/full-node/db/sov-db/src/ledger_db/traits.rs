@@ -172,14 +172,28 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
         l1_height: u64,
     ) -> Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)>;
 
-    /// Store an out of order commitment for later processing
+    /// Store an out of order commitment by index for later processing
     fn store_pending_commitment(&self, commitment: SequencerCommitment) -> Result<()>;
 
-    /// Get all out of order commitment to process
+    /// Get all out of order commitment to process, sorted by index
     fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment)>>;
 
     /// Remove pending commitment by index
     fn remove_pending_commitment(&self, index: u32) -> Result<()>;
+
+    /// Store an out of order proof by commitment index range for later processing
+    fn store_pending_proof(
+        &self,
+        min_commitment_index: u32,
+        max_commitment_index: u32,
+        proof: Proof,
+    ) -> Result<()>;
+
+    /// Get all out of order commitment to process sorted by commitment index range
+    fn get_pending_proofs(&self) -> Result<Vec<((u32, u32), Proof)>>;
+
+    /// Remove a pending proof by its commitment index range
+    fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> Result<()>;
 }
 
 /// Prover ledger operations
