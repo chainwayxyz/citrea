@@ -109,9 +109,12 @@ impl TestCase for BasicProverTest {
         for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
+        for _ in 0..min_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
