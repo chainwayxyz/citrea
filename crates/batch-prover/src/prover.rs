@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::slice;
 
 use anyhow::Context;
 use citrea_common::utils::merge_state_diffs;
@@ -195,29 +194,31 @@ where
         let mut state = PartitionState::new(commitments, start_l2_height);
 
         if mode == PartitionMode::OneByOne {
-            for i in 0..commitments.len() {
+            let mut commitment_start_height = start_l2_height;
+            for (i, commitment) in commitments.iter().enumerate() {
+                let commitment_end_height = commitment.l2_end_block_number;
+
+                let commitment_state_diff =
+                    self.get_state_diff(commitment_start_height, commitment_end_height)?;
+                assert_state_diff_threshold(&commitment_state_diff);
+
+                commitment_start_height = commitment_end_height + 1;
+
                 state.add_partition(i, "onebyone");
             }
             return Ok(state.into_inner());
         }
 
-        // normal partition mode
+        // Normal partition mode
 
         let mut cumulative_state_diff = StateDiff::new();
         let mut commitment_start_height = start_l2_height;
 
         for (i, commitment) in commitments.iter().enumerate() {
             let commitment_end_height = commitment.l2_end_block_number;
-            assert!(commitment_end_height >= commitment_start_height);
 
-            let mut commitment_state_diff = StateDiff::new();
-            for l2_height in commitment_start_height..=commitment_end_height {
-                let state_diff = self
-                    .ledger_db
-                    .get_l2_state_diff(L2BlockNumber(l2_height))?
-                    .expect("L2 state diff must exist");
-                commitment_state_diff = merge_state_diffs(commitment_state_diff, state_diff);
-            }
+            let commitment_state_diff =
+                self.get_state_diff(commitment_start_height, commitment_end_height)?;
 
             commitment_start_height = commitment_end_height + 1;
 
@@ -320,6 +321,19 @@ where
             last_l1_hash_witness,
             previous_sequencer_commitment,
         })
+    }
+
+    fn get_state_diff(&self, start_height: u64, end_height: u64) -> anyhow::Result<StateDiff> {
+        let mut commitment_state_diff = StateDiff::new();
+        for l2_height in start_height..=end_height {
+            let state_diff = self
+                .ledger_db
+                .get_l2_state_diff(L2BlockNumber(l2_height))?
+                .expect("L2 state diff must exist");
+            commitment_state_diff = merge_state_diffs(commitment_state_diff, state_diff);
+        }
+
+        Ok(commitment_state_diff)
     }
 }
 
