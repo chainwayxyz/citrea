@@ -125,14 +125,6 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
-        if let Err(e) = self.process_pending_proofs(l1_block).await {
-            error!("Error processing pending proofs: {e:?}");
-        }
-
-        if let Err(e) = self.process_pending_commitments(l1_block).await {
-            error!("Error processing pending commitments: {e:?}");
-        }
-
         let sequencer_commitments = extract_sequencer_commitments(
             self.da_service.clone(),
             l1_block,
@@ -204,6 +196,14 @@ where
                     }
                 }
             }
+        }
+
+        if let Err(e) = self.process_pending_proofs(l1_block).await {
+            error!("Error processing pending proofs: {e:?}");
+        }
+
+        if let Err(e) = self.process_pending_commitments(l1_block).await {
+            error!("Error processing pending commitments: {e:?}");
         }
 
         // We do not care about the result of writing this height to the ledger db
