@@ -185,8 +185,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get commitment indices to be proven
     fn get_pending_commitments(&self) -> anyhow::Result<Vec<u32>>;
 
-    /// Delete commitment index from pending commitments table
-    fn delete_pending_commitment(&self, index: u32) -> Result<()>;
+    /// Delete commitment indices from pending commitments table
+    fn delete_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
 }
 
 /// Light client prover ledger operations

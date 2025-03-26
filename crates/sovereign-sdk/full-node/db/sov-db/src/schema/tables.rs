@@ -17,6 +17,7 @@ use sov_rollup_interface::mmr::{MMRChunk, MMRNodeHash, Wtxid};
 use sov_rollup_interface::stf::StateDiff;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
+use uuid::Uuid;
 
 use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
@@ -112,6 +113,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ProverPendingCommitments::table_name(),
+    ProverRunningJobs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -160,6 +162,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ProverPendingCommitments::table_name(),
+    ProverRunningJobs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -343,6 +346,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Commitment indices waiting to be proven
     (ProverPendingCommitments) u32 => ()
+);
+
+define_table_with_default_codec!(
+    /// Currently running prover jobs, id -> list of commitment indices
+    (ProverRunningJobs) Uuid => Vec<u32>
 );
 
 define_table_with_default_codec!(

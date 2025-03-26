@@ -31,6 +31,7 @@ rocksdb = { workspace = true }
 serde = { workspace = true, default-features = true, features = ["rc"] }
 tempfile = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 criterion = "0.5.1"

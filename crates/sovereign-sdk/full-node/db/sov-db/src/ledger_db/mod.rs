@@ -580,8 +580,8 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn delete_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
-        self.db.delete::<ProverPendingCommitments>(&index)
+    fn delete_pending_commitments(&self, indices: Vec<u32>) -> anyhow::Result<()> {
+        self.db.delete_batch::<ProverPendingCommitments>(indices)
     }
 }
 

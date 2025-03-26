@@ -140,11 +140,11 @@ where
             let rx = self.start_proving(input).await;
             proof_rxs.push(rx);
 
-            for commitment in partition.commitments {
-                self.ledger_db
-                    .delete_pending_commitment(commitment.index)
-                    .context("Failed to set commitment status to running")?;
-            }
+            let commitment_indices = partition.commitments.into_iter().map(|comm| comm.index).collect::<Vec<_>>();
+
+            self.ledger_db
+                .delete_pending_commitments(commitment_indices)
+                .context("Failed to delete pending commitments")?;
         }
 
         // TODO: spawn a task that waits for proof tasks and delete their status, and update l2 block status to proven
@@ -381,9 +381,11 @@ where
             assumptions: vec![],
             elf,
         };
-        self.prover_service
+        let (id, rx) = self.prover_service
             .start_proving(proof_data, ReceiptType::Groth16)
-            .await
+            .await;
+
+        (id, rx)
     }
 
     fn get_state_diff(&self, start_height: u64, end_height: u64) -> anyhow::Result<StateDiff> {
