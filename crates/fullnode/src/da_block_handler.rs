@@ -222,6 +222,24 @@ where
         l1_block: &Da::FilteredBlock,
         sequencer_commitment: &SequencerCommitment,
     ) -> Result<(), SyncError> {
+        // Skip if we already processed commitment with same index
+        if let Some(existing_commitment) = self
+            .ledger_db
+            .get_commitment_by_index(sequencer_commitment.index)?
+        {
+            // Check if the new commitment has a different merkle root but keep the first processed one as canonical
+            if existing_commitment.merkle_root != sequencer_commitment.merkle_root {
+                warn!(
+                    "Conflicting sequnecer commitments with different merkle roots at index: {}.
+                    Already processed merkle root: 0x{}, conflicting merkle root: 0x{}",
+                    sequencer_commitment.index,
+                    hex::encode(existing_commitment.merkle_root),
+                    hex::encode(sequencer_commitment.merkle_root)
+                );
+            }
+            return Ok(());
+        }
+
         let start_l2_height = if sequencer_commitment.index == 0 {
             get_fork2_activation_height_non_zero()
         } else {
@@ -231,7 +249,7 @@ where
             {
                 Some(previous_commitment) => previous_commitment.l2_end_block_number + 1,
                 None => {
-                    // Store this commitment as pending
+                    // Store the out of order commitment as pending
                     info!(
                             "Commitment with index {} is missing its predecessor (index {}). Storing as pending.",
                             sequencer_commitment.index,
@@ -258,16 +276,19 @@ where
             .unwrap_or_default();
 
         // Only proceed if the commitment height and index are higher than the stored one
-        // TODO revisit this for conflicting commitments
-        if end_l2_height <= committed_height.height
-            && sequencer_commitment.index <= committed_height.commitment_index
-        {
+        if end_l2_height <= committed_height.height {
             info!(
-                    "Skipping sequencer commitment with height {end_l2_height} and index {} as we already have commitment with height {} and index {}",
-                    sequencer_commitment.index,
+                    "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
                     committed_height.height,
-                    committed_height.commitment_index
                 );
+            return Ok(());
+        }
+
+        if sequencer_commitment.index != committed_height.commitment_index + 1 {
+            info!(
+                "Skipping sequencer commitment with index {} as it is not increasing by one",
+                sequencer_commitment.index,
+            );
             return Ok(());
         }
 
