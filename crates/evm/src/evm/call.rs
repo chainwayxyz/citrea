@@ -168,8 +168,18 @@ pub(crate) fn create_txn_env(
         access_list,
         chain_id,
         authorization_list,
-        ..
+        transaction_type: _transaction_type,
+        max_fee_per_blob_gas,
+        blob_versioned_hashes,
+        sidecar,
     } = request;
+
+    if blob_versioned_hashes.is_some_and(|v| !v.is_empty())
+        || max_fee_per_blob_gas.is_some()
+        || sidecar.is_some()
+    {
+        return Err(RpcInvalidTransactionError::TxTypeNotSupported.into());
+    }
 
     let CallFees {
         max_priority_fee_per_gas,
