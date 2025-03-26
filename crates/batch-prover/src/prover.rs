@@ -103,6 +103,10 @@ where
                         // new l2 height has not yet reached the next sync target, ignore
                         continue;
                     }
+
+                    if let Err(e) = self.try_proving().await {
+                        error!("Failed to start proving: {:?}", e);
+                    }
                 }
             }
         }
