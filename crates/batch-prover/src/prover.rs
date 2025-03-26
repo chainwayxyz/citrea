@@ -34,7 +34,7 @@ use uuid::Uuid;
 pub struct Prover<Da, DB, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps,
+    DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
 {
     prover_config: BatchProverConfig,
@@ -51,7 +51,7 @@ where
 impl<Da, DB, Vm> Prover<Da, DB, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps,
+    DB: BatchProverLedgerOps + Clone,
     Vm: ZkvmHost + Zkvm,
 {
     pub fn new(
@@ -130,7 +130,7 @@ where
         let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
         info!("Partitioned commitments into {} parts", partitions.len());
 
-        let mut proof_jobs = Vec::with_capacity(partitions.len());
+        let mut proving_jobs = Vec::with_capacity(partitions.len());
         for partition in partitions {
             let input = self
                 .create_circuit_input(&partition)
@@ -138,7 +138,7 @@ where
                 .context("Failed to create circuit input")?;
 
             let (id, rx) = self.start_proving(input).await;
-            proof_jobs.push((id, rx));
+            proving_jobs.push((id, rx));
 
             let commitment_indices = partition
                 .commitments
@@ -154,8 +154,7 @@ where
                 .context("Failed to delete pending commitments")?;
         }
 
-        // TODO: spawn a task that waits for proof tasks and delete their status, and update l2 block status to proven
-        // TODO: think about how to handle insert_batch_proof_data_by_l1_height
+        self.watch_proving_jobs(proving_jobs);
 
         Ok(())
     }
@@ -397,6 +396,35 @@ where
             .await;
 
         (id, rx)
+    }
+
+    fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, oneshot::Receiver<Proof>)>) {
+        assert!(!proving_jobs.is_empty(), "received empty jobs list");
+
+        let ledger_db = self.ledger_db.clone();
+
+        let (mut job_ids, mut job_rxs): (Vec<Uuid>, Vec<oneshot::Receiver<Proof>>) =
+            proving_jobs.into_iter().unzip();
+
+        tokio::spawn(async move {
+            // Wait for all proofs to be completed
+            while !job_rxs.is_empty() {
+                let (proof, idx, remaining_rxs) = futures::future::select_all(job_rxs).await;
+
+                let proof = proof.expect("Proof channel should never close");
+
+                job_rxs = remaining_rxs;
+                // TODO: this is very sketchy. swap_remove is deterministic, and that is what select_all is using to remove the completed job,
+                // but still relying on this to keep the correct order is nasty. try to find another way
+                let job_id = job_ids.swap_remove(idx);
+
+                ledger_db
+                    .delete_prover_job(job_id)
+                    .expect("Should delete job id");
+
+                // TODO: how to save proof? by l1? by job id? by commitment? by l2 block range?
+            }
+        });
     }
 
     fn get_state_diff(&self, start_height: u64, end_height: u64) -> anyhow::Result<StateDiff> {
