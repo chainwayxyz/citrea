@@ -30,7 +30,6 @@ pub mod l1_syncer;
 mod l2_syncer;
 mod metrics;
 pub mod prover;
-mod proving;
 pub mod rpc;
 mod runner;
 
