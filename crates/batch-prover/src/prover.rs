@@ -198,11 +198,9 @@ where
 
         // normal partition mode
 
-        let mut partitioned_commitments = Vec::new();
+        let mut state = PartitionState::new(commitments, start_l2_height);
         let mut cumulative_state_diff = StateDiff::new();
         let mut commitment_start_height = start_l2_height;
-        let mut partition_start_height = start_l2_height;
-        let mut partition_start_idx = 0;
 
         for (i, commitment) in commitments.iter().enumerate() {
             let commitment_end_height = commitment.l2_end_block_number;
@@ -217,17 +215,13 @@ where
                 commitment_state_diff = merge_state_diffs(commitment_state_diff, state_diff);
             }
 
+            commitment_start_height = commitment_end_height + 1;
+
             // check index gap
             if i != 0 && commitment.index != commitments[i - 1].index + 1 {
-                let partition = &commitments[partition_start_idx..i];
-                log_partition(partition, partition_start_height, "indexgap");
-                commitment_start_height = commitment_end_height + 1;
-                partition_start_height = commitment_start_height;
-
                 assert_state_diff_threshold(&commitment_state_diff);
-                partitioned_commitments.push(partition);
-                partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
+                state.add_partition(i - 1, "indexgap"); // i - 1 because inclusive
                 continue;
             }
 
@@ -236,15 +230,9 @@ where
             if i != 0
                 && current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number)
             {
-                let partition = &commitments[partition_start_idx..i];
-                log_partition(partition, partition_start_height, "specchange");
-                commitment_start_height = commitment_end_height + 1;
-                partition_start_height = commitment_start_height;
-
                 assert_state_diff_threshold(&commitment_state_diff);
-                partitioned_commitments.push(partition);
-                partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
+                state.add_partition(i - 1, "specchange"); // i - 1 because inclusive
                 continue;
             }
 
@@ -257,27 +245,17 @@ where
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
-                let partition = &commitments[partition_start_idx..i];
-                log_partition(partition, partition_start_height, "statediff");
-                commitment_start_height = commitment_end_height + 1;
-                partition_start_height = commitment_start_height;
-
                 assert_state_diff_threshold(&commitment_state_diff);
-                partitioned_commitments.push(partition);
-                partition_start_idx = i;
                 cumulative_state_diff = commitment_state_diff;
+                state.add_partition(i - 1, "statediff"); // i - 1 because inclusive
                 continue;
             }
-
-            commitment_start_height = commitment_end_height + 1;
         }
 
         // Add all remaining commitments as last partition
-        let partition = &commitments[partition_start_idx..];
-        log_partition(partition, partition_start_height, "end");
-        partitioned_commitments.push(partition);
+        state.add_partition(commitments.len() - 1, "finish");
 
-        Ok(partitioned_commitments)
+        Ok(state.into_inner())
     }
 
     async fn create_circuit_input(
@@ -352,6 +330,63 @@ pub enum PartitionMode {
     OneByOne,
 }
 
+struct PartitionState<'a> {
+    commitments: &'a [SequencerCommitment],
+    partitioned_commitments: Vec<&'a [SequencerCommitment]>,
+    partition_start_height: u64,
+    partition_start_idx: usize,
+}
+
+impl<'a> PartitionState<'a> {
+    fn new(commitments: &'a [SequencerCommitment], start_l2_height: u64) -> Self {
+        Self {
+            commitments,
+            partitioned_commitments: vec![],
+            partition_start_height: start_l2_height,
+            partition_start_idx: 0,
+        }
+    }
+
+    /// Adds a new partition. end_idx is the index to the commitments array, and it is inclusive.
+    fn add_partition(&mut self, end_idx: usize, reason: &str) {
+        assert!(
+            end_idx >= self.partition_start_idx,
+            "incorrectly ordered end partition index"
+        );
+        assert!(
+            end_idx < self.commitments.len(),
+            "end index higher than commitment count"
+        );
+
+        let first_commitment = &self.commitments[self.partition_start_idx];
+        let last_commitment = &self.commitments[end_idx];
+
+        info!(
+            "Adding commitment partition: indices=[{},{}] blocks=[{},{}] reason={}",
+            first_commitment.index,
+            last_commitment.index,
+            self.partition_start_height,
+            last_commitment.l2_end_block_number,
+            reason
+        );
+
+        let partition = &self.commitments[self.partition_start_idx..=end_idx];
+        self.partitioned_commitments.push(partition);
+
+        self.partition_start_idx = end_idx + 1;
+        self.partition_start_height = last_commitment.l2_end_block_number + 1;
+    }
+
+    fn into_inner(self) -> Vec<&'a [SequencerCommitment]> {
+        assert_eq!(
+            self.partition_start_idx,
+            self.commitments.len(),
+            "trying to finalize partition without adding all commitments"
+        );
+        self.partitioned_commitments
+    }
+}
+
 #[inline(always)]
 fn assert_state_diff_threshold(state_diff: &StateDiff) {
     let serialized_diff = borsh::to_vec(state_diff).expect("Diff serialization cannot fail");
@@ -359,19 +394,5 @@ fn assert_state_diff_threshold(state_diff: &StateDiff) {
     assert!(
         compressed_diff.len() > MAX_TXBODY_SIZE,
         "Got single commitment bigger than txbody limit"
-    );
-}
-
-#[inline(always)]
-fn log_partition(partition: &[SequencerCommitment], partition_start_height: u64, reason: &str) {
-    let first_comm = partition.first().expect("Must have 1 element");
-    let last_comm = partition.last().expect("Must have 1 element");
-    info!(
-        "Commitment partition: indices=[{},{}] blocks=[{},{}] reason={}",
-        first_comm.index,
-        last_comm.index,
-        partition_start_height,
-        last_comm.l2_end_block_number,
-        reason
     );
 }
