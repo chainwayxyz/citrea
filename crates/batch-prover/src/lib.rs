@@ -25,7 +25,6 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::{broadcast, mpsc, Mutex};
 
 pub mod db_migrations;
-mod errors;
 pub mod l1_syncer;
 mod l2_syncer;
 mod metrics;
