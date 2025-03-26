@@ -181,7 +181,7 @@ async fn start_proof(
     header_hash: MockHash,
 ) -> oneshot::Receiver<Proof> {
     // Spawn mock proving in the background
-    let rx = prover_service
+    let (_, rx) = prover_service
         .start_proving(
             ProofData {
                 input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),

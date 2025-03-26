@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use rand::Rng;
@@ -7,6 +6,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
 use tracing::{info, warn};
+use uuid::Uuid;
 
 use crate::{ProofData, ProofGenMode};
 
@@ -22,7 +22,6 @@ where
     proof_mode: ProofGenMode,
     da_service: Arc<Da>,
     vm: Vm,
-    next_id: AtomicUsize,
 }
 
 impl<Da, Vm> ParallelProverService<Da, Vm>
@@ -70,7 +69,6 @@ where
             proof_mode,
             da_service,
             vm,
-            next_id: Default::default(),
         })
     }
 
@@ -91,7 +89,7 @@ where
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
     pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> Proof {
-        let rx = self.start_proving(data, receipt_type).await;
+        let (_, rx) = self.start_proving(data, receipt_type).await;
         rx.await.expect("Proof channel should not close")
     }
 
@@ -102,7 +100,7 @@ where
         &self,
         data: ProofData,
         receipt_type: ReceiptType,
-    ) -> oneshot::Receiver<Proof> {
+    ) -> (Uuid, oneshot::Receiver<Proof>) {
         self.reserve_proof_slot().await;
 
         let ProofData {
@@ -121,7 +119,7 @@ where
         let ongoing_proof_count = self.ongoing_proof_count.clone();
         let proof_mode = self.proof_mode;
         let notifier = self.proof_done_notifier.clone();
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let id = Uuid::now_v7();
 
         let (tx, rx) = oneshot::channel();
         tokio::task::spawn_blocking(move || {
@@ -137,7 +135,7 @@ where
             notifier.notify_one();
         });
 
-        rx
+        (id, rx)
     }
 
     async fn reserve_proof_slot(&self) {
