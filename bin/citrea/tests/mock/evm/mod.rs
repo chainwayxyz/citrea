@@ -4,14 +4,15 @@ use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
 use alloy::hex::FromHex;
-use alloy::network::{TransactionBuilder, TransactionBuilder7702};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
 use alloy_rpc_types::{Authorization, EIP1186AccountProofResponse, TransactionRequest};
 use citrea_common::SequencerConfig;
-use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
+use citrea_evm::smart_contracts::{
+    CallerContract, LogsContract, SimpleStorageContract, TestContract,
+};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{BlockId, BlockNumberOrTag};
@@ -913,13 +914,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     let signed_authorization = authorization.into_signed(signature);
 
     let _set_code_tx = test_client
-        .send_eip7702_transaction(
-            Address::ZERO,
-            vec![],
-            None,
-            vec![signed_authorization],
-            None,
-        )
+        .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_authorization])
         .await
         .unwrap();
 
@@ -1014,7 +1009,6 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                 // and the assert's below can be fixed
                 vec![signed_auth_wrong_nonce.clone(), signed_auth_wrong_nonce],
                 // vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
-                None,
             )
             .await
             .unwrap();
@@ -1053,82 +1047,79 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         let signature = new_signer.sign_hash_sync(&authorization.signature_hash())?;
         let signed_authorization = authorization.into_signed(signature);
 
-        let gas = test_client
-            .eth_estimate_diff_size(
-                TransactionRequest::default()
-                    .from(test_client.from_addr)
-                    .to(new_signer.address())
-                    .input(SimpleStorageContract::default().set_call_data(100).into())
-                    .with_authorization_list(vec![signed_authorization.clone()]),
-            )
-            .await
-            .unwrap();
-
-        let gas_es = test_client
-            .eth_estimate_gas(
-                TransactionRequest::default()
-                    .from(test_client.from_addr)
-                    .to(new_signer.address())
-                    .input(SimpleStorageContract::default().set_call_data(100).into())
-                    .with_authorization_list(vec![signed_authorization.clone()]),
-            )
-            .await
-            .unwrap();
-
-        println!("gas_es: {}", gas_es.to::<u64>());
-
-        let access_list = test_client
-            .eth_create_access_list(
-                TransactionRequest::default()
-                    .from(test_client.from_addr)
-                    .to(new_signer.address())
-                    .input(SimpleStorageContract::default().set_call_data(100).into())
-                    .with_authorization_list(vec![signed_authorization.clone()]),
-            )
-            .await
-            .unwrap();
-
-        println!("access list: {:?}", access_list);
-
-        let gas2 = test_client
-            .eth_estimate_diff_size(
-                TransactionRequest::default()
-                    .from(test_client.from_addr)
-                    .to(new_signer.address())
-                    .input(SimpleStorageContract::default().set_call_data(100).into())
-                    .with_authorization_list(vec![signed_authorization.clone()])
-                    .with_access_list(access_list.access_list.clone()),
-            )
-            .await
-            .unwrap();
-
-        let set_code_tx = test_client
+        let _set_code_tx = test_client
             .send_eip7702_transaction(
                 new_signer.address(),
                 SimpleStorageContract::default().set_call_data(100),
                 None,
                 vec![signed_authorization],
-                Some(access_list.access_list),
             )
             .await
             .unwrap();
 
         test_client.send_publish_batch_request().await;
 
-        let storage_value: U256 = test_client
-            .contract_call(new_signer.address(), contract.get_call_data(), None)
+        assert_eq!(
+            test_client
+                .contract_call::<U256>(new_signer.address(), contract.get_call_data(), None)
+                .await
+                .unwrap(),
+            U256::from(100)
+        );
+
+        assert_eq!(
+            test_client
+                .eth_get_code(new_signer.address(), None)
+                .await
+                .unwrap(),
+            Into::<Bytes>::into(
+                [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(contract_address.to_vec())
+                ]
+                .concat()
+            )
+        );
+
+        // deploy caller contract
+        let caller_contract = CallerContract::default();
+
+        let deploy_tx = test_client
+            .deploy_contract(caller_contract.byte_code(), None)
             .await
             .unwrap();
 
-        assert_eq!(storage_value, U256::from(100));
+        test_client.send_publish_batch_request().await;
 
-        let receipt = set_code_tx.get_receipt().await.unwrap();
+        let caller_contract_address = deploy_tx
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
 
-        println!("Gas used: {}", receipt.gas_used);
-        println!("Gas estimate: {}", gas.gas);
+        let tx_req = TransactionRequest::default()
+            .from(test_client.from_addr)
+            .to(caller_contract_address)
+            .input(
+                caller_contract
+                    .call_set_call_data(new_signer.address(), 500)
+                    .into(),
+            );
 
-        println!("Gas 2: {}", gas2.gas);
-        assert!(receipt.gas_used < gas.gas.to::<u128>());
+        let gas = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        let access_list = test_client
+            .eth_create_access_list(tx_req.clone())
+            .await
+            .unwrap()
+            .access_list;
+
+        let tx_req = tx_req.access_list(access_list);
+
+        let gas_with_access_list = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        assert!(gas > gas_with_access_list);
     }
 
     rollup_task.abort();

@@ -12,7 +12,7 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::{AccessList, AnyNetworkBlock, EIP1186AccountProofResponse};
+use alloy_rpc_types::{AnyNetworkBlock, EIP1186AccountProofResponse};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
@@ -280,23 +280,18 @@ impl TestClient {
         data: Vec<u8>,
         nonce: Option<u64>,
         authorization_list: Vec<SignedAuthorization>,
-        access_list: Option<AccessList>,
     ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
 
-        let mut req = TransactionRequest::default()
+        let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(to_addr)
             .input(data.into())
             .nonce(nonce)
             .with_authorization_list(authorization_list);
-
-        if let Some(access_list) = access_list {
-            req = req.access_list(access_list);
-        }
 
         let gas = self.client.estimate_gas(&req).await.unwrap();
 
