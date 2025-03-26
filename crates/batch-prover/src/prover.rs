@@ -103,7 +103,7 @@ where
 
         for partition in partitions {
             let input = self
-                .create_circuit_input(partition)
+                .create_circuit_input(&partition)
                 .await
                 .context("Failed to create circuit input")?;
         }
@@ -263,7 +263,7 @@ where
 
     async fn create_circuit_input(
         &self,
-        partition: Partition<'_>,
+        partition: &Partition<'_>,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
         let initial_state_root = self
             .ledger_db
