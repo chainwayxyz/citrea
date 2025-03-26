@@ -109,7 +109,7 @@ where
 
             // Set the l1 height of the l1 hash
             self.ledger_db
-                .set_l1_height_of_l1_hash(l1_block_hash, l1_height)
+                .set_l1_height_of_l1_hash(l1_hash, l1_height)
                 .unwrap();
 
             // Set short header proof
