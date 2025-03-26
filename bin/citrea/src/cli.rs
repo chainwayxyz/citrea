@@ -17,7 +17,7 @@ pub(crate) struct Args {
     /// The mode in which the node runs.
     /// This determines which guest code to use.
     /// Default is Mainnet.
-    #[clap(short, long, default_value_t, value_enum)]
+    #[arg(short, long, default_value_t, value_enum)]
     pub(crate) network: NetworkArg,
 
     /// Run the development chain
@@ -57,7 +57,7 @@ pub(crate) struct Args {
     #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "0", env = "CITREA_VERBOSITY")]
     pub(crate) verbose: u8,
     /// Logging verbosity
-    #[arg(long, short = 'q', action)]
+    #[arg(long, short = 'q')]
     pub(crate) quiet: bool,
 }
 
