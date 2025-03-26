@@ -7,11 +7,8 @@ use std::sync::Arc;
 
 use alloy_primitives::{U32, U64};
 use citrea_common::cache::L1BlockCache;
-use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use prover_services::ParallelProverService;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
@@ -22,7 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::Mutex;
 
-use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
+use crate::prover::PartitionMode;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -105,16 +102,12 @@ pub trait BatchProverRpc {
     async fn generate_input(
         &self,
         l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
+        partition_mode: Option<PartitionMode>,
     ) -> RpcResult<Vec<ProverInputResponse>>;
 
     /// Manually invoke proving.
     #[method(name = "prove")]
-    async fn prove(
-        &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
-    ) -> RpcResult<()>;
+    async fn prove(&self, l1_height: u64, partition_mode: Option<PartitionMode>) -> RpcResult<()>;
 }
 
 pub struct BatchProverRpcServerImpl<Da, Vm, DB>
@@ -149,124 +142,122 @@ where
     async fn generate_input(
         &self,
         l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
+        partition_mode: Option<PartitionMode>,
     ) -> RpcResult<Vec<ProverInputResponse>> {
-        let l1_block: <Da as DaService>::FilteredBlock = self
-            .context
-            .da_service
-            .get_block_at(l1_height)
-            .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?;
+        // let l1_block: <Da as DaService>::FilteredBlock = self
+        //     .context
+        //     .da_service
+        //     .get_block_at(l1_height)
+        //     .await
+        //     .map_err(|e| {
+        //         ErrorObjectOwned::owned(
+        //             INTERNAL_ERROR_CODE,
+        //             INTERNAL_ERROR_MSG,
+        //             Some(format!("{e}",)),
+        //         )
+        //     })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
-            self.context.da_service.clone(),
-            self.context.ledger.clone(),
-            &self.context.storage_manager,
-            self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_da_pub_key.clone(),
-            &l1_block,
-            group_commitments,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
-        })?;
+        // let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
+        //     self.context.da_service.clone(),
+        //     self.context.ledger.clone(),
+        //     &self.context.storage_manager,
+        //     self.context.sequencer_pub_key.clone(),
+        //     self.context.sequencer_da_pub_key.clone(),
+        //     &l1_block,
+        //     group_commitments,
+        // )
+        // .await
+        // .map_err(|e| {
+        //     ErrorObjectOwned::owned(
+        //         INTERNAL_ERROR_CODE,
+        //         INTERNAL_ERROR_MSG,
+        //         Some(format!("{e}",)),
+        //     )
+        // })?;
 
-        let mut batch_proof_circuit_input_responses = vec![];
+        // let mut batch_proof_circuit_input_responses = vec![];
 
-        for (input, sequencer_commitment_range) in inputs {
-            let range_start = sequencer_commitment_range.0;
-            let range_end = sequencer_commitment_range.1;
+        // for (input, sequencer_commitment_range) in inputs {
+        //     let range_start = sequencer_commitment_range.0;
+        //     let range_end = sequencer_commitment_range.1;
 
-            let last_seq_com = sequencer_commitments
-                .get(range_end as usize)
-                .expect("Commitment does not exist");
-            let last_l2_height = last_seq_com.l2_end_block_number;
-            let _current_spec = fork_from_block_number(last_l2_height).spec_id;
+        //     let last_seq_com = sequencer_commitments
+        //         .get(range_end as usize)
+        //         .expect("Commitment does not exist");
+        //     let last_l2_height = last_seq_com.l2_end_block_number;
+        //     let _current_spec = fork_from_block_number(last_l2_height).spec_id;
 
-            let serialized_circuit_input = borsh::to_vec(&input.into_v3_parts())
-                .expect("Risc0 hint serialization is infallible");
+        //     let serialized_circuit_input = borsh::to_vec(&input.into_v3_parts())
+        //         .expect("Risc0 hint serialization is infallible");
 
-            let response = ProverInputResponse {
-                commitment_range: (U32::from(range_start), U32::from(range_end)),
-                l1_block_height: U64::from(l1_height),
-                encoded_serialized_batch_proof_input: format!(
-                    "0x{}",
-                    faster_hex::hex_string(&serialized_circuit_input)
-                ),
-            };
+        //     let response = ProverInputResponse {
+        //         commitment_range: (U32::from(range_start), U32::from(range_end)),
+        //         l1_block_height: U64::from(l1_height),
+        //         encoded_serialized_batch_proof_input: format!(
+        //             "0x{}",
+        //             faster_hex::hex_string(&serialized_circuit_input)
+        //         ),
+        //     };
 
-            batch_proof_circuit_input_responses.push(response);
-        }
+        //     batch_proof_circuit_input_responses.push(response);
+        // }
 
-        Ok(batch_proof_circuit_input_responses)
+        // Ok(batch_proof_circuit_input_responses)
+        todo!()
     }
 
-    async fn prove(
-        &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
-    ) -> RpcResult<()> {
-        let l1_block: <Da as DaService>::FilteredBlock = self
-            .context
-            .da_service
-            .get_block_at(l1_height)
-            .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?;
+    async fn prove(&self, l1_height: u64, partition_mode: Option<PartitionMode>) -> RpcResult<()> {
+        // let l1_block: <Da as DaService>::FilteredBlock = self
+        //     .context
+        //     .da_service
+        //     .get_block_at(l1_height)
+        //     .await
+        //     .map_err(|e| {
+        //         ErrorObjectOwned::owned(
+        //             INTERNAL_ERROR_CODE,
+        //             INTERNAL_ERROR_MSG,
+        //             Some(format!("{e}",)),
+        //         )
+        //     })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
-            self.context.da_service.clone(),
-            self.context.ledger.clone(),
-            &self.context.storage_manager,
-            self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_da_pub_key.clone(),
-            &l1_block,
-            group_commitments,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
-        })?;
+        // let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
+        //     self.context.da_service.clone(),
+        //     self.context.ledger.clone(),
+        //     &self.context.storage_manager,
+        //     self.context.sequencer_pub_key.clone(),
+        //     self.context.sequencer_da_pub_key.clone(),
+        //     &l1_block,
+        //     group_commitments,
+        // )
+        // .await
+        // .map_err(|e| {
+        //     ErrorObjectOwned::owned(
+        //         INTERNAL_ERROR_CODE,
+        //         INTERNAL_ERROR_MSG,
+        //         Some(format!("{e}",)),
+        //     )
+        // })?;
 
-        prove_l1::<Da, Vm, DB>(
-            self.context.prover_service.clone(),
-            self.context.ledger.clone(),
-            self.context.code_commitments_by_spec.clone(),
-            self.context.elfs_by_spec.clone(),
-            &l1_block,
-            sequencer_commitments,
-            inputs,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
-        })?;
+        // prove_l1::<Da, Vm, DB>(
+        //     self.context.prover_service.clone(),
+        //     self.context.ledger.clone(),
+        //     self.context.code_commitments_by_spec.clone(),
+        //     self.context.elfs_by_spec.clone(),
+        //     &l1_block,
+        //     sequencer_commitments,
+        //     inputs,
+        // )
+        // .await
+        // .map_err(|e| {
+        //     ErrorObjectOwned::owned(
+        //         INTERNAL_ERROR_CODE,
+        //         INTERNAL_ERROR_MSG,
+        //         Some(format!("{e}",)),
+        //     )
+        // })?;
 
-        Ok(())
+        // Ok(())
+        todo!()
     }
 }
 

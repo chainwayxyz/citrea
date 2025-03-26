@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use citrea_batch_prover::da_block_handler::L1BlockHandler as BatchProverL1BlockHandler;
+use citrea_batch_prover::l1_syncer::L1Syncer as BatchProverL1Syncer;
+use citrea_batch_prover::prover::Prover;
 use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::backup::BackupManager;
 use citrea_common::tasks::manager::TaskManager;
@@ -250,7 +251,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaBatchProver<Self::DaService, LedgerDB>,
-        BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
+        BatchProverL1Syncer<Self::DaService, LedgerDB>,
+        Prover<Self::DaService, LedgerDB, Self::Vm>,
         RpcModule<()>,
     )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");

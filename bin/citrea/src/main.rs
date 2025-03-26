@@ -261,7 +261,7 @@ where
             });
         }
         NodeType::BatchProver(batch_prover_config) => {
-            let (prover, l1_block_handler, rpc_module) =
+            let (runner, l1_syncer, prover, rpc_module) =
                 CitreaRollupBlueprint::create_batch_prover(
                     &rollup_blueprint,
                     batch_prover_config,
@@ -297,13 +297,15 @@ where
             };
 
             task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-                l1_block_handler
-                    .run(l1_start_height, cancellation_token)
-                    .await
+                l1_syncer.run(cancellation_token).await
+            });
+
+            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+                prover.run(cancellation_token).await
             });
 
             task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-                if let Err(e) = prover.run(cancellation_token).await {
+                if let Err(e) = runner.run(cancellation_token).await {
                     error!("Error: {}", e);
                 }
             });

@@ -7,11 +7,11 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
-use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
+use l1_syncer::L1Syncer;
 use l2_syncer::L2Syncer;
+use prover::Prover;
 use prover_services::ParallelProverService;
-pub use proving::GroupCommitments;
 pub use runner::*;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_keys::default_signature::K256PublicKey;
@@ -22,15 +22,14 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 
-pub mod da_block_handler;
 pub mod db_migrations;
 mod errors;
-mod l1_syncer;
+pub mod l1_syncer;
 mod l2_syncer;
 mod metrics;
-mod prover;
+pub mod prover;
 mod proving;
 pub mod rpc;
 mod runner;
@@ -58,7 +57,8 @@ pub async fn build_services<DA, DB, Vm>(
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
     CitreaBatchProver<DA, DB>,
-    L1BlockHandler<Vm, DA, DB>,
+    L1Syncer<DA, DB>,
+    Prover<DA, DB, Vm>,
     RpcModule<()>,
 )>
 where
@@ -75,7 +75,7 @@ where
         storage_manager.clone(),
         public_keys.sequencer_da_pub_key.clone(),
         K256PublicKey::try_from_slice(&public_keys.sequencer_public_key.clone())?,
-        l1_block_cache,
+        l1_block_cache.clone(),
         code_commitments.clone(),
         elfs.clone(),
     );
@@ -90,28 +90,42 @@ where
         ledger_db.clone(),
         storage_manager.clone(),
         fork_manager,
-        l2_block_tx,
+        l2_block_tx.clone(),
         backup_manager.clone(),
         true,
     )?;
 
-    let batch_prover = CitreaBatchProver::new(l2_syncer)?;
+    let runner = CitreaBatchProver::new(l2_syncer)?;
 
+    // TODO: handle this
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
 
-    let l1_block_handler = L1BlockHandler::new(
+    // TODO: convert this to notify channel? else consider buf size? else make l1 syncer not block when channel is full.
+    let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);
+
+    let l1_syncer = L1Syncer::new(
+        ledger_db.clone(),
+        da_service,
+        public_keys.clone(),
+        0, // TODO: fix
+        l1_block_cache,
+        backup_manager,
+        l1_signal_tx,
+    );
+
+    let l2_block_rx = l2_block_tx.subscribe();
+
+    let prover = Prover::new(
         prover_config,
-        prover_service,
         ledger_db,
         storage_manager,
-        da_service,
-        public_keys,
-        code_commitments,
+        prover_service,
+        public_keys.sequencer_public_key,
         elfs,
-        skip_submission_until_l1,
-        Arc::new(Mutex::new(L1BlockCache::new())),
-        backup_manager,
+        l1_signal_rx,
+        l2_block_rx,
     );
-    Ok((batch_prover, l1_block_handler, rpc_module))
+
+    Ok((runner, l1_syncer, prover, rpc_module))
 }

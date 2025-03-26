@@ -9,6 +9,7 @@ use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::{ParallelProverService, ProofData};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
@@ -53,7 +54,7 @@ where
         ledger_db: DB,
         storage_manager: ProverStorageManager,
         prover_service: Arc<ParallelProverService<Da, Vm>>,
-        sequencer_pub_key: K256PublicKey,
+        sequencer_pub_key: Vec<u8>,
         elfs_by_spec: HashMap<SpecId, Vec<u8>>,
         l1_signal_rx: mpsc::Receiver<()>,
         l2_block_rx: broadcast::Receiver<u64>,
@@ -63,7 +64,8 @@ where
             ledger_db,
             storage_manager,
             prover_service,
-            sequencer_pub_key,
+            sequencer_pub_key: K256PublicKey::try_from(sequencer_pub_key.as_slice())
+                .expect("Invalid sequencer public key"),
             elfs_by_spec,
             l1_signal_rx,
             l2_block_rx,
@@ -406,7 +408,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Enum to determine how to group commitments
 pub enum PartitionMode {
     /// Groups commitments the normal way
