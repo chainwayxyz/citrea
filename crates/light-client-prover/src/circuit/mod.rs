@@ -21,7 +21,6 @@ use sov_rollup_interface::Network;
 pub(crate) mod accessors;
 /// Initial values that are used to initialize the light client proof circuit.
 pub mod initial_values;
-pub(crate) mod utils;
 
 // L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
