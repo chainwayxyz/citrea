@@ -24,6 +24,14 @@ f90207f901fda070e6b35a8f667038d4eec0ac240c44902a34350e75f9645fffae275e29e4a265a0
 
 4 + 8 = 12 bytes
 
+### Fee vault diffs
+l1 fee vault/ priority fee vault/ base fee vault account info diffs
+```452f612f0500000000000000``` = 12 bytes
+```00faa6bc49ffa300000000000000000000000000000000000000000000000000010000000000000001b31abb347aa715ffc30f3d21f8d68d5387e046960a3969ad1566c535958f68e5``` = 73 bytes
+
+12 + 73 = 85 bytes
+for 3 contracts, 85 bytes * 3 = 255 bytes
+
 ## L2 Block Rule Enforcer
 ### data
 ```4c2f646174612f``` = 7 bytes
@@ -68,9 +76,10 @@ Full Snark Receipt except for journal is 408 bytes
 1761+408 = 2169
 
 ## Sum
-526 + 11264 + 12 + 55 + 77 + 2169 = 14103
+526 + 11264 + 12 + 255 + 55 + 77 + 2169 = 14358
 
 ethereum 10 min batch avg number of txs = 7439.137755
 
-`14103/7439.137755 = 1.8957842`
+`14358/7439.137755 = 1.9300623`
+
 
