@@ -142,7 +142,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 29
+                l1_diff_size: 28
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -153,7 +153,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 29
+                l1_diff_size: 28
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -164,7 +164,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 29
+                l1_diff_size: 28
             }
         ]
     );
@@ -250,7 +250,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 29
+                l1_diff_size: 28
             }
         ]
     );
@@ -1103,7 +1103,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 8
+                l1_diff_size: 7
             }
         ]
     );
@@ -1113,7 +1113,7 @@ fn test_l1_fee_halt() {
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
         36 + // l1 contract deploy fee
-        8 + // l1 contract call fee
+        7 + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.balance,
@@ -1128,7 +1128,7 @@ fn test_l1_fee_halt() {
     assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
         l1_fee_vault.balance,
-        U256::from(36 + 8 + 2 * L1_FEE_OVERHEAD as u64)
+        U256::from(36 + 7 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }
 
@@ -1188,7 +1188,7 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
 
     // gas fee remains the same
-    let tx2_diff_size = 16;
+    let tx2_diff_size = 15;
 
     let tx_gas = 21000;
 
@@ -1213,7 +1213,7 @@ fn test_l1_fee_compression_discount() {
     );
 
     assert_eq!(
-        34 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
+        32 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
         tx2_diff_size
     );
 }

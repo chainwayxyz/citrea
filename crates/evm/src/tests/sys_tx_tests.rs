@@ -185,7 +185,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 50714,
                 log_index_start: 0,
-                l1_diff_size: 29,
+                l1_diff_size: 28,
             },
             Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
@@ -230,7 +230,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 169112,
                 log_index_start: 1,
-                l1_diff_size: 137,
+                l1_diff_size: 136,
             }
         ]
     );
