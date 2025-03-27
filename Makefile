@@ -83,9 +83,9 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 
 install-risc0:
 	curl -L https://risczero.com/install | bash
- 	source ~/.bashrc
- 	source ~/.zshrc
- 	rzup install
+	source ~/.bashrc
+	source ~/.zshrc
+	rzup install
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash
