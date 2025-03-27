@@ -1,6 +1,5 @@
 use revm_precompile::{u64_to_address, Bytes, Precompile, PrecompileError, PrecompileOutput, PrecompileResult, PrecompileWithAddress};
-use secp256k1::SECP256K1;
-use secp256k1::{schnorr::Signature, Message, XOnlyPublicKey};
+use k256::schnorr::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey};
 
 const SCHNORRVERIFY_BASE: u64 = 3500;
 /// Precompile for verifying Schnorr signatures.
@@ -11,29 +10,34 @@ pub fn schnorr_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if SCHNORRVERIFY_BASE > gas_limit {
         return Err(PrecompileError::OutOfGas.into());
     }
-    // Parse input, first 32 bytes are the public key, next 32 bytes is the message hash and the last 64 bytes are the signature
-    let public_key = XOnlyPublicKey::from_slice(&input[..32]);
-    let message = Message::from_digest_slice(&input[32..64]);
-    let signature = Signature::from_slice(&input[64..]);
+    let result = verify_sig(input);
+    Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([result as u8])))
+}
+
+fn verify_sig(input: &Bytes) -> bool {
+    if input.len() != 128 {
+        return false;
+    }
+    let verifying_key = VerifyingKey::from_bytes(&input[..32]);
+    let message = &input[32..64];
+    let signature = Signature::try_from(&input[64..]);
 
     let result;
-    if public_key.is_err() || message.is_err() || signature.is_err() {
+    if verifying_key.is_err() || signature.is_err() {
         result = false;
     }
     else {
-        let public_key = public_key.unwrap();
-        let message = message.unwrap();
+        let verifying_key = verifying_key.unwrap();
         let signature = signature.unwrap();
-        result = SECP256K1.verify_schnorr(&signature, &message, &public_key).is_ok();
+        result = verifying_key.verify_prehash(&message, &signature).is_ok();
     }
-    
-    Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([result as u8])))
+    result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::Keypair;
+    use secp256k1::{Keypair, Message, XOnlyPublicKey, SECP256K1};
 
     #[test]
     fn test_invalid_signature() {

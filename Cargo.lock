@@ -2229,6 +2229,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",
+ "k256",
  "lazy_static",
  "rand",
  "rayon",
