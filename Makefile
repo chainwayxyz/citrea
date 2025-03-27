@@ -82,9 +82,10 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	$(MAKE) install-sp1
 
 install-risc0:
-	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall --no-confirm cargo-risczero@1.2.5
-	cargo risczero install --version r0.1.81.0
+	curl -L https://risczero.com/install | bash
+	source ~/.bashrc
+	source ~/.zshrc
+	rzup install
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash

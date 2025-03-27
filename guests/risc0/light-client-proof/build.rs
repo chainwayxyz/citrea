@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
+use risc0_build::{embed_methods_with_options, DockerOptionsBuilder, GuestOptionsBuilder};
 
 fn main() {
     // Build environment variables
@@ -64,20 +64,27 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         features.push("testing".to_string());
     }
 
-    let use_docker = if std::env::var("REPR_GUEST_BUILD_LATEST").is_ok() {
+    let opts = if std::env::var("REPR_GUEST_BUILD_LATEST").is_ok() {
         let this_package_dir = std::env!("CARGO_MANIFEST_DIR");
         let root_dir = format!("{this_package_dir}/../../../");
-        Some(DockerOptions {
-            root_dir: Some(root_dir.into()),
-        })
+
+        let docker_opts = DockerOptionsBuilder::default()
+            .root_dir(root_dir)
+            .build()
+            .unwrap();
+
+        GuestOptionsBuilder::default()
+            .features(features)
+            .use_docker(docker_opts)
+            .build()
+            .unwrap()
     } else {
         println!("cargo:warning=Guest code is not built in docker");
-        None
-    };
 
-    let opts = GuestOptions {
-        features,
-        use_docker,
+        GuestOptionsBuilder::default()
+            .features(features)
+            .build()
+            .unwrap()
     };
 
     guest_pkg_to_options.insert("light-client-proof-bitcoin", opts.clone());
