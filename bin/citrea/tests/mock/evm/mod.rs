@@ -920,16 +920,14 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
     test_client.send_publish_batch_request().await;
 
-    {
-        let receipts = test_client
-            .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
-            .await;
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
 
-        assert_eq!(receipts.len(), 2);
+    assert_eq!(receipts.len(), 2);
 
-        // all successful
-        assert!(receipts.iter().all(|r| r.status()));
-    }
+    // all successful
+    assert!(receipts.iter().all(|r| r.status()));
 
     // if we don't do this in a seperate block, gas estimation is off since the delegation is not done yet
     // this also shows estimate gas works
@@ -943,16 +941,14 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
     test_client.send_publish_batch_request().await;
 
-    {
-        let receipts = test_client
-            .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
-            .await;
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
 
-        assert_eq!(receipts.len(), 1);
+    assert_eq!(receipts.len(), 1);
 
-        // all successful
-        assert!(receipts.iter().all(|r| r.status()));
-    }
+    // all successful
+    assert!(receipts.iter().all(|r| r.status()));
 
     assert_eq!(
         test_client
