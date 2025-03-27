@@ -4,8 +4,7 @@ use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::rpc::{
-    BatchProofMethodIdRpcResponse, LatestDaStateRpcResponse, LightClientProofOutputRpcResponse,
-    LightClientProofResponse,
+    LatestDaStateRpcResponse, LightClientProofOutputRpcResponse, LightClientProofResponse,
 };
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::Proof;
@@ -67,14 +66,6 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                     .expect("should have 11 elements"),
             },
             last_l2_height: U64::from(value.last_l2_height),
-            batch_proof_method_ids: value
-                .batch_proof_method_ids
-                .into_iter()
-                .map(|(height, method_id)| BatchProofMethodIdRpcResponse {
-                    height: U64::from(height),
-                    method_id: method_id.into(),
-                })
-                .collect(),
             lcp_state_root: value.lcp_state_root,
             last_sequencer_commitment_index: U32::from(value.last_sequencer_commitment_index),
         }
