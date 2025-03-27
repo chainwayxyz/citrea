@@ -22,14 +22,14 @@ impl BatchProofCircuitOutput {
     /// Get the initial state root
     pub fn initial_state_root(&self) -> [u8; 32] {
         match self {
-            BatchProofCircuitOutput::V3(output) => output.state_roots.first().unwrap().clone(),
+            BatchProofCircuitOutput::V3(output) => *output.state_roots.first().unwrap(),
         }
     }
 
     /// Get the final state root
     pub fn final_state_root(&self) -> [u8; 32] {
         match self {
-            BatchProofCircuitOutput::V3(output) => output.state_roots.last().unwrap().clone(),
+            BatchProofCircuitOutput::V3(output) => *output.state_roots.last().unwrap(),
         }
     }
 

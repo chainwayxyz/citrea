@@ -253,7 +253,6 @@ impl BatchProofOutputRpcResponse {
     pub fn final_state_root(&self) -> [u8; 32] {
         self.state_roots
             .last()
-            .clone()
             .unwrap()
             .0
             .clone()
@@ -265,7 +264,6 @@ impl BatchProofOutputRpcResponse {
     pub fn initial_state_root(&self) -> [u8; 32] {
         self.state_roots
             .first()
-            .clone()
             .unwrap()
             .0
             .clone()

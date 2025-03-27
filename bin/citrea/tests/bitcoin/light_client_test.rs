@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use alloy_primitives::U64;
-use alloy_rpc_types::serde_helpers::quantity::vec;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
@@ -26,7 +25,7 @@ use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
-use sov_rollup_interface::rpc::{BatchProofInfoRpcResponse, BatchProofMethodIdRpcResponse};
+use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 
@@ -1894,7 +1893,7 @@ fn create_serialized_fake_receipt_batch_proof(
     let mut state_roots = vec![initial_state_root];
 
     // For the sake of easiness of impl tests, we can use merkle root as state root
-    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root.clone()));
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
 
     let batch_proof_output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         state_roots,

@@ -64,7 +64,7 @@ pub(crate) fn create_mock_batch_proof(
     let mut state_roots = vec![initial_state_root];
 
     // For the sake of easiness of impl tests, we can use merkle root as state root
-    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root.clone()));
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
 
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         state_roots,
@@ -127,7 +127,7 @@ pub(crate) fn create_serialized_mock_proof(
     let mut state_roots = vec![initial_state_root];
 
     // For the sake of easiness of impl tests, we can use merkle root as state root
-    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root.clone()));
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
 
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
         state_roots,

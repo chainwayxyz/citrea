@@ -438,7 +438,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             if sequencer_commitment_info.initial_state_root == last_l2_state_root {
                 last_l2_state_root = sequencer_commitment_info.final_state_root;
                 last_l2_height = sequencer_commitment_info.last_l2_height;
-                last_sequencer_commitment_index = last_sequencer_commitment_index + 1;
+                last_sequencer_commitment_index += 1;
             } else {
                 break;
             }

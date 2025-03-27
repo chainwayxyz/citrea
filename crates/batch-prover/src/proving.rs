@@ -553,7 +553,7 @@ pub(crate) fn state_transition_already_proven(
     for proof in proofs {
         let (initial_state_root, sequencer_commitments_range) = match &proof.proof_output {
             StoredBatchProofOutput::V3(output) => (
-                output.state_roots.first().unwrap().clone(),
+                *output.state_roots.first().unwrap(),
                 (u32::MAX, u32::MAX), // TODO: find another way for v3 <= this can be handled pretty easily once we merge #2014
             ),
         };
