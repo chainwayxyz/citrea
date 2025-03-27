@@ -161,12 +161,7 @@ where
             // Set last scanned l1 height
             self.ledger_db
                 .set_last_scanned_l1_height(SlotNumber(l1_height))
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Failed to put prover last scanned l1 height in the ledger db: {}",
-                        e
-                    );
-                });
+                .expect("Should put prover last scanned l1 height");
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 

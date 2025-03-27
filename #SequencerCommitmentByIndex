@@ -1,0 +1,21 @@
+#SequencerCommitmentByIndex
+commidx => comm
+
+#CommitmentIndicesByL1
+l1 => Vec<commidx>
+
+#ProofByJobId
+proofjobid => proof
+
+
+#JobIdOfCommitment
+commidx => proofjobid
+#CommitmentIndicesByJobId
+proofjobid => Vec<commidx>
+
+#ProverPendingCommitments
+commidx => ()
+
+#ProverRunningJobs
+proofjobid => ()
+

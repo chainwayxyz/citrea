@@ -189,11 +189,11 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Delete commitment indices from pending commitments table
     fn delete_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
 
-    /// Inserts a new prover job with its corresponding commitment indices
-    fn insert_prover_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
+    /// Inserts a new prover job with its corresponding commitment indices, marking job as running
+    fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
 
-    /// Deletes a prover job
-    fn delete_prover_job(&self, id: Uuid) -> Result<()>;
+    /// Removes the proving job from the running jobs
+    fn set_proving_job_finished(&self, id: Uuid) -> Result<()>;
 }
 
 /// Light client prover ledger operations

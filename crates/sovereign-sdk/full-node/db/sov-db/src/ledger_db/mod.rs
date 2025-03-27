@@ -15,12 +15,7 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
-    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverRunningJobs,
-    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    CommitmentIndicesByJobId, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverRunningJobs, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -586,12 +581,19 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn insert_prover_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> anyhow::Result<()> {
-        self.db.put::<ProverRunningJobs>(&id, commitment_indices)
+    fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<CommitmentIndicesByJobId>(&id, commitment_indices)?;
+        schema_batch.put::<ProverRunningJobs>(&id, &())?;
+        for index in commitment_indices {
+            schema_batch.put::<JobIdOfCommitment>(index, &id)?;
+        }
+
+        self.db.write_schemas(schema_batch)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn delete_prover_job(&self, id: Uuid) -> anyhow::Result<()> {
+    fn set_proving_job_finished(&self, id: Uuid) -> anyhow::Result<()> {
         self.db.delete::<ProverRunningJobs>(&id)
     }
 }

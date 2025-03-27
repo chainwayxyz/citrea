@@ -151,7 +151,7 @@ where
                 .collect::<Vec<_>>();
 
             self.ledger_db
-                .insert_prover_job(id, &commitment_indices)
+                .insert_new_proving_job(id, &commitment_indices)
                 .context("Failed to insert prover job")?;
             self.ledger_db
                 .delete_pending_commitments(commitment_indices)
@@ -423,7 +423,7 @@ where
                 let job_id = job_ids.swap_remove(idx);
 
                 ledger_db
-                    .delete_prover_job(job_id)
+                    .set_proving_job_finished(job_id)
                     .expect("Should delete job id");
 
                 // TODO: how to save proof? by l1? by job id? by commitment? by l2 block range?
