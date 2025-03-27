@@ -112,6 +112,10 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    CommitmentIndicesByL1::table_name(),
+    ProofByJobId::table_name(),
+    JobIdOfCommitment::table_name(),
+    CommitmentIndicesByJobId::table_name(),
     ProverPendingCommitments::table_name(),
     ProverRunningJobs::table_name(),
     #[cfg(test)]
@@ -161,6 +165,10 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    CommitmentIndicesByL1::table_name(),
+    ProofByJobId::table_name(),
+    JobIdOfCommitment::table_name(),
+    CommitmentIndicesByJobId::table_name(),
     ProverPendingCommitments::table_name(),
     ProverRunningJobs::table_name(),
     #[cfg(test)]
@@ -343,14 +351,39 @@ define_table_with_seek_key_codec!(
     (L2BlockByNumber) L2BlockNumber => StoredL2Block
 );
 
+define_table_with_seek_key_codec!(
+    /// Index to sequencer commitment mapping
+    (SequencerCommitmentByIndex) u32 => SequencerCommitment
+);
+
+define_table_with_default_codec!(
+    /// list of commitment indices by l1 height
+    (CommitmentIndicesByL1) SlotNumber => Vec<u32>
+);
+
+define_table_with_default_codec!(
+    /// Proving results of the job
+    (ProofByJobId) Uuid => StoredBatchProof
+);
+
+define_table_with_default_codec!(
+    /// Secondary index table for quickly associating commitment idx with its proving job id
+    (JobIdOfCommitment) u32 => Uuid
+);
+
+define_table_with_default_codec!(
+    /// Commitment indices that are associated with the proving job
+    (CommitmentIndicesByJobId) Uuid => Vec<u32>
+);
+
 define_table_with_default_codec!(
     /// Commitment indices waiting to be proven
     (ProverPendingCommitments) u32 => ()
 );
 
 define_table_with_default_codec!(
-    /// Currently running prover jobs, id -> list of commitment indices
-    (ProverRunningJobs) Uuid => Vec<u32>
+    /// Currently running prover jobs
+    (ProverRunningJobs) Uuid => ()
 );
 
 define_table_with_default_codec!(
@@ -395,11 +428,6 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Check whether a block is finalized
     (L2BlockStatus) L2BlockNumber => sov_rollup_interface::rpc::L2BlockStatus
-);
-
-define_table_with_seek_key_codec!(
-    /// Index to sequencer commitment mapping
-    (SequencerCommitmentByIndex) u32 => SequencerCommitment
 );
 
 define_table_without_codec!(
