@@ -322,6 +322,20 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             p.remove(&u64_to_address(0x0A))
                 .expect("point eval should be removed");
 
+            // remove BLS related precompiles until we fix
+            // revm-precompile blst feature compilation for risc0zkv
+            p.remove(&u64_to_address(0x0b));
+            p.remove(&u64_to_address(0x0c));
+            p.remove(&u64_to_address(0x0d));
+            p.remove(&u64_to_address(0x0e));
+            p.remove(&u64_to_address(0x0f));
+            p.remove(&u64_to_address(0x10));
+            p.remove(&u64_to_address(0x11));
+            // TODO: once revm precompile is updated
+            // remvoe these as EIP now defined 0xb to 0x11
+            p.remove(&u64_to_address(0x12));
+            p.remove(&u64_to_address(0x13));
+
             precompiles.extend([P256VERIFY]);
 
             precompiles
