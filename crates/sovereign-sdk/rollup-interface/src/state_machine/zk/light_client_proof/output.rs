@@ -19,9 +19,6 @@ pub struct LightClientCircuitOutput {
     pub latest_da_state: LatestDaState,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
-    /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    // TODO: Move to jmt
-    pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
     /// The last sequencer commitment index of the last fully stitched and verified batch proof
     pub last_sequencer_commitment_index: u32,
 }

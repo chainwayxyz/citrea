@@ -1,5 +1,6 @@
 use accessors::{
-    BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor,
+    BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
+    SequencerCommitmentInfoAccessor,
 };
 use borsh::BorshDeserialize;
 use initial_values::LCP_JMT_GENESIS_ROOT;
@@ -38,7 +39,6 @@ pub struct RunL1BlockResult<S: Storage> {
     l2_state_root: [u8; 32],
     lcp_state_root: [u8; 32],
     last_l2_height: u64,
-    batch_proof_method_ids: Vec<(u64, [u32; 8])>,
     pub witness: Witness,
     pub change_set: S,
     last_sequencer_commitment_index: u32,
@@ -180,7 +180,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     fn process_complete_proof(
         &self,
         proof: &[u8],
-        batch_proof_method_ids: &InitialBatchProofMethodIds,
         last_l2_height: u64,
         last_sequencer_commitment_index: u32,
         working_set: &mut WorkingSet<S>,
@@ -210,6 +209,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         if batch_proof_output_last_l2_height <= last_l2_height && last_l2_height != 0 {
             return Err("Last L2 height is less than proof's last l2 height");
         }
+
+        let batch_proof_method_ids = BatchProofMethodIdAccessor::<S>::get(working_set)
+            .expect("Batch proof method ids must exist");
 
         let batch_proof_method_id = if batch_proof_method_ids.len() == 1 {
             batch_proof_method_ids[0].1
@@ -300,15 +302,17 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 },
             );
 
-        let mut batch_proof_method_ids = previous_light_client_proof_output
-            .as_ref()
-            .map_or(initial_batch_proof_method_ids, |o| {
-                o.batch_proof_method_ids.clone()
-            });
+        // If this is the first lcp initialize the batch proof method ids
+        if previous_light_client_proof_output.is_none() {
+            BatchProofMethodIdAccessor::<S>::initialize(
+                initial_batch_proof_method_ids,
+                &mut working_set,
+            );
+        }
 
         'blob_loop: for blob in da_txs {
             let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {
-                println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
+                println!("Unparsable blob in da_data, wtxid={:?}", blob.wtxid());
                 continue;
             };
 
@@ -335,7 +339,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
                     match self.process_complete_proof(
                         &proof,
-                        &batch_proof_method_ids,
                         last_l2_height,
                         last_sequencer_commitment_index,
                         &mut working_set,
@@ -379,7 +382,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
                     match self.process_complete_proof(
                         &complete_proof,
-                        &batch_proof_method_ids,
                         last_l2_height,
                         last_sequencer_commitment_index,
                         &mut working_set,
@@ -408,13 +410,20 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         continue;
                     }
 
+                    let batch_proof_method_ids =
+                        BatchProofMethodIdAccessor::<S>::get(&mut working_set).unwrap();
+
                     let last_activation_height = batch_proof_method_ids
                         .last()
                         .expect("Should be at least one")
                         .0;
 
                     if activation_l2_height > last_activation_height {
-                        batch_proof_method_ids.push((activation_l2_height, method_id));
+                        BatchProofMethodIdAccessor::<S>::insert(
+                            activation_l2_height,
+                            method_id,
+                            &mut working_set,
+                        );
                     }
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
@@ -476,7 +485,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             l2_state_root: last_l2_state_root,
             lcp_state_root: lcp_state_root_transition.final_root,
             last_l2_height,
-            batch_proof_method_ids,
             witness,
             change_set: storage,
             last_sequencer_commitment_index,
@@ -559,7 +567,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             light_client_proof_method_id: input.light_client_proof_method_id,
             latest_da_state: new_da_state,
             last_l2_height: result.last_l2_height,
-            batch_proof_method_ids: result.batch_proof_method_ids,
             lcp_state_root: result.lcp_state_root,
             last_sequencer_commitment_index: result.last_sequencer_commitment_index,
         })

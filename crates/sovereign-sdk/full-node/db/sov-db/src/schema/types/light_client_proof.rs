@@ -42,8 +42,6 @@ pub struct StoredLightClientProofOutput {
     pub latest_da_state: StoredLatestDaState,
     /// Last l2 height after proof.
     pub last_l2_height: u64,
-    /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
     /// The last sequencer commitment index of the last fully stitched and verified batch proof
     pub last_sequencer_commitment_index: u32,
 }
@@ -98,7 +96,6 @@ impl From<LightClientCircuitOutput> for StoredLightClientProofOutput {
                 prev_11_timestamps: latest_da_state.prev_11_timestamps,
             },
             last_l2_height: circuit_output.last_l2_height,
-            batch_proof_method_ids: circuit_output.batch_proof_method_ids,
             lcp_state_root: circuit_output.lcp_state_root,
             last_sequencer_commitment_index: circuit_output.last_sequencer_commitment_index,
         }
@@ -120,7 +117,6 @@ impl From<StoredLightClientProofOutput> for LightClientCircuitOutput {
                 prev_11_timestamps: latest_da_state.prev_11_timestamps,
             },
             last_l2_height: db_output.last_l2_height,
-            batch_proof_method_ids: db_output.batch_proof_method_ids,
             lcp_state_root: db_output.lcp_state_root,
             last_sequencer_commitment_index: db_output.last_sequencer_commitment_index,
         }

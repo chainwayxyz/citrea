@@ -7,6 +7,10 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::zk::light_client_proof::output::SequencerCommitmentInfo;
 use sov_rollup_interface::RefCount;
 
+use super::InitialBatchProofMethodIds;
+
+pub type BatchProofMethodIds = Vec<(u64, [u32; 8])>;
+
 pub struct BlockHashAccessor<S: Storage> {
     phantom: core::marker::PhantomData<S>,
 }
@@ -164,6 +168,60 @@ impl<S: Storage> SequencerCommitmentInfoAccessor<S> {
     }
 }
 
+pub struct BatchProofMethodIdAccessor<S: Storage> {
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> BatchProofMethodIdAccessor<S> {
+    const PREFIX: u8 = b'm';
+    const KEY: u8 = b'm';
+
+    fn key() -> StorageKey {
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
+        let mut key = [0u8; 2]; // 1 prefix + 4 bytes
+
+        key[0] = Self::PREFIX;
+        key[1] = Self::KEY;
+
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<BatchProofMethodIds> {
+        let key = Self::key();
+
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes)
+                .expect("Batch proof method ids deserialization should not fail")
+        })
+    }
+
+    pub fn insert(activation_l2_height: u64, method_id: [u32; 8], working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let mut method_ids = Self::get(working_set).unwrap_or_default();
+        method_ids.push((activation_l2_height, method_id));
+        let value: StorageValue = borsh::to_vec(&method_ids)
+            .expect("Batch proof method ids serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+
+    pub fn initialize(
+        initial_batch_proof_method_ids: InitialBatchProofMethodIds,
+        working_set: &mut WorkingSet<S>,
+    ) {
+        let key = Self::key();
+        let mut method_ids = Self::get(working_set).unwrap_or_default();
+        method_ids.extend(initial_batch_proof_method_ids);
+
+        let value: StorageValue = borsh::to_vec(&method_ids)
+            .expect("Batch proof method ids serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use sov_modules_api::WorkingSet;
@@ -174,7 +232,9 @@ mod tests {
     use sov_rollup_interface::zk::light_client_proof::output::SequencerCommitmentInfo;
 
     use super::{BlockHashAccessor, ChunkAccessor};
-    use crate::circuit::accessors::{SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor};
+    use crate::circuit::accessors::{
+        BatchProofMethodIdAccessor, SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor,
+    };
 
     #[test]
     fn test_block_hash_accessor() {
@@ -354,6 +414,52 @@ mod tests {
 
         assert!(
             SequencerCommitmentInfoAccessor::<ProverStorage>::get(2, &mut working_set).is_none()
+        );
+    }
+
+    #[test]
+    fn test_batch_proof_method_id_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        assert!(BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).is_none());
+
+        let initial_batch_proof_method_ids = vec![(3, [3; 8]), (4, [4; 8])];
+
+        BatchProofMethodIdAccessor::<ProverStorage>::initialize(
+            initial_batch_proof_method_ids.clone(),
+            &mut working_set,
+        );
+
+        assert_eq!(
+            BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            initial_batch_proof_method_ids
+        );
+
+        BatchProofMethodIdAccessor::<ProverStorage>::insert(1, [1; 8], &mut working_set);
+
+        assert_eq!(
+            BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            vec![(3, [3; 8]), (4, [4; 8]), (1, [1; 8])]
+        );
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .expect("should not fail");
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert_eq!(
+            BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            vec![(3, [3; 8]), (4, [4; 8]), (1, [1; 8])]
         );
     }
 }

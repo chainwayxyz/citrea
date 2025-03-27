@@ -385,7 +385,6 @@ fn prepare_slots_data(ledger_db: &DB) {
                             prev_11_timestamps: [0; 11],
                         },
                         last_l2_height: da_slot_height,
-                        batch_proof_method_ids: vec![],
                         lcp_state_root: [0; 32],
                         last_sequencer_commitment_index: 1,
                     },
