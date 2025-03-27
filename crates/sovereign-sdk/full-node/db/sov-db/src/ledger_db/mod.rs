@@ -15,7 +15,7 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverRunningJobs, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverRunningJobs, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -578,6 +578,11 @@ impl BatchProverLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn delete_pending_commitments(&self, indices: Vec<u32>) -> anyhow::Result<()> {
         self.db.delete_batch::<ProverPendingCommitments>(indices)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn put_commitment_indices_by_l1(&self, l1_height: SlotNumber, indices: &Vec<u32>) -> anyhow::Result<()> {
+        self.db.put::<CommitmentIndicesByL1>(&l1_height, indices)
     }
 
     #[instrument(level = "trace", skip(self), err)]
