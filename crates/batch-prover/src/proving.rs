@@ -96,7 +96,7 @@ where
             .expect("Should store commitment");
     }
 
-    let l2_start_block_number = if sequencer_commitments[0].index == 0 {
+    let l2_start_block_number = if sequencer_commitments[0].index == 1 {
         // If this is the first commitment in fork2, the start l2 height will be fork2 activation height
         // Start block number should be fork2  activation height
         get_fork2_activation_height_non_zero()
@@ -203,6 +203,22 @@ where
                 L1ProcessingError::Other(format!("Error getting final state root: {:?}", e))
             })?
             .expect("There should be a state root");
+
+        let previous_sequencer_commitment =
+        // If first commitment (index == 1) then the previous commitment will be None
+            if sequencer_commitments[*sequencer_commitments_range.start()].index == 1 {
+                None
+            } else {
+                sequencer_commitments[*sequencer_commitments_range.start()]
+                    .index
+                    .checked_sub(1)
+                    .map(|index| {
+                        ledger
+                            .get_commitment_by_index(index)
+                            .expect("Should get commitment")
+                            .expect("Commitment should exist")
+                    })
+            };
 
         let previous_sequencer_commitment = sequencer_commitments
             [*sequencer_commitments_range.start()]
@@ -614,7 +630,7 @@ pub(crate) fn save_commitments<DB>(
     DB: BatchProverLedgerOps,
 {
     for sequencer_commitment in sequencer_commitments.iter() {
-        let l2_start_block_number = if sequencer_commitment.index == 0 {
+        let l2_start_block_number = if sequencer_commitment.index == 1 {
             get_fork2_activation_height_non_zero()
         } else {
             ledger_db

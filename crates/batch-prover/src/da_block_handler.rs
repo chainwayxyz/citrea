@@ -315,7 +315,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
 
     let mut range = 0usize..=0usize;
     let mut cumulative_state_diff = StateDiff::new();
-    let first_l2_block_number = if sequencer_commitments[0].index == 0 {
+    let first_l2_block_number = if sequencer_commitments[0].index == 1 {
         // TODO: Handle this better
         get_fork2_activation_height_non_zero()
     } else {

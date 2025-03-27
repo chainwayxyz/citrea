@@ -384,8 +384,8 @@ where
             } else {
                 // If this is the first batch proof, then the first commitment idx should be 0
                 assert_eq!(
-                    sequencer_commitments[0].index, 0,
-                    "First commitment must be index 0"
+                    sequencer_commitments[0].index, 1,
+                    "First commitment must be index 1"
                 );
                 (None, None)
             };

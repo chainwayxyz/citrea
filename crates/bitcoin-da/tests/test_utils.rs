@@ -129,7 +129,7 @@ pub async fn generate_mock_txs(
     let mut valid_commitments = vec![];
     let mut valid_proofs = vec![];
     let mut valid_method_ids = vec![];
-    let mut seq_index = 0;
+    let mut seq_index = 1;
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
