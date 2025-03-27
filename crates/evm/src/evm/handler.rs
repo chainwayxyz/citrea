@@ -22,6 +22,7 @@ use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
+use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
@@ -322,7 +323,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             p.remove(&u64_to_address(0x0A))
                 .expect("point eval should be removed");
 
-            precompiles.extend([P256VERIFY]);
+            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
 
             precompiles
         }

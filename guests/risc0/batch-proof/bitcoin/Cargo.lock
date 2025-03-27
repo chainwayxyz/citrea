@@ -1080,6 +1080,7 @@ dependencies = [
  "reth-primitives-traits",
  "revm",
  "revm-precompile",
+ "secp256k1",
  "serde",
  "sha2",
  "short-header-proof-provider",
