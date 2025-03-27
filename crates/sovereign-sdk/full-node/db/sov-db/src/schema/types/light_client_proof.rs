@@ -8,7 +8,7 @@ use sov_rollup_interface::rpc::{
     LightClientProofResponse,
 };
 use sov_rollup_interface::zk::light_client_proof::output::{
-    BatchProofInfo, LightClientCircuitOutput,
+    SequencerCommitmentInfo, LightClientCircuitOutput,
 };
 use sov_rollup_interface::zk::Proof;
 
@@ -44,7 +44,7 @@ pub struct StoredLightClientProofOutput {
     pub latest_da_state: StoredLatestDaState,
     /// Unchained batch proofs are proofs that are not consecutive,
     /// hence can not be proven yet kproofs.
-    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    pub unchained_batch_proofs_info: Vec<SequencerCommitmentInfo>,
     /// Last l2 height after proof.
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof

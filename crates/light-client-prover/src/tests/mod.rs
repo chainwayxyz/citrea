@@ -5,7 +5,7 @@ use sov_mock_zkvm::MockZkGuest;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
-use sov_rollup_interface::zk::light_client_proof::output::BatchProofInfo;
+use sov_rollup_interface::zk::light_client_proof::output::SequencerCommitmentInfo;
 use sov_rollup_interface::Network;
 use sov_state::{Witness, ZkStorage};
 use tempfile::tempdir;
@@ -1238,7 +1238,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
     assert_eq!(output_2.l2_state_root, [2; 32]);
     assert_eq!(
         output_2.unchained_batch_proofs_info,
-        vec![BatchProofInfo {
+        vec![SequencerCommitmentInfo {
             initial_state_root: [4u8; 32],
             final_state_root: [5u8; 32],
             last_l2_height: 5,

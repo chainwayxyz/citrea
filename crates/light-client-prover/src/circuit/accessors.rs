@@ -4,7 +4,7 @@
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_modules_core::{Prefix, Storage, StorageKey, StorageValue};
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::zk::light_client_proof::output::BatchProofInfo;
+use sov_rollup_interface::zk::light_client_proof::output::SequencerCommitmentInfo;
 use sov_rollup_interface::RefCount;
 
 pub struct BlockHashAccessor<S: Storage> {
@@ -122,11 +122,11 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
     }
 }
 
-pub struct UnchainedBatchProofInfoAccessor<S: Storage> {
+pub struct SequencerCommitmentInfoAccessor<S: Storage> {
     phantom: core::marker::PhantomData<S>,
 }
 
-impl<S: Storage> UnchainedBatchProofInfoAccessor<S> {
+impl<S: Storage> SequencerCommitmentInfoAccessor<S> {
     const PREFIX: u8 = b'u';
 
     fn key(index: u32) -> StorageKey {
@@ -141,7 +141,7 @@ impl<S: Storage> UnchainedBatchProofInfoAccessor<S> {
     }
 
     /// Returns batch proof info if it exists
-    pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<BatchProofInfo> {
+    pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<SequencerCommitmentInfo> {
         let key = Self::key(index);
 
         working_set.get(&key).map(|v| {
@@ -151,9 +151,13 @@ impl<S: Storage> UnchainedBatchProofInfoAccessor<S> {
     }
 
     /// Insert a new batch proof info to the LCP state
-    pub fn insert(index: u32, batch_proof_info: BatchProofInfo, working_set: &mut WorkingSet<S>) {
+    pub fn insert(
+        index: u32,
+        sequencer_commitment_info: SequencerCommitmentInfo,
+        working_set: &mut WorkingSet<S>,
+    ) {
         let key = Self::key(index);
-        let value: StorageValue = borsh::to_vec(&batch_proof_info)
+        let value: StorageValue = borsh::to_vec(&sequencer_commitment_info)
             .expect("Batch proof info serialization should not fail")
             .into();
         working_set.set(&key, value);

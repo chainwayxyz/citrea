@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
-use crate::zk::light_client_proof::output::BatchProofInfo;
+use crate::zk::light_client_proof::output::SequencerCommitmentInfo;
 use crate::RefCount;
 
 /// L2 Block response
@@ -130,8 +130,8 @@ impl From<MMRGuest> for MMRGuestRpcResponse {
     }
 }
 
-impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
-    fn from(info: BatchProofInfo) -> Self {
+impl From<SequencerCommitmentInfo> for BatchProofInfoRpcResponse {
+    fn from(info: SequencerCommitmentInfo) -> Self {
         Self {
             initial_state_root: info.initial_state_root,
             final_state_root: info.final_state_root,
