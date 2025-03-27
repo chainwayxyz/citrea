@@ -32,8 +32,8 @@ const ACCOUNT_IDX_KEY_SIZE: usize = 24;
 const ACCOUNT_IDX_SIZE: usize = 8;
 
 /// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak internally for evm operations
-const DB_ACCOUNT_SIZE_EOA: usize = 42;
-const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
+const DB_ACCOUNT_SIZE_EOA: usize = 41;
+const DB_ACCOUNT_SIZE_CONTRACT: usize = 73;
 
 /// 4 bytes of prefix ("E/a/") + 8 bytes of account id = 12 bytes
 const DB_ACCOUNT_KEY_SIZE: usize = 12;
