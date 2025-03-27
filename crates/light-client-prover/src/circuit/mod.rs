@@ -151,6 +151,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             };
 
             // If this is the last commitment check the l2 heights matching
+            // This is unreachable, because if seq comm hashes are matching then the l2 heights must match
+            // because we assert in batch proof
             if i as u32 == last_index - first_index
                 && jmt_commitment.l2_end_block_number != batch_proof_output.last_l2_height()
             {
@@ -239,6 +241,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             ..=batch_proof_output.sequencer_commitment_index_range().1)
             .enumerate()
         {
+            // No need to add data to jmt if index is less than or equal to the current index, because it will be the same since they have the same seq comm hash
+            // Also no need to add if we already have the same index.
             if seq_comm_index <= last_sequencer_commitment_index
                 || SequencerCommitmentInfoAccessor::<S>::get(seq_comm_index, working_set).is_some()
             {
