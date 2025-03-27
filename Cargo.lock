@@ -102,7 +102,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde",
- "arbitrary",
  "auto_impl",
  "c-kzg",
  "derive_more",
@@ -145,8 +144,6 @@ checksum = "0069cf0642457f87a01a014f6dc29d5d893cd4fd8fddf0c3cdfad1bb3ebafc41"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
- "arbitrary",
- "rand",
  "serde",
 ]
 
@@ -158,9 +155,7 @@ checksum = "ea59dc42102bc9a1905dc57901edc6dd48b9f38115df86c7d252acba70d71d04"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
- "arbitrary",
  "k256",
- "rand",
  "serde",
  "serde_with",
 ]
@@ -176,7 +171,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde",
- "arbitrary",
  "c-kzg",
  "derive_more",
  "once_cell",
@@ -262,11 +256,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fce5dbd6a4f118eecc4719eaa9c7ffc31c315e6c5ccde3642db927802312425"
 dependencies = [
  "alloy-rlp",
- "arbitrary",
  "bytes",
  "cfg-if",
  "const-hex",
- "derive_arbitrary",
  "derive_more",
  "foldhash",
  "getrandom",
@@ -278,7 +270,6 @@ dependencies = [
  "keccak-asm",
  "paste",
  "proptest",
- "proptest-derive",
  "rand",
  "ruint",
  "rustc-hash 2.1.1",
@@ -506,7 +497,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9dff0ab1cdd43ca001e324dc27ee0e8606bd2161d6623c63e0e0b8c4dfc13600"
 dependencies = [
  "alloy-primitives",
- "arbitrary",
  "serde",
  "serde_json",
 ]
@@ -754,15 +744,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.98",
-]
-
-[[package]]
-name = "arbitrary"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dde20b3d026af13f561bdd0f15edf01fc734f0dafcedbaf42bba506a9517f223"
-dependencies = [
- "derive_arbitrary",
 ]
 
 [[package]]
@@ -2761,17 +2742,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_arbitrary"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30542c1ad912e0e3d22a1935c290e12e8a29d704a420177a31faad4a601a0800"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.98",
-]
-
-[[package]]
 name = "derive_more"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3971,7 +3941,6 @@ version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c9c992b02b5b4c94ea26e32fe5bccb7aa7d9f390ab5c1221ff895bc7ea8b652"
 dependencies = [
- "arbitrary",
  "equivalent",
  "hashbrown 0.15.2",
  "serde",
@@ -5057,10 +5026,8 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde",
- "arbitrary",
  "derive_more",
  "serde",
- "serde_with",
  "spin",
 ]
 
@@ -5507,17 +5474,6 @@ dependencies = [
  "rusty-fork",
  "tempfile",
  "unarray",
-]
-
-[[package]]
-name = "proptest-derive"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ee1c9ac207483d5e7db4940700de86a9aae46ef90c48b57f99fe7edb8345e49"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.98",
 ]
 
 [[package]]
@@ -6457,7 +6413,6 @@ dependencies = [
  "k256",
  "modular-bitfield",
  "once_cell",
- "op-alloy-consensus",
  "rayon",
  "reth-codecs",
  "reth-ethereum-forks",
@@ -6467,7 +6422,6 @@ dependencies = [
  "revm-primitives",
  "secp256k1",
  "serde",
- "serde_with",
  "zstd",
 ]
 
@@ -6489,7 +6443,6 @@ dependencies = [
  "revm-primitives",
  "roaring",
  "serde",
- "serde_with",
 ]
 
 [[package]]
@@ -7457,7 +7410,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "825df406ec217a8116bd7b06897c6cc8f65ffefc15d030ae2c9540acc9ed50b6"
 dependencies = [
  "alloy-rlp",
- "arbitrary",
  "ark-ff 0.3.0",
  "ark-ff 0.4.2",
  "bytes",

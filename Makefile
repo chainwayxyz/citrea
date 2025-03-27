@@ -1,5 +1,5 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
-EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
+EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1

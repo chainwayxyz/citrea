@@ -31,7 +31,11 @@ reveal_*.tx
 *.txs
 
 elf/
+
+# benchmarking related files
 *input.bin
 *transactions.txt
+*profile.pb
+*stats.txt
 
 bitcoin-testnet4/
