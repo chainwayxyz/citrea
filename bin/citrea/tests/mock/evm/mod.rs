@@ -3,11 +3,16 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
+use alloy::hex::FromHex;
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_rpc_types::EIP1186AccountProofResponse;
+use alloy_rpc_types::{Authorization, EIP1186AccountProofResponse, TransactionRequest};
 use citrea_common::SequencerConfig;
-use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
+use citrea_evm::smart_contracts::{
+    CallerContract, LogsContract, SimpleStorageContract, TestContract,
+};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{BlockId, BlockNumberOrTag};
@@ -841,4 +846,278 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
     assert_eq!(latest_block, earliest_block);
     assert_eq!(latest_block.header.number, 0);
     test_client
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::INFO);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig {
+        min_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+        ..Default::default()
+    };
+    let rollup_task = tokio::spawn(async {
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            None,
+            rollup_config,
+            Some(sequencer_config),
+            None,
+            false,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+    let test_client = init_test_rollup(port).await;
+
+    test_client.send_publish_batch_request().await;
+
+    // in a single block, deploy simple storage contract, make eip7702 tx that delegates to the contract
+    // then call the contract to set a value and get it back over eip7702 tx
+
+    let contract = SimpleStorageContract::default();
+
+    let _deploy_tx = test_client
+        .deploy_contract(contract.byte_code(), None)
+        .await
+        .unwrap();
+
+    let contract_address = test_client.from_addr.create(0);
+
+    // random signer for authorization list
+    let delegating_signer = PrivateKeySigner::random();
+
+    let authorization = Authorization {
+        chain_id: U256::from(test_client.chain_id),
+        address: contract_address,
+        nonce: 0,
+    };
+
+    let signature = delegating_signer.sign_hash_sync(&authorization.signature_hash())?;
+    let signed_authorization = authorization.into_signed(signature);
+
+    let _set_code_tx = test_client
+        .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_authorization])
+        .await
+        .unwrap();
+
+    test_client.send_publish_batch_request().await;
+
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(receipts.len(), 2);
+
+    // all successful
+    assert!(receipts.iter().all(|r| r.status()));
+
+    // if we don't do this in a seperate block, gas estimation is off since the delegation is not done yet
+    // this also shows estimate gas works
+    let _set_storage_tx = test_client
+        .contract_transaction(
+            delegating_signer.address(),
+            contract.set_call_data(11),
+            None,
+        )
+        .await;
+
+    test_client.send_publish_batch_request().await;
+
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(receipts.len(), 1);
+
+    // all successful
+    assert!(receipts.iter().all(|r| r.status()));
+
+    assert_eq!(
+        test_client
+            .eth_get_code(delegating_signer.address(), None)
+            .await
+            .unwrap(),
+        Into::<Bytes>::into(
+            [
+                Bytes::from_hex("0xef0100").unwrap(),
+                Bytes::from(contract_address.to_vec())
+            ]
+            .concat()
+        )
+    );
+
+    // this also shows eth_call works
+    let get_storage_tx: U256 = test_client
+        .contract_call(delegating_signer.address(), contract.get_call_data(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(get_storage_tx, U256::from(11));
+
+    // now let's try a failing auth
+    // followed by a clear delegation tx
+    // TODO: for now we send multiple wrong nonce auths in a single tx
+    // as current version of revm does not support clearing delegation
+    {
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: contract_address,
+            nonce: 0, // wrong nonce
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth_wrong_nonce = auth.into_signed(signature);
+
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: Address::ZERO,
+            nonce: 1, // wrong nonce
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let _signed_auth_clear_delegation = auth.into_signed(signature);
+
+        let _ = test_client
+            .send_eip7702_transaction(
+                Address::ZERO,
+                vec![],
+                None,
+                // TODO: our version of revm does not support clearing delegation yet
+                // once we update revm, we can uncomment the following line
+                // and the assert's below can be fixed
+                vec![signed_auth_wrong_nonce.clone(), signed_auth_wrong_nonce],
+                // vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        assert_eq!(
+            test_client
+                .eth_get_transaction_count(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            1 // TODO: this would be 2 if the clear delegation worked
+        );
+
+        // TODO: this should work when the clear delegation work
+        // assert_eq!(
+        //     test_client
+        //         .eth_get_code(delegating_signer.address(), None)
+        //         .await
+        //         .unwrap(),
+        //     Bytes::new()
+        // );
+    }
+
+    // combine access list with eip7702 tx
+    {
+        // random signer for authorization list
+        let new_signer = PrivateKeySigner::random();
+
+        let authorization = Authorization {
+            chain_id: U256::ZERO, // let's also show chain id 0 works
+            address: contract_address,
+            nonce: 0,
+        };
+
+        let signature = new_signer.sign_hash_sync(&authorization.signature_hash())?;
+        let signed_authorization = authorization.into_signed(signature);
+
+        let _set_code_tx = test_client
+            .send_eip7702_transaction(
+                new_signer.address(),
+                SimpleStorageContract::default().set_call_data(100),
+                None,
+                vec![signed_authorization],
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        assert_eq!(
+            test_client
+                .contract_call::<U256>(new_signer.address(), contract.get_call_data(), None)
+                .await
+                .unwrap(),
+            U256::from(100)
+        );
+
+        assert_eq!(
+            test_client
+                .eth_get_code(new_signer.address(), None)
+                .await
+                .unwrap(),
+            Into::<Bytes>::into(
+                [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(contract_address.to_vec())
+                ]
+                .concat()
+            )
+        );
+
+        // deploy caller contract
+        let caller_contract = CallerContract::default();
+
+        let deploy_tx = test_client
+            .deploy_contract(caller_contract.byte_code(), None)
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        let caller_contract_address = deploy_tx
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        let tx_req = TransactionRequest::default()
+            .from(test_client.from_addr)
+            .to(caller_contract_address)
+            .input(
+                caller_contract
+                    .call_set_call_data(new_signer.address(), 500)
+                    .into(),
+            );
+
+        let gas = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        let access_list = test_client
+            .eth_create_access_list(tx_req.clone())
+            .await
+            .unwrap()
+            .access_list;
+
+        let tx_req = tx_req.access_list(access_list);
+
+        let gas_with_access_list = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        assert!(gas > gas_with_access_list);
+    }
+
+    rollup_task.abort();
+    Ok(())
 }

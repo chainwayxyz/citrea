@@ -9,13 +9,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Install cargo-risczero
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-risczero@1.2.5
-
-    - name: Install risc0-zkvm toolchain
+    - name: Install risc0
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
-      run: cargo risczero install --version r0.1.81.0
+      run: | 
+        curl -L https://risczero.com/install | bash
+        export PATH="$PATH:$HOME/.risc0/bin"
+        rzup install

@@ -169,7 +169,7 @@ impl ZkvmHost for Risc0BonsaiHost {
             ReceiptType::Succinct => ProverOpts::succinct(),
         };
 
-        let ProveInfo { receipt, stats } = prover.prove_with_opts(env, &elf, &prover_opts)?;
+        let ProveInfo { receipt, stats, .. } = prover.prove_with_opts(env, &elf, &prover_opts)?;
 
         histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
 
