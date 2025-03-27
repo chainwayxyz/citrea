@@ -67,8 +67,6 @@ reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
 reth-errors = { workspace = true }
 reth-rpc-eth-types = { workspace = true }
-secp256k1 = { workspace = true }
-revm = { workspace = true, default-features = false, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
 sha2 = { workspace = true }
 sov-keys = { path = "../sovereign-sdk/module-system/sov-keys" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }
