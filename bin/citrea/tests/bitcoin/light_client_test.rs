@@ -1910,7 +1910,6 @@ impl TestCase for ChainProofByCommitmentIndex {
         });
 
         da.generate(FINALITY_DEPTH).await?;
-        let proof_last_l2_height: u64 = 10;
 
         let fake_sequencer_commitment = SequencerCommitment {
             merkle_root: [1u8; 32],
@@ -1979,10 +1978,6 @@ impl TestCase for ChainProofByCommitmentIndex {
         let genesis_state_root = lcp_output.l2_state_root;
 
         assert!(method_ids.len() == 1);
-
-        // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
-        // But the compressed size will go down to 100kb
-        let state_diff_100kb = create_random_state_diff(100);
 
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
@@ -2143,7 +2138,6 @@ impl TestCase for ProofWithMissingCommitment {
         });
 
         da.generate(FINALITY_DEPTH).await?;
-        let proof_last_l2_height: u64 = 10;
 
         let fake_sequencer_commitment = SequencerCommitment {
             merkle_root: [1u8; 32],
@@ -2174,10 +2168,6 @@ impl TestCase for ProofWithMissingCommitment {
         let genesis_state_root = lcp_output.l2_state_root;
 
         assert!(method_ids.len() == 1);
-
-        // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
-        // But the compressed size will go down to 100kb
-        let state_diff_100kb = create_random_state_diff(100);
 
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
@@ -2277,6 +2267,7 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
     map
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_serialized_fake_receipt_batch_proof(
     initial_state_root: [u8; 32],
     last_l2_height: u64,
