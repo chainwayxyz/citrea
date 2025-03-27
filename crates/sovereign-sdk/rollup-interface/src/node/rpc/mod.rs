@@ -248,6 +248,32 @@ pub struct BatchProofOutputRpcResponse {
     pub previous_commitment_hash: Option<SerializableHash>,
 }
 
+impl BatchProofOutputRpcResponse {
+    /// Get final state root of batch proof
+    pub fn final_state_root(&self) -> [u8; 32] {
+        self.state_roots
+            .last()
+            .clone()
+            .unwrap()
+            .0
+            .clone()
+            .try_into()
+            .unwrap()
+    }
+
+    /// Get initial state root of batch proof
+    pub fn initial_state_root(&self) -> [u8; 32] {
+        self.state_roots
+            .first()
+            .clone()
+            .unwrap()
+            .0
+            .clone()
+            .try_into()
+            .unwrap()
+    }
+}
+
 /// Custom serialization for BTreeMap
 /// Key and value are serialized as hex
 /// Value is optional, if None, it is serialized as null

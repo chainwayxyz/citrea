@@ -191,7 +191,7 @@ async fn full_node_verify_proof_and_store() {
         .expect("should get l2 block");
 
     assert_eq!(
-        full_node_proof[0].proof_output.final_state_root,
+        full_node_proof[0].proof_output.final_state_root(),
         l2_block.header.state_root
     );
 

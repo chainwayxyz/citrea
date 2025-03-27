@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use alloy_primitives::U64;
+use alloy_rpc_types::serde_helpers::quantity::vec;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
@@ -24,7 +25,7 @@ use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
+use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{BatchProofInfoRpcResponse, BatchProofMethodIdRpcResponse};
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -152,7 +153,7 @@ impl TestCase for LightClientProvingTest {
                 .light_client_proof_output
                 .l2_state_root
                 .to_vec(),
-            batch_proof[0].proof_output.final_state_root
+            batch_proof[0].proof_output.final_state_root()
         );
 
         Ok(())
@@ -302,13 +303,8 @@ impl TestCase for LightClientProvingTestMultipleProofs {
                 .to_vec(),
             batch_proofs[(n_commitments - 1) as usize]
                 .proof_output
-                .final_state_root
+                .final_state_root()
         );
-
-        assert!(light_client_proof
-            .light_client_proof_output
-            .unchained_batch_proofs_info
-            .is_empty());
 
         // Generate another da block so we generate another lcp
         da.generate(1).await?;
@@ -341,11 +337,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             light_client_proof2.light_client_proof_output.last_l2_height,
             light_client_proof.light_client_proof_output.last_l2_height
         );
-
-        assert!(light_client_proof2
-            .light_client_proof_output
-            .unchained_batch_proofs_info
-            .is_empty());
 
         // Let's generate a new batch proof
         // publish min_l2_blocks_per_commitment confirmations
@@ -422,7 +413,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
                 .light_client_proof_output
                 .l2_state_root
                 .to_vec(),
-            batch_proofs[0].proof_output.final_state_root
+            batch_proofs[0].proof_output.final_state_root()
         );
 
         assert_ne!(
@@ -434,11 +425,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             light_client_proof3.light_client_proof_output.l2_state_root,
             light_client_proof.light_client_proof_output.l2_state_root
         );
-
-        assert!(light_client_proof3
-            .light_client_proof_output
-            .unchained_batch_proofs_info
-            .is_empty());
 
         Ok(())
     }
@@ -811,14 +797,93 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let fork2_height: u64 = method_ids[0].height.to();
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
+        let fake_sequencer_commitment = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            index: 1,
+            l2_end_block_number: fork2_height + 1,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+
+        let fake_sequencer_commitment_5 = SequencerCommitment {
+            merkle_root: [4u8; 32],
+            index: 2,
+            l2_end_block_number: fork2_height * 2,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment_5.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(4, None).await?;
+
+        let fake_sequencer_commitment_3 = SequencerCommitment {
+            merkle_root: [5u8; 32],
+            index: 4,
+            l2_end_block_number: fork2_height * 4,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment_3.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(6, None).await?;
+
+        let fake_sequencer_commitment_4 = SequencerCommitment {
+            merkle_root: [2u8; 32],
+            index: 2,
+            l2_end_block_number: fork2_height * 2,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment_4.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(8, None).await?;
+        let fake_sequencer_commitment_2 = SequencerCommitment {
+            merkle_root: [3u8; 32],
+            index: 3,
+            l2_end_block_number: fork2_height * 3,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment_2.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(10, None).await?;
+
+        // Finalize the DA block which contains the seq comm txs
+        da.generate(FINALITY_DEPTH).await?;
+
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
-            [1u8; 32],
             fork2_height + 1,
             method_ids[0].method_id.into(),
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment.clone()],
+            None,
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -829,12 +894,13 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
-            [3u8; 32],
             fork2_height * 3,
             method_ids[0].method_id.into(),
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment_2.clone()],
+            Some(fake_sequencer_commitment_4.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -845,12 +911,13 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         // Expect unparsable journal to be skipped
         let unparsable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [3u8; 32],
-            [5u8; 32],
             fork2_height * 4,
             method_ids[0].method_id.into(),
             None,
             true,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment_3.clone()],
+            Some(fake_sequencer_commitment_2.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
@@ -860,12 +927,13 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
-            [2u8; 32],
             fork2_height * 2,
             method_ids[0].method_id.into(),
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment_4.clone()],
+            Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -877,12 +945,13 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let random_method_id = [1u32; 8];
         let unverifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [3u8; 32],
-            [4u8; 32],
             fork2_height * 4,
             random_method_id,
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment_5.clone()],
+            Some(fake_sequencer_commitment_4.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
@@ -915,7 +984,6 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         // The unverifiable batch proof and malformed journal batch proof should not have updated the state root or the last l2 height
         assert_eq!(lcp_output.l2_state_root, [3u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 3));
-        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         Ok(())
     }
@@ -1008,6 +1076,54 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         });
 
         da.generate(FINALITY_DEPTH).await?;
+        let proof_last_l2_height: u64 = 10;
+
+        let fake_sequencer_commitment = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            index: 1,
+            l2_end_block_number: proof_last_l2_height,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        let fake_sequencer_commitment2 = SequencerCommitment {
+            merkle_root: [2u8; 32],
+            index: 2,
+            l2_end_block_number: proof_last_l2_height * 2,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment2.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        let fake_sequencer_commitment3 = SequencerCommitment {
+            merkle_root: [3u8; 32],
+            index: 3,
+            l2_end_block_number: proof_last_l2_height * 3,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment3.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(6, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to create light client proof.
@@ -1030,8 +1146,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         assert!(method_ids.len() == 1);
 
-        let proof_last_l2_height: u64 = 10;
-
         // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
         // But the compressed size will go down to 100kb
         let state_diff_100kb = create_random_state_diff(100);
@@ -1041,12 +1155,13 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // Create a 100kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 3 chunk and 1 aggregate transactions because 100kb/40kb = 3 chunks
         let verifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
-            [1u8; 32],
             proof_last_l2_height,
             method_ids[0].method_id.into(),
             Some(state_diff_100kb.clone()),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment.clone()],
+            None,
         );
 
         let _ = bitcoin_da_service
@@ -1083,7 +1198,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // The batch proof should have updated the state root and the last l2 height
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(proof_last_l2_height));
-        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         // Now generate another proof but this time:
         // Have 4 chunks and 1 aggregate
@@ -1100,12 +1214,13 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         let verifiable_130kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
-            [2u8; 32],
             proof_last_l2_height * 2,
             method_ids[0].method_id.into(),
             Some(state_diff_130kb),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment2.clone()],
+            Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
         let _ = bitcoin_da_service
@@ -1174,7 +1289,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(proof_last_l2_height));
-        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         let lcp_last_chunks = light_client_prover
             .client
@@ -1187,7 +1301,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(proof_last_l2_height));
-        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         // Expect light client prover to have generated light client proof
         let lcp_aggregate = light_client_prover
@@ -1204,19 +1317,19 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             lcp_output.last_l2_height,
             U64::from(proof_last_l2_height * 2)
         );
-        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         let random_method_id = [1u32; 8];
 
         // This should result in 3 chunks and 1 aggregate tx
         let unverifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
-            [3u8; 32],
             proof_last_l2_height * 3,
             random_method_id,
             Some(state_diff_100kb),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment3],
+            Some(fake_sequencer_commitment2.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_100kb_batch_proof), 1)
@@ -1254,8 +1367,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             lcp_output.last_l2_height,
             U64::from(proof_last_l2_height * 2)
         );
-        // Also should not leave unchained outputs
-        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         Ok(())
     }
@@ -1286,7 +1397,7 @@ impl TestCase for UnchainedBatchProofsTest {
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
             enable_recovery: false,
-            initial_da_height: 170,
+            initial_da_height: 164,
             ..Default::default()
         }
     }
@@ -1347,6 +1458,64 @@ impl TestCase for UnchainedBatchProofsTest {
             bitcoin_da_service.clone().run_da_queue(rx, tk)
         });
 
+        let fake_sequencer_commitment = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            index: 1,
+            l2_end_block_number: 100,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        let fake_sequencer_commitment2 = SequencerCommitment {
+            merkle_root: [2u8; 32],
+            index: 2,
+            l2_end_block_number: 200,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment2.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        let fake_sequencer_commitment3 = SequencerCommitment {
+            merkle_root: [3u8; 32],
+            index: 3,
+            l2_end_block_number: 300,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment3.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        let fake_sequencer_commitment4 = SequencerCommitment {
+            merkle_root: [4u8; 32],
+            index: 4,
+            l2_end_block_number: 400,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment4.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(8, None).await?;
+
         da.generate(FINALITY_DEPTH).await?;
 
         let start_l1_height = da.get_finalized_height(None).await?;
@@ -1373,42 +1542,46 @@ impl TestCase for UnchainedBatchProofsTest {
 
         let bp1 = create_serialized_fake_receipt_batch_proof(
             genesis_root,
-            [1u8; 32],
             100,
             method_id,
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment.clone()],
+            None,
         );
 
         let bp2 = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
-            [3u8; 32],
             300,
             method_id,
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment3.clone()],
+            Some(fake_sequencer_commitment2.serialize_and_calculate_sha_256()),
         );
 
         let bp3 = create_serialized_fake_receipt_batch_proof(
             [3u8; 32],
-            [4u8; 32],
             400,
             method_id,
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment4.clone()],
+            Some(fake_sequencer_commitment3.serialize_and_calculate_sha_256()),
         );
 
         let bp4 = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
-            [2u8; 32],
             200,
             method_id,
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment2.clone()],
+            Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
         let mut txids = bitcoin_da_service
@@ -1457,22 +1630,6 @@ impl TestCase for UnchainedBatchProofsTest {
 
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(100));
-        assert_eq!(lcp_output.unchained_batch_proofs_info.len(), 2);
-        assert_eq!(
-            lcp_output.unchained_batch_proofs_info,
-            vec![
-                BatchProofInfoRpcResponse {
-                    initial_state_root: [2; 32],
-                    final_state_root: [3; 32],
-                    last_l2_height: U64::from(300)
-                },
-                BatchProofInfoRpcResponse {
-                    initial_state_root: [3; 32],
-                    final_state_root: [4; 32],
-                    last_l2_height: U64::from(400)
-                }
-            ]
-        );
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp4), 1)
@@ -1498,7 +1655,6 @@ impl TestCase for UnchainedBatchProofsTest {
 
         assert_eq!(lcp_output.l2_state_root, [4u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(400));
-        assert_eq!(lcp_output.unchained_batch_proofs_info.len(), 0);
 
         Ok(())
     }
@@ -1529,7 +1685,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
             enable_recovery: false,
-            initial_da_height: 170,
+            initial_da_height: 165,
             ..Default::default()
         }
     }
@@ -1590,6 +1746,21 @@ impl TestCase for UnknownL1HashBatchProofTest {
             bitcoin_da_service.clone().run_da_queue(rx, tk)
         });
 
+        let fake_sequencer_commitment = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            index: 1,
+            l2_end_block_number: 100,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+
         da.generate(FINALITY_DEPTH).await?;
 
         let start_l1_height = da.get_finalized_height(None).await?;
@@ -1614,12 +1785,13 @@ impl TestCase for UnknownL1HashBatchProofTest {
 
         let bp = create_serialized_fake_receipt_batch_proof(
             genesis_root,
-            [1u8; 32],
             100,
             method_id,
             None,
             false,
             l1_hash,
+            vec![fake_sequencer_commitment.clone()],
+            None,
         );
 
         bitcoin_da_service
@@ -1647,7 +1819,6 @@ impl TestCase for UnknownL1HashBatchProofTest {
         // batch proof with unknown L1 hash was ignored
         assert_eq!(lcp_output.l2_state_root, genesis_root);
         assert_eq!(lcp_output.last_l2_height, U64::from(0));
-        assert_eq!(lcp_output.unchained_batch_proofs_info.len(), 0);
 
         Ok(())
     }
@@ -1703,26 +1874,41 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
 
 fn create_serialized_fake_receipt_batch_proof(
     initial_state_root: [u8; 32],
-    final_state_root: [u8; 32],
     last_l2_height: u64,
     method_id: [u32; 8],
     state_diff: Option<CumulativeStateDiff>,
     malformed_journal: bool,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    prev_sequencer_commitment_hash: Option<[u8; 32]>,
 ) -> Vec<u8> {
-    // TODO: FIXME: Newly added values are wrong
+    let sequencer_commitment_hashes = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect::<Vec<_>>();
+    let previous_commitment_index = if sequencer_commitments[0].index == 1 {
+        None
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root.clone()));
+
     let batch_proof_output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
-        initial_state_root,
-        final_state_root,
+        state_roots,
         last_l2_height,
         final_l2_block_hash: [0u8; 32],
         state_diff: state_diff.unwrap_or_default(),
-        // TODO: Update these values accordingly
-        sequencer_commitment_hashes: vec![],
+        sequencer_commitment_hashes,
         last_l1_hash_on_bitcoin_light_client_contract,
-        sequencer_commitment_index_range: (0, 0),
-        previous_commitment_index: None,
-        previous_commitment_hash: None,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index,
+        previous_commitment_hash: prev_sequencer_commitment_hash,
     });
     let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
 
