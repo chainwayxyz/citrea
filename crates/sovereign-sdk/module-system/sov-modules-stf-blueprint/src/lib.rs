@@ -466,6 +466,9 @@ where
                 current_state_root = result.state_root_transition.final_root;
                 state_diff.extend(result.state_diff);
 
+                // The state root of prover should match l2 block coming from sequencer
+                assert_eq!(current_state_root, l2_block.state_root());
+
                 l2_height += 1;
 
                 prev_l2_block_hash = Some(l2_block.hash());
