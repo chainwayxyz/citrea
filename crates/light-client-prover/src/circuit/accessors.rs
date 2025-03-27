@@ -171,9 +171,10 @@ mod tests {
     use sov_prover_storage_manager::{new_orphan_storage, ProverStorage};
     use sov_rollup_interface::da::SequencerCommitment;
     use sov_rollup_interface::witness::Witness;
+    use sov_rollup_interface::zk::light_client_proof::output::SequencerCommitmentInfo;
 
     use super::{BlockHashAccessor, ChunkAccessor};
-    use crate::circuit::accessors::SequencerCommitmentAccessor;
+    use crate::circuit::accessors::{SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor};
 
     #[test]
     fn test_block_hash_accessor() {
@@ -309,5 +310,50 @@ mod tests {
         );
 
         assert!(SequencerCommitmentAccessor::<ProverStorage>::get(2, &mut working_set).is_none());
+    }
+
+    #[test]
+    fn test_sequencer_commitment_info_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        let info = SequencerCommitmentInfo {
+            initial_state_root: [1; 32],
+            final_state_root: [2; 32],
+            last_l2_height: 25,
+        };
+        SequencerCommitmentInfoAccessor::<ProverStorage>::insert(1, info.clone(), &mut working_set);
+
+        assert_eq!(
+            SequencerCommitmentInfoAccessor::<ProverStorage>::get(1, &mut working_set).unwrap(),
+            info
+        );
+
+        assert!(
+            SequencerCommitmentInfoAccessor::<ProverStorage>::get(2, &mut working_set).is_none()
+        );
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .expect("should not fail");
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert_eq!(
+            SequencerCommitmentInfoAccessor::<ProverStorage>::get(1, &mut working_set).unwrap(),
+            info
+        );
+
+        assert!(
+            SequencerCommitmentInfoAccessor::<ProverStorage>::get(2, &mut working_set).is_none()
+        );
     }
 }
