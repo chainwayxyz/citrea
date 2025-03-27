@@ -108,6 +108,7 @@ jobs:
           name: citrea-test-build
           path: |
             target/debug/citrea
+            target/debug/citrea-cli
             target/debug/**/methods.rs
           retention-days: 1
 
