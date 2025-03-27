@@ -323,7 +323,7 @@ where
         let sequencer_commitment_index_range =
             batch_proof_output.sequencer_commitment_index_range();
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
-        let mut l2_start_height = match batch_proof_output.previous_commitment_index() {
+        let previous_l2_end_block_number = match batch_proof_output.previous_commitment_index() {
             Some(idx) => {
                 let previous_sequencer_commitment = self
                     .ledger_db
@@ -344,12 +344,32 @@ where
                         hex::encode(batch_proof_output.previous_commitment_hash().expect("If index exists so must hash"))
                     ).into());
                 }
-                previous_sequencer_commitment.l2_end_block_number + 1
+                previous_sequencer_commitment.l2_end_block_number
             }
             // If there is no previous seq comm hash then this must be the first post fork2 commitment
-            None => get_fork2_activation_height_non_zero(),
+            None => get_fork2_activation_height_non_zero() - 1,
         };
 
+        // Check that first commitment's state root matches initial_state_root
+        let start_state_root = self
+            .ledger_db
+            .get_l2_state_root(previous_l2_end_block_number)?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
+                    previous_l2_end_block_number
+                )
+            })?;
+
+        if start_state_root.as_ref() != initial_state_root.as_ref() {
+            return Err(anyhow!(
+                "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                hex::encode(initial_state_root),
+                hex::encode(start_state_root)
+            ).into());
+        }
+
+        let mut l2_start_height = previous_l2_end_block_number + 1;
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
             .zip(batch_proof_output.sequencer_commitment_hashes())
@@ -367,28 +387,8 @@ where
                     hex::encode(expected_hash)
                 ).into());
             }
-            let seq_comm_range = (l2_start_height, sequencer_commitment.l2_end_block_number);
 
-            let l2_height_before_comm_range = seq_comm_range.0 - 1;
-            let state_root_prior_l2_block = self
-                .ledger_db
-                .get_l2_state_root(l2_height_before_comm_range)?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
-                        l2_height_before_comm_range
-                    )
-                })?;
-
-            if state_root_prior_l2_block.as_ref() != initial_state_root.as_ref() {
-                return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(state_root_prior_l2_block),
-                    hex::encode(initial_state_root)
-                ).into());
-            }
-
-            for i in seq_comm_range.0..=seq_comm_range.1 {
+            for i in l2_start_height..=sequencer_commitment.l2_end_block_number {
                 self.ledger_db
                     .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)?;
             }
