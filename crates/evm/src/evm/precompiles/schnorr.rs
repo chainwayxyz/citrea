@@ -18,20 +18,11 @@ fn verify_sig(input: &Bytes) -> bool {
     if input.len() != 128 {
         return false;
     }
-    let verifying_key = VerifyingKey::from_bytes(&input[..32]);
+    let Ok(verifying_key) = VerifyingKey::from_bytes(&input[..32]) else { return false; };
     let message = &input[32..64];
-    let signature = Signature::try_from(&input[64..]);
+    let Ok(signature) = Signature::try_from(&input[64..]) else { return false; };
 
-    let result;
-    if verifying_key.is_err() || signature.is_err() {
-        result = false;
-    }
-    else {
-        let verifying_key = verifying_key.unwrap();
-        let signature = signature.unwrap();
-        result = verifying_key.verify_prehash(&message, &signature).is_ok();
-    }
-    result
+    verifying_key.verify_prehash(&message, &signature).is_ok()
 }
 
 #[cfg(test)]
