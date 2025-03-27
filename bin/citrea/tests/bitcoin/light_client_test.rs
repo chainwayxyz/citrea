@@ -1831,6 +1831,412 @@ async fn test_unknown_l1_hash_batch_proof_in_light_client() -> Result<()> {
         .await
 }
 
+#[derive(Default)]
+struct ChainProofByCommitmentIndex {
+    task_manager: TaskManager<()>,
+}
+
+#[async_trait]
+impl TestCase for ChainProofByCommitmentIndex {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_l2_blocks_per_commitment: 10000,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(&self) -> Result<()> {
+        self.task_manager.abort().await;
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let da_config = &da.config;
+        let bitcoin_da_service_config = BitcoinServiceConfig {
+            node_url: format!(
+                "http://127.0.0.1:{}/wallet/{}",
+                da_config.rpc_port,
+                NodeKind::Bitcoin
+            ),
+            node_username: da_config.rpc_user.clone(),
+            node_password: da_config.rpc_password.clone(),
+            network: bitcoin::Network::Regtest,
+            da_private_key: Some(
+                // This is the regtest private key of batch prover
+                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
+            ),
+            tx_backup_dir: Self::test_config()
+                .dir
+                .join("tx_backup_dir")
+                .display()
+                .to_string(),
+            monitoring: Default::default(),
+            mempool_space_url: None,
+        };
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let bitcoin_da_service = Arc::new(
+            BitcoinService::new_with_wallet_check(
+                bitcoin_da_service_config,
+                RollupParams {
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+                },
+                tx,
+            )
+            .await
+            .unwrap(),
+        );
+
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
+
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_last_l2_height: u64 = 10;
+
+        let fake_sequencer_commitment = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            index: 1,
+            l2_end_block_number: 100,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        let fake_sequencer_commitment2 = SequencerCommitment {
+            merkle_root: [2u8; 32],
+            index: 2,
+            l2_end_block_number: 100 * 2,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment2.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        let fake_sequencer_commitment3 = SequencerCommitment {
+            merkle_root: [3u8; 32],
+            index: 3,
+            l2_end_block_number: 100 * 3,
+        };
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment3.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(6, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let method_ids = lcp_output.batch_proof_method_ids;
+        let genesis_state_root = lcp_output.l2_state_root;
+
+        assert!(method_ids.len() == 1);
+
+        // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
+        // But the compressed size will go down to 100kb
+        let state_diff_100kb = create_random_state_diff(100);
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        let bp = create_serialized_fake_receipt_batch_proof(
+            genesis_state_root,
+            200,
+            method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![
+                fake_sequencer_commitment.clone(),
+                fake_sequencer_commitment2.clone(),
+            ],
+            None,
+        );
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1)
+            .await
+            .unwrap();
+
+        let bp = create_serialized_fake_receipt_batch_proof(
+            genesis_state_root,
+            300,
+            method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![
+                fake_sequencer_commitment2.clone(),
+                fake_sequencer_commitment3.clone(),
+            ],
+            Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
+        );
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(4, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+
+        // Make sure all of them are in the block
+        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to process verifiable batch proof
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
+
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // The batch proof should have updated the state root and the last l2 height
+        assert_eq!(lcp_output.l2_state_root, [3u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, U64::from(300));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_chain_proof_by_commitment_index() -> Result<()> {
+    TestCaseRunner::new(ChainProofByCommitmentIndex::default())
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+#[derive(Default)]
+struct ProofWithMissingCommitment {
+    task_manager: TaskManager<()>,
+}
+
+#[async_trait]
+impl TestCase for ProofWithMissingCommitment {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_l2_blocks_per_commitment: 10000,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(&self) -> Result<()> {
+        self.task_manager.abort().await;
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let da_config = &da.config;
+        let bitcoin_da_service_config = BitcoinServiceConfig {
+            node_url: format!(
+                "http://127.0.0.1:{}/wallet/{}",
+                da_config.rpc_port,
+                NodeKind::Bitcoin
+            ),
+            node_username: da_config.rpc_user.clone(),
+            node_password: da_config.rpc_password.clone(),
+            network: bitcoin::Network::Regtest,
+            da_private_key: Some(
+                // This is the regtest private key of batch prover
+                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
+            ),
+            tx_backup_dir: Self::test_config()
+                .dir
+                .join("tx_backup_dir")
+                .display()
+                .to_string(),
+            monitoring: Default::default(),
+            mempool_space_url: None,
+        };
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let bitcoin_da_service = Arc::new(
+            BitcoinService::new_with_wallet_check(
+                bitcoin_da_service_config,
+                RollupParams {
+                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+                },
+                tx,
+            )
+            .await
+            .unwrap(),
+        );
+
+        self.task_manager.spawn(TaskType::Secondary, |tk| {
+            bitcoin_da_service.clone().run_da_queue(rx, tk)
+        });
+
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_last_l2_height: u64 = 10;
+
+        let fake_sequencer_commitment = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            index: 1,
+            l2_end_block_number: 100,
+        };
+
+        da.generate(FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let method_ids = lcp_output.batch_proof_method_ids;
+        let genesis_state_root = lcp_output.l2_state_root;
+
+        assert!(method_ids.len() == 1);
+
+        // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
+        // But the compressed size will go down to 100kb
+        let state_diff_100kb = create_random_state_diff(100);
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        let bp = create_serialized_fake_receipt_batch_proof(
+            genesis_state_root,
+            100,
+            method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_sequencer_commitment.clone()],
+            None,
+        );
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+
+        // Make sure all of them are in the block
+        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to process verifiable batch proof
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
+
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // The batch proof should have updated the state root and the last l2 height
+        assert_eq!(lcp_output.l2_state_root, genesis_state_root);
+        assert_eq!(lcp_output.last_l2_height, U64::from(0));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_proof_with_missing_commitment_is_discarded() -> Result<()> {
+    TestCaseRunner::new(ProofWithMissingCommitment::default())
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
 pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, Option<Arc<[u8]>>> {
     let mut rng = thread_rng();
     let mut map = BTreeMap::new();
