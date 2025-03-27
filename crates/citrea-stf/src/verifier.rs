@@ -96,7 +96,7 @@ where
                 cumulative_state_log,
                 pre_state,
                 &mut data.last_l1_hash_witness,
-                final_state_root,
+                state_roots.last().unwrap().clone(),
             )
         };
 

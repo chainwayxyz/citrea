@@ -220,17 +220,6 @@ where
                     })
             };
 
-        let previous_sequencer_commitment = sequencer_commitments
-            [*sequencer_commitments_range.start()]
-        .index
-        .checked_sub(1)
-        .map(|index| {
-            ledger
-                .get_commitment_by_index(index)
-                .expect("Should get commitment")
-                .expect("Commitment should exist")
-        });
-
         let input = BatchProofCircuitInputV3 {
             initial_state_root,
             final_state_root,
@@ -564,7 +553,7 @@ pub(crate) fn state_transition_already_proven(
     for proof in proofs {
         let (initial_state_root, sequencer_commitments_range) = match &proof.proof_output {
             StoredBatchProofOutput::V3(output) => (
-                output.initial_state_root,
+                output.state_roots.first().unwrap().clone(),
                 (u32::MAX, u32::MAX), // TODO: find another way for v3 <= this can be handled pretty easily once we merge #2014
             ),
         };

@@ -1,11 +1,8 @@
-use std::collections::BTreeMap;
-
 use accessors::{
     BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor,
 };
 use borsh::BorshDeserialize;
 use initial_values::LCP_JMT_GENESIS_ROOT;
-use sov_db::schema::types::batch_proof;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
@@ -106,7 +103,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return false;
                 }
             }
-            None => {
+            _ => {
                 // If there are no previous commitments then this should be the first batch proof
                 // The first batch proof's first commitment index should be 1
                 if batch_proof_output.sequencer_commitment_index_range().0 != 1 {
@@ -155,7 +152,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             };
 
             // If this is the last commitment check the l2 heights matching
-            if i == last_index - first_index
+            if i as u32 == last_index - first_index
                 && jmt_commitment.l2_end_block_number != batch_proof_output.last_l2_height()
             {
                 println!(
@@ -200,8 +197,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return Err("Batch proof with unknown header chain");
         }
 
-        let batch_proof_output_initial_state_root = batch_proof_output.initial_state_root();
-        let batch_proof_output_final_state_root = batch_proof_output.final_state_root();
         let batch_proof_output_state_roots = batch_proof_output.state_roots();
         let batch_proof_output_last_l2_height = batch_proof_output.last_l2_height();
         let batch_proof_output_sequencer_commitment_index_range =
@@ -237,7 +232,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return Err("Failed to verify sequencer commitment relation");
         }
 
-        if batch_proof_output_last_commitment_index <= *last_commitment_index {
+        if batch_proof_output_last_commitment_index <= last_sequencer_commitment_index {
             return Err("Last commitment index is less than or equal to previous output");
         }
 
@@ -245,8 +240,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             ..=batch_proof_output.sequencer_commitment_index_range().1)
             .enumerate()
         {
-            if seq_comm_index <= *last_commitment_index
-                || SequencerCommitmentAccessor::<S>::exists(seq_comm_index)
+            if seq_comm_index <= last_sequencer_commitment_index
+                || SequencerCommitmentAccessor::<S>::get(seq_comm_index, working_set).is_some()
             {
                 continue;
             }
@@ -254,7 +249,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 .expect("Sequencer commitment must exist at this point");
             SequencerCommitmentInfoAccessor::<S>::insert(
                 seq_comm_index,
-                &SequencerCommitmentInfo::new(
+                SequencerCommitmentInfo::new(
                     batch_proof_output_state_roots[idx],
                     // No overflow because the length is sequencer commitments count + 1
                     batch_proof_output_state_roots[idx + 1],
@@ -444,7 +439,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             if sequencer_commitment_info.initial_state_root == last_l2_state_root {
                 last_l2_state_root = sequencer_commitment_info.final_state_root;
                 last_l2_height = sequencer_commitment_info.last_l2_height;
-                last_sequencer_commitment_index = sequencer_commitment_info.last_commitment_index;
+                last_sequencer_commitment_index = last_sequencer_commitment_index + 1;
             } else {
                 break;
             }

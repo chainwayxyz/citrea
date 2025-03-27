@@ -156,12 +156,12 @@ pub struct LightClientProofOutputRpcResponse {
     pub light_client_proof_method_id: Digest,
     /// Latest DA state after proof
     pub latest_da_state: LatestDaStateRpcResponse,
-    /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
-    pub unchained_batch_proofs_info: Vec<BatchProofInfoRpcResponse>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: U64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<BatchProofMethodIdRpcResponse>,
+    /// The last sequencer commitment index of the last fully stitched and verified batch proof
+    pub last_sequencer_commitment_index: U32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,12 +221,8 @@ pub struct SerializableHash(#[serde(with = "faster_hex")] pub Vec<u8>);
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofOutputRpcResponse {
-    /// The state of the rollup before the transition
-    #[serde(with = "faster_hex")]
-    pub initial_state_root: Vec<u8>,
-    /// The state of the rollup after the transition
-    #[serde(with = "faster_hex")]
-    pub final_state_root: Vec<u8>,
+    /// All the state roots of commitments from initial state (previous commitments state root) to the last sequencer commitment
+    pub state_roots: Vec<SerializableHash>,
     /// The hash of the last l2 block in the state transition
     #[serde(with = "faster_hex")]
     pub final_l2_block_hash: Vec<u8>,
