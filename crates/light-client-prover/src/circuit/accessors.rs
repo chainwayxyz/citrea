@@ -4,6 +4,7 @@
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_modules_core::{Prefix, Storage, StorageKey, StorageValue};
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::zk::light_client_proof::output::BatchProofInfo;
 use sov_rollup_interface::RefCount;
 
 pub struct BlockHashAccessor<S: Storage> {
@@ -116,6 +117,44 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
         let key = Self::key(index);
         let value: StorageValue = borsh::to_vec(&commitment)
             .expect("Commitment serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+pub struct UnchainedBatchProofInfoAccessor<S: Storage> {
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> UnchainedBatchProofInfoAccessor<S> {
+    const PREFIX: u8 = b'u';
+
+    fn key(index: u32) -> StorageKey {
+        // use `StorageKey::singleton_owned` as a hack to create no serialization key
+        let mut key = [0u8; 5]; // 1 prefix + 4 bytes
+
+        key[0] = Self::PREFIX;
+        key[1..].copy_from_slice(&index.to_be_bytes());
+
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Returns batch proof info if it exists
+    pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<BatchProofInfo> {
+        let key = Self::key(index);
+
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes).expect("Batch proof info deserialization should not fail")
+        })
+    }
+
+    /// Insert a new batch proof info to the LCP state
+    pub fn insert(index: u32, batch_proof_info: BatchProofInfo, working_set: &mut WorkingSet<S>) {
+        let key = Self::key(index);
+        let value: StorageValue = borsh::to_vec(&batch_proof_info)
+            .expect("Batch proof info serialization should not fail")
             .into();
         working_set.set(&key, value);
     }

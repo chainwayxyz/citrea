@@ -17,12 +17,13 @@ pub struct LightClientCircuitOutput {
     /// Latest da state output of the previous light client proof
     /// If None, initial hardcoded da block will be used for verification
     pub latest_da_state: LatestDaState,
-    /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
-    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
+    // TODO: Move to jmt
     pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    /// The last sequencer commitment index of the last fully stitched and verified batch proof
+    pub last_sequencer_commitment_index: u32,
 }
 
 /// The batch proof that was not verified in the light client circuit because it was missing another proof for state root chaining
@@ -36,6 +37,8 @@ pub struct BatchProofInfo {
     pub final_state_root: [u8; 32],
     /// The last processed l2 height in the batch proof
     pub last_l2_height: u64,
+    /// The last commitment's index in the batch proof
+    pub last_commitment_index: u32,
 }
 
 impl BatchProofInfo {
@@ -44,11 +47,13 @@ impl BatchProofInfo {
         initial_state_root: [u8; 32],
         final_state_root: [u8; 32],
         last_l2_height: u64,
+        last_commitment_index: u32,
     ) -> Self {
         Self {
             initial_state_root,
             final_state_root,
             last_l2_height,
+            last_commitment_index,
         }
     }
 }
