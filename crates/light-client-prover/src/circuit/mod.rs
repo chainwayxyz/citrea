@@ -240,7 +240,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             .enumerate()
         {
             if seq_comm_index <= last_sequencer_commitment_index
-                || SequencerCommitmentAccessor::<S>::get(seq_comm_index, working_set).is_some()
+                || SequencerCommitmentInfoAccessor::<S>::get(seq_comm_index, working_set).is_some()
             {
                 continue;
             }
