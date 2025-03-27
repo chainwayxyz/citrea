@@ -62,7 +62,7 @@ where
         println!("going into apply_l2_blocks_from_sequencer_commitments");
 
         let ApplySequencerCommitmentsOutput {
-            final_state_root,
+            state_roots,
             state_diff,
             last_l2_height,
             final_l2_block_hash,
@@ -101,8 +101,7 @@ where
         };
 
         BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
-            initial_state_root: data.initial_state_root,
-            final_state_root,
+            state_roots,
             final_l2_block_hash,
             state_diff,
             last_l2_height,

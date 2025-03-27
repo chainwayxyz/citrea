@@ -75,8 +75,8 @@ pub struct GenesisParams<RT> {
 
 /// The output of the function that applies sequencer commitments to the state in the verifier
 pub struct ApplySequencerCommitmentsOutput {
-    /// Final state root after all sequencer commitments were applied
-    pub final_state_root: StorageRootHash,
+    /// All of the state roots of commitments from initial state (previous commitments state root) to the last sequencer commitment
+    pub state_roots: Vec<StorageRootHash>,
     /// State diff generated after applying
     pub state_diff: CumulativeStateDiff,
     /// Last processed L2 block height
@@ -400,6 +400,10 @@ where
         let mut cumulative_offchain_log = None;
         let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();
 
+        // State roots are pushed to this vector at the end of each sequencer commitment applied
+        let mut state_roots = Vec::with_capacity(sequencer_commitments.len() + 1);
+        state_roots.push(*initial_state_root);
+
         for sequencer_commitment in sequencer_commitments.into_iter() {
             // if the commitment is not sequential, then the proof is invalid.
 
@@ -503,10 +507,12 @@ where
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
             // Update next sequencer commitment start height
             sequencer_commitment_l2_start_height = l2_height;
+
+            state_roots.push(current_state_root);
         }
 
         ApplySequencerCommitmentsOutput {
-            final_state_root: current_state_root,
+            state_roots,
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height,
