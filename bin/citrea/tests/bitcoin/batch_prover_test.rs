@@ -16,7 +16,6 @@ use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
-use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
 use tokio::time::sleep;

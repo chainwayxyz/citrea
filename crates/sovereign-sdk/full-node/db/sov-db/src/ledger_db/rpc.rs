@@ -143,7 +143,7 @@ impl LedgerRpcProvider for LedgerDB {
             Some(commitments) => Ok(Some(
                 commitments
                     .into_iter()
-                    .map(|commitment| sequencer_commitment_to_response(commitment))
+                    .map(sequencer_commitment_to_response)
                     .collect(),
             )),
             None => Ok(None),
