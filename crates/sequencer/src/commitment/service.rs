@@ -36,7 +36,7 @@ where
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
     next_commitment_index: u32,
-    commitment_controller: CommitmentController<Db>,
+    commitment_controller: Option<CommitmentController<Db>>,
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -50,7 +50,8 @@ where
         sequencer_da_pub_key: Vec<u8>,
         min_l2_blocks: u64,
     ) -> Self {
-        let commitment_controller = CommitmentController::new(ledger_db.clone(), min_l2_blocks);
+        let commitment_controller =
+            Some(CommitmentController::new(ledger_db.clone(), min_l2_blocks));
         let next_commitment_index = load_next_commitment_index(&ledger_db);
         Self {
             ledger_db,
@@ -90,6 +91,12 @@ where
         let mut from_l2_height =
             L2BlockNumber(cmp::max(last_finalized_l2_height, last_pending_l2_height).0 + 1);
 
+        let commitment_controller = Arc::new(
+            self.commitment_controller
+                .take()
+                .expect("Commitment controller should be present"),
+        );
+
         loop {
             select! {
                 biased;
@@ -110,7 +117,16 @@ where
                         continue;
                     }
 
-                    let commitment_info = match self.commitment_controller.should_commit(from_l2_height, head_l2_height) {
+                    let cc = commitment_controller.clone();
+
+                    let Ok(commitment_info) = tokio::task::spawn_blocking(move || {
+                        cc.should_commit(from_l2_height, head_l2_height)
+                    }).await else {
+                        error!("Failed to check commitment criteria");
+                        continue;
+                    };
+
+                    let commitment_info = match commitment_info {
                         Ok(Some(commitment_info)) => {
                             commitment_info
                         },

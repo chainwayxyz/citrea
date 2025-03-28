@@ -33,7 +33,7 @@ where
     }
 
     pub fn should_commit(
-        &mut self,
+        &self,
         from_l2_height: L2BlockNumber,
         to_l2_height: L2BlockNumber,
     ) -> anyhow::Result<Option<CommitmentRange>> {
