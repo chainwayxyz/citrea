@@ -782,24 +782,24 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .await
             .unwrap();
 
-        let fake_sequencer_commitment_5 = SequencerCommitment {
-            merkle_root: [4u8; 32],
+        let fake_sequencer_commitment_2 = SequencerCommitment {
+            merkle_root: [2u8; 32],
             index: 2,
             l2_end_block_number: fork2_height * 2,
         };
 
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(fake_sequencer_commitment_5.clone()),
+                DaTxRequest::SequencerCommitment(fake_sequencer_commitment_2.clone()),
                 1,
             )
             .await
             .unwrap();
 
         let fake_sequencer_commitment_3 = SequencerCommitment {
-            merkle_root: [5u8; 32],
-            index: 4,
-            l2_end_block_number: fork2_height * 4,
+            merkle_root: [3u8; 32],
+            index: 3,
+            l2_end_block_number: fork2_height * 3,
         };
 
         let _ = bitcoin_da_service
@@ -811,9 +811,9 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .unwrap();
 
         let fake_sequencer_commitment_4 = SequencerCommitment {
-            merkle_root: [2u8; 32],
-            index: 2,
-            l2_end_block_number: fork2_height * 2,
+            merkle_root: [4u8; 32],
+            index: 4,
+            l2_end_block_number: fork2_height * 4,
         };
 
         let _ = bitcoin_da_service
@@ -824,21 +824,21 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .await
             .unwrap();
 
-        let fake_sequencer_commitment_2 = SequencerCommitment {
-            merkle_root: [3u8; 32],
-            index: 3,
-            l2_end_block_number: fork2_height * 3,
-        };
+        // let fake_sequencer_commitment_5 = SequencerCommitment {
+        //     merkle_root: [5u8; 32],
+        //     index: 5,
+        //     l2_end_block_number: fork2_height * 5,
+        // };
 
-        let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(fake_sequencer_commitment_2.clone()),
-                1,
-            )
-            .await
-            .unwrap();
+        // let _ = bitcoin_da_service
+        //     .send_transaction_with_fee_rate(
+        //         DaTxRequest::SequencerCommitment(fake_sequencer_commitment_2.clone()),
+        //         1,
+        //     )
+        //     .await
+        //     .unwrap();
 
-        da.wait_mempool_len(10, None).await?;
+        da.wait_mempool_len(8, None).await?;
 
         // Finalize the DA block which contains the seq comm txs
         da.generate(FINALITY_DEPTH).await?;
@@ -865,8 +865,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
-            vec![fake_sequencer_commitment_2.clone()],
-            Some(fake_sequencer_commitment_4.serialize_and_calculate_sha_256()),
+            vec![fake_sequencer_commitment_3.clone()],
+            Some(fake_sequencer_commitment_2.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -881,8 +881,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             None,
             true,
             l1_hash.as_raw_hash().to_byte_array(),
-            vec![fake_sequencer_commitment_3.clone()],
-            Some(fake_sequencer_commitment_2.serialize_and_calculate_sha_256()),
+            vec![fake_sequencer_commitment_4.clone()],
+            Some(fake_sequencer_commitment_3.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
@@ -896,7 +896,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
-            vec![fake_sequencer_commitment_4.clone()],
+            vec![fake_sequencer_commitment_2.clone()],
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
@@ -913,8 +913,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
-            vec![fake_sequencer_commitment_5.clone()],
-            Some(fake_sequencer_commitment_4.serialize_and_calculate_sha_256()),
+            vec![fake_sequencer_commitment_4.clone()],
+            Some(fake_sequencer_commitment_3.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
