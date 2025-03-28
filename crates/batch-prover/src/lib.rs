@@ -117,6 +117,7 @@ where
         prover_service,
         public_keys.sequencer_public_key,
         elfs,
+        code_commitments,
         l1_signal_rx,
         l2_block_rx,
     );

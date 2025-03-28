@@ -99,3 +99,12 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
         }
     }
 }
+
+/// Proving job status enum
+#[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize)]
+pub enum JobStatus {
+    /// Proving currently running
+    Running,
+    /// Proof run is finished and waiting to be submitted to DA
+    WaitingDaSubmission,
+}

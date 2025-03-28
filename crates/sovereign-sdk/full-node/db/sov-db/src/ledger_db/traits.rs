@@ -190,13 +190,22 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn delete_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
 
     /// Put commitment indices found in the L1 height
-    fn put_commitment_indices_by_l1(&self, l1_height: SlotNumber, indices: &Vec<u32>) -> Result<()>;
+    fn put_commitment_indices_by_l1(&self, l1_height: SlotNumber, indices: &Vec<u32>)
+        -> Result<()>;
 
     /// Inserts a new prover job with its corresponding commitment indices, marking job as running
     fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
 
-    /// Removes the proving job from the running jobs
-    fn set_proving_job_finished(&self, id: Uuid) -> Result<()>;
+    /// Save proof by its job id
+    fn put_proof_by_job_id(
+        &self,
+        id: Uuid,
+        proof: Proof,
+        output: StoredBatchProofOutput,
+    ) -> Result<()>;
+
+    /// Updates job tx id and removes job from running jobs
+    fn update_job_tx_id(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
 }
 
 /// Light client prover ledger operations

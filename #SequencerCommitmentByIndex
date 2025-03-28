@@ -17,5 +17,6 @@ proofjobid => Vec<commidx>
 commidx => ()
 
 #ProverRunningJobs
-proofjobid => ()
+proofjobid => JobStatus (running, waiting_da_submission)
+
 

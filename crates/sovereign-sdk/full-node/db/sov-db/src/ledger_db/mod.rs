@@ -15,10 +15,16 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverRunningJobs, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
+    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2BlockStatus,
+    L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
+    ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments,
+    ProverRunningJobs, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash,
+    SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
-    StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
+    JobStatus, StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
@@ -581,15 +587,23 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn put_commitment_indices_by_l1(&self, l1_height: SlotNumber, indices: &Vec<u32>) -> anyhow::Result<()> {
+    fn put_commitment_indices_by_l1(
+        &self,
+        l1_height: SlotNumber,
+        indices: &Vec<u32>,
+    ) -> anyhow::Result<()> {
         self.db.put::<CommitmentIndicesByL1>(&l1_height, indices)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> anyhow::Result<()> {
+    fn insert_new_proving_job(
+        &self,
+        id: Uuid,
+        commitment_indices: &Vec<u32>,
+    ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<CommitmentIndicesByJobId>(&id, commitment_indices)?;
-        schema_batch.put::<ProverRunningJobs>(&id, &())?;
+        schema_batch.put::<ProverRunningJobs>(&id, &JobStatus::Running)?;
         for index in commitment_indices {
             schema_batch.put::<JobIdOfCommitment>(index, &id)?;
         }
@@ -598,8 +612,40 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn set_proving_job_finished(&self, id: Uuid) -> anyhow::Result<()> {
-        self.db.delete::<ProverRunningJobs>(&id)
+    fn put_proof_by_job_id(
+        &self,
+        id: Uuid,
+        proof: Proof,
+        output: StoredBatchProofOutput,
+    ) -> anyhow::Result<()> {
+        let stored_proof = StoredBatchProof {
+            l1_tx_id: [0; 32],
+            proof,
+            proof_output: output,
+        };
+
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<ProverRunningJobs>(&id, &JobStatus::WaitingDaSubmission)?;
+        schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+
+        self.db.write_schemas(schema_batch)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn update_job_tx_id(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
+        let mut stored_proof = self.db.get::<ProofByJobId>(&id)?.expect("Proof must exist");
+        assert_eq!(
+            stored_proof.l1_tx_id, [0; 32],
+            "Proof l1 tx id must not be set"
+        );
+
+        stored_proof.l1_tx_id = l1_tx_id;
+
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<ProverRunningJobs>(&id)?;
+        schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+
+        self.db.write_schemas(schema_batch)
     }
 }
 

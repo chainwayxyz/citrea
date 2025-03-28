@@ -21,13 +21,14 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_state::Witness;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
 
@@ -35,7 +36,7 @@ pub struct Prover<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
-    Vm: ZkvmHost + Zkvm + 'static,
+    Vm: ZkvmHost + 'static,
 {
     prover_config: BatchProverConfig,
     ledger_db: DB,
@@ -43,6 +44,7 @@ where
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     sequencer_pub_key: K256PublicKey,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
+    code_commitments_by_spec: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     l1_signal_rx: mpsc::Receiver<()>,
     l2_block_rx: broadcast::Receiver<u64>,
     sync_target_l2_height: Option<u64>,
@@ -52,7 +54,7 @@ impl<Da, DB, Vm> Prover<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone,
-    Vm: ZkvmHost + Zkvm,
+    Vm: ZkvmHost,
 {
     pub fn new(
         prover_config: BatchProverConfig,
@@ -61,6 +63,7 @@ where
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         sequencer_pub_key: Vec<u8>,
         elfs_by_spec: HashMap<SpecId, Vec<u8>>,
+        code_commitments_by_spec: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
         l1_signal_rx: mpsc::Receiver<()>,
         l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
@@ -72,6 +75,7 @@ where
             sequencer_pub_key: K256PublicKey::try_from(sequencer_pub_key.as_slice())
                 .expect("Invalid sequencer public key"),
             elfs_by_spec,
+            code_commitments_by_spec,
             l1_signal_rx,
             l2_block_rx,
             sync_target_l2_height: None,
@@ -141,8 +145,10 @@ where
                 .await
                 .context("Failed to create circuit input")?;
 
+            let spec = fork_from_block_number(partition.end_height).spec_id;
+
             let (id, rx) = self.start_proving(input).await;
-            proving_jobs.push((id, rx));
+            proving_jobs.push((id, spec, rx));
 
             let commitment_indices = partition
                 .commitments
@@ -402,17 +408,19 @@ where
         (id, rx)
     }
 
-    fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, oneshot::Receiver<Proof>)>) {
+    fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, SpecId, oneshot::Receiver<Proof>)>) {
         assert!(!proving_jobs.is_empty(), "received empty jobs list");
 
         let ledger_db = self.ledger_db.clone();
+        let prover_service = self.prover_service.clone();
+        let code_commitments_by_spec = self.code_commitments_by_spec.clone();
 
-        let (mut job_ids, mut job_rxs): (Vec<Uuid>, Vec<oneshot::Receiver<Proof>>) =
-            proving_jobs.into_iter().unzip();
+        let (mut job_ids, mut job_rxs): (Vec<(Uuid, SpecId)>, Vec<oneshot::Receiver<Proof>>) =
+            proving_jobs.into_iter().map(|j| ((j.0, j.1), j.2)).unzip();
 
         tokio::spawn(async move {
-            // Wait for all proofs to be completed
             while !job_rxs.is_empty() {
+                // wait until one of the jobs finish
                 let (proof, idx, remaining_rxs) = futures::future::select_all(job_rxs).await;
 
                 let proof = proof.expect("Proof channel should never close");
@@ -420,13 +428,22 @@ where
                 job_rxs = remaining_rxs;
                 // TODO: this is very sketchy. swap_remove is deterministic, and that is what select_all is using to remove the completed job,
                 // but still relying on this to keep the correct order is nasty. try to find another way
-                let job_id = job_ids.swap_remove(idx);
+                let (job_id, spec) = job_ids.swap_remove(idx);
+
+                let output = extract_proof_output::<Vm>(&proof, spec, &code_commitments_by_spec);
 
                 ledger_db
-                    .set_proving_job_finished(job_id)
-                    .expect("Should delete job id");
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into())
+                    .expect("Should put proof to db");
 
-                // TODO: how to save proof? by l1? by job id? by commitment? by l2 block range?
+                let tx_id = prover_service
+                    .submit_proof(proof)
+                    .await
+                    .expect("Proof submission channel must never close");
+
+                ledger_db
+                    .update_job_tx_id(job_id, tx_id.into())
+                    .expect("Should update proving job tx id");
             }
         });
     }
@@ -761,4 +778,24 @@ async fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         short_header_proofs,
         last_l1_hash_witness,
     ))
+}
+
+fn extract_proof_output<Vm: ZkvmHost>(
+    proof: &Proof,
+    spec: SpecId,
+    code_commitments_by_spec: &HashMap<SpecId, Vm::CodeCommitment>,
+) -> BatchProofCircuitOutput {
+    let output = Vm::extract_output::<BatchProofCircuitOutput>(proof)
+        .expect("Failed to extract batch proof output");
+
+    let code_commitment = code_commitments_by_spec
+        .get(&spec)
+        .expect("Proof public input must contain valid spec id");
+
+    info!("Verifying proof with image ID: {:?}", code_commitment);
+
+    Vm::verify(proof.as_slice(), code_commitment).expect("Failed to verify proof");
+
+    debug!("circuit output: {:?}", output);
+    output
 }
