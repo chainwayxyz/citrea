@@ -18,8 +18,6 @@ use crate::RefCount;
 /// L2 Block response
 pub mod block;
 
-/// A struct containing enough information to uniquely specify single batch.
-
 /// An identifier that specifies a single l2 block
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "camelCase")]
