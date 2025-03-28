@@ -168,6 +168,7 @@ where
                     ) => {
                         error!("Could not process ZK proofs: L2 status proven height {proven_height:?} above committed height {committed_height:?}")
                     }
+                    SyncError::UnknownL1Hash => error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
                 }
             }
         }
@@ -192,6 +193,9 @@ where
                         unreachable!("Error irrelevant!")
                     }
                     SyncError::ProvenHeightExceedsCommittedHeight(_, _) => {
+                        unreachable!("Error irrelevant!")
+                    }
+                    SyncError::UnknownL1Hash => {
                         unreachable!("Error irrelevant!")
                     }
                 }
@@ -399,6 +403,16 @@ where
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
     ) -> Result<(), SyncError> {
+        let last_l1_hash_on_bitcoin_light_client_contract =
+            batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
+        if self
+            .ledger_db
+            .get_l1_height_of_l1_hash(last_l1_hash_on_bitcoin_light_client_contract)?
+            .is_none()
+        {
+            return Err(SyncError::UnknownL1Hash);
+        }
+
         let sequencer_commitment_index_range =
             batch_proof_output.sequencer_commitment_index_range();
 
