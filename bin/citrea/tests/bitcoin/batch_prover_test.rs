@@ -106,12 +106,12 @@ impl TestCase for BasicProverTest {
 
         let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..min_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -119,6 +119,7 @@ impl TestCase for BasicProverTest {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
 
         // Wait for batch proof tx to hit mempool
         da.wait_mempool_len(2, None).await?;
@@ -149,6 +150,26 @@ impl TestCase for BasicProverTest {
                 compressed_state_diff.len()
             );
         }
+
+        // Generate proof against seqcom not starting from genesis
+        for _ in 0..min_l2_blocks_per_commitment * 2 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(4, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
 
         Ok(())
     }

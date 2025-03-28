@@ -9,11 +9,11 @@ use reth_chainspec::{Chain, ChainSpecBuilder};
 use reth_execution_types::ChangedAccount;
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
-use reth_transaction_pool::error::PoolError;
+use reth_transaction_pool::error::{PoolError, PoolErrorKind};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
-    EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit, TransactionPool,
-    TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
+    EthTransactionValidator, Pool, PoolConfig, PoolResult, PoolTransaction, SubPoolLimit,
+    TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
 pub use crate::db_provider::DbProvider;
@@ -85,12 +85,11 @@ impl CitreaMempool {
         };
 
         let validator = TransactionValidationTaskExecutor::eth_builder(Arc::new(chain_spec))
-            .no_cancun()
             .no_eip4844()
+            .set_prague(true)
             // TODO: if we ever increase block gas limits, we need to pull this from
             // somewhere else
             .set_block_gas_limit(evm_config.block_gas_limit)
-            .set_shanghai(true)
             .with_additional_tasks(0)
             .build_with_tasks(client, TokioTaskExecutor::default(), blob_store);
 
@@ -103,10 +102,22 @@ impl CitreaMempool {
     ) -> PoolResult<TxHash> {
         if transaction.transaction().signer() == SYSTEM_SIGNER {
             return Err(PoolError::other(
-                transaction.transaction().hash(),
+                *transaction.hash(),
                 "system transactions from rpc are not allowed",
             ));
         }
+
+        if transaction.transaction().is_eip4844() {
+            return Err(PoolError::new(
+                *transaction.hash(),
+                PoolErrorKind::InvalidTransaction(
+                    reth_transaction_pool::error::InvalidPoolTransactionError::Consensus(
+                        reth_primitives::InvalidTransactionError::Eip4844Disabled,
+                    ),
+                ),
+            ));
+        }
+
         self.0.add_external_transaction(transaction).await
     }
 

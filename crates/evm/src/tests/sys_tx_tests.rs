@@ -185,7 +185,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 50714,
                 log_index_start: 0,
-                l1_diff_size: 19,
+                l1_diff_size: 28,
             },
             Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
@@ -204,7 +204,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 83322,
                 log_index_start: 0,
-                l1_diff_size: 49,
+                l1_diff_size: 72,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -230,7 +230,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 169112,
                 log_index_start: 1,
-                l1_diff_size: 93,
+                l1_diff_size: 136,
             }
         ]
     );
@@ -356,7 +356,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 83322,
                 log_index_start: 0,
-                l1_diff_size: 49,
+                l1_diff_size: 72,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -367,7 +367,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 114235,
                 log_index_start: 1,
-                l1_diff_size: 23,
+                l1_diff_size: 36,
             },
         ]
     );
@@ -375,7 +375,7 @@ fn test_sys_bitcoin_light_client() {
     let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 10000000));
-    assert_eq!(l1_fee_vault.balance, U256::from(23 + L1_FEE_OVERHEAD));
+    assert_eq!(l1_fee_vault.balance, U256::from(36 + L1_FEE_OVERHEAD));
 
     let hash = evm
         .get_call_inner(

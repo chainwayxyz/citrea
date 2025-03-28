@@ -167,8 +167,19 @@ pub(crate) fn create_txn_env(
         nonce,
         access_list,
         chain_id,
-        ..
+        authorization_list,
+        transaction_type: _transaction_type,
+        max_fee_per_blob_gas,
+        blob_versioned_hashes,
+        sidecar,
     } = request;
+
+    if blob_versioned_hashes.is_some_and(|v| !v.is_empty())
+        || max_fee_per_blob_gas.is_some()
+        || sidecar.is_some()
+    {
+        return Err(RpcInvalidTransactionError::TxTypeNotSupported.into());
+    }
 
     let CallFees {
         max_priority_fee_per_gas,
@@ -223,13 +234,14 @@ pub(crate) fn create_txn_env(
         transact_to: to.unwrap_or_default(),
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
-        access_list: access_list.unwrap_or_default().to_vec(),
+        access_list: access_list.unwrap_or_default().0,
+        authorization_list: authorization_list.map(revm::primitives::AuthorizationList::Signed),
+
         // EIP-4844 related fields
         // as the `TxEnv` returned from this function is given to plain revm::Evm
         // and as CitreaEvm ignores type3 txs, we can safely ignore these fields
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
-        authorization_list: None,
     };
 
     Ok(env)

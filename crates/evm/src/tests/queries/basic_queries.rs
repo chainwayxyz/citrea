@@ -574,7 +574,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x7",
             "l1FeeRate": "0x1"
         },
         {
@@ -625,7 +625,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x7",
             "l1FeeRate": "0x1"
         },
         {
@@ -676,7 +676,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x7",
             "l1FeeRate": "0x1"
         },
         {
@@ -727,7 +727,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x7",
             "l1FeeRate": "0x1"
         }
         ])).unwrap();
@@ -791,7 +791,7 @@ fn test_queries_with_forks() {
         diff_size,
         EstimatedDiffSize {
             gas: U64::from(30859),
-            l1_diff_size: U64::from(19),
+            l1_diff_size: U64::from(28),
         }
     );
 
