@@ -453,7 +453,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 last_l2_height = sequencer_commitment_info.last_l2_height;
                 last_sequencer_commitment_index += 1;
             } else {
-                break;
+                // This should be infallible
+                // this can only happen if commitment started committing to a different chain
+                unreachable!("Commitment with the next index having an unexpected state root");
             }
         }
 
