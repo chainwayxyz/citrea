@@ -103,6 +103,33 @@ mod tests {
     }
 
     #[test]
+    fn test_insufficient_gas() {
+        let (public_key, message, signature) = random_signature();
+        let mut input = Vec::with_capacity(128);
+        input.extend_from_slice(&public_key.serialize());
+        input.extend_from_slice(message.as_ref());
+        input.extend_from_slice(signature.as_ref());
+
+        assert_eq!(
+            schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE - 1),
+            Err(PrecompileError::OutOfGas.into())
+        );
+    }
+
+    #[test]
+    fn test_no_gas_over_charge() {
+        let (public_key, message, signature) = random_signature();
+        let mut input = Vec::with_capacity(128);
+        input.extend_from_slice(&public_key.serialize());
+        input.extend_from_slice(message.as_ref());
+        input.extend_from_slice(signature.as_ref());
+
+        let result = schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE * 2).unwrap();
+
+        assert_eq!(result.gas_used, SCHNORRVERIFY_BASE);
+    }
+
+    #[test]
     fn test_valid_signature() {
         for _ in 0..1000 {
             let (public_key, message, signature) = random_signature();
