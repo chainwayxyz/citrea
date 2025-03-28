@@ -429,6 +429,7 @@ where
             while let Some((job_id, spec, proof)) = proving_jobs.next().await {
                 let output = extract_proof_output::<Vm>(&proof, spec, &code_commitments_by_spec);
 
+                // stores proof and marks job as waiting for da
                 ledger_db
                     .put_proof_by_job_id(job_id, proof.clone(), output.into())
                     .expect("Should put proof to db");
@@ -438,6 +439,7 @@ where
                     .await
                     .expect("Proof submission channel must never close");
 
+                // stores tx id and removes job from running jobs
                 ledger_db
                     .finalize_proving_job(job_id, tx_id.into())
                     .expect("Should update proving job tx id");
