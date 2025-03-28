@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
@@ -334,6 +334,15 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             light_client_proof2.light_client_proof_output.last_l2_height,
             light_client_proof.light_client_proof_output.last_l2_height
         );
+        // The last processed l2 height should also be the same because there are no new batch proofs
+        assert_eq!(
+            light_client_proof2
+                .light_client_proof_output
+                .last_sequencer_commitment_index,
+            light_client_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+        );
 
         // Let's generate a new batch proof
         // publish min_l2_blocks_per_commitment confirmations
@@ -416,6 +425,14 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_ne!(
             light_client_proof3.light_client_proof_output.last_l2_height,
             light_client_proof.light_client_proof_output.last_l2_height
+        );
+        assert_ne!(
+            light_client_proof3
+                .light_client_proof_output
+                .last_sequencer_commitment_index,
+            light_client_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index
         );
 
         assert_ne!(
@@ -938,6 +955,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         // The unverifiable batch proof and malformed journal batch proof should not have updated the state root or the last l2 height
         assert_eq!(lcp_output.l2_state_root, [3u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(fork2_height * 3));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(3));
 
         Ok(())
     }
@@ -1125,6 +1143,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // The batch proof should have updated the state root and the last l2 height
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(proof_last_l2_height));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         // Now generate another proof but this time:
         // Have 4 chunks and 1 aggregate
@@ -1217,6 +1236,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(proof_last_l2_height));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         let lcp_last_chunks = light_client_prover
             .client
@@ -1229,6 +1249,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(proof_last_l2_height));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         // Expect light client prover to have generated light client proof
         let lcp_aggregate = light_client_prover
@@ -1245,6 +1266,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             lcp_output.last_l2_height,
             U64::from(proof_last_l2_height * 2)
         );
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(2));
 
         let random_method_id = [1u32; 8];
 
@@ -1296,6 +1318,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             lcp_output.last_l2_height,
             U64::from(proof_last_l2_height * 2)
         );
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(2));
 
         Ok(())
     }
@@ -1531,6 +1554,7 @@ impl TestCase for UnchainedBatchProofsTest {
 
         assert_eq!(lcp_output.l2_state_root, [1u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(100));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp4), 1)
@@ -1555,7 +1579,7 @@ impl TestCase for UnchainedBatchProofsTest {
         let lcp_output = lcp.light_client_proof_output;
 
         assert_eq!(lcp_output.l2_state_root, [4u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, U64::from(400));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(4));
 
         Ok(())
     }
@@ -1692,6 +1716,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         // batch proof with unknown L1 hash was ignored
         assert_eq!(lcp_output.l2_state_root, genesis_root);
         assert_eq!(lcp_output.last_l2_height, U64::from(0));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(0));
 
         Ok(())
     }
@@ -1895,6 +1920,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         // The batch proof should have updated the state root and the last l2 height
         assert_eq!(lcp_output.l2_state_root, [3u8; 32]);
         assert_eq!(lcp_output.last_l2_height, U64::from(300));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(3));
 
         Ok(())
     }
@@ -2038,6 +2064,7 @@ impl TestCase for ProofWithMissingCommitment {
         // The batch proof should have updated the state root and the last l2 height
         assert_eq!(lcp_output.l2_state_root, genesis_state_root);
         assert_eq!(lcp_output.last_l2_height, U64::from(0));
+        assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(0));
 
         Ok(())
     }

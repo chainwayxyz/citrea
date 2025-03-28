@@ -15,7 +15,8 @@ use test_utils::{
 };
 
 use crate::circuit::accessors::{
-    BatchProofMethodIdAccessor, SequencerCommitmentAccessor, VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
+    BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
+    VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
@@ -523,6 +524,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     // Check that the state transition has not happened because we are missing 1->2
     assert_eq!(output_1.l2_state_root, [1; 32]);
+    assert_eq!(output_1.last_l2_height, 0);
+    assert_eq!(output_1.last_sequencer_commitment_index, 0);
 
     let storage = native_circuit_runner
         .prover_storage_manager
@@ -531,14 +534,22 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     let mut working_set = WorkingSet::new(storage.clone());
 
     let unchained_info2 =
-        VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(2, &mut working_set).unwrap();
+        VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(
+            2,
+            &mut working_set,
+        )
+        .unwrap();
     assert_eq!(unchained_info2.initial_state_root, seq_comm_1.merkle_root);
     assert_eq!(
         unchained_info2.last_l2_height,
         seq_comm_2.l2_end_block_number
     );
     let unchained_info3 =
-        VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(3, &mut working_set).unwrap();
+        VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(
+            3,
+            &mut working_set,
+        )
+        .unwrap();
     assert_eq!(unchained_info3.initial_state_root, seq_comm_2.merkle_root);
     assert_eq!(
         unchained_info3.last_l2_height,
@@ -590,6 +601,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     // Check that the state transition actually happened from 1-4 now
     assert_eq!(output_2.l2_state_root, [4; 32]);
     assert_eq!(output_2.last_l2_height, 4);
+    assert_eq!(output_2.last_sequencer_commitment_index, 3);
 }
 
 #[test]
@@ -661,6 +673,7 @@ fn test_header_chain_proof_height_and_hash() {
     // Check that the state transition actually happened
     assert_eq!(output_1.l2_state_root, [3; 32]);
     assert_eq!(output_1.last_l2_height, 3);
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
 
     let seq_comm_3 = create_mock_sequencer_commitment(3, 4, [4u8; 32]);
     let seq_comm_4 = create_mock_sequencer_commitment(4, 5, [5u8; 32]);
@@ -794,6 +807,7 @@ fn test_unverifiable_batch_proofs() {
     // and assert the unverified is ignored, so it is not even in the unchained outputs
     assert_eq!(output_1.l2_state_root, [2; 32]);
     assert_eq!(output_1.last_l2_height, 2);
+    assert_eq!(output_1.last_sequencer_commitment_index, 1);
 }
 
 #[test]
@@ -867,6 +881,7 @@ fn test_unverifiable_prev_light_client_proof() {
     // and assert the unverified is ignored, so it is not even in the unchained outputs
     assert_eq!(output_1.l2_state_root, [2; 32]);
     assert_eq!(output_1.last_l2_height, 2);
+    assert_eq!(output_1.last_sequencer_commitment_index, 1);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -1374,6 +1389,7 @@ fn test_missing_chunk() {
 
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
+    assert_eq!(output.last_sequencer_commitment_index, 0);
 }
 
 #[test]
@@ -1462,6 +1478,7 @@ fn test_malicious_aggregate_should_not_work() {
 
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
+    assert_eq!(output.last_sequencer_commitment_index, 0);
 
     let malicious_aggregate_da_data = DataOnDa::Aggregate(
         vec![blob1.wtxid().unwrap(), blob2.wtxid().unwrap()],
@@ -1512,6 +1529,7 @@ fn test_malicious_aggregate_should_not_work() {
     // The malicious did not work no state updates or panics
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
+    assert_eq!(output.last_sequencer_commitment_index, 0);
 
     let chunk3 = serialized_mock_proof[39700 * 2..].to_vec();
     let chunk3_da_data = DataOnDa::Chunk(chunk3.clone());
@@ -1582,6 +1600,7 @@ fn test_malicious_aggregate_should_not_work() {
     // When last chunk is sent with the correct aggregate we can see the state update
     assert_eq!(output.l2_state_root, [2; 32]);
     assert_eq!(output.last_l2_height, 101);
+    assert_eq!(output.last_sequencer_commitment_index, 1);
 }
 
 #[test]
@@ -1661,6 +1680,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
     // Check that the state transition actually happened
     assert_eq!(output_1.l2_state_root, [2; 32]);
     assert_eq!(output_1.last_l2_height, 2);
+    assert_eq!(output_1.last_sequencer_commitment_index, 1);
 
     let incorrect_hash = {
         let mut copy = block_header_1.hash.0;
@@ -1729,6 +1749,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
     assert_eq!(output_2.l2_state_root, [2; 32]);
 
     assert_eq!(output_2.last_l2_height, 2);
+    assert_eq!(output_2.last_sequencer_commitment_index, 1);
 }
 
 #[test]
