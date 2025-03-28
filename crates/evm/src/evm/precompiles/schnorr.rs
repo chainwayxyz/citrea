@@ -43,27 +43,79 @@ mod tests {
 
     use super::*;
 
+    fn random_signature() -> (XOnlyPublicKey, Message, secp256k1::schnorr::Signature) {
+        let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
+        let message = Message::from_digest_slice(&[1; 32]).unwrap();
+        let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
+        let public_key = XOnlyPublicKey::from_keypair(&keypair).0;
+
+        // sanitiy check
+        signature.verify(&message, &public_key).unwrap();
+
+        (public_key, message, signature)
+    }
+
     #[test]
     fn test_invalid_signature() {
         assert_eq!(
-            super::schnorr_verify(&Bytes::from([0; 128]), SCHNORRVERIFY_BASE),
+            schnorr_verify(&Bytes::from([0; 128]), SCHNORRVERIFY_BASE),
+            Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([0])))
+        );
+
+        let (public_key, message, signature) = random_signature();
+
+        let mut raw_sig = signature.serialize();
+        raw_sig[0] = raw_sig[0] ^ 1;
+
+        let mut input = Vec::with_capacity(128);
+        input.extend_from_slice(&public_key.serialize());
+        input.extend_from_slice(message.as_ref());
+        input.extend_from_slice(&raw_sig);
+
+        assert_eq!(
+            schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE),
+            Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([0])))
+        );
+
+        let (public_key, _, _) = random_signature();
+
+        let mut input = Vec::with_capacity(128);
+        input.extend_from_slice(&public_key.serialize());
+        input.extend_from_slice(message.as_ref());
+        input.extend_from_slice(signature.as_ref());
+
+        assert_eq!(
+            schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE),
+            Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([0])))
+        )
+    }
+
+    #[test]
+    fn invalid_input_len() {
+        assert_eq!(
+            schnorr_verify(&Bytes::from([0; 127]), SCHNORRVERIFY_BASE),
+            Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([0])))
+        );
+        assert_eq!(
+            schnorr_verify(&Bytes::from([0; 129]), SCHNORRVERIFY_BASE),
             Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([0])))
         );
     }
 
     #[test]
     fn test_valid_signature() {
-        let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
-        let message = Message::from_digest_slice(&[1; 32]).unwrap();
-        let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
-        let public_key = XOnlyPublicKey::from_keypair(&keypair).0;
-        let mut input = Vec::new();
-        input.extend_from_slice(&public_key.serialize());
-        input.extend_from_slice(message.as_ref());
-        input.extend_from_slice(signature.as_ref());
-        assert_eq!(
-            super::schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE),
-            Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([1])))
-        );
+        for _ in 0..1000 {
+            let (public_key, message, signature) = random_signature();
+
+            let mut input = Vec::with_capacity(128);
+            input.extend_from_slice(&public_key.serialize());
+            input.extend_from_slice(message.as_ref());
+            input.extend_from_slice(signature.as_ref());
+
+            assert_eq!(
+                schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE),
+                Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, Bytes::from([1])))
+            );
+        }
     }
 }
