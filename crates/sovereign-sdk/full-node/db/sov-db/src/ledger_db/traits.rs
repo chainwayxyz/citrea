@@ -167,9 +167,6 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Returns an L2 state diff
     fn get_l2_state_diff(&self, l2_height: L2BlockNumber) -> Result<Option<StateDiff>>;
 
-    /// Clears all pending proving sessions
-    fn clear_pending_proving_sessions(&self) -> Result<()>;
-
     /// Set commitment index to be proven
     fn put_prover_pending_commitment(&self, index: u32) -> Result<()>;
 

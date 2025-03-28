@@ -518,22 +518,6 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        let mut iter = self.db.iter::<PendingProvingSessions>()?;
-        iter.seek_to_first();
-
-        for item in iter {
-            let item = item?;
-            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
-        }
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    #[instrument(level = "trace", skip(self), err)]
     fn put_prover_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
         self.db.put::<ProverPendingCommitments>(&index, &())
     }
