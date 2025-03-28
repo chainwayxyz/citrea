@@ -137,16 +137,11 @@ where
 
                 match self.ledger_db.get_commitment_by_index(index)? {
                     Some(db_commitment) => {
-                        warn!("Got commitment index {} that was already in db", index);
-                        // Sanity checks
-                        assert_eq!(
-                            commitment.l2_end_block_number, db_commitment.l2_end_block_number,
-                            "Found duplicate commitment with different l2 block numbers"
-                        );
-                        assert_eq!(
-                            commitment.merkle_root, db_commitment.merkle_root,
-                            "Found duplicate commitment with different merkle roots"
-                        );
+                        if commitment != &db_commitment {
+                            error!("Found duplicate commitment index with different data\nDA: {:?}\nDB:{:?}", commitment, db_commitment);
+                        } else {
+                            warn!("Got commitment index {} that was already in db", index);
+                        }
                     }
                     None => {
                         self.ledger_db
