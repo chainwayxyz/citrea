@@ -105,6 +105,7 @@ where
                         }
                     };
 
+                    // No need to check commitment criteria if the start L2 block number did not change.
                     if head_l2_height < from_l2_height {
                         continue;
                     }

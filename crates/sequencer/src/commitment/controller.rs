@@ -58,7 +58,7 @@ where
         from_l2_height: L2BlockNumber,
         to_l2_height: L2BlockNumber,
     ) -> anyhow::Result<Option<CommitmentRange>> {
-        let l2_start = from_l2_height.0 + 1;
+        let l2_start = from_l2_height.0;
         let l2_end = to_l2_height.0;
         // If the last commitment made is on par with the head
         // l2 block, we have already committed the latest block.
@@ -82,7 +82,7 @@ where
         from_l2_height: L2BlockNumber,
         to_l2_height: L2BlockNumber,
     ) -> anyhow::Result<Option<CommitmentRange>> {
-        let l2_start = from_l2_height.0 + 1;
+        let l2_start = from_l2_height.0;
         // We don't include the current l2 block, or else tx body is going to be greater than limit
         let l2_end = to_l2_height.0 - 1;
         ensure!(
@@ -94,21 +94,22 @@ where
         for l2_height in l2_start..=l2_end {
             let state_diff = self.ledger_db.get_state_diff(L2BlockNumber(l2_height))?;
             merged_state_diff = merge_state_diffs(merged_state_diff, state_diff);
+
+            let uncompressed_state_diff =
+                borsh::to_vec(&merged_state_diff).expect("State diff serialization can not fail");
+            // Early return if uncompressed state diff doesn't exceed limit
+            if uncompressed_state_diff.len() > SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE {
+                debug!("Enough state diff size to submit commitment");
+                return Ok(Some(L2BlockNumber(l2_start)..=L2BlockNumber(l2_height)));
+            }
+
+            let compressed_state_diff = compress_blob(&uncompressed_state_diff).unwrap();
+            if compressed_state_diff.len() > MAX_TXBODY_SIZE {
+                debug!("Enough state diff size to submit commitment");
+                return Ok(Some(L2BlockNumber(l2_start)..=L2BlockNumber(l2_height)));
+            }
         }
 
-        let uncompressed_state_diff =
-            borsh::to_vec(&merged_state_diff).expect("State diff serialization can not fail");
-        // Early return if uncompressed state diff doesn't exceed limit
-        if uncompressed_state_diff.len() <= SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE {
-            return Ok(None);
-        }
-
-        let compressed_state_diff = compress_blob(&uncompressed_state_diff).unwrap();
-        if compressed_state_diff.len() <= MAX_TXBODY_SIZE {
-            return Ok(None);
-        }
-
-        debug!("Enough state diff size to submit commitment");
-        Ok(Some(L2BlockNumber(l2_start)..=L2BlockNumber(l2_end)))
+        Ok(None)
     }
 }
