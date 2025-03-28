@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
@@ -80,6 +80,14 @@ pub trait LedgerRpc {
         &self,
         height: U64,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
+
+    /// Gets the commitment by index.
+    #[method(name = "getSequencerCommitmentByIndex")]
+    #[blocking]
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: U32,
+    ) -> RpcResult<Option<SequencerCommitmentResponse>>;
 
     /// Gets the commitments in the DA slot with the given hash.
     #[method(name = "getSequencerCommitmentsOnSlotByHash")]

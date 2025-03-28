@@ -49,8 +49,6 @@ impl From<Vec<u8>> for HexTx {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SequencerCommitmentResponse {
-    /// L1 block height the commitment was on
-    pub l1_height: U64,
     /// Hex encoded Merkle root of l2 block hashes
     #[serde(with = "utils::rpc_hex")]
     pub merkle_root: [u8; 32],
@@ -349,10 +347,8 @@ where
 /// Converts `SequencerCommitment` to `SequencerCommitmentResponse`
 pub fn sequencer_commitment_to_response(
     commitment: SequencerCommitment,
-    l1_height: u64,
 ) -> SequencerCommitmentResponse {
     SequencerCommitmentResponse {
-        l1_height: U64::from(l1_height),
         merkle_root: commitment.merkle_root,
         index: U32::from(commitment.index),
         l2_end_block_number: U64::from(commitment.l2_end_block_number),
@@ -430,6 +426,12 @@ pub trait LedgerRpcProvider {
         &self,
         height: u64,
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error>;
+
+    /// Takes an index and returns the commitment in the ledger db saved with that index
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: u32,
+    ) -> Result<Option<SequencerCommitmentResponse>, anyhow::Error>;
 
     /// Get batch proof by l1 height
     fn get_batch_proof_data_by_l1_height(

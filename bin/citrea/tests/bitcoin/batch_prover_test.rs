@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{Address, U64};
+use alloy_primitives::{Address, U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
@@ -16,6 +16,7 @@ use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
+use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
 use tokio::time::sleep;
@@ -149,6 +150,43 @@ impl TestCase for BasicProverTest {
                 state_diff_size,
                 compressed_state_diff.len()
             );
+        }
+
+        let index_range = proofs[0].proof_output.sequencer_commitment_index_range;
+        let index_range = (index_range.0.to::<u32>(), index_range.1.to::<u32>());
+
+        let l2_start_height = if proofs[0].proof_output.previous_commitment_index.is_none() {
+            get_fork2_activation_height_non_zero()
+        } else {
+            let prev_index = proofs[0]
+                .proof_output
+                .previous_commitment_index
+                .unwrap()
+                .to::<u32>();
+            let commitment = full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(prev_index))
+                .await?
+                .unwrap();
+            commitment.l2_end_block_number.to::<u64>() + 1
+        };
+
+        for (i, commitment_idx) in (index_range.0..=index_range.1).enumerate() {
+            let commitment = full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(commitment_idx))
+                .await?
+                .unwrap();
+            let l2_block = sequencer
+                .client
+                .http_client()
+                .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+                .await?
+                .unwrap();
+            let state_roots = proofs[0].proof_output.state_roots.clone();
+            assert_eq!(state_roots[i + 1].0, l2_block.header.state_root.to_vec());
         }
 
         // Generate proof against seqcom not starting from genesis

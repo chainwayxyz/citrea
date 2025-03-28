@@ -104,8 +104,6 @@ impl TestCase for LedgerGetCommitmentsProverTest {
             min_l2_blocks_per_commitment
         );
 
-        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
-
         let hash = da.get_block_hash(finalized_height).await?;
 
         let commitments_hash = prover
@@ -178,8 +176,6 @@ impl TestCase for LedgerGetCommitmentsTest {
             commitments[0].l2_end_block_number.to::<u64>(),
             min_l2_blocks_per_commitment
         );
-
-        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 
