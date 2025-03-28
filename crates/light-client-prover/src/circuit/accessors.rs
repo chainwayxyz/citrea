@@ -4,7 +4,7 @@
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_modules_core::{Prefix, Storage, StorageKey, StorageValue};
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::zk::light_client_proof::output::SequencerCommitmentInfo;
+use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
 use sov_rollup_interface::RefCount;
 
 use super::InitialBatchProofMethodIds;
@@ -126,11 +126,11 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
     }
 }
 
-pub struct SequencerCommitmentInfoAccessor<S: Storage> {
+pub struct VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S: Storage> {
     phantom: core::marker::PhantomData<S>,
 }
 
-impl<S: Storage> SequencerCommitmentInfoAccessor<S> {
+impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
     const PREFIX: u8 = b'u';
 
     fn key(index: u32) -> StorageKey {
@@ -145,19 +145,22 @@ impl<S: Storage> SequencerCommitmentInfoAccessor<S> {
     }
 
     /// Returns batch proof info if it exists
-    pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<SequencerCommitmentInfo> {
+    pub fn get(
+        index: u32,
+        working_set: &mut WorkingSet<S>,
+    ) -> Option<VerifiedStateTransitionForSequencerCommitmentIndex> {
         let key = Self::key(index);
 
         working_set.get(&key).map(|v| {
             let bytes: RefCount<[u8]> = v.into();
-            borsh::from_slice(&bytes).expect("Batch proof info deserialization should not fail")
+            borsh::from_slice(&bytes).expect("Verified State Transition For Sequencer Commitment Index deserialization should not fail")
         })
     }
 
     /// Insert a new batch proof info to the LCP state
     pub fn insert(
         index: u32,
-        sequencer_commitment_info: SequencerCommitmentInfo,
+        sequencer_commitment_info: VerifiedStateTransitionForSequencerCommitmentIndex,
         working_set: &mut WorkingSet<S>,
     ) {
         let key = Self::key(index);
@@ -229,11 +232,12 @@ mod tests {
     use sov_prover_storage_manager::{new_orphan_storage, ProverStorage};
     use sov_rollup_interface::da::SequencerCommitment;
     use sov_rollup_interface::witness::Witness;
-    use sov_rollup_interface::zk::light_client_proof::output::SequencerCommitmentInfo;
+    use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
 
     use super::{BlockHashAccessor, ChunkAccessor};
     use crate::circuit::accessors::{
-        BatchProofMethodIdAccessor, SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor,
+        BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
+        VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
     };
 
     #[test]
@@ -373,27 +377,39 @@ mod tests {
     }
 
     #[test]
-    fn test_sequencer_commitment_info_accessor() {
+    fn test_verified_state_transition_for_sequencer_commitment_index_accessor() {
         let tmpdir = tempfile::tempdir().unwrap();
         let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
         let witness = Witness::default();
         let mut working_set =
             WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
 
-        let info = SequencerCommitmentInfo {
+        let info = VerifiedStateTransitionForSequencerCommitmentIndex {
             initial_state_root: [1; 32],
             final_state_root: [2; 32],
             last_l2_height: 25,
         };
-        SequencerCommitmentInfoAccessor::<ProverStorage>::insert(1, info.clone(), &mut working_set);
+        VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::insert(
+            1,
+            info.clone(),
+            &mut working_set,
+        );
 
         assert_eq!(
-            SequencerCommitmentInfoAccessor::<ProverStorage>::get(1, &mut working_set).unwrap(),
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(
+                1,
+                &mut working_set
+            )
+            .unwrap(),
             info
         );
 
         assert!(
-            SequencerCommitmentInfoAccessor::<ProverStorage>::get(2, &mut working_set).is_none()
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(
+                2,
+                &mut working_set
+            )
+            .is_none()
         );
 
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
@@ -408,12 +424,20 @@ mod tests {
         let mut working_set = WorkingSet::new(prover_storage.clone());
 
         assert_eq!(
-            SequencerCommitmentInfoAccessor::<ProverStorage>::get(1, &mut working_set).unwrap(),
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(
+                1,
+                &mut working_set
+            )
+            .unwrap(),
             info
         );
 
         assert!(
-            SequencerCommitmentInfoAccessor::<ProverStorage>::get(2, &mut working_set).is_none()
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(
+                2,
+                &mut working_set
+            )
+            .is_none()
         );
     }
 

@@ -25,10 +25,10 @@ pub struct LightClientCircuitOutput {
 
 /// The batch proof that was not verified in the light client circuit because it was missing another proof for state root chaining
 /// This struct is used in the light client circuit jmt to store info about unchained batch proofs' commitments
-/// The circuit will query by commitment index to get this info of commitment
+/// The circuit will query by commitment index to get this info of state transition
 /// Initial and final state root belong to the commitment it self not the whole batch proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq, Serialize, Deserialize)]
-pub struct SequencerCommitmentInfo {
+pub struct VerifiedStateTransitionForSequencerCommitmentIndex {
     /// Initial state root of the batch proof
     pub initial_state_root: [u8; 32],
     /// Final state root of the batch proof
@@ -37,7 +37,7 @@ pub struct SequencerCommitmentInfo {
     pub last_l2_height: u64,
 }
 
-impl SequencerCommitmentInfo {
+impl VerifiedStateTransitionForSequencerCommitmentIndex {
     /// Create a new `BatchProofInfo` instance.
     pub fn new(
         initial_state_root: [u8; 32],

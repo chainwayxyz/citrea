@@ -1,6 +1,6 @@
 use accessors::{
     BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
-    SequencerCommitmentInfoAccessor,
+    VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use borsh::BorshDeserialize;
 use initial_values::LCP_JMT_GENESIS_ROOT;
@@ -12,7 +12,7 @@ use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::{
-    LightClientCircuitOutput, SequencerCommitmentInfo,
+    LightClientCircuitOutput, VerifiedStateTransitionForSequencerCommitmentIndex,
 };
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
@@ -246,15 +246,19 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             // No need to add data to jmt if index is less than or equal to the current index, because it will be the same since they have the same seq comm hash
             // Also no need to add if we already have the same index.
             if seq_comm_index <= last_sequencer_commitment_index
-                || SequencerCommitmentInfoAccessor::<S>::get(seq_comm_index, working_set).is_some()
+                || VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
+                    seq_comm_index,
+                    working_set,
+                )
+                .is_some()
             {
                 continue;
             }
             let jmt_commitment = SequencerCommitmentAccessor::<S>::get(seq_comm_index, working_set)
                 .expect("Sequencer commitment must exist at this point");
-            SequencerCommitmentInfoAccessor::<S>::insert(
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::insert(
                 seq_comm_index,
-                SequencerCommitmentInfo::new(
+                VerifiedStateTransitionForSequencerCommitmentIndex::new(
                     batch_proof_output_state_roots[idx],
                     // No overflow because the length is sequencer commitments count + 1
                     batch_proof_output_state_roots[idx + 1],
@@ -444,10 +448,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         // Try to chain proofs using commitments
         // With this setup even if we have valid proofs with commitments like 3,4,5 and 5,6
         // We can update our last commitment index to 6
-        while let Some(sequencer_commitment_info) = SequencerCommitmentInfoAccessor::<S>::get(
-            last_sequencer_commitment_index + 1,
-            &mut working_set,
-        ) {
+        while let Some(sequencer_commitment_info) =
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
+                last_sequencer_commitment_index + 1,
+                &mut working_set,
+            )
+        {
             if sequencer_commitment_info.initial_state_root == last_l2_state_root {
                 last_l2_state_root = sequencer_commitment_info.final_state_root;
                 last_l2_height = sequencer_commitment_info.last_l2_height;

@@ -15,7 +15,7 @@ use test_utils::{
 };
 
 use crate::circuit::accessors::{
-    BatchProofMethodIdAccessor, SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor,
+    BatchProofMethodIdAccessor, SequencerCommitmentAccessor, VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
@@ -531,14 +531,14 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     let mut working_set = WorkingSet::new(storage.clone());
 
     let unchained_info2 =
-        SequencerCommitmentInfoAccessor::<ProverStorage>::get(2, &mut working_set).unwrap();
+        VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(2, &mut working_set).unwrap();
     assert_eq!(unchained_info2.initial_state_root, seq_comm_1.merkle_root);
     assert_eq!(
         unchained_info2.last_l2_height,
         seq_comm_2.l2_end_block_number
     );
     let unchained_info3 =
-        SequencerCommitmentInfoAccessor::<ProverStorage>::get(3, &mut working_set).unwrap();
+        VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<ProverStorage>::get(3, &mut working_set).unwrap();
     assert_eq!(unchained_info3.initial_state_root, seq_comm_2.merkle_root);
     assert_eq!(
         unchained_info3.last_l2_height,
