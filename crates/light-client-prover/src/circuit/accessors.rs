@@ -181,7 +181,7 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
 
     fn key() -> StorageKey {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
-        let mut key = [0u8; 2]; // 1 prefix + 4 bytes
+        let mut key = [0u8; 2]; // 1 prefix + 1 byte
 
         key[0] = Self::PREFIX;
         key[1] = Self::KEY;
