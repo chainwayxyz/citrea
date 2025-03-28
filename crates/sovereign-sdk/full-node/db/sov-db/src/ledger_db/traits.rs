@@ -158,16 +158,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
 /// Prover ledger operations
 pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Stores proof related data on disk, accessible via l1 slot height
-    /// Inserts proofs of state transitions of multiple ranges of sequencer commitments found in an l1 block
-    fn insert_batch_proof_data_by_l1_height(
-        &self,
-        l1_height: u64,
-        l1_tx_id: [u8; 32],
-        proof: Proof,
-        output: StoredBatchProofOutput,
-    ) -> Result<()>;
-
     /// Gets proofs by L1 height
     fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
 

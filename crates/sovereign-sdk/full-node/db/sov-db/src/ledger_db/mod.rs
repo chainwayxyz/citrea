@@ -492,35 +492,6 @@ impl LightClientProverLedgerOps for LedgerDB {
 }
 
 impl BatchProverLedgerOps for LedgerDB {
-    /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
-    fn insert_batch_proof_data_by_l1_height(
-        &self,
-        l1_height: u64,
-        l1_tx_id: [u8; 32],
-        proof: Proof,
-        proof_output: StoredBatchProofOutput,
-    ) -> anyhow::Result<()> {
-        let data_to_store = StoredBatchProof {
-            l1_tx_id,
-            proof,
-            proof_output,
-        };
-        let proofs = self
-            .db
-            .get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))?;
-        match proofs {
-            Some(mut proofs) => {
-                proofs.push(data_to_store);
-                self.db
-                    .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &proofs)
-            }
-            None => self
-                .db
-                .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &vec![data_to_store]),
-        }
-    }
-
     #[instrument(level = "trace", skip(self), err)]
     fn get_proofs_by_l1_height(
         &self,
