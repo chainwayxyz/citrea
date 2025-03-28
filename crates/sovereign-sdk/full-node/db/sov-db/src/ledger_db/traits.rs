@@ -181,13 +181,13 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn clear_pending_proving_sessions(&self) -> Result<()>;
 
     /// Set commitment index to be proven
-    fn put_pending_commitment(&self, index: u32) -> Result<()>;
+    fn put_prover_pending_commitment(&self, index: u32) -> Result<()>;
 
     /// Get commitment indices to be proven
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<u32>>;
+    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<u32>>;
 
     /// Delete commitment indices from pending commitments table
-    fn delete_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
+    fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
 
     /// Put commitment indices found in the L1 height
     fn put_commitment_indices_by_l1(&self, l1_height: SlotNumber, indices: &Vec<u32>)

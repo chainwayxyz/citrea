@@ -563,12 +563,12 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn put_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
+    fn put_prover_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
         self.db.put::<ProverPendingCommitments>(&index, &())
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<u32>> {
+    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<u32>> {
         let mut iter = self.db.iter::<ProverPendingCommitments>()?;
         iter.seek_to_first();
 
@@ -582,7 +582,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn delete_pending_commitments(&self, indices: Vec<u32>) -> anyhow::Result<()> {
+    fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> anyhow::Result<()> {
         self.db.delete_batch::<ProverPendingCommitments>(indices)
     }
 

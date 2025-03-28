@@ -162,7 +162,7 @@ where
                 .insert_new_proving_job(id, &commitment_indices)
                 .context("Failed to insert prover job")?;
             self.ledger_db
-                .delete_pending_commitments(commitment_indices)
+                .delete_prover_pending_commitments(commitment_indices)
                 .context("Failed to delete pending commitments")?;
         }
 
@@ -172,7 +172,7 @@ where
     }
 
     fn get_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let pending_commitment_indices = self.ledger_db.get_pending_commitments()?;
+        let pending_commitment_indices = self.ledger_db.get_prover_pending_commitments()?;
 
         let mut commitments = Vec::with_capacity(pending_commitment_indices.len());
         for index in pending_commitment_indices {

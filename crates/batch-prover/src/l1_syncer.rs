@@ -153,7 +153,7 @@ where
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
                         self.ledger_db
-                            .put_pending_commitment(index)
+                            .put_prover_pending_commitment(index)
                             .expect("Should set commitment status to pending");
 
                         commitment_indices.push(index);
