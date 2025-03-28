@@ -444,6 +444,8 @@ where
                 ledger_db
                     .finalize_proving_job(job_id, tx_id.into())
                     .expect("Should update proving job tx id");
+
+                info!("Completed proving job {}", job_id);
             }
         });
     }
