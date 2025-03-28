@@ -37,7 +37,7 @@ pub enum LightClientVerificationError<DaV: DaVerifier> {
 
 pub struct RunL1BlockResult<S: Storage> {
     l2_state_root: [u8; 32],
-    lcp_state_root: [u8; 32],
+    pub lcp_state_root: [u8; 32],
     last_l2_height: u64,
     pub witness: Witness,
     pub change_set: S,
