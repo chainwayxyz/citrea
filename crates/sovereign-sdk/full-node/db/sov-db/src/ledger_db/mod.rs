@@ -539,6 +539,8 @@ impl BatchProverLedgerOps for LedgerDB {
             commitments.push(commitment);
         }
 
+        commitments.sort();
+
         Ok(commitments)
     }
 
