@@ -135,6 +135,20 @@ where
         if commitments.is_empty() {
             return Ok(());
         }
+
+        // sanity check
+        for commitment in commitments.iter() {
+            let state_root = self
+                .ledger_db
+                .get_l2_state_root(commitment.l2_end_block_number)?
+                .expect("State root must exist");
+            assert_eq!(
+                commitment.merkle_root, state_root,
+                "Invalid state root in commitment {}",
+                commitment.index
+            );
+        }
+
         info!("Processing {} commitment(s)", commitments.len());
 
         let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
