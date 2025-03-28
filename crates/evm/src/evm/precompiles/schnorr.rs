@@ -15,7 +15,7 @@ pub fn schnorr_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if SCHNORRVERIFY_BASE > gas_limit {
         return Err(PrecompileError::OutOfGas.into());
     }
-    let result = verify_sig(input).map_or_else(|| Bytes::new(), |_| B256::with_last_byte(1).into());
+    let result = verify_sig(input).map_or_else(Bytes::new, |_| B256::with_last_byte(1).into());
 
     Ok(PrecompileOutput::new(SCHNORRVERIFY_BASE, result))
 }
@@ -27,7 +27,7 @@ fn verify_sig(input: &Bytes) -> Option<()> {
     let verifying_key = VerifyingKey::from_bytes(&input[..32]).ok()?;
     let message = &input[32..64];
     let signature = Signature::try_from(&input[64..]).ok()?;
-    verifying_key.verify_prehash(&message, &signature).ok()
+    verifying_key.verify_prehash(message, &signature).ok()
 }
 
 #[cfg(test)]
@@ -65,7 +65,7 @@ mod tests {
         let (public_key, message, signature) = random_signature();
 
         let mut raw_sig = signature.serialize();
-        raw_sig[0] = raw_sig[0] ^ 1;
+        raw_sig[0] ^= 1;
 
         let mut input = Vec::with_capacity(128);
         input.extend_from_slice(&public_key.serialize());
