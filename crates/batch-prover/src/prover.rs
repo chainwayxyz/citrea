@@ -233,6 +233,7 @@ where
         commitments: &'a [SequencerCommitment],
         mode: PartitionMode,
     ) -> anyhow::Result<Vec<Partition<'a>>> {
+        // TODO: first commitment index will be 1 after https://github.com/chainwayxyz/citrea/pull/2180
         let start_l2_height = if commitments[0].index == 0 {
             // If this is the first commitment ever, start from 1
             1
