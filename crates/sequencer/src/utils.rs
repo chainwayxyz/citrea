@@ -2,7 +2,7 @@
 
 use alloy_network::eip2718::Decodable2718;
 use alloy_primitives::Bytes;
-use reth_primitives::transaction::SignedTransactionIntoRecoveredExt;
+use reth_primitives::transaction::SignedTransaction;
 use reth_primitives::{PooledTransaction, Recovered};
 use reth_rpc_eth_types::error::{EthApiError, EthResult};
 

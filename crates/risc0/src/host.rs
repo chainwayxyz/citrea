@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use metrics::histogram;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProveInfo, ProverOpts,
+    compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProverOpts,
 };
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, ReceiptType, Zkvm, ZkvmHost};
@@ -169,7 +169,9 @@ impl ZkvmHost for Risc0BonsaiHost {
             ReceiptType::Succinct => ProverOpts::succinct(),
         };
 
-        let ProveInfo { receipt, stats, .. } = prover.prove_with_opts(env, &elf, &prover_opts)?;
+        let prove_info = prover.prove_with_opts(env, &elf, &prover_opts)?;
+        let receipt = prove_info.receipt;
+        let stats = prove_info.stats;
 
         histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
 

@@ -30,7 +30,7 @@ k256 = { workspace = true }
 metrics = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
 reqwest = { workspace = true, optional = true }
-secp256k1 = { workspace = true, optional = true, features = ["rand-std"] }
+secp256k1 = { version = "0.29", optional = true, features = ["rand-std", "std", "global-context"] }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true, features = ["raw_value"] }
 thiserror = { workspace = true }

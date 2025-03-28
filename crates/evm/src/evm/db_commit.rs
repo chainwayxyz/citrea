@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
+use alloy_primitives::map::foldhash::HashMap;
 use alloy_primitives::Address;
-use revm::primitives::{Account, AccountInfo, HashMap};
+use revm::state::{Account, AccountInfo};
 use revm::DatabaseCommit;
 use sov_modules_api::StateMapAccessor;
 

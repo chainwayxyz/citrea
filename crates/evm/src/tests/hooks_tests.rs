@@ -6,7 +6,8 @@ use alloy_primitives::{Address, Bloom, Bytes, PrimitiveSignature, B256, B64, U25
 use lazy_static::lazy_static;
 use rand::Rng;
 use reth_primitives::{Header, TransactionSigned};
-use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
+use revm::context::BlockEnv;
+use revm::context_interface::block::BlobExcessGasAndPrice;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
@@ -43,12 +44,12 @@ fn begin_l2_block_hook_creates_pending_block() {
     assert_eq!(
         pending_block,
         BlockEnv {
-            number: U256::from(2),
-            coinbase: *BENEFICIARY,
-            timestamp: U256::from(54),
+            number: 2,
+            beneficiary: *BENEFICIARY,
+            timestamp: 54,
             prevrandao: Some(B256::ZERO),
-            basefee: U256::from(765625000),
-            gas_limit: U256::from(config.block_gas_limit),
+            basefee: 765625000,
+            gas_limit: config.block_gas_limit,
             difficulty: U256::ZERO,
             blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0, true))
         }
