@@ -8,6 +8,8 @@ use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -415,21 +417,16 @@ where
         let prover_service = self.prover_service.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
 
-        let (mut job_ids, mut job_rxs): (Vec<(Uuid, SpecId)>, Vec<oneshot::Receiver<Proof>>) =
-            proving_jobs.into_iter().map(|j| ((j.0, j.1), j.2)).unzip();
+        let mut proving_jobs = proving_jobs
+            .into_iter()
+            .map(|(job_id, spec, rx)| async move {
+                let proof = rx.await.expect("Proof channel should never close");
+                (job_id, spec, proof)
+            })
+            .collect::<FuturesUnordered<_>>();
 
         tokio::spawn(async move {
-            while !job_rxs.is_empty() {
-                // wait until one of the jobs finish
-                let (proof, idx, remaining_rxs) = futures::future::select_all(job_rxs).await;
-
-                let proof = proof.expect("Proof channel should never close");
-
-                job_rxs = remaining_rxs;
-                // TODO: this is very sketchy. swap_remove is deterministic, and that is what select_all is using to remove the completed job,
-                // but still relying on this to keep the correct order is nasty. try to find another way
-                let (job_id, spec) = job_ids.swap_remove(idx);
-
+            while let Some((job_id, spec, proof)) = proving_jobs.next().await {
                 let output = extract_proof_output::<Vm>(&proof, spec, &code_commitments_by_spec);
 
                 ledger_db
