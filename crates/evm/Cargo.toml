@@ -67,6 +67,7 @@ reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
 reth-errors = { workspace = true }
 reth-rpc-eth-types = { workspace = true }
+rstest = "0.22.0"
 secp256k1 = { workspace = true }
 sha2 = { workspace = true }
 sov-keys = { path = "../sovereign-sdk/module-system/sov-keys" }
