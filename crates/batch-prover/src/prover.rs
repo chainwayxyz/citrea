@@ -124,7 +124,7 @@ where
             return Ok(());
         }
 
-        let commitments = self.get_pending_commitments()?;
+        let commitments = self.ledger_db.get_prover_pending_commitments()?;
         if commitments.is_empty() {
             info!("No pending commitments found");
             return Ok(());
@@ -169,23 +169,6 @@ where
         self.watch_proving_jobs(proving_jobs);
 
         Ok(())
-    }
-
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let pending_commitment_indices = self.ledger_db.get_prover_pending_commitments()?;
-
-        let mut commitments = Vec::with_capacity(pending_commitment_indices.len());
-        for index in pending_commitment_indices {
-            let commitment = self
-                .ledger_db
-                .get_commitment_by_index(index)?
-                .expect("Unproven commitment must exist by index");
-            commitments.push(commitment);
-        }
-
-        commitments.sort();
-
-        Ok(commitments)
     }
 
     /// Filters out the commitments that prover l2 blocks not synced to yet

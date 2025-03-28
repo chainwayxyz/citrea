@@ -523,17 +523,23 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<u32>> {
+    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
         let mut iter = self.db.iter::<ProverPendingCommitments>()?;
         iter.seek_to_first();
 
-        let mut commitment_indices = vec![];
+        let mut commitments = vec![];
         for el in iter {
             let (index, _) = el?.into_tuple();
-            commitment_indices.push(index);
+
+            let commitment = self
+                .db
+                .get::<SequencerCommitmentByIndex>(&index)?
+                .expect("Pending commitment must exist");
+
+            commitments.push(commitment);
         }
 
-        Ok(commitment_indices)
+        Ok(commitments)
     }
 
     #[instrument(level = "trace", skip(self), err)]

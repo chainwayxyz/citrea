@@ -171,7 +171,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn put_prover_pending_commitment(&self, index: u32) -> Result<()>;
 
     /// Get commitment indices to be proven
-    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<u32>>;
+    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>>;
 
     /// Delete commitment indices from pending commitments table
     fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
