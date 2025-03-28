@@ -155,23 +155,6 @@ impl TestCase for BasicProverTest {
         let index_range = proofs[0].proof_output.sequencer_commitment_index_range;
         let index_range = (index_range.0.to::<u32>(), index_range.1.to::<u32>());
 
-        let l2_start_height = if proofs[0].proof_output.previous_commitment_index.is_none() {
-            get_fork2_activation_height_non_zero()
-        } else {
-            let prev_index = proofs[0]
-                .proof_output
-                .previous_commitment_index
-                .unwrap()
-                .to::<u32>();
-            let commitment = full_node
-                .client
-                .http_client()
-                .get_sequencer_commitment_by_index(U32::from(prev_index))
-                .await?
-                .unwrap();
-            commitment.l2_end_block_number.to::<u64>() + 1
-        };
-
         for (i, commitment_idx) in (index_range.0..=index_range.1).enumerate() {
             let commitment = full_node
                 .client
