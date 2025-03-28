@@ -632,7 +632,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn update_job_tx_id(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
+    fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
         let mut stored_proof = self.db.get::<ProofByJobId>(&id)?.expect("Proof must exist");
         assert_eq!(
             stored_proof.l1_tx_id, [0; 32],

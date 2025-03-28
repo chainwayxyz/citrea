@@ -439,7 +439,7 @@ where
                     .expect("Proof submission channel must never close");
 
                 ledger_db
-                    .update_job_tx_id(job_id, tx_id.into())
+                    .finalize_proving_job(job_id, tx_id.into())
                     .expect("Should update proving job tx id");
             }
         });

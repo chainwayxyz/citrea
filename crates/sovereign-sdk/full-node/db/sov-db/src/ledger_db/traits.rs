@@ -205,7 +205,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<()>;
 
     /// Updates job tx id and removes job from running jobs
-    fn update_job_tx_id(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
+    fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
 }
 
 /// Light client prover ledger operations
