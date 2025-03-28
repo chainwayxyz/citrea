@@ -162,7 +162,7 @@ where
 
         let l2_block_hashes = self
             .ledger_db
-            .get_l2_block_range(&commitment_info)?
+            .get_l2_block_range(commitment_info)?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
