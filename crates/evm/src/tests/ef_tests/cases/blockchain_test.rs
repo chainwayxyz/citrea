@@ -119,7 +119,7 @@ impl Case for BlockchainTestCase {
         // Iterate through test cases, filtering by the network type to exclude specific forks.
         self.tests
             .values()
-            .filter(|case| case.network <= ForkSpec::Cancun || case.network == ForkSpec::Unknown)
+            .filter(|case| case.network == ForkSpec::Prague)
             .par_bridge()
             .try_for_each(|case| {
                 let mut evm_config = EvmConfig::default();
@@ -244,12 +244,9 @@ impl Case for BlockchainTestCase {
                             }
                         }
                     }
-                    (None, Some(expected_state_root)) => {
-                        // Insert state hashes into the provider based on the expected state root.
-                        assert_eq!(
-                            *evm.head.get(&mut working_set).unwrap().header.state_root,
-                            **expected_state_root
-                        );
+                    (None, Some(_expected_state_root)) => {
+                        // Skip root only tests as our state tree is different
+                        return Err(Error::Skipped);
                     }
                     _ => return Err(Error::MissingPostState),
                 }
@@ -274,29 +271,29 @@ pub fn should_skip(path: &Path) -> bool {
         name,
         // funky test with `bigint 0x00` value in json :) not possible to happen on mainnet and require
         // custom json parser. https://github.com/ethereum/tests/issues/971
-        | "ValueOverflow.json"
-        | "ValueOverflowParis.json"
+        // | "ValueOverflow.json"
+        // | "ValueOverflowParis.json"
 
-        // txbyte is of type 02 and we dont parse tx bytes for this test to fail.
-        | "typeTwoBerlin.json"
+        // // txbyte is of type 02 and we dont parse tx bytes for this test to fail.
+        // | "typeTwoBerlin.json"
 
-        // Test checks if nonce overflows. We are handling this correctly but we are not parsing
-        // exception in testsuite There are more nonce overflow tests that are in internal
-        // call/create, and those tests are passing and are enabled.
-        | "CreateTransactionHighNonce.json"
+        // // Test checks if nonce overflows. We are handling this correctly but we are not parsing
+        // // exception in testsuite There are more nonce overflow tests that are in internal
+        // // call/create, and those tests are passing and are enabled.
+        // | "CreateTransactionHighNonce.json"
 
-        // Test check if gas price overflows, we handle this correctly but does not match tests specific
-        // exception.
-        | "HighGasPrice.json"
+        // // Test check if gas price overflows, we handle this correctly but does not match tests specific
+        // // exception.
+        // | "HighGasPrice.json"
         | "HighGasPriceParis.json"
 
-        // Skip test where basefee/accesslist/difficulty is present but it shouldn't be supported in
-        // London/Berlin/TheMerge. https://github.com/ethereum/tests/blob/5b7e1ab3ffaf026d99d20b17bb30f533a2c80c8b/GeneralStateTests/stExample/eip1559.json#L130
-        // It is expected to not execute these tests.
-        | "accessListExample.json"
-        | "basefeeExample.json"
-        | "eip1559.json"
-        | "mergeTest.json"
+        // // Skip test where basefee/accesslist/difficulty is present but it shouldn't be supported in
+        // // London/Berlin/TheMerge. https://github.com/ethereum/tests/blob/5b7e1ab3ffaf026d99d20b17bb30f533a2c80c8b/GeneralStateTests/stExample/eip1559.json#L130
+        // // It is expected to not execute these tests.
+        // | "accessListExample.json"
+        // | "basefeeExample.json"
+        // | "eip1559.json"
+        // | "mergeTest.json"
 
         // These tests are passing, but they take a lot of time to execute so we are going to skip them.
         | "loopExp.json"

@@ -37,7 +37,7 @@ impl TestCase for GenerateProofInput {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 50,
+            min_l2_blocks_per_commitment: 150,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 1_000_000,
                 pending_tx_size: 100_000_000,
@@ -69,12 +69,15 @@ impl TestCase for GenerateProofInput {
         let mut signed_txs_iter = signed_txs.iter().filter(|tx| !tx.trim().is_empty());
 
         // 2 full commitments
-        let blocks = sequencer.config.node.min_l2_blocks_per_commitment * 2;
-        let tx_per_block = signed_txs.len() as u64 / blocks;
+        // simulating 10 mins
+        let blocks = 300;
+        let tx_per_block = signed_txs.len() as u64 / blocks + 1;
 
         for block in 1..=blocks {
             for _ in 0..tx_per_block {
-                let signed_tx = signed_txs_iter.next().unwrap();
+                let Some(signed_tx) = signed_txs_iter.next() else {
+                    break;
+                };
 
                 sequencer
                     .client
@@ -100,8 +103,14 @@ impl TestCase for GenerateProofInput {
             tokio::time::sleep(Duration::from_millis(50)).await;
 
             sequencer.client.send_publish_batch_request().await.unwrap();
+
+            sequencer.wait_for_l2_height(block, None).await?;
         }
         println!("All txs sent");
+
+        // ensure commitment sent
+        sequencer.client.send_publish_batch_request().await.unwrap();
+        sequencer.client.send_publish_batch_request().await.unwrap();
 
         da.wait_mempool_len(4, None).await?;
         da.generate(FINALITY_DEPTH).await?;
