@@ -318,12 +318,11 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
     fn load_precompiles() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
+            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
 
             let p = precompiles.to_mut();
             p.remove(&u64_to_address(0x0A))
                 .expect("point eval should be removed");
-
-            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
 
             // remove BLS related precompiles until we fix
             // revm-precompile blst feature compilation for risc0zkv
