@@ -14,7 +14,9 @@ use test_utils::{
     create_random_state_diff, create_serialized_mock_proof, NativeCircuitRunner,
 };
 
-use crate::circuit::accessors::{SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor};
+use crate::circuit::accessors::{
+    BatchProofMethodIdAccessor, SequencerCommitmentAccessor, SequencerCommitmentInfoAccessor,
+};
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
@@ -955,10 +957,16 @@ fn test_new_method_id_txs() {
             &method_id_upgrade_authority,
         )
         .unwrap();
-
-    assert_eq!(output_1.batch_proof_method_ids.len(), 2);
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 2);
     assert_eq!(
-        output_1.batch_proof_method_ids,
+        batch_proof_method_ids,
         vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
     );
 
@@ -994,11 +1002,13 @@ fn test_new_method_id_txs() {
             &method_id_upgrade_authority,
         )
         .unwrap();
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
 
     // didn't change
-    assert_eq!(output_2.batch_proof_method_ids.len(), 2);
+    assert_eq!(batch_proof_method_ids.len(), 2);
     assert_eq!(
-        output_2.batch_proof_method_ids,
+        batch_proof_method_ids,
         vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
     );
 
@@ -1023,7 +1033,7 @@ fn test_new_method_id_txs() {
         &method_id_upgrade_authority,
     );
 
-    let output_3 = zk_circuit_runner
+    let _output_3 = zk_circuit_runner
         .run_circuit(
             da_verifier.clone(),
             input,
@@ -1036,10 +1046,18 @@ fn test_new_method_id_txs() {
         )
         .unwrap();
 
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+
     // didn't change
-    assert_eq!(output_3.batch_proof_method_ids.len(), 2);
+    assert_eq!(batch_proof_method_ids.len(), 2);
     assert_eq!(
-        output_3.batch_proof_method_ids,
+        batch_proof_method_ids,
         vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
     );
 }

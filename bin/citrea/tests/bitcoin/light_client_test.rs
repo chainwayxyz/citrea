@@ -577,15 +577,20 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .unwrap();
 
         // Expect light client prover to have generated light client proof
-        let lcp = light_client_prover
+        let _lcp = light_client_prover
             .client
             .http_client()
             .get_light_client_proof_by_l1_height(batch_proof_l1_height)
             .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        let batch_proof_method_ids_before = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
         // Verify the current batch proof method ids
         assert_eq!(
-            lcp_output.batch_proof_method_ids,
+            batch_proof_method_ids_before,
             vec![BatchProofMethodIdRpcResponse {
                 height: U64::from(0),
                 method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
@@ -620,15 +625,15 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .unwrap();
 
         // Assert that 1 l1 block before method id tx, still has the same batch proof method ids
-        let lcp = light_client_prover
+        let _lcp = light_client_prover
             .client
             .http_client()
             .get_light_client_proof_by_l1_height(method_id_l1_height - 1)
             .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
+
         // Verify the current batch proof method ids
         assert_eq!(
-            lcp_output.batch_proof_method_ids,
+            batch_proof_method_ids_before,
             vec![BatchProofMethodIdRpcResponse {
                 height: U64::from(0),
                 method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
@@ -641,10 +646,15 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .http_client()
             .get_light_client_proof_by_l1_height(method_id_l1_height)
             .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
+        let _lcp_output = lcp.unwrap().light_client_proof_output;
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
         // Verify the current batch proof method ids
         assert_eq!(
-            lcp_output.batch_proof_method_ids,
+            batch_proof_method_ids,
             vec![
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(0),
@@ -667,14 +677,19 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .unwrap();
 
         // Verify that previously updated method ids are being used
-        let lcp = light_client_prover
+        let _lcp = light_client_prover
             .client
             .http_client()
             .get_light_client_proof_by_l1_height(method_id_l1_height + 1)
             .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
         assert_eq!(
-            lcp_output.batch_proof_method_ids,
+            batch_proof_method_ids,
             vec![
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(0),
@@ -788,12 +803,16 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
         // Get initial method ids and genesis state root
-        let method_ids = lcp_output.batch_proof_method_ids;
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
         let genesis_state_root = lcp_output.l2_state_root;
 
-        assert!(method_ids.len() == 1);
+        assert!(batch_proof_method_ids.len() == 1);
 
-        let fork2_height: u64 = method_ids[0].height.to();
+        let fork2_height: u64 = batch_proof_method_ids[0].height.to();
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
         let fake_sequencer_commitment = SequencerCommitment {
@@ -877,7 +896,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
             fork2_height + 1,
-            method_ids[0].method_id.into(),
+            batch_proof_method_ids[0].method_id.into(),
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -894,7 +913,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [2u8; 32],
             fork2_height * 3,
-            method_ids[0].method_id.into(),
+            batch_proof_method_ids[0].method_id.into(),
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -911,7 +930,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let unparsable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [3u8; 32],
             fork2_height * 4,
-            method_ids[0].method_id.into(),
+            batch_proof_method_ids[0].method_id.into(),
             None,
             true,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -927,7 +946,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
             fork2_height * 2,
-            method_ids[0].method_id.into(),
+            batch_proof_method_ids[0].method_id.into(),
             None,
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -1140,10 +1159,14 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
         // Get initial method ids and genesis state root
-        let method_ids = lcp_output.batch_proof_method_ids;
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
         let genesis_state_root = lcp_output.l2_state_root;
 
-        assert!(method_ids.len() == 1);
+        assert!(batch_proof_method_ids.len() == 1);
 
         // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
         // But the compressed size will go down to 100kb
@@ -1155,7 +1178,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let verifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
             proof_last_l2_height,
-            method_ids[0].method_id.into(),
+            batch_proof_method_ids[0].method_id.into(),
             Some(state_diff_100kb.clone()),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -1175,7 +1198,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         da.generate(FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
-        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+        let mempool = da.get_raw_mempool().await?;
+        assert!(mempool.is_empty());
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
@@ -1214,7 +1238,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let verifiable_130kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
             proof_last_l2_height * 2,
-            method_ids[0].method_id.into(),
+            batch_proof_method_ids[0].method_id.into(),
             Some(state_diff_130kb),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -1263,7 +1287,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         da.generate_block(addr.clone(), aggregate).await?;
         // Aggregate should be in block n+2
-        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+        let mempool = da.get_raw_mempool().await?;
+        assert!(mempool.is_empty());
 
         // Finalize the DA block which contains the aggregate txs
         da.generate(FINALITY_DEPTH - 1).await?;
@@ -1342,7 +1367,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         da.generate(FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
-        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+        let mempool = da.get_raw_mempool().await?;
+        assert!(mempool.is_empty());
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
@@ -1528,9 +1554,13 @@ impl TestCase for UnchainedBatchProofsTest {
             .await?
             .unwrap();
 
-        let method_id = initial_lcp.light_client_proof_output.batch_proof_method_ids[0]
-            .method_id
-            .into();
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let method_id = batch_proof_method_ids[0].method_id.into();
         let genesis_root = initial_lcp.light_client_proof_output.l2_state_root;
         let l1_hash = da.get_block_hash(171).await?;
 
@@ -1773,9 +1803,13 @@ impl TestCase for UnknownL1HashBatchProofTest {
             .await?
             .unwrap();
 
-        let method_id = initial_lcp.light_client_proof_output.batch_proof_method_ids[0]
-            .method_id
-            .into();
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let method_id = batch_proof_method_ids[0].method_id.into();
         let genesis_root = initial_lcp.light_client_proof_output.l2_state_root;
         let mut l1_hash = da.get_block_hash(171).await?.to_raw_hash().to_byte_array();
 
@@ -1973,8 +2007,14 @@ impl TestCase for ChainProofByCommitmentIndex {
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
         // Get initial method ids and genesis state root
-        let method_ids = lcp_output.batch_proof_method_ids;
+        let method_ids = batch_proof_method_ids;
         let genesis_state_root = lcp_output.l2_state_root;
 
         assert!(method_ids.len() == 1);
@@ -2024,7 +2064,8 @@ impl TestCase for ChainProofByCommitmentIndex {
         da.generate(FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
-        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+        let mempool = da.get_raw_mempool().await?;
+        assert!(mempool.is_empty());
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
@@ -2163,8 +2204,14 @@ impl TestCase for ProofWithMissingCommitment {
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
         // Get initial method ids and genesis state root
-        let method_ids = lcp_output.batch_proof_method_ids;
+        let method_ids = batch_proof_method_ids;
         let genesis_state_root = lcp_output.l2_state_root;
 
         assert!(method_ids.len() == 1);
@@ -2192,7 +2239,8 @@ impl TestCase for ProofWithMissingCommitment {
         da.generate(FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
-        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+        let mempool = da.get_raw_mempool().await?;
+        assert!(mempool.is_empty());
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
