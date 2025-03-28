@@ -1,4 +1,4 @@
-use alloy_network::{AnyNetwork, AnyRpcBlock, AnyTransactionReceipt, TransactionResponse};
+use alloy_network::{AnyTransactionReceipt, TransactionResponse};
 use alloy_primitives::B256;
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;

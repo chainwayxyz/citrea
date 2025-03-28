@@ -1,7 +1,7 @@
 use core::ops::RangeInclusive;
 
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
-use alloy_primitives::map::{B256Map, HashMap, HashSet};
+use alloy_primitives::map::B256Map;
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
 };
@@ -80,7 +80,7 @@ impl AccountReader for DbProvider {
         let account = {
             let mut working_set = WorkingSet::new(self.storage.clone());
             self.evm
-                .account_info(&address, &mut working_set)
+                .account_info(address, &mut working_set)
                 .map(Into::into)
         };
         Ok(account)

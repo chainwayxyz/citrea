@@ -7,13 +7,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag};
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::rollback::Rollback;
 use futures::FutureExt;
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;

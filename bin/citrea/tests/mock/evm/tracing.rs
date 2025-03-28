@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 // use citrea::initialize_logging;
 use alloy_primitives::Address;
+use alloy_rpc_types::BlockNumberOrTag;
 use alloy_rpc_types_trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
@@ -10,7 +11,6 @@ use alloy_rpc_types_trace::geth::{
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 use serde_json::{self, json};
 
 use crate::common::helpers::{

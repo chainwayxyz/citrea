@@ -4,9 +4,9 @@ use std::str::FromStr;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::Address;
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 use tokio::task::JoinHandle;
 
 use crate::common::client::{TestClient, MAX_FEE_PER_GAS};

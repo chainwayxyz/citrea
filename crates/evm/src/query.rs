@@ -1411,7 +1411,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .unwrap();
 
             for log in receipt.receipt.logs() {
-                if log_matches_filter(&log, filter, &block.header.hash(), &block.header.number) {
+                if log_matches_filter(log, filter, &block.header.hash(), &block.header.number) {
                     let log = LogResponse {
                         address: log.address,
                         topics: log.topics().to_vec(),
@@ -1677,7 +1677,7 @@ pub(crate) fn build_rpc_receipt(
     let logs = receipt
         .receipt
         .logs()
-        .into_iter()
+        .iter()
         .enumerate()
         .map(|(tx_log_idx, log)| Log {
             inner: log.clone(),

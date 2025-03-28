@@ -5,7 +5,6 @@ use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
 use lazy_static::lazy_static;
 use reth_primitives::{Header, SealedHeader};
-use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;
 
 use crate::evm::primitive_types::SealedBlock;

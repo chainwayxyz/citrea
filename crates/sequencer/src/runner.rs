@@ -23,7 +23,6 @@ use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
-use reth_primitives::TransactionSignedEcRecovered;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
@@ -79,7 +78,6 @@ where
 {
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool>,
-    // TODO: Use k256 private key here before mainnet
     pub(crate) sov_tx_signer_priv_key: K256PrivateKey,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider,

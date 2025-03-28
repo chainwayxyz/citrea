@@ -1,13 +1,14 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use alloy::eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::U256;
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 
 use super::init_test_rollup;
 use crate::common::client::TestClient;
@@ -132,7 +133,7 @@ async fn execute(
 
     let block = client.eth_get_block_by_number(None).await;
     assert!(
-        block.header.gas_used as u64 <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        block.header.gas_used as u64 <= ETHEREUM_BLOCK_GAS_LIMIT_30M,
         "Block has gas limit"
     );
     assert!(

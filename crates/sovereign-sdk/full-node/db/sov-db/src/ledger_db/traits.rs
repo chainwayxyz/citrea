@@ -95,7 +95,6 @@ pub trait SharedLedgerOps {
     ) -> Result<Vec<StoredL2Block>>;
 
     /// Gets all l2 blocks by numbers
-
     fn get_l2_block_by_number(&self, number: &L2BlockNumber) -> Result<Option<StoredL2Block>>;
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height

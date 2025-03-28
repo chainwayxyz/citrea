@@ -131,7 +131,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .collect();
 
         let receipts: Vec<_> = pending_transactions
-            .into_iter()
+            .iter_mut()
             .map(|tx| tx.receipt.receipt.clone())
             .collect();
 

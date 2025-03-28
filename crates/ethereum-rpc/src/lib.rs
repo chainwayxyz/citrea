@@ -6,7 +6,6 @@ mod trace;
 use std::sync::Arc;
 
 use alloy_consensus::constants::KECCAK_EMPTY;
-use alloy_network::AnyNetwork;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
@@ -24,7 +23,6 @@ use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule};
-use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::EthApiError;
 use serde_json::{json, Value};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};

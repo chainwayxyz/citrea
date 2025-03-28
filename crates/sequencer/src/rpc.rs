@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
 use alloy_eips::eip2718::Encodable2718;
-use alloy_network::AnyNetwork;
 use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types::Transaction;
-use alloy_serde::WithOtherFields;
 use citrea_evm::Evm;
 use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
@@ -13,7 +11,6 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
 use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
-use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};

@@ -2,7 +2,6 @@ use alloy_consensus::Transaction;
 use alloy_eips::Typed2718;
 use alloy_primitives::{keccak256, U256};
 use alloy_sol_types::SolCall;
-use citrea_primitives::forks::fork_from_block_number;
 use reth_primitives::{Recovered, TransactionSigned};
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
@@ -23,7 +22,7 @@ pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
     pub(crate) evm: revm::Evm<'a, EXT, DB>,
 }
 
-impl<'a, EXT, DB> CitreaEvm<'a, EXT, DB>
+impl<EXT, DB> CitreaEvm<'_, EXT, DB>
 where
     DB: Database,
     EXT: CitreaExternalExt,

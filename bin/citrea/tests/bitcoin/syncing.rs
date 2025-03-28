@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 
 use alloy_primitives::{Address, U64};
+use alloy_rpc_types::BlockNumberOrTag;
 use async_trait::async_trait;
 use citrea_e2e::config::{CitreaMode, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
@@ -9,7 +10,6 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use ethereum_rpc::LayerStatus;
-use reth_primitives::BlockNumberOrTag;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;

@@ -3,14 +3,14 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
+use alloy::network::TransactionResponse;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_rpc_types::EIP1186AccountProofResponse;
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse};
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use sha2::Digest;
 use sov_rollup_interface::{Network, CITREA_VERSION};
 use sov_state::KeyHash;
@@ -334,7 +334,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
         let kaddr = {
             let mut hasher: sha2::Sha256 =
                 sha2::Digest::new_with_prefix(account_address.as_slice());
-            hasher.update(storage_proof.key.0.as_slice());
+            hasher.update(storage_proof.key.as_b256().as_slice());
             let arr = hasher.finalize();
             U256::from_le_slice(&arr)
         };
@@ -451,7 +451,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_latest, contract_address);
         for storage_proof in &acc_proof_latest.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -486,7 +486,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_1, contract_address);
         for storage_proof in &acc_proof_1.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -500,7 +500,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         assert_ne!(acc_proof_1, acc_proof_2);
         check_proof(&acc_proof_2, contract_address);
         for storage_proof in &acc_proof_2.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -697,7 +697,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_hash = client
         .eth_get_tx_by_block_hash_and_index(second_block.header.hash, U256::from(0))
         .await;
-    assert_eq!(tx_by_hash.hash, tx_hash);
+    assert_eq!(tx_by_hash.tx_hash(), tx_hash);
 
     // Assert getTransactionByBlockNumberAndIndex
     let tx_by_number = client
@@ -706,8 +706,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_number_tag = client
         .eth_get_tx_by_block_number_and_index(BlockNumberOrTag::Latest, U256::from(0))
         .await;
-    assert_eq!(tx_by_number.hash, tx_hash);
-    assert_eq!(tx_by_number_tag.hash, tx_hash);
+    assert_eq!(tx_by_number.tx_hash(), tx_hash);
+    assert_eq!(tx_by_number_tag.tx_hash(), tx_hash);
 
     let get_arg: U256 = client
         .contract_call(contract_address, contract.get_call_data(), None)

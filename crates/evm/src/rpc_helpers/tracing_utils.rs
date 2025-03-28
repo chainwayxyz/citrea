@@ -4,11 +4,8 @@ use alloy_rpc_types_trace::geth::{
     GethTrace, NoopFrame,
 };
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
-use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{
-    Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId, TxEnv,
-};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, TxEnv};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
@@ -285,14 +282,4 @@ pub(crate) fn caller_gas_allowance(balance: U256, value: U256, gas_price: U256) 
         .checked_div(gas_price)
         // This will be 0 if gas price is 0. It is fine, because we check it before.
         .unwrap_or_default())
-}
-
-/// Returns the addresses of the precompiles corresponding to the SpecId.
-#[inline]
-pub(crate) fn get_precompiles(spec_id: SpecId) -> impl IntoIterator<Item = Address> {
-    let spec = PrecompileSpecId::from_spec_id(spec_id);
-    Precompiles::new(spec)
-        .addresses()
-        .copied()
-        .map(Address::from)
 }
