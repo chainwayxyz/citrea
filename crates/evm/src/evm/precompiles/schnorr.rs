@@ -10,7 +10,15 @@ const SCHNORRVERIFY_BASE: u64 = 3500;
 pub const SCHNORRVERIFY: PrecompileWithAddress =
     PrecompileWithAddress(u64_to_address(0x200), Precompile::Standard(schnorr_verify));
 
-/// Verifies a Schnorr signature.
+/// Schnorr signature verification over secp256k1 curve as described in [BIP340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
+///
+/// The return value is empty bytes for unverified and 0x0000000000000000000000000000000000000000000000000000000000000001 for verified input case.
+///
+/// The input must be 128 bytes long and formatted as follows:
+///
+/// - 32 bytes: public key
+/// - 32 bytes: message hash
+/// - 64 bytes: signature
 pub fn schnorr_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if SCHNORRVERIFY_BASE > gas_limit {
         return Err(PrecompileError::OutOfGas.into());
