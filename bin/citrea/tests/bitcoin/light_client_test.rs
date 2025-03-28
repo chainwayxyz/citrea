@@ -1607,45 +1607,13 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is the regtest private key of batch prover
-                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
 
         let fake_sequencer_commitment = SequencerCommitment {
             merkle_root: [1u8; 32],
@@ -1978,45 +1946,13 @@ impl TestCase for ProofWithMissingCommitment {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is the regtest private key of batch prover
-                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
 
         da.generate(FINALITY_DEPTH).await?;
 
