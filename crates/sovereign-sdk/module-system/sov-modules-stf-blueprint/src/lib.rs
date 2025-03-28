@@ -382,7 +382,7 @@ where
                     Some(previous_sequencer_commitment.serialize_and_calculate_sha_256()),
                 )
             } else {
-                // If this is the first batch proof, then the first commitment idx should be 0
+                // If this is the first batch proof, then the first commitment idx should be 1
                 assert_eq!(
                     sequencer_commitments[0].index, 1,
                     "First commitment must be index 1"
