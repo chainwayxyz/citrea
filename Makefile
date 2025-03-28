@@ -84,7 +84,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 install-risc0:
 	curl -L https://risczero.com/install | bash
 	source $HOME/.bashrc
-	rzup install cargo-risczero 2.0.0-rc.2
+	rzup install cargo-risczero 2.0.0
 	rzup install rust 1.85.0
 
 install-sp1: ## Install necessary SP1 toolchain
