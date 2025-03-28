@@ -39,6 +39,7 @@ alloy-rpc-types-trace = { workspace = true, optional = true }
 alloy-serde = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true }
 itertools = { workspace = true, optional = true }
+k256 = { workspace = true, features = ["schnorr"] }
 reth-primitives = { workspace = true, default-features = false }
 reth-primitives-traits = { workspace = true, default-features = false }
 reth-provider = { workspace = true, optional = true }
@@ -51,7 +52,6 @@ reth-transaction-pool = { workspace = true, optional = true }
 revm = { workspace = true, default-features = false }
 revm-inspectors = { workspace = true, optional = true, features = ["js-tracer"] }
 revm-precompile = { workspace = true }
-k256 = { workspace = true, features = ["schnorr"] }
 
 [dev-dependencies]
 alloy = { workspace = true, features = ["consensus", "providers", "signers", "signer-local"] }

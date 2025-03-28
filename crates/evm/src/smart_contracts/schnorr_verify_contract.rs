@@ -18,7 +18,8 @@ pub struct SchnorrVerifyCallerContract {
 impl Default for SchnorrVerifyCallerContract {
     fn default() -> Self {
         let bytecode = {
-            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/SchnorrVerifyCaller.bin");
+            let bytecode_hex =
+                include_str!("../../../evm/src/evm/test_data/SchnorrVerifyCaller.bin");
             hex::decode(bytecode_hex).unwrap()
         };
 

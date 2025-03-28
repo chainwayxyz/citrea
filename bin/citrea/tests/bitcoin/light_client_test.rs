@@ -5,22 +5,19 @@ use std::time::Duration;
 use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::GroupCommitments;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
+use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -31,6 +28,7 @@ use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, Cum
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
+use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 const TWENTY_MINS: Duration = Duration::from_secs(20 * 60);
@@ -503,45 +501,15 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is a random private key matching guest's METHOD_ID_UPGRADE_AUTHORITY
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Other(
                 "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077".to_string(),
             ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        )
+        .await;
 
         let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
@@ -745,45 +713,13 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is the regtest private key of batch prover
-                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -967,45 +903,13 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is the regtest private key of batch prover
-                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -1307,45 +1211,13 @@ impl TestCase for UnchainedBatchProofsTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is the regtest private key of batch prover
-                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
 
         da.generate(FINALITY_DEPTH).await?;
 
@@ -1550,45 +1422,13 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // This is the regtest private key of batch prover
-                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
 
         da.generate(FINALITY_DEPTH).await?;
 

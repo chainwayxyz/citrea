@@ -13,8 +13,8 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
-    BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract, P256VerifyCallerContract, 
-    SchnorrVerifyCallerContract, SelfDestructorContract, SelfdestructingConstructorContract, 
+    BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract, P256VerifyCallerContract,
+    SchnorrVerifyCallerContract, SelfDestructorContract, SelfdestructingConstructorContract,
     SimpleStorageContract, TransientStorageContract,
 };
 use crate::tests::get_test_seq_pub_key;
@@ -660,7 +660,8 @@ fn test_schnorr_verify() {
         input.extend_from_slice(message.as_ref());
         input.extend_from_slice(signature.as_ref());
 
-        let call_message = call_schnorr_verify_transaction(contract_addr, &dev_signer, 1, Bytes::from(input));
+        let call_message =
+            call_schnorr_verify_transaction(contract_addr, &dev_signer, 1, Bytes::from(input));
 
         evm.call(
             CallMessage {

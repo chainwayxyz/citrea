@@ -10,13 +10,13 @@ mod db_commit;
 pub(crate) mod db_init;
 pub(crate) mod executor;
 pub(crate) mod handler;
+/// Precompiles for Citrea
+pub mod precompiles;
 pub(crate) mod primitive_types;
 /// System contracts used for system transactions
 pub mod system_contracts;
 /// System events used for creating system transactions
 pub mod system_events;
-/// Precompiles for Citrea
-pub mod precompiles;
 /// Get the last l1 block hash set in bitcoin light client contract
 pub use executor::{
     get_last_l1_height_and_hash_in_light_client, get_last_l1_height_in_light_client,
