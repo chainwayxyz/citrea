@@ -1,24 +1,20 @@
-use std::sync::Arc;
-
 use alloy_primitives::U64;
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
+use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
-use citrea_primitives::REVEAL_TX_PREFIX;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 
 use crate::bitcoin::batch_prover_test::wait_for_zkproofs;
+use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
 use super::{get_citrea_cli_path, get_citrea_path};
 
@@ -350,45 +346,13 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // Sequencer da private key
-                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
+        )
+        .await;
 
         for _ in 0..min_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
@@ -543,45 +507,13 @@ impl TestCase for ConflictingCommitmentsTest {
 
         let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                // Sequencer da private key
-                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
+        )
+        .await;
 
         for _ in 0..min_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -773,45 +705,13 @@ impl TestCase for OutOfRangeProofTest {
 
         println!("f.initial_da_height : {:?}", f.initial_da_height);
 
-        let da_config = &da.config;
-        let bitcoin_da_service_config = BitcoinServiceConfig {
-            node_url: format!(
-                "http://127.0.0.1:{}/wallet/{}",
-                da_config.rpc_port,
-                NodeKind::Bitcoin
-            ),
-            node_username: da_config.rpc_user.clone(),
-            node_password: da_config.rpc_password.clone(),
-            network: bitcoin::Network::Regtest,
-            // Prover DA private key for sending ZK proofs
-            da_private_key: Some(
-                "0BC643E7F5ED05A39E11B28B11D149BB3DC0210AE7A7A8EF365554DFC06E5F14".to_string(),
-            ),
-            tx_backup_dir: Self::test_config()
-                .dir
-                .join("tx_backup_dir")
-                .display()
-                .to_string(),
-            monitoring: Default::default(),
-            mempool_space_url: None,
-        };
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let bitcoin_da_service = Arc::new(
-            BitcoinService::new_with_wallet_check(
-                bitcoin_da_service_config,
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await
-            .unwrap(),
-        );
-
-        self.task_manager.spawn(TaskType::Secondary, |tk| {
-            bitcoin_da_service.clone().run_da_queue(rx, tk)
-        });
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
 
         // Generate two commitments to test pending proof over commitment ranges
         for _ in 0..min_l2_blocks_per_commitment * 2 {
