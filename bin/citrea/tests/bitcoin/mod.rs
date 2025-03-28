@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 pub mod batch_prover_test;
 pub mod light_client_test;
+mod utils;
 // pub mod mempool_accept;
 pub mod backup;
 pub mod bitcoin_test;
