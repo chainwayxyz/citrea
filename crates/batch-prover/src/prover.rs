@@ -136,7 +136,7 @@ where
             return Ok(());
         }
 
-        // sanity check
+        // verify state roots of commitment
         for commitment in commitments.iter() {
             let state_root = self
                 .ledger_db
