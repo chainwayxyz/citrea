@@ -806,7 +806,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         prover_da_pub_key: &[u8],
-    ) -> Vec<Proof> {
+    ) -> Vec<(usize, Proof)> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
 
@@ -950,7 +950,7 @@ impl DaService for BitcoinService {
         // restore the order of tx they appear in the block
         proofs.sort_by_key(|b| b.0);
 
-        proofs.into_iter().map(|(_, proof)| proof).collect()
+        proofs
     }
 
     /// Extract SequencerCommitment's from the block
@@ -958,10 +958,10 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         sequencer_da_pub_key: &[u8],
-    ) -> Vec<SequencerCommitment> {
+    ) -> Vec<(usize, SequencerCommitment)> {
         let mut sequencer_commitments = Vec::new();
 
-        for tx in &block.txdata {
+        for (idx, tx) in block.txdata.iter().enumerate() {
             if !tx
                 .compute_wtxid()
                 .to_byte_array()
@@ -979,7 +979,7 @@ impl DaService for BitcoinService {
                 {
                     let data = DataOnDa::try_from_slice(&seq_comm.body);
                     if let Ok(DataOnDa::SequencerCommitment(seq_com)) = data {
-                        sequencer_commitments.push(seq_com);
+                        sequencer_commitments.push((idx, seq_com));
                     }
                 }
             } else {

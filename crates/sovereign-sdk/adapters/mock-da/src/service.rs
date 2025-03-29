@@ -417,11 +417,11 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _prover_da_pub_key: &[u8],
-    ) -> Vec<Proof> {
+    ) -> Vec<(usize, Proof)> {
         let mut res = vec![];
-        for b in block.blobs.clone() {
+        for (idx, b) in block.blobs.clone().into_iter().enumerate() {
             if let Ok(DataOnDa::Complete(proof)) = DataOnDa::try_from_slice(b.full_data()) {
-                res.push(proof);
+                res.push((idx, proof));
             } else {
                 // ignore
             }
@@ -433,13 +433,13 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _sequencer_da_pub_key: &[u8],
-    ) -> Vec<SequencerCommitment> {
+    ) -> Vec<(usize, SequencerCommitment)> {
         let mut res = vec![];
-        for b in block.blobs.clone() {
+        for (idx, b) in block.blobs.clone().into_iter().enumerate() {
             if let Ok(DataOnDa::SequencerCommitment(seq_com)) =
                 DataOnDa::try_from_slice(b.full_data())
             {
-                res.push(seq_com);
+                res.push((idx, seq_com));
             }
         }
         res

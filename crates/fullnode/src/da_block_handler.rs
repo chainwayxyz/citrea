@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
+use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
 use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height_non_zero};
@@ -125,43 +125,56 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
-        let sequencer_commitments = extract_sequencer_commitments(
+        let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
             self.da_service.clone(),
             l1_block,
+            &self.prover_da_pub_key,
             &self.sequencer_da_pub_key,
-        );
+        )
+        .await;
 
-        let zk_proofs =
-            extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key).await;
+        let l2_end_block_number = commitments_and_proofs
+            .iter()
+            .filter_map(|item| match item {
+                ProofOrCommitment::Commitment(commitment) => Some(commitment.l2_end_block_number),
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0);
 
-        if !sequencer_commitments.is_empty() {
+        if l2_end_block_number > 0 {
             // If the L2 range does not exist, we break off the current process call
             // We retry the L1 block at a later tick.
-            if !check_l2_block_exists(
-                &self.ledger_db,
-                sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
-            ) {
+            if !check_l2_block_exists(&self.ledger_db, l2_end_block_number) {
                 warn!("L1 commitment received, but L2 range is not synced yet...");
                 return;
             }
         }
 
-        for zk_proof in zk_proofs.clone().iter() {
-            if let Err(e) = self.process_zk_proof(l1_block, zk_proof.clone()).await {
-                match e {
-                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                        warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
-                        return;
-                    }
-                    SyncError::Error(e) => {
-                        error!("Could not process ZK proofs: {}... skipping...", e);
-                    }
-                    SyncError::SequencerCommitmentNotFound(merkle_root) => {
-                        error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
-                    }
-                    SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
-                        error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
-                    }
+        for commitment_or_proof in commitments_and_proofs {
+            match commitment_or_proof {
+                ProofOrCommitment::Commitment(commitment) => {
+                    if let Err(e) = self
+                        .process_sequencer_commitment(l1_block, &commitment)
+                        .await
+                    {
+                        match e {
+                            SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                                warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
+                                return;
+                            }
+                            SyncError::Error(e) => {
+                                error!(
+                                    "Could not process sequencer commitments: {}... skipping",
+                                    e
+                                );
+                            }
+                            SyncError::SequencerCommitmentNotFound(_) => {
+                                unreachable!("Error irrelevant!")
+                            }
+                            SyncError::SequencerCommitmentWithIndexNotFound(_) => {
+                                unreachable!("Error irrelevant!")
+                            }
                     SyncError::ProvenHeightExceedsCommittedHeight(
                         proven_height,
                         committed_height,
@@ -170,33 +183,31 @@ where
                     }
                     SyncError::UnknownL1Hash => error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
                 }
-            }
-        }
-
-        for sequencer_commitment in sequencer_commitments.clone().iter() {
-            if let Err(e) = self
-                .process_sequencer_commitment(l1_block, sequencer_commitment)
-                .await
-            {
-                match e {
-                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                        warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
-                        return;
                     }
-                    SyncError::Error(e) => {
-                        error!("Could not process sequencer commitments: {}... skipping", e);
-                    }
-                    SyncError::SequencerCommitmentNotFound(_) => {
-                        unreachable!("Error irrelevant!")
-                    }
-                    SyncError::SequencerCommitmentWithIndexNotFound(_) => {
-                        unreachable!("Error irrelevant!")
-                    }
-                    SyncError::ProvenHeightExceedsCommittedHeight(_, _) => {
-                        unreachable!("Error irrelevant!")
-                    }
-                    SyncError::UnknownL1Hash => {
-                        unreachable!("Error irrelevant!")
+                }
+                ProofOrCommitment::Proof(proof) => {
+                    if let Err(e) = self.process_zk_proof(l1_block, proof).await {
+                        match e {
+                            SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                                warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
+                                return;
+                            }
+                            SyncError::Error(e) => {
+                                error!("Could not process ZK proofs: {}... skipping...", e);
+                            }
+                            SyncError::SequencerCommitmentNotFound(merkle_root) => {
+                                error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
+                            }
+                            SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
+                                error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
+                            }
+                            SyncError::ProvenHeightExceedsCommittedHeight(_, _) => {
+                                unreachable!("Error irrelevant!")
+                            }
+                            SyncError::UnknownL1Hash => {
+                                unreachable!("Error irrelevant!")
+                            }
+                        }
                     }
                 }
             }
