@@ -156,11 +156,11 @@ async fn test_all_flow() {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 2, None).await;
-
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&test_client, 1, None).await;
+
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     // send one ether to some address
     let _pending = test_client
