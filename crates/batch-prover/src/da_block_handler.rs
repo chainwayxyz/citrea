@@ -142,6 +142,9 @@ where
                 .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
             let l1_height = l1_block.header().height();
+
+            info!("Processing L1 block at height: {}", l1_height);
+
             let l1_block_hash = l1_block.header().hash().into();
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
                 Da::block_to_short_header_proof(l1_block.clone());

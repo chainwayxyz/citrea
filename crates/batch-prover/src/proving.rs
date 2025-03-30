@@ -164,7 +164,7 @@ where
             sequencer_commitments[*sequencer_commitments_range.end()].l2_end_block_number;
 
         tracing::info!(
-            "Providing input for batch proof circuit for L1 block at height: {}, L2 range #{}-#{}",
+            "Providing input for batch proof circuit for L1 block at height: {}, L2 range #{}-{}",
             l1_height,
             first_l2_height_of_l1,
             last_l2_height_of_l1
