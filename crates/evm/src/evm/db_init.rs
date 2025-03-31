@@ -14,7 +14,7 @@ pub(crate) trait InitEvmDb {
     fn insert_storage(&mut self, address: Address, index: U256, value: U256);
 }
 
-impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
+impl<C: sov_modules_api::Context> InitEvmDb for EvmDb<'_, C> {
     fn insert_account_info(&mut self, sender: Address, info: AccountInfo) {
         self.evm.account_set(&sender, &info, self.working_set);
     }

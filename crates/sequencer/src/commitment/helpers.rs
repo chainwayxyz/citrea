@@ -15,7 +15,7 @@ pub(super) fn load_next_commitment_index<Db: SequencerLedgerOps>(db: &Db) -> u32
     if let Some(max_db) = max_db {
         max_db + 1
     } else {
-        // if comms are empty, then index is 0
-        0
+        // if comms are empty, then index is 1
+        1
     }
 }

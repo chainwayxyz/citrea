@@ -86,7 +86,6 @@ pub trait SharedLedgerOps {
     ) -> Result<Vec<StoredL2Block>>;
 
     /// Gets all l2 blocks by numbers
-
     fn get_l2_block_by_number(&self, number: &L2BlockNumber) -> Result<Option<StoredL2Block>>;
 
     /// Get the most recent committed batch

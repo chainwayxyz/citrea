@@ -74,8 +74,11 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
     fn from(value: StoredBatchProofOutput) -> Self {
         match value {
             StoredBatchProofOutput::V3(value) => Self {
-                initial_state_root: value.initial_state_root.to_vec(),
-                final_state_root: value.final_state_root.to_vec(),
+                state_roots: value
+                    .state_roots
+                    .iter()
+                    .map(|x| SerializableHash(x.to_vec()))
+                    .collect(),
                 state_diff: value.state_diff,
                 final_l2_block_hash: value.final_l2_block_hash.to_vec(),
                 last_l2_height: U64::from(value.last_l2_height),

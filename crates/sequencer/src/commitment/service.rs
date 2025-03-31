@@ -294,7 +294,7 @@ where
                     .delete_pending_commitment(pending_db_comm.index)?;
             } else {
                 // Submit commitment
-                let l2_start_block_number = if pending_db_comm.index == 0 {
+                let l2_start_block_number = if pending_db_comm.index == 1 {
                     get_fork2_activation_height_non_zero()
                 } else {
                     self.ledger_db

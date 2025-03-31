@@ -2300,6 +2300,7 @@ dependencies = [
 name = "citrea-light-client-prover"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "bitcoin-da",

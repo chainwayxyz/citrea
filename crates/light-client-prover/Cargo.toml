@@ -23,8 +23,10 @@ sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", def
 sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core", default-features = false }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state", optional = true, features = ["native"] }
 
 # 3rd-party deps
+alloy-primitives = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -67,4 +69,7 @@ native = [
   "dep:tokio",
   "dep:tokio-util",
   "dep:tracing",
+  "dep:alloy-primitives",
+  "sov-rollup-interface/native",
+  "dep:sov-state",
 ]
