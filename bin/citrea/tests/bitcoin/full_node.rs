@@ -117,7 +117,7 @@ impl TestCase for L2StatusTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(150)
+        Some(175)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
