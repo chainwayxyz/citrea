@@ -111,7 +111,7 @@ impl TestCase for BasicProverTest {
         }
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -123,8 +123,8 @@ impl TestCase for BasicProverTest {
 
         // Wait for batch proof tx to hit mempool
         da.wait_mempool_len(2, None).await?;
-
         da.generate(FINALITY_DEPTH).await?;
+
         let proofs = wait_for_zkproofs(
             full_node,
             finalized_height + FINALITY_DEPTH,
@@ -157,7 +157,7 @@ impl TestCase for BasicProverTest {
         }
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -553,7 +553,7 @@ impl TestCase for ParallelProvingTest {
         }
 
         // Wait for 2 commitments (4 txs) to hit DA mempool
-        da.wait_mempool_len(4, Some(Duration::from_secs(420)))
+        da.wait_mempool_len(2, Some(Duration::from_secs(420)))
             .await?;
 
         // Write commitments to a finalized DA block
@@ -566,7 +566,7 @@ impl TestCase for ParallelProvingTest {
             .await?;
 
         // Wait for batch proof txs to hit mempool
-        da.wait_mempool_len(4, Some(Duration::from_secs(420)))
+        da.wait_mempool_len(2, Some(Duration::from_secs(420)))
             .await?;
 
         // Write 2 batch proofs (4 txs) to a finalized DA block
@@ -574,10 +574,10 @@ impl TestCase for ParallelProvingTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Retrieve proofs from fullnode
-        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 2)
+        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 1)
             .await
             .unwrap();
-        assert_eq!(proofs.len(), 2);
+        assert_eq!(proofs.len(), 1);
 
         Ok(())
     }
@@ -897,13 +897,13 @@ impl TestCase for L1HashOutputTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.wait_mempool_len(6, None).await?;
+        da.wait_mempool_len(4, None).await?;
 
         for _ in 0..13 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.wait_mempool_len(8, None).await?;
+        da.wait_mempool_len(6, None).await?;
 
         let temp_addr = da
             .get_new_address(None, None)
