@@ -664,6 +664,17 @@ impl SequencerLedgerOps for LedgerDB {
         Ok(())
     }
 
+    /// Sets the state diff by block number
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn delete_state_diff(&self, l2_height: L2BlockNumber) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<StateDiffByBlockNumber>(&l2_height)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
     /// Gets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff, anyhow::Error> {

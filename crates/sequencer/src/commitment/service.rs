@@ -223,7 +223,6 @@ where
         Ok(())
     }
 
-    // TODO Re-write since da_slot_height is not indexed as part of L2Block. Ref https://github.com/chainwayxyz/citrea/issues/1998
     #[instrument(level = "trace", skip(self, working_set), err, ret)]
     pub async fn resubmit_pending_commitments(
         &mut self,
