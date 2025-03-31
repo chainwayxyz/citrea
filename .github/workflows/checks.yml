@@ -159,10 +159,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2024-07-27
-          override: true
+        uses: dtolnay/rust-toolchain@nightly
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
