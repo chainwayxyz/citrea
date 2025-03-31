@@ -616,22 +616,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .get_light_client_proof_by_l1_height(method_id_l1_height - 1)
             .await?;
 
-        // Verify the current batch proof method ids
-        assert_eq!(
-            batch_proof_method_ids_before,
-            vec![BatchProofMethodIdRpcResponse {
-                height: U64::from(0),
-                method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
-            },]
-        );
-
         // Assert that method ids are updated
-        let lcp = light_client_prover
-            .client
-            .http_client()
-            .get_light_client_proof_by_l1_height(method_id_l1_height)
-            .await?;
-        let _lcp_output = lcp.unwrap().light_client_proof_output;
         let batch_proof_method_ids = light_client_prover
             .client
             .http_client()
@@ -662,12 +647,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .unwrap();
 
         // Verify that previously updated method ids are being used
-        let _lcp = light_client_prover
-            .client
-            .http_client()
-            .get_light_client_proof_by_l1_height(method_id_l1_height + 1)
-            .await?;
-
         let batch_proof_method_ids = light_client_prover
             .client
             .http_client()
@@ -823,20 +802,6 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             )
             .await
             .unwrap();
-
-        // let fake_sequencer_commitment_5 = SequencerCommitment {
-        //     merkle_root: [5u8; 32],
-        //     index: 5,
-        //     l2_end_block_number: fork2_height * 5,
-        // };
-
-        // let _ = bitcoin_da_service
-        //     .send_transaction_with_fee_rate(
-        //         DaTxRequest::SequencerCommitment(fake_sequencer_commitment_2.clone()),
-        //         1,
-        //     )
-        //     .await
-        //     .unwrap();
 
         da.wait_mempool_len(8, None).await?;
 

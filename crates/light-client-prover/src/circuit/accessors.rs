@@ -177,14 +177,12 @@ pub struct BatchProofMethodIdAccessor<S: Storage> {
 
 impl<S: Storage> BatchProofMethodIdAccessor<S> {
     const PREFIX: u8 = b'm';
-    const KEY: u8 = b'm';
 
     fn key() -> StorageKey {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
-        let mut key = [0u8; 2]; // 1 prefix + 1 byte
+        let mut key = [0u8; 1]; // 1 prefix + 1 byte
 
         key[0] = Self::PREFIX;
-        key[1] = Self::KEY;
 
         let p = Prefix::from_slice(&key);
         StorageKey::singleton_owned(p)
@@ -215,10 +213,14 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         working_set: &mut WorkingSet<S>,
     ) {
         let key = Self::key();
-        let mut method_ids = Self::get(working_set).unwrap_or_default();
-        method_ids.extend(initial_batch_proof_method_ids);
+        let method_ids = Self::get(working_set).unwrap_or_default();
 
-        let value: StorageValue = borsh::to_vec(&method_ids)
+        assert!(
+            method_ids.is_empty(),
+            "When initialized, method ids must be empty!"
+        );
+
+        let value: StorageValue = borsh::to_vec(&initial_batch_proof_method_ids)
             .expect("Batch proof method ids serialization should not fail")
             .into();
         working_set.set(&key, value);
