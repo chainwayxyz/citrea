@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use anyhow::{anyhow, ensure};
+use anyhow::ensure;
 use citrea_common::utils::merge_state_diffs;
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::MAX_TXBODY_SIZE;
@@ -78,7 +78,7 @@ where
         let end_l2_height = ledger_db
             .get_head_l2_block()?
             .map(|(height, _)| height)
-            .ok_or(anyhow!("Could not get head L2 block"))?
+            .unwrap_or(L2BlockNumber(1))
             .0;
 
         let mut merged_state_diff = vec![];
