@@ -52,11 +52,12 @@ clean-docker:
 
 clean-all: clean clean-node clean-txs
 
-test-legacy: ## Runs test suite with output from tests printed
-	@cargo test -- --nocapture -Zunstable-options --report-time
-
+no_capture_param =
+ifdef TEST_NO_CAPTURE
+	no_capture_param = --no-capture
+endif
 test-ci:
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run $(no_capture_param) --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 coverage-ci:
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
