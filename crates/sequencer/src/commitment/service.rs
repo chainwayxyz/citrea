@@ -134,10 +134,6 @@ where
 
                         let commitment_info = match commitment_info {
                             Ok(Some(commitment_info)) => {
-                                commitment_controller.reset();
-                                if let Err(e) = commitment_controller.clear_commitment_state_diffs(commitment_info.start().0..=commitment_info.end().0) {
-                                    error!("Could not clear commitment state diffs: {:?}", e);
-                                }
                                 commitment_info
                             },
                             Err(e) => {
@@ -149,14 +145,18 @@ where
                             }
                         };
 
+                        commitment_controller.reset();
+                        if let Err(e) = commitment_controller.clear_commitment_state_diffs(commitment_info.start().0..=commitment_info.end().0) {
+                            error!("Could not clear commitment state diffs: {:?}", e);
+                        }
+
                         let index = self.next_commitment_index;
-                        self.next_commitment_index += 1;
+
+                        from_l2_height = L2BlockNumber(commitment_info.end().0 + 1);
 
                         if let Err(e) = self.commit(index, &commitment_info).await {
                             error!("Could not submit commitment: {:?}", e);
                         }
-
-                        from_l2_height = L2BlockNumber(commitment_info.end().0 + 1);
 
                         // Stop and let the next tick start from the last set `from_l2_height`
                         break;
@@ -231,6 +231,9 @@ where
             .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
 
         ledger_db.delete_pending_commitment(commitment.index)?;
+
+        // Increment the next commitment index here knowing that it completed successfully.
+        self.next_commitment_index += 1;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
