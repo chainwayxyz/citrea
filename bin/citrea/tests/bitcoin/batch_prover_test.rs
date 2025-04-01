@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{Address, U32, U64};
+use alloy_primitives::{Address, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
@@ -111,7 +111,7 @@ impl TestCase for BasicProverTest {
         }
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -123,8 +123,8 @@ impl TestCase for BasicProverTest {
 
         // Wait for batch proof tx to hit mempool
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
 
+        da.generate(FINALITY_DEPTH).await?;
         let proofs = wait_for_zkproofs(
             full_node,
             finalized_height + FINALITY_DEPTH,
@@ -151,33 +151,13 @@ impl TestCase for BasicProverTest {
             );
         }
 
-        let index_range = proofs[0].proof_output.sequencer_commitment_index_range;
-        let index_range = (index_range.0.to::<u32>(), index_range.1.to::<u32>());
-
-        for (i, commitment_idx) in (index_range.0..=index_range.1).enumerate() {
-            let commitment = full_node
-                .client
-                .http_client()
-                .get_sequencer_commitment_by_index(U32::from(commitment_idx))
-                .await?
-                .unwrap();
-            let l2_block = sequencer
-                .client
-                .http_client()
-                .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
-                .await?
-                .unwrap();
-            let state_roots = proofs[0].proof_output.state_roots.clone();
-            assert_eq!(state_roots[i + 1].0, l2_block.header.state_root.to_vec());
-        }
-
         // Generate proof against seqcom not starting from genesis
         for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -573,7 +553,7 @@ impl TestCase for ParallelProvingTest {
         }
 
         // Wait for 2 commitments (4 txs) to hit DA mempool
-        da.wait_mempool_len(2, Some(Duration::from_secs(420)))
+        da.wait_mempool_len(4, Some(Duration::from_secs(420)))
             .await?;
 
         // Write commitments to a finalized DA block
@@ -586,7 +566,7 @@ impl TestCase for ParallelProvingTest {
             .await?;
 
         // Wait for batch proof txs to hit mempool
-        da.wait_mempool_len(2, Some(Duration::from_secs(420)))
+        da.wait_mempool_len(4, Some(Duration::from_secs(420)))
             .await?;
 
         // Write 2 batch proofs (4 txs) to a finalized DA block
@@ -594,10 +574,10 @@ impl TestCase for ParallelProvingTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Retrieve proofs from fullnode
-        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 1)
+        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 2)
             .await
             .unwrap();
-        assert_eq!(proofs.len(), 1);
+        assert_eq!(proofs.len(), 2);
 
         Ok(())
     }
@@ -917,13 +897,13 @@ impl TestCase for L1HashOutputTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(6, None).await?;
 
         for _ in 0..13 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.wait_mempool_len(6, None).await?;
+        da.wait_mempool_len(8, None).await?;
 
         let temp_addr = da
             .get_new_address(None, None)

@@ -269,7 +269,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         da.generate(FINALITY_DEPTH).await?;
 
         let start_l2_block = end_l2_block + 1;
-        let end_l2_block = sequencer.client.ledger_get_head_l2_block_height().await?;
+        let end_l2_block = end_l2_block + max_l2_blocks_per_commitment;
 
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;

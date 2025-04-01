@@ -222,7 +222,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let n_commitments = 1;
+        let n_commitments = 2;
 
         // publish max_l2_blocks_per_commitment confirmations
         for _ in 0..n_commitments * max_l2_blocks_per_commitment {
@@ -256,7 +256,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .unwrap();
 
         // Ensure that batch proofs are submitted to DA (2x reveal & 2x commit txs)
-        da.wait_mempool_len(2, Some(TWENTY_MINS)).await?;
+        da.wait_mempool_len(4, Some(TWENTY_MINS)).await?;
 
         // Assert that commitments are queryable this also means that the batch proofs are submitted to DA
         let commitments = batch_prover
@@ -275,8 +275,8 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 1).await?;
-        assert_eq!(batch_proofs.len(), 1);
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 2).await?;
+        assert_eq!(batch_proofs.len(), 2);
 
         // Wait for light client prover to process batch proofs.
         light_client_prover
