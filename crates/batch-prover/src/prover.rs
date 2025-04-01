@@ -247,16 +247,7 @@ where
         let mut state = PartitionState::new(commitments, start_l2_height);
 
         if mode == PartitionMode::OneByOne {
-            let mut commitment_start_height = start_l2_height;
-            for (i, commitment) in commitments.iter().enumerate() {
-                let commitment_end_height = commitment.l2_end_block_number;
-
-                let commitment_state_diff =
-                    self.get_state_diff(commitment_start_height, commitment_end_height)?;
-                assert_state_diff_threshold(&commitment_state_diff);
-
-                commitment_start_height = commitment_end_height + 1;
-
+            for i in 0..commitments.len() {
                 state.add_partition(i, "onebyone");
             }
             return Ok(state.into_inner());
@@ -275,9 +266,14 @@ where
 
             commitment_start_height = commitment_end_height + 1;
 
+            // if first commitment, no need to check any condition
+            if i == 0 {
+                cumulative_state_diff = commitment_state_diff;
+                continue;
+            }
+
             // check index gap
-            if i != 0 && commitment.index != commitments[i - 1].index + 1 {
-                assert_state_diff_threshold(&commitment_state_diff);
+            if commitment.index != commitments[i - 1].index + 1 {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, "indexgap"); // i - 1 because inclusive
                 continue;
@@ -285,10 +281,7 @@ where
 
             // check spec change
             let current_spec = fork_from_block_number(commitment_end_height);
-            if i != 0
-                && current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number)
-            {
-                assert_state_diff_threshold(&commitment_state_diff);
+            if current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number) {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, "specchange"); // i - 1 because inclusive
                 continue;
@@ -303,7 +296,6 @@ where
 
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
-                assert_state_diff_threshold(&commitment_state_diff);
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, "statediff"); // i - 1 because inclusive
                 continue;
@@ -551,16 +543,6 @@ struct Partition<'a> {
     commitments: &'a [SequencerCommitment],
     start_height: u64,
     end_height: u64,
-}
-
-#[inline(always)]
-fn assert_state_diff_threshold(state_diff: &StateDiff) {
-    let serialized_diff = borsh::to_vec(state_diff).expect("Diff serialization cannot fail");
-    let compressed_diff = compress_blob(&serialized_diff).expect("Diff compression cannot fail");
-    assert!(
-        compressed_diff.len() > MAX_TXBODY_SIZE,
-        "Got single commitment bigger than txbody limit"
-    );
 }
 
 const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
