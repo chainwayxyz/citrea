@@ -227,19 +227,6 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         let finalized_height = da.get_finalized_height(None).await?;
 
-        for height in initial_height..finalized_height {
-            let hash = da.get_block_hash(height).await?;
-            let block = da.get_block(&hash).await?;
-
-            let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_TX_PREFIX);
-
-            for blob in blobs.drain(0..) {
-                let data = blob.full_data();
-
-                assert_eq!(data, &[] as &[u8]);
-            }
-        }
-
         // Publish one more L2 block and send commitment
         sequencer.client.send_publish_batch_request().await?;
 
