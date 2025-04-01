@@ -152,7 +152,6 @@ sol!(
 );
 
 /// WCBTC wrapper.
-
 pub struct WCBTC {}
 
 impl WCBTC {

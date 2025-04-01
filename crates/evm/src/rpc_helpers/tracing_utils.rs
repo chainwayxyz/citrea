@@ -458,8 +458,5 @@ pub(crate) fn caller_gas_allowance(balance: U256, value: U256, gas_price: U256) 
 #[inline]
 pub(crate) fn get_precompiles(spec_id: SpecId) -> impl IntoIterator<Item = Address> {
     let spec = PrecompileSpecId::from_spec_id(spec_id);
-    Precompiles::new(spec)
-        .addresses()
-        .copied()
-        .map(Address::from)
+    Precompiles::new(spec).addresses().copied()
 }

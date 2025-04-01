@@ -86,6 +86,7 @@ install-risc0:
 	source ~/.bashrc
 	source ~/.zshrc
 	rzup install
+	rzup install rust 1.85.0
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash

@@ -136,7 +136,7 @@ impl<K, V> IteratorOutput<K, V> {
     }
 }
 
-impl<'a, S> Iterator for SchemaIterator<'a, S>
+impl<S> Iterator for SchemaIterator<'_, S>
 where
     S: Schema,
 {
@@ -147,7 +147,7 @@ where
     }
 }
 
-impl<'a, S> FusedIterator for SchemaIterator<'a, S> where S: Schema {}
+impl<S> FusedIterator for SchemaIterator<'_, S> where S: Schema {}
 
 /// Iterates over given column backwards
 pub struct RawDbReverseIterator<'a> {
@@ -167,7 +167,7 @@ impl<'a> RawDbReverseIterator<'a> {
     }
 }
 
-impl<'a> Iterator for RawDbReverseIterator<'a> {
+impl Iterator for RawDbReverseIterator<'_> {
     type Item = (SchemaKey, SchemaValue);
 
     fn next(&mut self) -> Option<Self::Item> {

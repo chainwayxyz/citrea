@@ -65,7 +65,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     }
 }
 
-impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
+impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     type Error = DBError;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
@@ -143,7 +143,7 @@ pub mod immutable {
         }
     }
 
-    impl<'a, 'b, C: sov_modules_api::Context> Database for EvmDbRef<'a, 'b, C> {
+    impl<C: sov_modules_api::Context> Database for EvmDbRef<'_, '_, C> {
         type Error = DBError;
 
         fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
@@ -163,7 +163,7 @@ pub mod immutable {
         }
     }
 
-    impl<'a, 'b, C: sov_modules_api::Context> revm::DatabaseRef for EvmDbRef<'a, 'b, C> {
+    impl<C: sov_modules_api::Context> revm::DatabaseRef for EvmDbRef<'_, '_, C> {
         type Error = DBError;
 
         fn basic_ref(&self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {

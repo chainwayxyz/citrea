@@ -57,8 +57,8 @@ fn load_next_commitment_index<Db: SequencerLedgerOps>(db: &Db) -> u32 {
     if let Some(max_db) = max_db {
         max_db + 1
     } else {
-        // if comms are empty, then index is 0
-        0
+        // if comms are empty, then index is 1
+        1
     }
 }
 
@@ -284,7 +284,7 @@ where
                     .delete_pending_commitment(pending_db_comm.index)?;
             } else {
                 // Submit commitment
-                let l2_start_block_number = if pending_db_comm.index == 0 {
+                let l2_start_block_number = if pending_db_comm.index == 1 {
                     get_fork2_activation_height_non_zero()
                 } else {
                     self.ledger_db

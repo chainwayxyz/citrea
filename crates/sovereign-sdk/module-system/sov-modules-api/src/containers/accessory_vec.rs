@@ -64,7 +64,7 @@ where
     }
 }
 
-impl<'a, V, Codec, S> StateVecAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
+impl<V, Codec, S> StateVecAccessor<V, Codec, AccessoryWorkingSet<'_, S>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,

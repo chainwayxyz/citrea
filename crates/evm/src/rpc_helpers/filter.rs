@@ -221,7 +221,7 @@ impl<T: Eq + Hash> From<T> for FilterSet<T> {
 
 impl<T: Eq + Hash> From<Vec<T>> for FilterSet<T> {
     fn from(src: Vec<T>) -> Self {
-        FilterSet(HashSet::from_iter(src.into_iter().map(Into::into)))
+        FilterSet(HashSet::from_iter(src))
     }
 }
 

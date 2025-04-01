@@ -20,7 +20,7 @@ pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
     pub(crate) evm: revm::Evm<'a, EXT, DB>,
 }
 
-impl<'a, EXT, DB> CitreaEvm<'a, EXT, DB>
+impl<EXT, DB> CitreaEvm<'_, EXT, DB>
 where
     DB: Database,
     EXT: CitreaExternalExt,
