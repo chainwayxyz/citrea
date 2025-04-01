@@ -610,7 +610,7 @@ where
             self.ledger_db.clone(),
             self.da_service.clone(),
             self.sequencer_da_pub_key.clone(),
-            self.config.min_l2_blocks_per_commitment,
+            self.config.max_l2_blocks_per_commitment,
         );
         if self.l2_block_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init

@@ -28,7 +28,7 @@ where
     Db: SequencerLedgerOps,
 {
     ledger_db: Db,
-    min_l2_blocks: u64,
+    max_l2_blocks: u64,
     state_diff: Mutex<AccumulatedStateDiff>,
 }
 
@@ -36,14 +36,14 @@ impl<Db> CommitmentController<Db>
 where
     Db: SequencerLedgerOps,
 {
-    pub fn new(ledger_db: Db, min_l2_blocks: u64) -> Self {
+    pub fn new(ledger_db: Db, max_l2_blocks: u64) -> Self {
         let state_diff = Mutex::new(
             Self::construct_merged_state_diff(&ledger_db)
                 .expect("Should be able to construct existing state diff"),
         );
         Self {
             ledger_db,
-            min_l2_blocks,
+            max_l2_blocks,
             state_diff,
         }
     }
@@ -61,7 +61,7 @@ where
         }
 
         // Check if l2 block threshold is reached
-        if let Some(info) = self.check_min_l2_blocks(from_l2_height, to_l2_height)? {
+        if let Some(info) = self.check_max_l2_blocks(from_l2_height, to_l2_height)? {
             // Clear state diff
             return Ok(Some(info));
         }
@@ -93,7 +93,7 @@ where
         })
     }
 
-    fn check_min_l2_blocks(
+    fn check_max_l2_blocks(
         &self,
         from_l2_height: L2BlockNumber,
         to_l2_height: L2BlockNumber,
@@ -108,7 +108,7 @@ where
         );
 
         let l2_range_length = 1 + l2_end - l2_start;
-        if l2_range_length < self.min_l2_blocks {
+        if l2_range_length < self.max_l2_blocks {
             return Ok(None);
         }
 
