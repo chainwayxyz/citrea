@@ -1977,8 +1977,8 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         .last(&mut working_set.accessory_state())
         .expect("Head block must be set");
 
-    evm.latest_block_hashes.set(
-        &latest_block.header.number,
+    evm.blockhash_set(
+        latest_block.header.number,
         &latest_block.header.hash(),
         working_set,
     );
