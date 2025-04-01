@@ -14,7 +14,7 @@ pub struct Manifest<'a> {
     value: Value,
 }
 
-impl<'a> ops::Deref for Manifest<'a> {
+impl ops::Deref for Manifest<'_> {
     type Target = Value;
 
     fn deref(&self) -> &Self::Target {

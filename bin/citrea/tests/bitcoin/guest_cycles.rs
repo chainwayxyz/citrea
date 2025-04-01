@@ -37,7 +37,7 @@ impl TestCase for GenerateProofInput {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 150,
+            max_l2_blocks_per_commitment: 150,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 1_000_000,
                 pending_tx_size: 100_000_000,

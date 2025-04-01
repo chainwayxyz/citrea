@@ -292,7 +292,7 @@ impl MockDaService {
             let mut planned_fork_guard = self.planned_fork.lock().unwrap();
             if planned_fork_guard
                 .as_ref()
-                .map_or(false, |x| x.trigger_at_height == height)
+                .is_some_and(|x| x.trigger_at_height == height)
             {
                 Some(planned_fork_guard.take().unwrap())
             } else {

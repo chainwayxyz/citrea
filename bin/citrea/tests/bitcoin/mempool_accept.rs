@@ -31,7 +31,7 @@ impl TestCase for MempoolAcceptTest {
             .sequencer
             .config
             .node
-            .min_l2_blocks_per_commitment;
+            .max_l2_blocks_per_commitment;
 
         // publish min_l2_block_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_l2_block_per_commitment {

@@ -17,3 +17,4 @@ runs:
         curl -L https://risczero.com/install | bash
         export PATH="$PATH:$HOME/.risc0/bin"
         rzup install
+        rzup install rust 1.85.0

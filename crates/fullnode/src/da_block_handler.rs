@@ -259,7 +259,7 @@ where
             return Ok(());
         }
 
-        let start_l2_height = if sequencer_commitment.index == 0 {
+        let start_l2_height = if sequencer_commitment.index == 1 {
             get_fork2_activation_height_non_zero()
         } else {
             match self

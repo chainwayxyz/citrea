@@ -32,6 +32,7 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -50,14 +51,14 @@ use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
-use crate::commitment::CommitmentService;
+use crate::commitment::service::CommitmentService;
 use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
@@ -328,7 +329,7 @@ where
         mut da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         last_used_l1_height: &mut u64,
-    ) -> anyhow::Result<(u64, StateDiff)> {
+    ) -> anyhow::Result<u64> {
         let start: Instant = Instant::now();
         let l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
         self.fork_manager.register_block(l2_height)?;
@@ -359,7 +360,7 @@ where
         l1_fee_rate: u128,
         l2_height: u64,
         last_used_l1_height: &mut u64,
-    ) -> anyhow::Result<(u64, StateDiff)> {
+    ) -> anyhow::Result<u64> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
         // TODO: after L2Block refactor PR, we'll need to change native provider
@@ -481,6 +482,9 @@ where
 
         let state_diff = self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
 
+        self.ledger_db
+            .set_state_diff(L2BlockNumber(l2_height), &state_diff)?;
+
         self.maintain_mempool(l1_fee_failed_txs)?;
 
         // Update last used l1 height if this is a new da block
@@ -488,7 +492,7 @@ where
             *last_used_l1_height = l1_height;
         }
 
-        Ok((l2_height, state_diff))
+        Ok(l2_height)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -534,8 +538,6 @@ where
 
         self.state_root = next_state_root;
         self.l2_block_hash = l2_block_hash;
-
-        // this was saving L2 block
 
         Ok(l2_block_result.state_diff)
     }
@@ -603,14 +605,12 @@ where
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
-        let (da_commitment_tx, da_commitment_rx) = unbounded_channel::<(u64, StateDiff)>();
 
         let mut commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
             self.da_service.clone(),
             self.sequencer_da_pub_key.clone(),
-            self.config.min_l2_blocks_per_commitment,
-            da_commitment_rx,
+            self.config.max_l2_blocks_per_commitment,
         );
         if self.l2_block_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
@@ -674,12 +674,10 @@ where
                     }
                     let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
-                        Ok((l2_height, state_diff)) => {
+                        Ok(l2_height) => {
 
                             // Only errors when there are no receivers
                             let _ = self.l2_block_tx.send(l2_height);
-
-                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -707,11 +705,9 @@ where
 
                     let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
-                        Ok((l2_height, state_diff)) => {
+                        Ok(l2_height) => {
                             // Only errors when there are no receivers
                             let _ = self.l2_block_tx.send(l2_height);
-
-                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);

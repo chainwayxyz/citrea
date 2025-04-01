@@ -2186,7 +2186,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=8cd9f5f#8cd9f5f024bb64e768414d9fe21d4e53767c8b88"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=95b8d90#95b8d9056bdf0a69de6e45a154b5d2c79a80ac76"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2302,6 +2302,7 @@ dependencies = [
 name = "citrea-light-client-prover"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "bitcoin-da",

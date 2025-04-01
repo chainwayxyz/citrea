@@ -49,7 +49,7 @@ impl<V, Codec> AccessoryStateValue<V, Codec> {
     }
 }
 
-impl<'a, V, Codec, S: Storage> StateValueAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
+impl<V, Codec, S: Storage> StateValueAccessor<V, Codec, AccessoryWorkingSet<'_, S>>
     for AccessoryStateValue<V, Codec>
 where
     Codec: StateCodec,

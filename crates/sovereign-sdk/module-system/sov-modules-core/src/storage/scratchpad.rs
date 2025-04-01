@@ -737,7 +737,7 @@ pub struct AccessoryWorkingSet<'a, S: Storage> {
     ws: &'a mut WorkingSet<S>,
 }
 
-impl<'a, S: Storage> StateReaderAndWriter for AccessoryWorkingSet<'a, S> {
+impl<S: Storage> StateReaderAndWriter for AccessoryWorkingSet<'_, S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
         if !cfg!(feature = "native") {
             None
@@ -774,7 +774,7 @@ pub struct OffchainWorkingSet<'a, S: Storage> {
     ws: &'a mut WorkingSet<S>,
 }
 
-impl<'a, S: Storage> StateReaderAndWriter for OffchainWorkingSet<'a, S> {
+impl<S: Storage> StateReaderAndWriter for OffchainWorkingSet<'_, S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
         match &mut self.ws.archival_offchain_working_set {
             None => self.ws.offchain_delta.get(key),

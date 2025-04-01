@@ -7,7 +7,9 @@ use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
 use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
-use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa, SequencerCommitment,
+};
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -15,28 +17,68 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 
 use crate::circuit::LightClientProofCircuit;
 
+pub(crate) fn create_mock_sequencer_commitment(
+    index: u32,
+    l2_end: u64,
+    merkle_root: [u8; 32],
+) -> SequencerCommitment {
+    SequencerCommitment {
+        index,
+        l2_end_block_number: l2_end,
+        merkle_root,
+    }
+}
+
+pub(crate) fn create_mock_sequencer_commitment_blob(
+    sequencer_commitment: SequencerCommitment,
+) -> MockBlob {
+    let da_data = DataOnDa::SequencerCommitment(sequencer_commitment);
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+
+    let blob = MockBlob::new(da_data_ser, MockAddress::new([9u8; 32]), [0u8; 32], None);
+    blob.full_data();
+
+    blob
+}
+
 pub(crate) fn create_mock_batch_proof(
     initial_state_root: [u8; 32],
-    final_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    prev_commitment_hash: Option<[u8; 32]>,
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    //TODO: FIXME The new added values are all wrong
+    let commitment_hashes: Vec<[u8; 32]> = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect();
+    let prev_index = if sequencer_commitments[0].index == 1 {
+        None
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
+
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
-        initial_state_root,
-        final_state_root,
+        state_roots,
         final_l2_block_hash: [4; 32],
         state_diff: BTreeMap::new(),
         last_l2_height,
-        // TODO: Update this
-        sequencer_commitment_hashes: vec![],
+        sequencer_commitment_hashes: commitment_hashes,
         last_l1_hash_on_bitcoin_light_client_contract,
-        sequencer_commitment_index_range: (0, 0),
-        previous_commitment_index: None,
-        previous_commitment_hash: None,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index: prev_index,
+        previous_commitment_hash: prev_commitment_hash,
     });
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
@@ -63,27 +105,43 @@ pub(crate) fn create_mock_batch_proof(
 
 pub(crate) fn create_serialized_mock_proof(
     initial_state_root: [u8; 32],
-    final_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
     state_diff: Option<CumulativeStateDiff>,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    prev_commitment_hash: Option<[u8; 32]>,
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    //TODO: FIXME The new added values are all wrong
+    let commitment_hashes: Vec<[u8; 32]> = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect();
+    let prev_index = if sequencer_commitments[0].index == 1 {
+        None
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
+
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
-        initial_state_root,
-        final_state_root,
+        state_roots,
         final_l2_block_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
         last_l2_height,
-        // TODO: Update this
-        sequencer_commitment_hashes: vec![],
+        sequencer_commitment_hashes: commitment_hashes,
         last_l1_hash_on_bitcoin_light_client_contract,
-        sequencer_commitment_index_range: (0, 0),
-        previous_commitment_index: None,
-        previous_commitment_hash: None,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index: prev_index,
+        previous_commitment_hash: prev_commitment_hash,
     });
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
