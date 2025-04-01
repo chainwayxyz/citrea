@@ -225,9 +225,6 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .wait_for_l2_height(max_l2_blocks_per_commitment - 1, None)
             .await?;
 
-        da.generate(FINALITY_DEPTH).await?;
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-
         let finalized_height = da.get_finalized_height(None).await?;
 
         for height in initial_height..finalized_height {
@@ -251,7 +248,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH).await?;
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(Duration::from_millis(1)).await;
 
         let start_l2_block = 1;
         let end_l2_block = sequencer.client.ledger_get_head_l2_block_height().await?;
