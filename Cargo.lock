@@ -2186,7 +2186,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=rakanalh%2Fmax-l2-blocks#18fa14db6169ef918e4033a9c4f77f1db3362593"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=629d43c#629d43cbbfade0e6795467826557e0901a1c9206"
 dependencies = [
  "alloy-primitives",
  "anyhow",
