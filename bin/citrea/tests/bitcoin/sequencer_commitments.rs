@@ -214,7 +214,6 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let initial_height = f.initial_da_height;
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // publish max_l2_blocks_per_commitment - 1 confirmations, no commitments should be sent
@@ -224,8 +223,6 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         sequencer
             .wait_for_l2_height(max_l2_blocks_per_commitment - 1, None)
             .await?;
-
-        let finalized_height = da.get_finalized_height(None).await?;
 
         // Publish one more L2 block and send commitment
         sequencer.client.send_publish_batch_request().await?;
