@@ -141,20 +141,12 @@ where
             // Early return if uncompressed state diff doesn't exceed limit
             if uncompressed_state_diff.len() > SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE {
                 debug!("Enough state diff size to submit commitment");
-                // Clear state diffs
-                self.clear_state_diffs(l2_start..=l2_height)?;
-                merged_state_diff.diff = vec![];
-
                 return Ok(Some(L2BlockNumber(l2_start)..=L2BlockNumber(l2_height)));
             }
 
             let compressed_state_diff = compress_blob(&uncompressed_state_diff).unwrap();
             if compressed_state_diff.len() > MAX_TXBODY_SIZE {
                 debug!("Enough state diff size to submit commitment");
-                // Clear state diffs
-                self.clear_state_diffs(l2_start..=l2_height)?;
-                merged_state_diff.diff = vec![];
-
                 return Ok(Some(L2BlockNumber(l2_start)..=L2BlockNumber(l2_height)));
             }
         }
@@ -162,7 +154,15 @@ where
         Ok(None)
     }
 
-    fn clear_state_diffs(&self, range: RangeInclusive<u64>) -> anyhow::Result<()> {
+    pub(crate) fn reset(&self) {
+        let mut merged_state_diff = self.state_diff.lock();
+        merged_state_diff.diff = vec![];
+    }
+
+    pub(crate) fn clear_commitment_state_diffs(
+        &self,
+        range: RangeInclusive<u64>,
+    ) -> anyhow::Result<()> {
         for i in range {
             self.ledger_db.delete_state_diff(L2BlockNumber(i))?;
         }

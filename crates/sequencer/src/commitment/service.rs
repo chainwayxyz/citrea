@@ -129,6 +129,10 @@ where
 
                         let commitment_info = match commitment_info {
                             Ok(Some(commitment_info)) => {
+                                commitment_controller.reset();
+                                if let Err(e) = commitment_controller.clear_commitment_state_diffs(commitment_info.start().0..=commitment_info.end().0) {
+                                    error!("Could not clear commitment state diffs: {:?}", e);
+                                }
                                 commitment_info
                             },
                             Err(e) => {
