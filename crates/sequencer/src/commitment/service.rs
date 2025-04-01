@@ -117,6 +117,11 @@ where
                         continue;
                     }
 
+                    // Checking the possibility of a commitment up to the head block means that
+                    // the state diff might have exceeded the limit by a significant portion and/or
+                    // the max amount of blocks we commit for.
+                    // Instead, we loop here from the last commitment height + 1 incrementally and commit
+                    // as soon as we find a block which signals the possibility of a commitment.
                     for current_l2_height in from_l2_height.0..=head_l2_height.0 {
                         let cc = commitment_controller.clone();
 
