@@ -117,36 +117,41 @@ where
                         continue;
                     }
 
-                    let cc = commitment_controller.clone();
+                    for current_l2_height in from_l2_height.0..=head_l2_height.0 {
+                        let cc = commitment_controller.clone();
 
-                    let Ok(commitment_info) = tokio::task::spawn_blocking(move || {
-                        cc.should_commit(from_l2_height, head_l2_height)
-                    }).await else {
-                        error!("Failed to check commitment criteria");
-                        continue;
-                    };
+                        let Ok(commitment_info) = tokio::task::spawn_blocking(move || {
+                            cc.should_commit(from_l2_height, L2BlockNumber(current_l2_height))
+                        }).await else {
+                            error!("Failed to check commitment criteria");
+                            continue;
+                        };
 
-                    let commitment_info = match commitment_info {
-                        Ok(Some(commitment_info)) => {
-                            commitment_info
-                        },
-                        Err(e) => {
-                            error!("Error while checking commitment criteria: {:?}", e);
-                            continue;
-                        },
-                        _ => {
-                            continue;
+                        let commitment_info = match commitment_info {
+                            Ok(Some(commitment_info)) => {
+                                commitment_info
+                            },
+                            Err(e) => {
+                                error!("Error while checking commitment criteria: {:?}", e);
+                                continue;
+                            },
+                            _ => {
+                                continue;
+                            }
+                        };
+
+                        let index = self.next_commitment_index;
+                        self.next_commitment_index += 1;
+
+                        if let Err(e) = self.commit(index, &commitment_info).await {
+                            error!("Could not submit commitment: {:?}", e);
                         }
-                    };
 
-                    let index = self.next_commitment_index;
-                    self.next_commitment_index += 1;
+                        from_l2_height = L2BlockNumber(commitment_info.end().0 + 1);
 
-                    if let Err(e) = self.commit(index, &commitment_info).await {
-                        error!("Could not submit commitment: {:?}", e);
+                        // Stop and let the next tick start from the last set `from_l2_height`
+                        break;
                     }
-
-                    from_l2_height = L2BlockNumber(commitment_info.end().0 + 1);
                 },
             }
         }
