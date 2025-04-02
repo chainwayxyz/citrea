@@ -610,6 +610,19 @@ impl BatchProverLedgerOps for LedgerDB {
 
         self.db.write_schemas(schema_batch)
     }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_unfinished_proving_jobs(&self) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
+        let mut iter = self.db.iter::<ProverRunningJobs>()?;
+        iter.seek_to_first();
+
+        let mut jobs = vec![];
+        for el in iter {
+            jobs.push(el?.into_tuple());
+        }
+
+        Ok(jobs)
+    }
 }
 
 impl ProvingServiceLedgerOps for LedgerDB {
