@@ -487,24 +487,6 @@ where
             None => get_fork2_activation_height_non_zero() - 1,
         };
 
-        for index in sequencer_commitment_index_range.0..=sequencer_commitment_index_range.1 {
-            if self.ledger_db.get_commitment_by_index(index)?.is_none() {
-                info!(
-                    "Commitment with index {} is missing for proof. Storing proof as pending.",
-                    index
-                );
-
-                // Store as pending for later processing
-                self.ledger_db.store_pending_proof(
-                    sequencer_commitment_index_range.0,
-                    sequencer_commitment_index_range.1,
-                    raw_proof,
-                )?;
-
-                return Ok(());
-            }
-        }
-
         // Check that first commitment's state root matches initial_state_root
         let start_state_root = self
             .ledger_db
