@@ -13,10 +13,9 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 
+use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::batch_prover_test::wait_for_zkproofs;
 use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
-
-use super::{get_citrea_cli_path, get_citrea_path};
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
     let leaves: Vec<[u8; 32]> = blocks
@@ -128,7 +127,7 @@ impl TestCase for L2StatusTest {
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
         let full_node_http_client = full_node.client.http_client().clone();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let initial_committed_height = full_node_http_client.get_last_committed_l2_height().await?;
         assert_eq!(initial_committed_height, None);
@@ -142,7 +141,7 @@ impl TestCase for L2StatusTest {
         assert_eq!(initial_heights_by_l1.committed, 0);
         assert_eq!(initial_heights_by_l1.proven, 0);
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -160,7 +159,7 @@ impl TestCase for L2StatusTest {
             .await?
             .unwrap();
 
-        assert_eq!(committed_height.height, min_l2_blocks_per_commitment);
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height.commitment_index, 0);
 
         let proven_height = full_node_http_client.get_last_proven_l2_height().await?;
@@ -172,7 +171,7 @@ impl TestCase for L2StatusTest {
             .await?;
         assert_eq!(
             status_at_commitment_l1_height.committed,
-            min_l2_blocks_per_commitment
+            max_l2_blocks_per_commitment
         );
         assert_eq!(status_at_commitment_l1_height.proven, 0);
 
@@ -209,14 +208,14 @@ impl TestCase for L2StatusTest {
             .await?;
         assert_eq!(
             status_at_proof_l1_height.committed,
-            min_l2_blocks_per_commitment
+            max_l2_blocks_per_commitment
         );
         assert_eq!(
             status_at_proof_l1_height.proven,
-            min_l2_blocks_per_commitment
+            max_l2_blocks_per_commitment
         );
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -234,7 +233,7 @@ impl TestCase for L2StatusTest {
             .await?
             .unwrap();
 
-        assert_eq!(committed_height2.height, min_l2_blocks_per_commitment * 2);
+        assert_eq!(committed_height2.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(committed_height2.commitment_index, 1);
 
         // Proven height should still be at the first commitment
@@ -243,7 +242,7 @@ impl TestCase for L2StatusTest {
             .await?
             .unwrap();
 
-        assert_eq!(proven_height2.height, min_l2_blocks_per_commitment);
+        assert_eq!(proven_height2.height, max_l2_blocks_per_commitment);
         assert_eq!(proven_height2.commitment_index, 0);
 
         // Try a future non-existent L1 height
@@ -253,8 +252,8 @@ impl TestCase for L2StatusTest {
             .http_client()
             .get_l2_status_heights_by_l1_height(future_l1_height)
             .await?;
-        assert_eq!(status.committed, min_l2_blocks_per_commitment * 2);
-        assert_eq!(status.proven, min_l2_blocks_per_commitment);
+        assert_eq!(status.committed, max_l2_blocks_per_commitment * 2);
+        assert_eq!(status.proven, max_l2_blocks_per_commitment);
 
         full_node.wait_until_stopped().await?;
 
@@ -344,7 +343,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
             &mut self.task_manager,
@@ -354,14 +353,14 @@ impl TestCase for OutOfOrderCommitmentsTest {
         )
         .await;
 
-        for _ in 0..min_l2_blocks_per_commitment * 2 {
+        for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         let first_range = sequencer
             .client
             .http_client()
-            .get_l2_block_range(U64::from(1), U64::from(min_l2_blocks_per_commitment))
+            .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
             .await?;
 
         let first_merkle_root = calculate_merkle_root(&first_range);
@@ -370,8 +369,8 @@ impl TestCase for OutOfOrderCommitmentsTest {
             .client
             .http_client()
             .get_l2_block_range(
-                U64::from(min_l2_blocks_per_commitment + 1),
-                U64::from(min_l2_blocks_per_commitment * 2),
+                U64::from(max_l2_blocks_per_commitment + 1),
+                U64::from(max_l2_blocks_per_commitment * 2),
             )
             .await?;
 
@@ -379,13 +378,13 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         let first_commitment = SequencerCommitment {
             merkle_root: first_merkle_root,
-            l2_end_block_number: min_l2_blocks_per_commitment,
+            l2_end_block_number: max_l2_blocks_per_commitment,
             index: 0,
         };
 
         let second_commitment = SequencerCommitment {
             merkle_root: second_merkle_root,
-            l2_end_block_number: min_l2_blocks_per_commitment * 2,
+            l2_end_block_number: max_l2_blocks_per_commitment * 2,
             index: 1,
         };
 
@@ -453,7 +452,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
         // Assert that pending commitments were processed
         assert_eq!(
             final_committed_height.height,
-            min_l2_blocks_per_commitment * 2
+            max_l2_blocks_per_commitment * 2
         );
         assert_eq!(final_committed_height.commitment_index, 1);
 
@@ -505,7 +504,7 @@ impl TestCase for ConflictingCommitmentsTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
             &mut self.task_manager,
@@ -515,7 +514,7 @@ impl TestCase for ConflictingCommitmentsTest {
         )
         .await;
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -532,20 +531,20 @@ impl TestCase for ConflictingCommitmentsTest {
         let first_range = sequencer
             .client
             .http_client()
-            .get_l2_block_range(U64::from(1), U64::from(min_l2_blocks_per_commitment))
+            .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
             .await?;
 
         let correct_merkle_root = calculate_merkle_root(&first_range);
         let commitment_a = SequencerCommitment {
             merkle_root: correct_merkle_root,
-            l2_end_block_number: min_l2_blocks_per_commitment,
+            l2_end_block_number: max_l2_blocks_per_commitment,
             index: 0,
         };
 
         // Create another conflicting commitment B with same index but different l2_end_block_number
         let commitment_b = SequencerCommitment {
             merkle_root: correct_merkle_root,
-            l2_end_block_number: min_l2_blocks_per_commitment - 1,
+            l2_end_block_number: max_l2_blocks_per_commitment - 1,
             index: 0,
         };
 
@@ -571,7 +570,7 @@ impl TestCase for ConflictingCommitmentsTest {
             .await?
             .unwrap();
 
-        assert_eq!(committed_height_a.height, min_l2_blocks_per_commitment);
+        assert_eq!(committed_height_a.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height_a.commitment_index, 0);
 
         // Send conflicting commitment B
@@ -597,10 +596,10 @@ impl TestCase for ConflictingCommitmentsTest {
             .unwrap();
 
         // The committed height should still match commitment A
-        assert_eq!(committed_height_b.height, min_l2_blocks_per_commitment);
+        assert_eq!(committed_height_b.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height_b.commitment_index, 0);
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -608,15 +607,15 @@ impl TestCase for ConflictingCommitmentsTest {
             .client
             .http_client()
             .get_l2_block_range(
-                U64::from(min_l2_blocks_per_commitment + 1),
-                U64::from(min_l2_blocks_per_commitment * 2),
+                U64::from(max_l2_blocks_per_commitment + 1),
+                U64::from(max_l2_blocks_per_commitment * 2),
             )
             .await?;
 
         let second_merkle_root = calculate_merkle_root(&second_range);
         let commitment_c = SequencerCommitment {
             merkle_root: second_merkle_root,
-            l2_end_block_number: min_l2_blocks_per_commitment * 2,
+            l2_end_block_number: max_l2_blocks_per_commitment * 2,
             index: 1,
         };
 
@@ -644,7 +643,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         assert_eq!(
             final_committed_height.height,
-            min_l2_blocks_per_commitment * 2
+            max_l2_blocks_per_commitment * 2
         );
         assert_eq!(final_committed_height.commitment_index, 1);
 
@@ -701,7 +700,7 @@ impl TestCase for OutOfRangeProofTest {
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         println!("f.initial_da_height : {:?}", f.initial_da_height);
 
@@ -714,7 +713,7 @@ impl TestCase for OutOfRangeProofTest {
         .await;
 
         // Generate two commitments to test pending proof over commitment ranges
-        for _ in 0..min_l2_blocks_per_commitment * 2 {
+        for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -738,12 +737,12 @@ impl TestCase for OutOfRangeProofTest {
         let first_range = sequencer
             .client
             .http_client()
-            .get_l2_block_range(U64::from(1), U64::from(min_l2_blocks_per_commitment))
+            .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
             .await?;
         let first_merkle_root = calculate_merkle_root(&first_range);
         let commitment0 = SequencerCommitment {
             merkle_root: first_merkle_root,
-            l2_end_block_number: min_l2_blocks_per_commitment,
+            l2_end_block_number: max_l2_blocks_per_commitment,
             index: 0,
         };
 
@@ -751,14 +750,14 @@ impl TestCase for OutOfRangeProofTest {
             .client
             .http_client()
             .get_l2_block_range(
-                U64::from(min_l2_blocks_per_commitment + 1),
-                U64::from(min_l2_blocks_per_commitment * 2),
+                U64::from(max_l2_blocks_per_commitment + 1),
+                U64::from(max_l2_blocks_per_commitment * 2),
             )
             .await?;
         let second_merkle_root = calculate_merkle_root(&second_range);
         let commitment1 = SequencerCommitment {
             merkle_root: second_merkle_root,
-            l2_end_block_number: min_l2_blocks_per_commitment * 2,
+            l2_end_block_number: max_l2_blocks_per_commitment * 2,
             index: 1,
         };
 
@@ -838,7 +837,7 @@ impl TestCase for OutOfRangeProofTest {
             .get_last_committed_l2_height()
             .await?
             .unwrap();
-        assert_eq!(committed_height.height, min_l2_blocks_per_commitment);
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height.commitment_index, 0);
 
         let proven_height = full_node
@@ -870,7 +869,7 @@ impl TestCase for OutOfRangeProofTest {
             .get_last_committed_l2_height()
             .await?
             .unwrap();
-        assert_eq!(committed_height.height, min_l2_blocks_per_commitment * 2);
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(committed_height.commitment_index, 1);
 
         let proven_height = full_node
@@ -879,7 +878,7 @@ impl TestCase for OutOfRangeProofTest {
             .get_last_proven_l2_height()
             .await?
             .unwrap();
-        assert_eq!(proven_height.height, min_l2_blocks_per_commitment * 2);
+        assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(proven_height.commitment_index, 1);
 
         Ok(())
