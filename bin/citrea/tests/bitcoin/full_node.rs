@@ -702,13 +702,19 @@ impl TestCase for OutOfRangeProofTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        println!("f.initial_da_height : {:?}", f.initial_da_height);
-
-        let bitcoin_da_service = spawn_bitcoin_da_service(
+        let prover_da_service = spawn_bitcoin_da_service(
             &mut self.task_manager,
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
+        )
+        .await;
+
+        let sequencer_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
         )
         .await;
 
@@ -718,7 +724,6 @@ impl TestCase for OutOfRangeProofTest {
         }
 
         da.wait_mempool_len(4, None).await?;
-        println!("got seqcoms");
         da.generate(FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
 
@@ -727,11 +732,9 @@ impl TestCase for OutOfRangeProofTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        println!("got batch proofs");
         da.generate(FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
 
-        println!("Waiting for height {proof_l1_height} fullnode");
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
         let first_range = sequencer
@@ -743,7 +746,7 @@ impl TestCase for OutOfRangeProofTest {
         let commitment0 = SequencerCommitment {
             merkle_root: first_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment,
-            index: 0,
+            index: 1,
         };
 
         let second_range = sequencer
@@ -758,7 +761,7 @@ impl TestCase for OutOfRangeProofTest {
         let commitment1 = SequencerCommitment {
             merkle_root: second_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment * 2,
-            index: 1,
+            index: 2,
         };
 
         let proof = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
@@ -772,10 +775,17 @@ impl TestCase for OutOfRangeProofTest {
         da.invalidate_block(&initial_height_hash).await?;
         let block_count = da.get_block_count().await?;
         assert_eq!(block_count, f.initial_da_height);
+        // Restart and remove rolledback txs from mempool
+        da.restart(None, None).await?;
+        assert_eq!(
+            da.get_raw_mempool().await?.len(),
+            0,
+            "Mempool should be empty"
+        );
 
         // Rollback full node to genesis
         full_node.wait_until_stopped().await?;
-        citrea_cli
+        let output = citrea_cli
             .run(
                 "rollback",
                 &[
@@ -786,17 +796,20 @@ impl TestCase for OutOfRangeProofTest {
                     "--l2-target",
                     "0",
                     "--l1-target",
-                    "0",
+                    &f.initial_da_height.to_string(),
                     "--sequencer-commitment-index",
                     "0",
                 ],
             )
             .await?;
+        // for l in output.split("\n") {
+        //     println!("{}", l);
+        // }
 
         full_node.start(None, None).await?;
 
-        // Send the proof first and should be kept as pending
-        bitcoin_da_service
+        // Send the proof first. It should be discard as none of its commitments exist
+        prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1)
             .await
             .unwrap();
@@ -806,18 +819,19 @@ impl TestCase for OutOfRangeProofTest {
         let proof_l1_height = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
-        // The proof should be stored as pending and not be processed
+        // The proof should be discarded and not be processed
         let proven_height = full_node
             .client
             .http_client()
             .get_last_proven_l2_height()
             .await?;
+        println!("proven_height : {:?}", proven_height);
         assert!(
             proven_height.is_none(),
-            "No proof should be processed yet without commitments"
+            "No proof should be processed without commitments"
         );
 
-        bitcoin_da_service
+        sequencer_da_service
             .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment0), 1)
             .await
             .unwrap();
@@ -829,8 +843,9 @@ impl TestCase for OutOfRangeProofTest {
             .wait_for_l1_height(commitment0_l1_height, None)
             .await?;
 
-        // The first commitment should be processed but the proof should still be pending
-        // since it depends on both commitments
+        println!("commitment0_l1_height : {:?}", commitment0_l1_height);
+
+        // The first commitment should be processed and no proof should be pending
         let committed_height = full_node
             .client
             .http_client()
@@ -838,19 +853,16 @@ impl TestCase for OutOfRangeProofTest {
             .await?
             .unwrap();
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment);
-        assert_eq!(committed_height.commitment_index, 0);
+        assert_eq!(committed_height.commitment_index, 1);
 
         let proven_height = full_node
             .client
             .http_client()
             .get_last_proven_l2_height()
             .await?;
-        assert!(
-            proven_height.is_none(),
-            "Proof should still be pending without the second commitment"
-        );
+        assert!(proven_height.is_none(), "Proof should have been discarded");
 
-        bitcoin_da_service
+        sequencer_da_service
             .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment1), 1)
             .await
             .unwrap();
@@ -862,7 +874,7 @@ impl TestCase for OutOfRangeProofTest {
             .wait_for_l1_height(commitment1_l1_height, None)
             .await?;
 
-        // Both commitments should be processed and the pending proof should now be processed too
+        // Both commitments should be processed and make sure the proof was discarded
         let committed_height = full_node
             .client
             .http_client()
@@ -870,16 +882,15 @@ impl TestCase for OutOfRangeProofTest {
             .await?
             .unwrap();
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 2);
-        assert_eq!(committed_height.commitment_index, 1);
+        assert_eq!(committed_height.commitment_index, 2);
 
+        // Make sure proof was discarded even after processing its commitment range
         let proven_height = full_node
             .client
             .http_client()
             .get_last_proven_l2_height()
-            .await?
-            .unwrap();
-        assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
-        assert_eq!(proven_height.commitment_index, 1);
+            .await?;
+        assert!(proven_height.is_none(), "Proof should have been discarded");
 
         Ok(())
     }
