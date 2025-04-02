@@ -2346,7 +2346,9 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "bonsai-sdk",
  "borsh",
+ "hex",
  "metrics",
  "risc0-zkp",
  "risc0-zkvm",
@@ -2354,7 +2356,9 @@ dependencies = [
  "sov-db",
  "sov-rollup-interface",
  "thiserror 1.0.69",
+ "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

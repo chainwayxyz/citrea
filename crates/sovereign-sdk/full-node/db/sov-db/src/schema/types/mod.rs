@@ -1,3 +1,5 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 /// Batch proof related storage types
 pub mod batch_proof;
 /// L2 block related storage types
@@ -54,3 +56,17 @@ macro_rules! u64_wrapper {
 
 u64_wrapper!(SlotNumber);
 u64_wrapper!(L2BlockNumber);
+
+/// Type alias for stark session id
+pub type StarkSessionId = String;
+/// Type alias for snark session id
+pub type SnarkSessionId = String;
+
+/// Bonsai sessions to be recovered in case of a crash.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+pub enum BonsaiSession {
+    /// Stark session id if the prover crashed during stark proof generation.
+    StarkSession(StarkSessionId),
+    /// Both Stark and Snark session id if the prover crashed during stark to snarkconversion.
+    SnarkSession(StarkSessionId, SnarkSessionId),
+}

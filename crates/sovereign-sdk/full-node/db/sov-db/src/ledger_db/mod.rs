@@ -15,7 +15,13 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, JobsPendingSubmission, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
+    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2BlockStatus,
+    L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingBonsaiSessionByJobId, PendingL1SubmissionJobs,
+    PendingSequencerCommitment, ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot,
+    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -24,7 +30,7 @@ use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{BonsaiSession, L2BlockNumber, L2HeightRange, SlotNumber};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -486,14 +492,6 @@ impl LightClientProverLedgerOps for LedgerDB {
 }
 
 impl BatchProverLedgerOps for LedgerDB {
-    #[instrument(level = "trace", skip(self), err)]
-    fn get_proofs_by_l1_height(
-        &self,
-        l1_height: u64,
-    ) -> anyhow::Result<Option<Vec<StoredBatchProof>>> {
-        self.db.get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))
-    }
-
     fn set_l2_state_diff(
         &self,
         l2_height: L2BlockNumber,
@@ -581,7 +579,7 @@ impl BatchProverLedgerOps for LedgerDB {
         };
 
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<JobsPendingSubmission>(&id, &())?;
+        schema_batch.put::<PendingL1SubmissionJobs>(&id, &())?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
 
         self.db.write_schemas(schema_batch)
@@ -598,15 +596,15 @@ impl BatchProverLedgerOps for LedgerDB {
         stored_proof.l1_tx_id = l1_tx_id;
 
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.delete::<JobsPendingSubmission>(&id)?;
+        schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
 
         self.db.write_schemas(schema_batch)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_jobs_pending_submission(&self) -> anyhow::Result<Vec<Uuid>> {
-        let mut iter = self.db.iter::<JobsPendingSubmission>()?;
+    fn get_pending_l1_submission_jobs(&self) -> anyhow::Result<Vec<Uuid>> {
+        let mut iter = self.db.iter::<PendingL1SubmissionJobs>()?;
         iter.seek_to_first();
 
         let mut jobs = vec![];
@@ -618,43 +616,30 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 }
 
-impl ProvingServiceLedgerOps for LedgerDB {
+impl BonsaiLedgerOps for LedgerDB {
     /// Gets all pending sessions and step numbers
     #[instrument(level = "trace", skip(self), err)]
-    fn get_pending_proving_sessions(&self) -> anyhow::Result<Vec<Vec<u8>>> {
-        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+    fn get_pending_bonsai_sessions(&self) -> anyhow::Result<Vec<(Uuid, BonsaiSession)>> {
+        let mut iter = self.db.iter::<PendingBonsaiSessionByJobId>()?;
         iter.seek_to_first();
 
-        let sessions = iter
-            .map(|item| item.map(|item| (item.key)))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(sessions)
+        iter.map(|item| item.map(|item| item.into_tuple()))
+            .collect()
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn add_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
-        self.db.put::<PendingProvingSessions>(&session, &())
+    fn upsert_pending_bonsai_session(
+        &self,
+        job_id: Uuid,
+        session: BonsaiSession,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingBonsaiSessionByJobId>(&job_id, &session)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn remove_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
-        self.db.delete::<PendingProvingSessions>(&session)
-    }
-
-    #[instrument(level = "trace", skip(self), err)]
-    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        let mut iter = self.db.iter::<PendingProvingSessions>()?;
-        iter.seek_to_first();
-
-        for item in iter {
-            let item = item?;
-            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
-        }
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+    fn remove_pending_bonsai_session(&self, job_id: Uuid) -> anyhow::Result<()> {
+        self.db.delete::<PendingBonsaiSessionByJobId>(&job_id)
     }
 }
 

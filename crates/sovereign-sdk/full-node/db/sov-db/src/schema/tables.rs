@@ -23,8 +23,8 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2BlockNumber, L2HeightRange, SlotNumber,
-    StateKey,
+    AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L2BlockNumber,
+    L2HeightRange, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -117,7 +117,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     JobIdOfCommitment::table_name(),
     CommitmentIndicesByJobId::table_name(),
     ProverPendingCommitments::table_name(),
-    JobsPendingSubmission::table_name(),
+    PendingL1SubmissionJobs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -170,7 +170,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     JobIdOfCommitment::table_name(),
     CommitmentIndicesByJobId::table_name(),
     ProverPendingCommitments::table_name(),
-    JobsPendingSubmission::table_name(),
+    PendingL1SubmissionJobs::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -383,7 +384,12 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// Jobs waiting to be submitted to DA layer
-    (JobsPendingSubmission) Uuid => ()
+    (PendingL1SubmissionJobs) Uuid => ()
+);
+
+define_table_with_default_codec!(
+    /// Pending Bonsai proving sessions by job id
+    (PendingBonsaiSessionByJobId) Uuid => BonsaiSession
 );
 
 define_table_with_default_codec!(

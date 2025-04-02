@@ -117,6 +117,7 @@ tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
+bonsai-sdk = { version = "1.4" }
 risc0-binfmt = "2.0.0"
 risc0-zkvm = { version = "2.0.0", default-features = false }
 risc0-zkvm-platform = "2.0.0"

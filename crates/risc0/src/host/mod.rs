@@ -1,4 +1,8 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
+
+mod bonsai;
+mod local;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use metrics::histogram;
 use risc0_zkvm::sha::Digest;

@@ -8,12 +8,12 @@ use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use uuid::Uuid;
 
-use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::batch_proof::StoredBatchProofOutput;
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{BonsaiSession, L2BlockNumber, L2HeightRange, SlotNumber};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
@@ -158,9 +158,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
 /// Prover ledger operations
 pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Gets proofs by L1 height
-    fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
-
     /// Save a specific L2 range state diff
     fn set_l2_state_diff(&self, l2_height: L2BlockNumber, state_diff: StateDiff) -> Result<()>;
 
@@ -195,7 +192,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
 
     /// Get jobs pending to be submitted to DA
-    fn get_jobs_pending_submission(&self) -> Result<Vec<Uuid>>;
+    fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
 }
 
 /// Light client prover ledger operations
@@ -215,19 +212,16 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<Option<StoredLightClientProof>>;
 }
 
-/// Ledger operations for the prover service
-pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
-    /// Gets all pending sessions and step numbers
-    fn get_pending_proving_sessions(&self) -> Result<Vec<Vec<u8>>>;
+/// Ledger operations for the Bonsai service
+pub trait BonsaiLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
+    /// Gets all bonsai sessions and their associated job ids
+    fn get_pending_bonsai_sessions(&self) -> Result<Vec<(Uuid, BonsaiSession)>>;
 
-    /// Adds a pending proving session
-    fn add_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
+    /// Insert or update bonsai proving session
+    fn upsert_pending_bonsai_session(&self, job_id: Uuid, session: BonsaiSession) -> Result<()>;
 
-    /// Removes a pending proving session
-    fn remove_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
-
-    /// Clears all pending proving sessions
-    fn clear_pending_proving_sessions(&self) -> Result<()>;
+    /// Removes bonsai proving session
+    fn remove_pending_bonsai_session(&self, job_id: Uuid) -> Result<()>;
 }
 
 /// Sequencer ledger operations
