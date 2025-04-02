@@ -8,7 +8,7 @@ use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use uuid::Uuid;
 
-use crate::schema::types::batch_proof::{JobStatus, StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
@@ -194,8 +194,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Updates job tx id and removes job from running jobs
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
 
-    /// Get all running proving jobs and their status
-    fn get_running_proving_jobs(&self) -> Result<Vec<(Uuid, JobStatus)>>;
+    /// Get jobs pending to be submitted to DA
+    fn get_jobs_pending_submission(&self) -> Result<Vec<Uuid>>;
 }
 
 /// Light client prover ledger operations

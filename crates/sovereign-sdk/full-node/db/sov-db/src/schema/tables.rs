@@ -19,7 +19,7 @@ use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
 
-use super::types::batch_proof::{JobStatus, StoredBatchProof, StoredVerifiedProof};
+use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
@@ -117,7 +117,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     JobIdOfCommitment::table_name(),
     CommitmentIndicesByJobId::table_name(),
     ProverPendingCommitments::table_name(),
-    ProverRunningJobs::table_name(),
+    JobsPendingSubmission::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -170,7 +170,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     JobIdOfCommitment::table_name(),
     CommitmentIndicesByJobId::table_name(),
     ProverPendingCommitments::table_name(),
-    ProverRunningJobs::table_name(),
+    JobsPendingSubmission::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -382,8 +382,8 @@ define_table_with_default_codec!(
 );
 
 define_table_with_default_codec!(
-    /// Currently running prover jobs by its status
-    (ProverRunningJobs) Uuid => JobStatus
+    /// Jobs waiting to be submitted to DA layer
+    (JobsPendingSubmission) Uuid => ()
 );
 
 define_table_with_default_codec!(

@@ -15,16 +15,10 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2BlockStatus,
-    L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
-    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments,
-    ProverRunningJobs, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash,
-    SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, JobsPendingSubmission, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment, ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
 };
 use crate::schema::types::batch_proof::{
-    JobStatus, StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
+    StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
@@ -566,7 +560,6 @@ impl BatchProverLedgerOps for LedgerDB {
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<CommitmentIndicesByJobId>(&id, commitment_indices)?;
-        schema_batch.put::<ProverRunningJobs>(&id, &JobStatus::Running)?;
         for index in commitment_indices {
             schema_batch.put::<JobIdOfCommitment>(index, &id)?;
         }
@@ -588,7 +581,7 @@ impl BatchProverLedgerOps for LedgerDB {
         };
 
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<ProverRunningJobs>(&id, &JobStatus::WaitingDaSubmission)?;
+        schema_batch.put::<JobsPendingSubmission>(&id, &())?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
 
         self.db.write_schemas(schema_batch)
@@ -605,20 +598,20 @@ impl BatchProverLedgerOps for LedgerDB {
         stored_proof.l1_tx_id = l1_tx_id;
 
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.delete::<ProverRunningJobs>(&id)?;
+        schema_batch.delete::<JobsPendingSubmission>(&id)?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
 
         self.db.write_schemas(schema_batch)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_running_proving_jobs(&self) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
-        let mut iter = self.db.iter::<ProverRunningJobs>()?;
+    fn get_jobs_pending_submission(&self) -> anyhow::Result<Vec<Uuid>> {
+        let mut iter = self.db.iter::<JobsPendingSubmission>()?;
         iter.seek_to_first();
 
         let mut jobs = vec![];
         for el in iter {
-            jobs.push(el?.into_tuple());
+            jobs.push(el?.into_tuple().0);
         }
 
         Ok(jobs)
