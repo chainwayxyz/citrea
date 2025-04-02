@@ -32,8 +32,8 @@ use reth_rpc_eth_types::error::{
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
-    BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason,
-    InvalidTransaction, TransactTo,
+    spec_to_generic, BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, EVMError,
+    ExecutionResult, HaltReason, InvalidTransaction, SpecId, TransactTo,
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
@@ -49,7 +49,10 @@ use crate::conversions::{create_tx_env, sealed_block_to_block_env};
 use crate::evm::call::{create_txn_env, prepare_call_env};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::handler::{diff_size_send_eth_eoa, TracingCitreaExternal, TxInfo};
+use crate::handler::{
+    citrea_handle_register, diff_size_send_eth_eoa, CitreaExternal, CitreaHandler,
+    TracingCitreaExternal, TxInfo,
+};
 use crate::rpc_helpers::*;
 use crate::{
     citrea_spec_id_to_evm_spec_id, BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError,
@@ -709,11 +712,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
             from.create(account.nonce)
         };
 
+        let precompiles = spec_to_generic!(evm_spec_id, {
+            CitreaHandler::<SPEC, CitreaExternal, EvmDb<C>>::load_precompiles()
+        });
+
+        let precompiles = precompiles.addresses().copied();
+
         // can consume the list since we're not using the request anymore
         let initial = request.access_list.take().unwrap_or_default();
-
-        // TODO: update here.
-        let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
         let inspector = AccessListInspector::new(initial, from, to, precompiles);
 
         let mut inspector = TracingCitreaExternal::new(inspector, 0);
