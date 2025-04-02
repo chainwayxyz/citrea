@@ -175,14 +175,14 @@ where
                             SyncError::SequencerCommitmentWithIndexNotFound(_) => {
                                 unreachable!("Error irrelevant!")
                             }
-                    SyncError::ProvenHeightExceedsCommittedHeight(
-                        proven_height,
-                        committed_height,
-                    ) => {
-                        error!("Could not process ZK proofs: L2 status proven height {proven_height:?} above committed height {committed_height:?}")
-                    }
-                    SyncError::UnknownL1Hash => error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
-                }
+                            SyncError::ProvenHeightExceedsCommittedHeight(
+                                proven_height,
+                                committed_height,
+                            ) => {
+                                error!("Could not process ZK proofs: L2 status proven height {proven_height:?} above committed height {committed_height:?}")
+                            }
+                            SyncError::UnknownL1Hash => unreachable!("Error irrelevant!"),
+                        }
                     }
                 }
                 ProofOrCommitment::Proof(proof) => {
@@ -205,7 +205,7 @@ where
                                 unreachable!("Error irrelevant!")
                             }
                             SyncError::UnknownL1Hash => {
-                                unreachable!("Error irrelevant!")
+                                error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
                             }
                         }
                     }
@@ -556,6 +556,13 @@ where
                 raw_proof,
             )?;
             return Ok(());
+        }
+
+        // All commitments are missing, discarding proof
+        if missing_commitments.len() as u32
+            == sequencer_commitment_index_range.1 - sequencer_commitment_index_range.0 + 1
+        {
+            return Err(anyhow!("All commitments were missing for proof.").into());
         }
 
         let mut l2_start_height = previous_l2_end_block_number + 1;
