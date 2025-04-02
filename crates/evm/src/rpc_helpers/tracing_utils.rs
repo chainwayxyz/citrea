@@ -6,8 +6,7 @@ use alloy_rpc_types_trace::geth::{
 use reth_primitives::revm_primitives::TxEnv;
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
-use revm::precompile::{PrecompileSpecId, Precompiles};
-use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{

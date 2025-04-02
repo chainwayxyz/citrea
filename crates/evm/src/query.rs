@@ -50,8 +50,7 @@ use crate::evm::call::{create_txn_env, prepare_call_env};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::handler::{
-    citrea_handle_register, diff_size_send_eth_eoa, CitreaExternal, CitreaHandler,
-    TracingCitreaExternal, TxInfo,
+    diff_size_send_eth_eoa, CitreaExternal, CitreaHandler, TracingCitreaExternal, TxInfo,
 };
 use crate::rpc_helpers::*;
 use crate::{
