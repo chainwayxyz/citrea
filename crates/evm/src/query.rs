@@ -727,8 +727,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         )
         .map_err(EthApiError::from)?;
 
-        println!("result: {:?}", result);
-
         match result.result {
             ExecutionResult::Halt { reason, .. } => Err(match reason {
                 HaltReason::NonceOverflow => RpcInvalidTransactionError::NonceMaxValue,
@@ -741,8 +739,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }?;
 
         let access_list = inspector.inspector.into_access_list();
-
-        println!("access_list: {:?}", access_list);
 
         request.access_list = Some(access_list.clone());
 

@@ -198,19 +198,15 @@ where
     I: Inspector<DB>,
 {
     fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-        println!("initialize_interp");
         self.inspector.initialize_interp(interp, context)
     }
     fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-        println!("step");
         self.inspector.step(interp, context)
     }
     fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-        println!("step_end");
         self.inspector.step_end(interp, context)
     }
     fn log(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, log: &Log) {
-        println!("log");
         self.inspector.log(interp, context, log)
     }
     fn call(
@@ -218,7 +214,6 @@ where
         context: &mut EvmContext<DB>,
         inputs: &mut CallInputs,
     ) -> Option<CallOutcome> {
-        println!("call");
         self.inspector.call(context, inputs)
     }
     fn call_end(
@@ -227,7 +222,6 @@ where
         inputs: &CallInputs,
         outcome: CallOutcome,
     ) -> CallOutcome {
-        println!("call_end");
         self.inspector.call_end(context, inputs, outcome)
     }
     fn create(
@@ -235,7 +229,6 @@ where
         context: &mut EvmContext<DB>,
         inputs: &mut CreateInputs,
     ) -> Option<CreateOutcome> {
-        println!("create");
         self.inspector.create(context, inputs)
     }
     fn create_end(
@@ -244,7 +237,6 @@ where
         inputs: &CreateInputs,
         outcome: CreateOutcome,
     ) -> CreateOutcome {
-        println!("create_end");
         self.inspector.create_end(context, inputs, outcome)
     }
     fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
