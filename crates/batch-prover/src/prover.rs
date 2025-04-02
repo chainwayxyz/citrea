@@ -311,6 +311,13 @@ where
             if commitment.index != commitments[i - 1].index + 1 {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, "indexgap"); // i - 1 because inclusive
+                // override partition start height in case of index gap
+                state.partition_start_height = self
+                    .ledger_db
+                    .get_commitment_by_index(commitment.index - 1)?
+                    .expect("Previous commitment must exist")
+                    .l2_end_block_number
+                    + 1;
                 continue;
             }
 
