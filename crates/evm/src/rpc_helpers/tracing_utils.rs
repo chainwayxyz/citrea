@@ -13,7 +13,6 @@ use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
     FourByteInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
 };
-use sov_modules_api::default_context::DefaultContext;
 
 use crate::db::DBError;
 use crate::evm::db::immutable::EvmDbRef;
@@ -359,16 +358,15 @@ pub(crate) fn inspect_with_citrea_handle<'a, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    l1_fee_rate: u128,
-    inspector: I,
+    ext: &mut I,
 ) -> Result<(ResultAndState, TxInfo), EVMError<DBError>>
 where
     C: sov_modules_api::Context,
-    I: Inspector<EvmDb<'a, DefaultContext>>,
+    I: Inspector<EvmDb<'a, C>>,
+    I: CitreaExternalExt,
 {
     let tmp_hash: TxHash = b"hash_of_an_ephemeral_transaction".into();
 
-    let mut ext = TracingCitreaExternal::new(inspector, l1_fee_rate);
     ext.set_current_tx_hash(tmp_hash);
 
     let mut evm = revm::Evm::builder()
@@ -378,6 +376,7 @@ where
         .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register_box(citrea_handle_register())
+        .append_handler_register(inspector_handle_register)
         .build();
 
     let result_and_state = evm.transact()?;

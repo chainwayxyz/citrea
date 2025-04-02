@@ -49,7 +49,7 @@ use crate::conversions::{create_tx_env, sealed_block_to_block_env};
 use crate::evm::call::{create_txn_env, prepare_call_env};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::handler::{diff_size_send_eth_eoa, TxInfo};
+use crate::handler::{diff_size_send_eth_eoa, TracingCitreaExternal, TxInfo};
 use crate::rpc_helpers::*;
 use crate::{
     citrea_spec_id_to_evm_spec_id, BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError,
@@ -603,8 +603,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env,
             block_env,
             tx_env,
-            0,
-            TracingInspector::new(TracingInspectorConfig::none()),
+            &mut TracingCitreaExternal::new(
+                TracingInspector::new(TracingInspectorConfig::none()),
+                0,
+            ),
         ) {
             Ok((result, _)) => result.result,
             Err(err) => {
@@ -712,14 +714,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // TODO: update here.
         let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
-        let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
+        let inspector = AccessListInspector::new(initial, from, to, precompiles);
+
+        let mut inspector = TracingCitreaExternal::new(inspector, 0);
 
         let (result, _) = inspect_with_citrea_handle(
             evm_db,
             cfg_env.clone(),
             block_env.clone(),
             tx_env,
-            0,
             &mut inspector,
         )
         .map_err(EthApiError::from)?;
@@ -737,7 +740,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             ExecutionResult::Success { .. } => Ok(()),
         }?;
 
-        let access_list = inspector.into_access_list();
+        let access_list = inspector.inspector.into_access_list();
 
         println!("access_list: {:?}", access_list);
 
@@ -951,8 +954,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         cfg_env.clone(),
                         block_env.clone(),
                         tx_env.clone(),
-                        l1_fee_rate,
-                        TracingInspector::new(TracingInspectorConfig::none()),
+                        &mut TracingCitreaExternal::new(
+                            TracingInspector::new(TracingInspectorConfig::none()),
+                            l1_fee_rate,
+                        ),
                     );
 
                     if let Ok((res, tx_info)) = res {
@@ -1001,8 +1006,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env.clone(),
             block_env.clone(),
             tx_env.clone(),
-            l1_fee_rate,
-            TracingInspector::new(TracingInspectorConfig::none()),
+            &mut TracingCitreaExternal::new(
+                TracingInspector::new(TracingInspectorConfig::none()),
+                l1_fee_rate,
+            ),
         );
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -1081,8 +1088,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
-                TracingInspector::new(TracingInspectorConfig::none()),
+                &mut TracingCitreaExternal::new(
+                    TracingInspector::new(TracingInspectorConfig::none()),
+                    l1_fee_rate,
+                ),
             );
             let (curr_result, tx_info) = match curr_result {
                 Ok(result) => result,
@@ -1124,8 +1133,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
-                TracingInspector::new(TracingInspectorConfig::none()),
+                &mut TracingCitreaExternal::new(
+                    TracingInspector::new(TracingInspectorConfig::none()),
+                    l1_fee_rate,
+                ),
             );
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -1882,8 +1893,10 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         cfg_env,
         block_env,
         tx_env,
-        l1_fee_rate,
-        TracingInspector::new(TracingInspectorConfig::none()),
+        &mut TracingCitreaExternal::new(
+            TracingInspector::new(TracingInspectorConfig::none()),
+            l1_fee_rate,
+        ),
     ) {
         Ok((res, _tx_info)) => match res.result {
             ExecutionResult::Success { .. } => {
