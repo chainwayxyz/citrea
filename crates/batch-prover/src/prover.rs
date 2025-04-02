@@ -280,7 +280,7 @@ where
                 + 1
         };
 
-        let mut state = PartitionState::new(commitments, start_l2_height);
+        let mut state = PartitionState::new(commitments, start_l2_height, self.ledger_db.clone());
 
         if mode == PartitionMode::OneByOne {
             for i in 0..commitments.len() {

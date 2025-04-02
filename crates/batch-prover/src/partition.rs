@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_rollup_interface::da::SequencerCommitment;
 use tracing::info;
 
@@ -21,20 +22,22 @@ pub enum PartitionReason {
 }
 
 /// Helper struct to track the current state and ensure the integrity of the partition
-pub struct PartitionState<'a> {
+pub struct PartitionState<'a, DB: BatchProverLedgerOps> {
     commitments: &'a [SequencerCommitment],
     partitions: Vec<Partition<'a>>,
     pub partition_start_height: u64,
     pub partition_start_idx: usize,
+    ledger_db: DB,
 }
 
-impl<'a> PartitionState<'a> {
-    pub fn new(commitments: &'a [SequencerCommitment], start_l2_height: u64) -> Self {
+impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
+    pub fn new(commitments: &'a [SequencerCommitment], start_l2_height: u64, ledger_db: DB) -> Self {
         Self {
             commitments,
             partitions: vec![],
             partition_start_height: start_l2_height,
             partition_start_idx: 0,
+            ledger_db,
         }
     }
 
