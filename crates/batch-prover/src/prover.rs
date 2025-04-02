@@ -129,12 +129,14 @@ where
             info!("No pending commitments found");
             return Ok(());
         }
-        info!("Have {} pending commitment(s)", commitments.len());
+        info!("Got {} pending commitment(s)", commitments.len());
 
         let commitments = self.filter_unsynced_commitments(commitments)?;
         if commitments.is_empty() {
+            warn!("L2 blocks not synced up to any of the pending commitments yet");
             return Ok(());
         }
+        info!("Got {} synced pending commitment(s)", commitments.len());
 
         // verify state roots of commitment
         for commitment in commitments.iter() {
@@ -149,6 +151,11 @@ where
             );
         }
 
+        let commitments = self.filter_prev_missing_commitments(commitments)?;
+        if commitments.is_empty() {
+            warn!("None of the pending commitments have a known previous commitment");
+            return Ok(());
+        }
         info!("Processing {} commitment(s)", commitments.len());
 
         let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
@@ -219,6 +226,15 @@ where
         );
 
         Ok(commitments)
+    }
+
+    /// Filters out the commitments that doesn't have a known previous commitment, hence, can't be proven.
+    /// E.g. commitments = [3, 4, 5], but commitment 2 is not known yet, outputs [4, 5]
+    fn filter_prev_missing_commitments(
+        &self,
+        mut commitments: Vec<SequencerCommitment>,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        todo!()
     }
 
     /// Partition the commitments into provable chunks. Here are the rules when partitioning in Normal mode:
