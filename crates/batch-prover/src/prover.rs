@@ -500,7 +500,6 @@ type CommitmentStateTransitionData = (
     Witness,
 );
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
