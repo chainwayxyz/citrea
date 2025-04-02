@@ -25,24 +25,37 @@ pub enum PartitionReason {
 pub struct PartitionState<'a, DB: BatchProverLedgerOps> {
     commitments: &'a [SequencerCommitment],
     partitions: Vec<Partition<'a>>,
-    pub partition_start_height: u64,
-    pub partition_start_idx: usize,
+    partition_start_height: u64,
+    partition_start_idx: usize,
     ledger_db: DB,
 }
 
 impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
-    pub fn new(commitments: &'a [SequencerCommitment], start_l2_height: u64, ledger_db: DB) -> Self {
-        Self {
+    pub fn new(commitments: &'a [SequencerCommitment], ledger_db: DB) -> anyhow::Result<Self> {
+        // TODO: first commitment index will be 1 after https://github.com/chainwayxyz/citrea/pull/2180
+        let start_l2_height = if commitments[0].index == 0 {
+            // If this is the first commitment ever, start from 1
+            1
+        } else {
+            // If this is not the first commitment, start l2 height will be end block number + 1 of the previous commitment
+            ledger_db
+                .get_commitment_by_index(commitments[0].index - 1)?
+                .expect("Previous commitment must exist")
+                .l2_end_block_number
+                + 1
+        };
+
+        Ok(Self {
             commitments,
             partitions: vec![],
             partition_start_height: start_l2_height,
             partition_start_idx: 0,
             ledger_db,
-        }
+        })
     }
 
     /// Adds a new partition. end_idx is the index to the commitments array, and it is inclusive.
-    pub fn add_partition(&mut self, end_idx: usize, reason: PartitionReason) {
+    pub fn add_partition(&mut self, end_idx: usize, reason: PartitionReason) -> anyhow::Result<()> {
         assert!(
             end_idx >= self.partition_start_idx,
             "incorrectly ordered end partition index"
@@ -72,7 +85,30 @@ impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
         });
 
         self.partition_start_idx = end_idx + 1;
-        self.partition_start_height = last_commitment.l2_end_block_number + 1;
+        // if this was the last commitment, no need for further calculations
+        if self.partition_start_idx == self.commitments.len() {
+            return Ok(());
+        }
+
+        self.partition_start_height = match reason {
+            PartitionReason::IndexGap => {
+                // in case of index gap, we need to query the next partition start height
+                let first_commitment_of_next_partition = &self.commitments[self.partition_start_idx];
+                self
+                    .ledger_db
+                    .get_commitment_by_index(first_commitment_of_next_partition.index - 1)?
+                    .expect("Previous commitment must exist")
+                    .l2_end_block_number
+                    + 1
+            }
+            _ => last_commitment.l2_end_block_number + 1,
+        }; 
+
+        Ok(())
+    }
+
+    pub fn next_partition_start_height(&self) -> u64 {
+        self.partition_start_height
     }
 
     pub fn into_inner(self) -> Vec<Partition<'a>> {

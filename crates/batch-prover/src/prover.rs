@@ -266,25 +266,11 @@ where
         commitments: &'a [SequencerCommitment],
         mode: PartitionMode,
     ) -> anyhow::Result<Vec<Partition<'a>>> {
-        // TODO: first commitment index will be 1 after https://github.com/chainwayxyz/citrea/pull/2180
-        let start_l2_height = if commitments[0].index == 0 {
-            // If this is the first commitment ever, start from 1
-            1
-        } else {
-            let previous_commitment_index = commitments[0].index - 1;
-            // If this is not the first commitment, start l2 height will be end block number + 1 of the previous commitment
-            self.ledger_db
-                .get_commitment_by_index(previous_commitment_index)?
-                .expect("Previous commitment must exist")
-                .l2_end_block_number
-                + 1
-        };
-
-        let mut state = PartitionState::new(commitments, start_l2_height, self.ledger_db.clone());
+        let mut state = PartitionState::new(commitments, self.ledger_db.clone())?;
 
         if mode == PartitionMode::OneByOne {
             for i in 0..commitments.len() {
-                state.add_partition(i, PartitionReason::OneByOne);
+                state.add_partition(i, PartitionReason::OneByOne)?;
             }
             return Ok(state.into_inner());
         }
@@ -292,7 +278,7 @@ where
         // Normal partition mode
 
         let mut cumulative_state_diff = StateDiff::new();
-        let mut commitment_start_height = start_l2_height;
+        let mut commitment_start_height = state.next_partition_start_height();
 
         for (i, commitment) in commitments.iter().enumerate() {
             let commitment_end_height = commitment.l2_end_block_number;
@@ -311,15 +297,9 @@ where
             // check index gap
             if commitment.index != commitments[i - 1].index + 1 {
                 cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, PartitionReason::IndexGap);
-                                                        // override commitment and partition start heights in case of index gap
-                commitment_start_height = self
-                    .ledger_db
-                    .get_commitment_by_index(commitment.index - 1)?
-                    .expect("Previous commitment must exist")
-                    .l2_end_block_number
-                    + 1;
-                state.partition_start_height = commitment_start_height;
+                state.add_partition(i - 1, PartitionReason::IndexGap)?;
+                // override commitment start height as we lost track of the latest commitment due to index gap
+                commitment_start_height = state.next_partition_start_height();
                 continue;
             }
 
@@ -327,7 +307,7 @@ where
             let current_spec = fork_from_block_number(commitment_end_height);
             if current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number) {
                 cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, PartitionReason::SpecChange);
+                state.add_partition(i - 1, PartitionReason::SpecChange)?;
                 continue;
             }
 
@@ -341,13 +321,13 @@ where
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
                 cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, PartitionReason::StateDiff);
+                state.add_partition(i - 1, PartitionReason::StateDiff)?;
                 continue;
             }
         }
 
         // Add all remaining commitments as last partition
-        state.add_partition(commitments.len() - 1, PartitionReason::Finish);
+        state.add_partition(commitments.len() - 1, PartitionReason::Finish)?;
 
         Ok(state.into_inner())
     }
