@@ -39,7 +39,7 @@ pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     //client: SignerMiddleware<Provider<Http>, PrivateKeySigner>,
-    client: Box<dyn AlloyProvider<Http<HyperClient>>>,
+    pub(crate) client: Box<dyn AlloyProvider<Http<HyperClient>>>,
     http_client: HttpClient,
     ws_client: WsClient,
     current_nonce: AtomicU64,
