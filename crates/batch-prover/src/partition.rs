@@ -2,17 +2,16 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::SequencerCommitment;
 use tracing::info;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Enum to determine how to group commitments
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PartitionMode {
-    /// Groups commitments the normal way
-    /// Generates proof(s) given l1 height using the same strategy of batch prover
+    /// Groups commitments with the default prover strategy
     Normal,
-    /// Every commitment is a group on their own
-    /// Generates a proof for every commitment
+    /// Every commitment is a group on their own, generates a proof for every commitment
     OneByOne,
 }
 
+/// Helper struct to track the current state and ensure the integrity of the partition
 pub struct PartitionState<'a> {
     commitments: &'a [SequencerCommitment],
     partitions: Vec<Partition<'a>>,
