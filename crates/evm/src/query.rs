@@ -598,14 +598,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .balance;
         let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance)?;
 
-        let result = match inspect_no_citrea_handle(
+        let result = match inspect_with_citrea_handle(
             evm_db,
             cfg_env,
             block_env,
             tx_env,
+            0,
             TracingInspector::new(TracingInspectorConfig::none()),
         ) {
-            Ok(result) => result.result,
+            Ok((result, _)) => result.result,
             Err(err) => {
                 return Err(EthApiError::from(err).into());
             }
@@ -709,17 +710,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // can consume the list since we're not using the request anymore
         let initial = request.access_list.take().unwrap_or_default();
 
+        // TODO: update here.
         let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
         let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
 
-        let result = inspect_no_citrea_handle(
-            &mut evm_db,
+        let (result, _) = inspect_with_citrea_handle(
+            evm_db,
             cfg_env.clone(),
             block_env.clone(),
             tx_env,
+            0,
             &mut inspector,
         )
         .map_err(EthApiError::from)?;
+
+        println!("result: {:?}", result);
 
         match result.result {
             ExecutionResult::Halt { reason, .. } => Err(match reason {
@@ -733,6 +738,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }?;
 
         let access_list = inspector.into_access_list();
+
+        println!("access_list: {:?}", access_list);
 
         request.access_list = Some(access_list.clone());
 
@@ -939,12 +946,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     let mut tx_env = tx_env.clone();
                     tx_env.gas_limit = MIN_TRANSACTION_GAS;
 
-                    let res = inspect_with_citrea_handle_no_inspectors(
+                    let res = inspect_with_citrea_handle(
                         self.get_db(working_set),
                         cfg_env.clone(),
                         block_env.clone(),
                         tx_env.clone(),
                         l1_fee_rate,
+                        TracingInspector::new(TracingInspectorConfig::none()),
                     );
 
                     if let Ok((res, tx_info)) = res {
@@ -988,12 +996,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
-        let result = inspect_with_citrea_handle_no_inspectors(
+        let result = inspect_with_citrea_handle(
             evm_db,
             cfg_env.clone(),
             block_env.clone(),
             tx_env.clone(),
             l1_fee_rate,
+            TracingInspector::new(TracingInspectorConfig::none()),
         );
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -1067,12 +1076,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if optimistic_gas_limit < highest_gas_limit {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
-            let curr_result = inspect_with_citrea_handle_no_inspectors(
+            let curr_result = inspect_with_citrea_handle(
                 self.get_db(working_set),
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
                 l1_fee_rate,
+                TracingInspector::new(TracingInspectorConfig::none()),
             );
             let (curr_result, tx_info) = match curr_result {
                 Ok(result) => result,
@@ -1109,12 +1119,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             tx_env.gas_limit = mid_gas_limit;
 
             let evm_db = self.get_db(working_set);
-            let result = inspect_with_citrea_handle_no_inspectors(
+            let result = inspect_with_citrea_handle(
                 evm_db,
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
                 l1_fee_rate,
+                TracingInspector::new(TracingInspectorConfig::none()),
             );
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -1866,7 +1877,14 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit.saturating_to();
 
-    match inspect_with_citrea_handle_no_inspectors(db, cfg_env, block_env, tx_env, l1_fee_rate) {
+    match inspect_with_citrea_handle(
+        db,
+        cfg_env,
+        block_env,
+        tx_env,
+        l1_fee_rate,
+        TracingInspector::new(TracingInspectorConfig::none()),
+    ) {
         Ok((res, _tx_info)) => match res.result {
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to
