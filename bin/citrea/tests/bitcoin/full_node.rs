@@ -116,7 +116,7 @@ impl TestCase for L2StatusTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(175)
+        Some(170)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -160,7 +160,7 @@ impl TestCase for L2StatusTest {
             .unwrap();
 
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment);
-        assert_eq!(committed_height.commitment_index, 0);
+        assert_eq!(committed_height.commitment_index, 1);
 
         let proven_height = full_node_http_client.get_last_proven_l2_height().await?;
 
@@ -234,7 +234,7 @@ impl TestCase for L2StatusTest {
             .unwrap();
 
         assert_eq!(committed_height2.height, max_l2_blocks_per_commitment * 2);
-        assert_eq!(committed_height2.commitment_index, 1);
+        assert_eq!(committed_height2.commitment_index, 2);
 
         // Proven height should still be at the first commitment
         let proven_height2 = full_node_http_client
@@ -243,7 +243,7 @@ impl TestCase for L2StatusTest {
             .unwrap();
 
         assert_eq!(proven_height2.height, max_l2_blocks_per_commitment);
-        assert_eq!(proven_height2.commitment_index, 0);
+        assert_eq!(proven_height2.commitment_index, 1);
 
         // Try a future non-existent L1 height
         let future_l1_height = second_commitment_l1_height + 1_000;
@@ -269,7 +269,7 @@ impl TestCase for L2StatusTest {
                     "--l2-target",
                     "0",
                     "--l1-target",
-                    "0",
+                    &f.initial_da_height.to_string(),
                     "--sequencer-commitment-index",
                     "0",
                 ],
