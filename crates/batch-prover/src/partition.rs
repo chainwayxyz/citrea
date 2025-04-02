@@ -11,6 +11,15 @@ pub enum PartitionMode {
     OneByOne,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PartitionReason {
+    OneByOne,
+    IndexGap,
+    SpecChange,
+    StateDiff,
+    Finish,
+}
+
 /// Helper struct to track the current state and ensure the integrity of the partition
 pub struct PartitionState<'a> {
     commitments: &'a [SequencerCommitment],
@@ -30,7 +39,7 @@ impl<'a> PartitionState<'a> {
     }
 
     /// Adds a new partition. end_idx is the index to the commitments array, and it is inclusive.
-    pub fn add_partition(&mut self, end_idx: usize, reason: &str) {
+    pub fn add_partition(&mut self, end_idx: usize, reason: PartitionReason) {
         assert!(
             end_idx >= self.partition_start_idx,
             "incorrectly ordered end partition index"
@@ -44,7 +53,7 @@ impl<'a> PartitionState<'a> {
         let last_commitment = &self.commitments[end_idx];
 
         info!(
-            "Adding commitment partition: indices=[{},{}] blocks=[{},{}] reason={}",
+            "Adding commitment partition: indices=[{},{}] blocks=[{},{}] reason={:?}",
             first_commitment.index,
             last_commitment.index,
             self.partition_start_height,

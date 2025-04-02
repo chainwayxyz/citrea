@@ -33,7 +33,7 @@ use tracing::{debug, error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
 
-use crate::partition::{Partition, PartitionMode, PartitionState};
+use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
 pub struct Prover<Da, DB, Vm>
 where
@@ -284,7 +284,7 @@ where
 
         if mode == PartitionMode::OneByOne {
             for i in 0..commitments.len() {
-                state.add_partition(i, "onebyone");
+                state.add_partition(i, PartitionReason::OneByOne);
             }
             return Ok(state.into_inner());
         }
@@ -311,7 +311,7 @@ where
             // check index gap
             if commitment.index != commitments[i - 1].index + 1 {
                 cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, "indexgap"); // i - 1 because inclusive
+                state.add_partition(i - 1, PartitionReason::IndexGap);
                                                         // override commitment and partition start heights in case of index gap
                 commitment_start_height = self
                     .ledger_db
@@ -327,7 +327,7 @@ where
             let current_spec = fork_from_block_number(commitment_end_height);
             if current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number) {
                 cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, "specchange"); // i - 1 because inclusive
+                state.add_partition(i - 1, PartitionReason::SpecChange);
                 continue;
             }
 
@@ -341,13 +341,13 @@ where
             // check state diff threshold
             if compressed_diff.len() > MAX_TXBODY_SIZE {
                 cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, "statediff"); // i - 1 because inclusive
+                state.add_partition(i - 1, PartitionReason::StateDiff);
                 continue;
             }
         }
 
         // Add all remaining commitments as last partition
-        state.add_partition(commitments.len() - 1, "finish");
+        state.add_partition(commitments.len() - 1, PartitionReason::Finish);
 
         Ok(state.into_inner())
     }
