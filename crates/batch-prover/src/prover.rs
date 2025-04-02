@@ -232,9 +232,26 @@ where
     /// E.g. commitments = [3, 4, 5], but commitment 2 is not known yet, outputs [4, 5]
     fn filter_prev_missing_commitments(
         &self,
-        mut commitments: Vec<SequencerCommitment>,
+        commitments: Vec<SequencerCommitment>,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        todo!()
+        commitments
+            .into_iter()
+            .filter_map(|comm| {
+                // TODO: first commitment index will be 1 after https://github.com/chainwayxyz/citrea/pull/2180
+                if comm.index == 0 {
+                    return Some(Ok(comm));
+                }
+
+                match self.ledger_db.get_commitment_by_index(comm.index - 1) {
+                    // prev commitment exists
+                    Ok(Some(_)) => Some(Ok(comm)),
+                    // prev commitment doesn't exist
+                    Ok(None) => None,
+                    // db error
+                    Err(e) => Some(Err(e)),
+                } 
+            })
+            .collect()
     }
 
     /// Partition the commitments into provable chunks. Here are the rules when partitioning in Normal mode:
