@@ -138,7 +138,7 @@ where
         }
         info!("Got {} synced pending commitment(s)", commitments.len());
 
-        // verify state roots of commitment
+        // verify state roots of commitments
         for commitment in commitments.iter() {
             let state_root = self
                 .ledger_db
