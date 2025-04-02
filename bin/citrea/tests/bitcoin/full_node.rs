@@ -538,14 +538,14 @@ impl TestCase for ConflictingCommitmentsTest {
         let commitment_a = SequencerCommitment {
             merkle_root: correct_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment,
-            index: 0,
+            index: 1,
         };
 
         // Create another conflicting commitment B with same index but different l2_end_block_number
         let commitment_b = SequencerCommitment {
             merkle_root: correct_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment - 1,
-            index: 0,
+            index: 1,
         };
 
         // Send commitment A
@@ -571,7 +571,7 @@ impl TestCase for ConflictingCommitmentsTest {
             .unwrap();
 
         assert_eq!(committed_height_a.height, max_l2_blocks_per_commitment);
-        assert_eq!(committed_height_a.commitment_index, 0);
+        assert_eq!(committed_height_a.commitment_index, 1);
 
         // Send conflicting commitment B
         bitcoin_da_service
@@ -597,7 +597,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // The committed height should still match commitment A
         assert_eq!(committed_height_b.height, max_l2_blocks_per_commitment);
-        assert_eq!(committed_height_b.commitment_index, 0);
+        assert_eq!(committed_height_b.commitment_index, 1);
 
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -616,7 +616,7 @@ impl TestCase for ConflictingCommitmentsTest {
         let commitment_c = SequencerCommitment {
             merkle_root: second_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment * 2,
-            index: 1,
+            index: 2,
         };
 
         // Send commitment C that follows A
@@ -645,7 +645,7 @@ impl TestCase for ConflictingCommitmentsTest {
             final_committed_height.height,
             max_l2_blocks_per_commitment * 2
         );
-        assert_eq!(final_committed_height.commitment_index, 1);
+        assert_eq!(final_committed_height.commitment_index, 2);
 
         Ok(())
     }
