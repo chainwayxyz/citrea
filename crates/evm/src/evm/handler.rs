@@ -240,8 +240,7 @@ where
         self.inspector.create_end(context, inputs, outcome)
     }
     fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
-        // why not  self.inspector.selfdestruct(contract, target, value) ?
-        (&mut self.inspector as &mut dyn Inspector<DB>).selfdestruct(contract, target, value)
+        self.inspector.selfdestruct(contract, target, value)
     }
 }
 
