@@ -437,10 +437,13 @@ where
 
         tracing::info!("Starting proving with ELF of spec: {:?}", current_spec);
 
-        let input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
+        let inputs = input.into_v3_parts();
 
         let proof_data = ProofData {
-            input,
+            inputs: vec![
+                borsh::to_vec(&inputs.0).expect("Input serialization cannot fail"),
+                borsh::to_vec(&inputs.1).expect("Input serialization cannot fail"),
+            ],
             assumptions: vec![],
             elf,
         };
