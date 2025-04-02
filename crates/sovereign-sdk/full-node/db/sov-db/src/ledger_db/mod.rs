@@ -612,7 +612,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_unfinished_proving_jobs(&self) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
+    fn get_running_proving_jobs(&self) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
         let mut iter = self.db.iter::<ProverRunningJobs>()?;
         iter.seek_to_first();
 

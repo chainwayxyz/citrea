@@ -194,8 +194,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Updates job tx id and removes job from running jobs
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
 
-    /// Get all unfinished proving jobs and their status
-    fn get_unfinished_proving_jobs(&self) -> Result<Vec<(Uuid, JobStatus)>>;
+    /// Get all running proving jobs and their status
+    fn get_running_proving_jobs(&self) -> Result<Vec<(Uuid, JobStatus)>>;
 }
 
 /// Light client prover ledger operations
