@@ -93,16 +93,16 @@ impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
         self.partition_start_height = match reason {
             PartitionReason::IndexGap => {
                 // in case of index gap, we need to query the next partition start height
-                let first_commitment_of_next_partition = &self.commitments[self.partition_start_idx];
-                self
-                    .ledger_db
+                let first_commitment_of_next_partition =
+                    &self.commitments[self.partition_start_idx];
+                self.ledger_db
                     .get_commitment_by_index(first_commitment_of_next_partition.index - 1)?
                     .expect("Previous commitment must exist")
                     .l2_end_block_number
                     + 1
             }
             _ => last_commitment.l2_end_block_number + 1,
-        }; 
+        };
 
         Ok(())
     }
