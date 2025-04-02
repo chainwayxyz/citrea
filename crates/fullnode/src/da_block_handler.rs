@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -524,25 +524,46 @@ where
             ).into());
         }
 
-        let mut l2_start_height = previous_l2_end_block_number + 1;
+        let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
+        let mut missing_commitments = HashSet::new();
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
-            .zip(batch_proof_output.sequencer_commitment_hashes())
+            .zip(commitments_hashes)
         {
             // Check if hash matches
+            if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(index)? {
+                if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
+                    return Err(anyhow!(
+                            "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                            hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
+                            hex::encode(expected_hash)
+                        ).into());
+                }
+            } else {
+                info!("Commitment index {index} is missing for proof, keeping as pending.");
+                missing_commitments.insert(index);
+            }
+        }
+
+        // Proof had missing commitments and all existing commitments passed hash validation
+        if !missing_commitments.is_empty() {
+            info!(
+                "Commitments {missing_commitments:?} were missing for proof. Storing as pending."
+            );
+            self.ledger_db.store_pending_proof(
+                sequencer_commitment_index_range.0,
+                sequencer_commitment_index_range.1,
+                raw_proof,
+            )?;
+            return Ok(());
+        }
+
+        let mut l2_start_height = previous_l2_end_block_number + 1;
+        for index in sequencer_commitment_index_range.0..=sequencer_commitment_index_range.1 {
             let sequencer_commitment = self
                 .ledger_db
                 .get_commitment_by_index(index)?
-                .ok_or(SyncError::SequencerCommitmentWithIndexNotFound(index))?;
-
-            if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
-                return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
-                    hex::encode(expected_hash)
-                ).into());
-            }
-
+                .expect("Commitment should exist");
             for i in l2_start_height..=sequencer_commitment.l2_end_block_number {
                 self.ledger_db
                     .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)?;
