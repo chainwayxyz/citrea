@@ -6,6 +6,8 @@ use tracing::debug;
 
 use crate::log_result_or_error;
 use crate::pruning::types::StorageNodeType;
+use sov_db::schema::tables::ProverLastScannedSlot;
+use sov_db::schema::types::SlotNumber;
 
 mod l2_blocks;
 mod slots;
@@ -43,6 +45,7 @@ pub(crate) fn rollback_ledger_db(
             log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1,));
         }
     }
+    let _ = ledger_db.put::<ProverLastScannedSlot>(&(), &SlotNumber(target_l1));
 
     let _ = ledger_db.flush();
 }
