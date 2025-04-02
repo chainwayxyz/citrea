@@ -28,6 +28,7 @@ pub mod db_migrations;
 pub mod l1_syncer;
 mod l2_syncer;
 mod metrics;
+mod partition;
 pub mod prover;
 pub mod rpc;
 mod runner;

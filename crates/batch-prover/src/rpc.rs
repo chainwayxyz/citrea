@@ -19,7 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::Mutex;
 
-use crate::prover::PartitionMode;
+use crate::partition::PartitionMode;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

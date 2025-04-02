@@ -12,7 +12,6 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData};
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
@@ -33,6 +32,8 @@ use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
+
+use crate::partition::{Partition, PartitionMode, PartitionState};
 
 pub struct Prover<Da, DB, Vm>
 where
@@ -311,7 +312,7 @@ where
             if commitment.index != commitments[i - 1].index + 1 {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, "indexgap"); // i - 1 because inclusive
-                // override commitment and partition start heights in case of index gap
+                                                        // override commitment and partition start heights in case of index gap
                 commitment_start_height = self
                     .ledger_db
                     .get_commitment_by_index(commitment.index - 1)?
@@ -507,85 +508,6 @@ where
             }
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Enum to determine how to group commitments
-pub enum PartitionMode {
-    /// Groups commitments the normal way
-    /// Generates proof(s) given l1 height using the same strategy of batch prover
-    Normal,
-    /// Every commitment is a group on their own
-    /// Generates a proof for every commitment
-    OneByOne,
-}
-
-struct PartitionState<'a> {
-    commitments: &'a [SequencerCommitment],
-    partitions: Vec<Partition<'a>>,
-    partition_start_height: u64,
-    partition_start_idx: usize,
-}
-
-impl<'a> PartitionState<'a> {
-    fn new(commitments: &'a [SequencerCommitment], start_l2_height: u64) -> Self {
-        Self {
-            commitments,
-            partitions: vec![],
-            partition_start_height: start_l2_height,
-            partition_start_idx: 0,
-        }
-    }
-
-    /// Adds a new partition. end_idx is the index to the commitments array, and it is inclusive.
-    fn add_partition(&mut self, end_idx: usize, reason: &str) {
-        assert!(
-            end_idx >= self.partition_start_idx,
-            "incorrectly ordered end partition index"
-        );
-        assert!(
-            end_idx < self.commitments.len(),
-            "end index higher than commitment count"
-        );
-
-        let first_commitment = &self.commitments[self.partition_start_idx];
-        let last_commitment = &self.commitments[end_idx];
-
-        info!(
-            "Adding commitment partition: indices=[{},{}] blocks=[{},{}] reason={}",
-            first_commitment.index,
-            last_commitment.index,
-            self.partition_start_height,
-            last_commitment.l2_end_block_number,
-            reason
-        );
-
-        let commitments = &self.commitments[self.partition_start_idx..=end_idx];
-        self.partitions.push(Partition {
-            commitments,
-            start_height: self.partition_start_height,
-            end_height: last_commitment.l2_end_block_number,
-        });
-
-        self.partition_start_idx = end_idx + 1;
-        self.partition_start_height = last_commitment.l2_end_block_number + 1;
-    }
-
-    fn into_inner(self) -> Vec<Partition<'a>> {
-        assert_eq!(
-            self.partition_start_idx,
-            self.commitments.len(),
-            "trying to finalize partition without adding all commitments"
-        );
-        self.partitions
-    }
-}
-
-/// Helper wrapper struct to hold start and end heights with the commitment partition
-struct Partition<'a> {
-    commitments: &'a [SequencerCommitment],
-    start_height: u64,
-    end_height: u64,
 }
 
 const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
