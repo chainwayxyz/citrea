@@ -527,6 +527,13 @@ where
             }
         }
 
+        // All commitments are missing, discarding proof
+        if missing_commitments.len() as u32
+            == sequencer_commitment_index_range.1 - sequencer_commitment_index_range.0 + 1
+        {
+            return Err(anyhow!("All commitments were missing for proof.").into());
+        }
+
         // Proof had missing commitments and all existing commitments passed hash validation
         if !missing_commitments.is_empty() {
             info!(
@@ -538,13 +545,6 @@ where
                 raw_proof,
             )?;
             return Ok(());
-        }
-
-        // All commitments are missing, discarding proof
-        if missing_commitments.len() as u32
-            == sequencer_commitment_index_range.1 - sequencer_commitment_index_range.0 + 1
-        {
-            return Err(anyhow!("All commitments were missing for proof.").into());
         }
 
         let mut l2_start_height = previous_l2_end_block_number + 1;
