@@ -379,13 +379,13 @@ impl TestCase for OutOfOrderCommitmentsTest {
         let first_commitment = SequencerCommitment {
             merkle_root: first_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment,
-            index: 0,
+            index: 1,
         };
 
         let second_commitment = SequencerCommitment {
             merkle_root: second_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment * 2,
-            index: 1,
+            index: 2,
         };
 
         da.wait_mempool_len(4, None).await?;
@@ -454,7 +454,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
             final_committed_height.height,
             max_l2_blocks_per_commitment * 2
         );
-        assert_eq!(final_committed_height.commitment_index, 1);
+        assert_eq!(final_committed_height.commitment_index, 2);
 
         Ok(())
     }
