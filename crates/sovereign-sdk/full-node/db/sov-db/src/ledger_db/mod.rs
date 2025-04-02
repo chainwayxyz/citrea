@@ -539,7 +539,7 @@ impl BatchProverLedgerOps for LedgerDB {
             commitments.push(commitment);
         }
 
-        commitments.sort();
+        commitments.sort_unstable();
 
         Ok(commitments)
     }
