@@ -387,11 +387,11 @@ async fn test_same_nonce_tx_replacement() {
         .to_string()
         .contains("replacement transaction underpriced"));
 
-    // Replacement success with 10% fee bump - does not work
+    // Replacement success with 9% fee bump - does not work
     let err = test_client
         .send_eth(
             addr,
-            Some(110), // 10% increase
+            Some(109), // 9% increase
             Some(MAX_FEE_PER_GAS + 1000000000),
             Some(0),
             0u128,
@@ -406,8 +406,8 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(111),                         // 11% increase
-            Some(MAX_FEE_PER_GAS + 100000000), // Not increasing more than 10 percent - should fail.
+            Some(111),                        // 11% increase
+            Some(MAX_FEE_PER_GAS + 99999999), // Not increasing more than 10 percent - should fail.
             Some(0),
             0u128,
         )
@@ -422,8 +422,8 @@ async fn test_same_nonce_tx_replacement() {
     let tx_hash_11_bump = test_client
         .send_eth(
             addr,
-            Some(111),                          // 11% increase
-            Some(MAX_FEE_PER_GAS + 1000000000), // More than 10 percent - should succeed.
+            Some(110),                          // 10% increase
+            Some(MAX_FEE_PER_GAS + 1000000000), // 10 percent - should succeed.
             Some(0),
             0u128,
         )
