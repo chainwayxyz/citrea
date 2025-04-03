@@ -4,7 +4,7 @@ use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{Bytes as RethBytes, PrimitiveSignature};
 use reth_primitives::transaction::SignedTransactionIntoRecoveredExt;
 use reth_primitives::{Recovered, TransactionSigned};
-use revm::primitives::{AccountInfo as ReVmAccountInfo, SpecId, TransactTo, TxEnv, U256};
+use revm::primitives::{AccountInfo as ReVmAccountInfo, TransactTo, TxEnv, U256};
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
@@ -66,7 +66,9 @@ pub(crate) fn create_tx_env(tx: &Recovered<TransactionSigned>) -> TxEnv {
         // EIP-4844 related fields
         blob_hashes: tx.blob_versioned_hashes().unwrap_or_default().to_vec(),
         max_fee_per_blob_gas: tx.max_fee_per_blob_gas().map(U256::from),
-        authorization_list: None,
+        authorization_list: tx
+            .authorization_list()
+            .map(|a| revm::primitives::AuthorizationList::Signed(a.to_vec())),
     };
 
     tx_env
@@ -120,7 +122,7 @@ impl From<TransactionSignedAndRecovered> for Recovered<TransactionSigned> {
 pub(crate) fn sealed_block_to_block_env(
     sealed_header: &reth_primitives::SealedHeader,
 ) -> revm::primitives::BlockEnv {
-    use revm::primitives::BlobExcessGasAndPrice;
+    use revm::primitives::{BlobExcessGasAndPrice, SpecId};
 
     let citrea_spec = citrea_primitives::forks::fork_from_block_number(sealed_header.number);
     let evm_spec = crate::citrea_spec_id_to_evm_spec_id(citrea_spec.spec_id);

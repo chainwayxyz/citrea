@@ -1,6 +1,7 @@
-use std::collections::BTreeMap;
-
-use accessors::{BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor};
+use accessors::{
+    BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
+    VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
+};
 use borsh::BorshDeserialize;
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
@@ -11,19 +12,16 @@ use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::{
-    BatchProofInfo, LightClientCircuitOutput,
+    LightClientCircuitOutput, VerifiedStateTransitionForSequencerCommitmentIndex,
 };
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
-
-use crate::circuit::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
 pub(crate) mod accessors;
 /// Initial values that are used to initialize the light client proof circuit.
 pub mod initial_values;
-pub(crate) mod utils;
 
 // L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
@@ -39,12 +37,11 @@ pub enum LightClientVerificationError<DaV: DaVerifier> {
 
 pub struct RunL1BlockResult<S: Storage> {
     l2_state_root: [u8; 32],
-    lcp_state_root: [u8; 32],
-    unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    pub lcp_state_root: [u8; 32],
     last_l2_height: u64,
-    batch_proof_method_ids: Vec<(u64, [u32; 8])>,
     pub witness: Witness,
     pub change_set: S,
+    last_sequencer_commitment_index: u32,
 }
 
 pub struct LightClientProofCircuit<S: Storage, DS: DaSpec, Z: Zkvm> {
@@ -58,12 +55,133 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
     }
 
+    fn verify_batch_proof_seq_comm_relation(
+        &self,
+        batch_proof_output: &BatchProofCircuitOutput,
+        working_set: &mut WorkingSet<S>,
+    ) -> bool {
+        if !BlockHashAccessor::<S>::exists(
+            batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract(),
+            working_set,
+        ) {
+            println!(
+                "Block hash does not exist in the jmt state: {:?}",
+                batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract()
+            );
+            return false;
+        }
+
+        match (
+            batch_proof_output.previous_commitment_index(),
+            batch_proof_output.previous_commitment_hash(),
+        ) {
+            (
+                Some(previous_commitment_index),
+                Some(batch_proof_output_previous_commitment_hash),
+            ) => {
+                let previous_commitment = match SequencerCommitmentAccessor::<S>::get(
+                    previous_commitment_index,
+                    working_set,
+                ) {
+                    Some(commitment) => commitment,
+                    None => {
+                        println!(
+                            "Sequencer commitment with index {} does not exist in the jmt state",
+                            previous_commitment_index
+                        );
+                        return false;
+                    }
+                };
+                let previous_commitment_hash =
+                    previous_commitment.serialize_and_calculate_sha_256();
+                if previous_commitment_hash != batch_proof_output_previous_commitment_hash {
+                    println!(
+                        "Previous commitment hash mismatch, expected: {:?}, got: {:?}",
+                        previous_commitment_hash, batch_proof_output_previous_commitment_hash
+                    );
+                    return false;
+                }
+            }
+            _ => {
+                // If there are no previous commitments then this should be the first batch proof
+                // The first batch proof's first commitment index should be 1
+                if batch_proof_output.sequencer_commitment_index_range().0 != 1 {
+                    println!(
+                        "Previous commitment index is not set, but sequencer commitment index range start is not 1: {}",
+                        batch_proof_output.sequencer_commitment_index_range().0
+                    );
+                    return false;
+                }
+            }
+        }
+
+        let (first_index, last_index) = batch_proof_output.sequencer_commitment_index_range();
+        let batch_proof_output_sequencer_commitment_hashes =
+            batch_proof_output.sequencer_commitment_hashes();
+
+        // The index range len should be equal to the number of sequencer commitment hashes in the batch proof output
+        if (last_index - first_index + 1) as usize
+            != batch_proof_output_sequencer_commitment_hashes.len()
+        {
+            println!(
+                "Sequencer commitment index range length mismatch, expected: {}, got: {}",
+                (last_index - first_index + 1),
+                batch_proof_output_sequencer_commitment_hashes.len()
+            );
+            return false;
+        }
+
+        for (i, (batch_proof_sequencer_commitment_index, batch_proof_sequencer_commitment_hash)) in
+            (first_index..=last_index)
+                .zip(batch_proof_output_sequencer_commitment_hashes)
+                .enumerate()
+        {
+            let jmt_commitment = match SequencerCommitmentAccessor::<S>::get(
+                batch_proof_sequencer_commitment_index,
+                working_set,
+            ) {
+                Some(commitment) => commitment,
+                None => {
+                    println!(
+                        "Sequencer commitment with index {} does not exist in the jmt state",
+                        batch_proof_sequencer_commitment_index
+                    );
+                    return false;
+                }
+            };
+
+            // If this is the last commitment check the l2 heights matching
+            // This is unreachable, because if seq comm hashes are matching then the l2 heights must match
+            // because we assert in batch proof
+            if i as u32 == last_index - first_index
+                && jmt_commitment.l2_end_block_number != batch_proof_output.last_l2_height()
+            {
+                println!(
+                    "Last sequencer commitment l2 height mismatch, expected: {}, got: {}",
+                    jmt_commitment.l2_end_block_number,
+                    batch_proof_output.last_l2_height()
+                );
+                return false;
+            }
+
+            let jmt_commitment_hash = jmt_commitment.serialize_and_calculate_sha_256();
+            if jmt_commitment_hash != batch_proof_sequencer_commitment_hash {
+                println!(
+                    "Sequencer commitment hash mismatch, expected: {:?}, got: {:?}",
+                    jmt_commitment_hash, batch_proof_sequencer_commitment_hash
+                );
+                return false;
+            }
+        }
+
+        true
+    }
+
     fn process_complete_proof(
         &self,
         proof: &[u8],
-        batch_proof_method_ids: &InitialBatchProofMethodIds,
         last_l2_height: u64,
-        initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
+        last_sequencer_commitment_index: u32,
         working_set: &mut WorkingSet<S>,
     ) -> Result<(), CircuitError> {
         let Ok(journal) = Z::extract_raw_output(proof) else {
@@ -79,15 +197,21 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return Err("Batch proof with unknown header chain");
         }
 
-        let batch_proof_output_initial_state_root = batch_proof_output.initial_state_root();
-        let batch_proof_output_final_state_root = batch_proof_output.final_state_root();
+        let batch_proof_output_state_roots = batch_proof_output.state_roots();
         let batch_proof_output_last_l2_height = batch_proof_output.last_l2_height();
+        let batch_proof_output_sequencer_commitment_index_range =
+            batch_proof_output.sequencer_commitment_index_range();
+        let batch_proof_output_last_commitment_index =
+            batch_proof_output_sequencer_commitment_index_range.1;
 
         // Do not add if last l2 height is smaller or equal to previous output
         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
         if batch_proof_output_last_l2_height <= last_l2_height && last_l2_height != 0 {
             return Err("Last L2 height is less than proof's last l2 height");
         }
+
+        let batch_proof_method_ids = BatchProofMethodIdAccessor::<S>::get(working_set)
+            .expect("Batch proof method ids must exist");
 
         let batch_proof_method_id = if batch_proof_method_ids.len() == 1 {
             batch_proof_method_ids[0].1
@@ -107,14 +231,42 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         Z::verify(proof, &batch_proof_method_id.into()).map_err(|_| "Failed to verify proof")?;
 
-        recursive_match_state_roots(
-            initial_to_final,
-            &BatchProofInfo::new(
-                batch_proof_output_initial_state_root,
-                batch_proof_output_final_state_root,
-                batch_proof_output_last_l2_height,
-            ),
-        );
+        if !self.verify_batch_proof_seq_comm_relation(&batch_proof_output, working_set) {
+            return Err("Failed to verify sequencer commitment relation");
+        }
+
+        if batch_proof_output_last_commitment_index <= last_sequencer_commitment_index {
+            return Err("Last commitment index is less than or equal to previous output");
+        }
+
+        for (idx, seq_comm_index) in (batch_proof_output.sequencer_commitment_index_range().0
+            ..=batch_proof_output.sequencer_commitment_index_range().1)
+            .enumerate()
+        {
+            // No need to add data to jmt if index is less than or equal to the current index, because it will be the same since they have the same seq comm hash
+            // Also no need to add if we already have the same index.
+            if seq_comm_index <= last_sequencer_commitment_index
+                || VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
+                    seq_comm_index,
+                    working_set,
+                )
+                .is_some()
+            {
+                continue;
+            }
+            let jmt_commitment = SequencerCommitmentAccessor::<S>::get(seq_comm_index, working_set)
+                .expect("Sequencer commitment must exist at this point");
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::insert(
+                seq_comm_index,
+                VerifiedStateTransitionForSequencerCommitmentIndex::new(
+                    batch_proof_output_state_roots[idx],
+                    // No overflow because the length is sequencer commitments count + 1
+                    batch_proof_output_state_roots[idx + 1],
+                    jmt_commitment.l2_end_block_number,
+                ),
+                working_set,
+            );
+        }
 
         Ok(())
     }
@@ -139,42 +291,32 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         // first insert the block hash into the JMT
         BlockHashAccessor::<S>::insert(da_block_header.hash().into(), &mut working_set);
 
-        // Mapping from initial state root to final state root and last L2 height
-        let mut initial_to_final = BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
-
-        let (mut last_l2_state_root, mut last_l2_height) =
+        let (mut last_l2_state_root, mut last_l2_height, mut last_sequencer_commitment_index) =
             previous_light_client_proof_output.as_ref().map_or_else(
                 || {
                     // if no previous proof, we start from genesis state root
-                    (l2_genesis_root, 0)
+                    (l2_genesis_root, 0, 0)
                 },
-                |prev_journal| (prev_journal.l2_state_root, prev_journal.last_l2_height),
+                |prev_journal| {
+                    (
+                        prev_journal.l2_state_root,
+                        prev_journal.last_l2_height,
+                        prev_journal.last_sequencer_commitment_index,
+                    )
+                },
             );
 
-        // If we have a previous light client proof, check they can be chained
-        // If not, skip for now
-        if let Some(previous_output) = &previous_light_client_proof_output {
-            for unchained_info in previous_output.unchained_batch_proofs_info.iter() {
-                // Add them directly as they are the ones that could not be matched
-                initial_to_final.insert(
-                    unchained_info.initial_state_root,
-                    (
-                        unchained_info.final_state_root,
-                        unchained_info.last_l2_height,
-                    ),
-                );
-            }
+        // If this is the first lcp initialize the batch proof method ids
+        if previous_light_client_proof_output.is_none() {
+            BatchProofMethodIdAccessor::<S>::initialize(
+                initial_batch_proof_method_ids,
+                &mut working_set,
+            );
         }
-
-        let mut batch_proof_method_ids = previous_light_client_proof_output
-            .as_ref()
-            .map_or(initial_batch_proof_method_ids, |o| {
-                o.batch_proof_method_ids.clone()
-            });
 
         'blob_loop: for blob in da_txs {
             let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {
-                println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
+                println!("Unparsable blob in da_data, wtxid={:?}", blob.wtxid());
                 continue;
             };
 
@@ -201,9 +343,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
                     match self.process_complete_proof(
                         &proof,
-                        &batch_proof_method_ids,
                         last_l2_height,
-                        &mut initial_to_final,
+                        last_sequencer_commitment_index,
                         &mut working_set,
                     ) {
                         Ok(()) => {}
@@ -245,9 +386,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
                     match self.process_complete_proof(
                         &complete_proof,
-                        &batch_proof_method_ids,
                         last_l2_height,
-                        &mut initial_to_final,
+                        last_sequencer_commitment_index,
                         &mut working_set,
                     ) {
                         Ok(()) => {}
@@ -274,13 +414,20 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         continue;
                     }
 
+                    let batch_proof_method_ids =
+                        BatchProofMethodIdAccessor::<S>::get(&mut working_set).unwrap();
+
                     let last_activation_height = batch_proof_method_ids
                         .last()
                         .expect("Should be at least one")
                         .0;
 
                     if activation_l2_height > last_activation_height {
-                        batch_proof_method_ids.push((activation_l2_height, method_id));
+                        BatchProofMethodIdAccessor::<S>::insert(
+                            activation_l2_height,
+                            method_id,
+                            &mut working_set,
+                        );
                     }
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
@@ -298,20 +445,25 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             }
         }
 
-        // Do recursive matching for previous state root
-        recursive_match_state_roots(
-            &mut initial_to_final,
-            &BatchProofInfo::new(last_l2_state_root, last_l2_state_root, last_l2_height),
-        );
-
-        // Now only thing left is the state update if exists and others are unchained
-        if let Some((final_root, last_l2)) = initial_to_final.remove(&last_l2_state_root) {
-            last_l2_height = last_l2;
-            last_l2_state_root = final_root;
+        // Try to chain proofs using commitments
+        // With this setup even if we have valid proofs with commitments like 3,4,5 and 5,6
+        // We can update our last commitment index to 6
+        while let Some(sequencer_commitment_info) =
+            VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
+                last_sequencer_commitment_index + 1,
+                &mut working_set,
+            )
+        {
+            if sequencer_commitment_info.initial_state_root == last_l2_state_root {
+                last_l2_state_root = sequencer_commitment_info.final_state_root;
+                last_l2_height = sequencer_commitment_info.last_l2_height;
+                last_sequencer_commitment_index += 1;
+            } else {
+                // This should be infallible
+                // this can only happen if commitment started committing to a different chain
+                unreachable!("Commitment with the next index having an unexpected state root");
+            }
         }
-
-        // Collect unchained outputs
-        let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
 
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
 
@@ -340,11 +492,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         RunL1BlockResult {
             l2_state_root: last_l2_state_root,
             lcp_state_root: lcp_state_root_transition.final_root,
-            unchained_batch_proofs_info: unchained_outputs,
             last_l2_height,
-            batch_proof_method_ids,
             witness,
             change_set: storage,
+            last_sequencer_commitment_index,
         }
     }
 
@@ -423,10 +574,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             l2_state_root: result.l2_state_root,
             light_client_proof_method_id: input.light_client_proof_method_id,
             latest_da_state: new_da_state,
-            unchained_batch_proofs_info: result.unchained_batch_proofs_info,
             last_l2_height: result.last_l2_height,
-            batch_proof_method_ids: result.batch_proof_method_ids,
             lcp_state_root: result.lcp_state_root,
+            last_sequencer_commitment_index: result.last_sequencer_commitment_index,
         })
     }
 }

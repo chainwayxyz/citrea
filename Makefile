@@ -1,5 +1,5 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
-EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
+EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
@@ -59,10 +59,10 @@ test-ci:
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 coverage-ci:
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features 
+	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
 
 test: build-test ## Runs test suite using next test
-	$(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
+	TEST_SKIP_GUEST_BUILD=1 $(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: build-test coverage-ci ## Coverage in lcov format
 
@@ -82,9 +82,10 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	$(MAKE) install-sp1
 
 install-risc0:
-	curl -L https://risczero.com/install | bash
-	source $HOME/.bashrc
-	rzup install cargo-risczero 2.0.0
+	curl -L https://risczero.com/install | bash && \
+	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
+	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
+	rzup install && \
 	rzup install rust 1.85.0
 
 install-sp1: ## Install necessary SP1 toolchain

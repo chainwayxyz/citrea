@@ -10,6 +10,8 @@ mod db_commit;
 pub(crate) mod db_init;
 pub(crate) mod executor;
 pub(crate) mod handler;
+/// Precompiles for Citrea
+pub mod precompiles;
 pub(crate) mod primitive_types;
 /// System contracts used for system transactions
 pub mod system_contracts;

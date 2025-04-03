@@ -79,7 +79,7 @@ struct SequencerMissedDaBlocksTest;
 impl TestCase for SequencerMissedDaBlocksTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 1000,
+            max_l2_blocks_per_commitment: 1000,
             ..Default::default()
         }
     }

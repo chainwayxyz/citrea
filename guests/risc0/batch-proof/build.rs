@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
+use risc0_build::{embed_methods_with_options, DockerOptionsBuilder, GuestOptionsBuilder};
 
 fn main() {
     // Build environment variables
@@ -11,6 +11,12 @@ fn main() {
     println!("cargo:rerun-if-env-changed=CITREA_NETWORK");
     println!("cargo:rerun-if-env-changed=SEQUENCER_PUBLIC_KEY");
     println!("cargo:rerun-if-env-changed=SEQUENCER_DA_PUB_KEY");
+
+    println!("cargo:rerun-if-env-changed=TEST_SKIP_GUEST_BUILD");
+    if let Ok("1" | "true") = std::env::var("TEST_SKIP_GUEST_BUILD").as_deref() {
+        println!("cargo:warning=Skipping guest build in test. Exiting");
+        return;
+    }
 
     match std::env::var("SKIP_GUEST_BUILD") {
         Ok(value) => match value.as_str() {
@@ -59,20 +65,27 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         features.push("testing".to_string());
     }
 
-    let use_docker = if std::env::var("REPR_GUEST_BUILD_LATEST").is_ok() {
+    let opts = if std::env::var("REPR_GUEST_BUILD_LATEST").is_ok() {
         let this_package_dir = std::env!("CARGO_MANIFEST_DIR");
         let root_dir = format!("{this_package_dir}/../../../");
-        Some(DockerOptions {
-            root_dir: Some(root_dir.into()),
-        })
+
+        let docker_opts = DockerOptionsBuilder::default()
+            .root_dir(root_dir)
+            .build()
+            .unwrap();
+
+        GuestOptionsBuilder::default()
+            .features(features)
+            .use_docker(docker_opts)
+            .build()
+            .unwrap()
     } else {
         println!("cargo:warning=Guest code is not built in docker");
-        None
-    };
 
-    let opts = GuestOptions {
-        features,
-        use_docker,
+        GuestOptionsBuilder::default()
+            .features(features)
+            .build()
+            .unwrap()
     };
 
     guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());

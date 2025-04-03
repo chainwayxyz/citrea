@@ -12,13 +12,12 @@ use serde::{Deserialize, Serialize};
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
-use crate::zk::light_client_proof::output::BatchProofInfo;
+use crate::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
 use crate::RefCount;
 
 /// L2 Block response
 pub mod block;
 
-/// A struct containing enough information to uniquely specify single batch.
 /// An identifier that specifies a single l2 block
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "camelCase")]
@@ -48,8 +47,6 @@ impl From<Vec<u8>> for HexTx {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SequencerCommitmentResponse {
-    /// L1 block height the commitment was on
-    pub l1_height: U64,
     /// Hex encoded Merkle root of l2 block hashes
     #[serde(with = "utils::rpc_hex")]
     pub merkle_root: [u8; 32],
@@ -129,8 +126,8 @@ impl From<MMRGuest> for MMRGuestRpcResponse {
     }
 }
 
-impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
-    fn from(info: BatchProofInfo) -> Self {
+impl From<VerifiedStateTransitionForSequencerCommitmentIndex> for BatchProofInfoRpcResponse {
+    fn from(info: VerifiedStateTransitionForSequencerCommitmentIndex) -> Self {
         Self {
             initial_state_root: info.initial_state_root,
             final_state_root: info.final_state_root,
@@ -155,12 +152,10 @@ pub struct LightClientProofOutputRpcResponse {
     pub light_client_proof_method_id: Digest,
     /// Latest DA state after proof
     pub latest_da_state: LatestDaStateRpcResponse,
-    /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
-    pub unchained_batch_proofs_info: Vec<BatchProofInfoRpcResponse>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: U64,
-    /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    pub batch_proof_method_ids: Vec<BatchProofMethodIdRpcResponse>,
+    /// The last sequencer commitment index of the last fully stitched and verified batch proof
+    pub last_sequencer_commitment_index: U32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -220,12 +215,8 @@ pub struct SerializableHash(#[serde(with = "faster_hex")] pub Vec<u8>);
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofOutputRpcResponse {
-    /// The state of the rollup before the transition
-    #[serde(with = "faster_hex")]
-    pub initial_state_root: Vec<u8>,
-    /// The state of the rollup after the transition
-    #[serde(with = "faster_hex")]
-    pub final_state_root: Vec<u8>,
+    /// All the state roots of commitments from initial state (previous commitments state root) to the last sequencer commitment
+    pub state_roots: Vec<SerializableHash>,
     /// The hash of the last l2 block in the state transition
     #[serde(with = "faster_hex")]
     pub final_l2_block_hash: Vec<u8>,
@@ -249,6 +240,30 @@ pub struct BatchProofOutputRpcResponse {
     pub previous_commitment_index: Option<U32>,
     /// The hash of the previous commitment that was given as input in the batch proof
     pub previous_commitment_hash: Option<SerializableHash>,
+}
+
+impl BatchProofOutputRpcResponse {
+    /// Get final state root of batch proof
+    pub fn final_state_root(&self) -> [u8; 32] {
+        self.state_roots
+            .last()
+            .unwrap()
+            .0
+            .clone()
+            .try_into()
+            .unwrap()
+    }
+
+    /// Get initial state root of batch proof
+    pub fn initial_state_root(&self) -> [u8; 32] {
+        self.state_roots
+            .first()
+            .unwrap()
+            .0
+            .clone()
+            .try_into()
+            .unwrap()
+    }
 }
 
 /// Custom serialization for BTreeMap
@@ -330,10 +345,8 @@ where
 /// Converts `SequencerCommitment` to `SequencerCommitmentResponse`
 pub fn sequencer_commitment_to_response(
     commitment: SequencerCommitment,
-    l1_height: u64,
 ) -> SequencerCommitmentResponse {
     SequencerCommitmentResponse {
-        l1_height: U64::from(l1_height),
         merkle_root: commitment.merkle_root,
         index: U32::from(commitment.index),
         l2_end_block_number: U64::from(commitment.l2_end_block_number),
@@ -411,6 +424,12 @@ pub trait LedgerRpcProvider {
         &self,
         height: u64,
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error>;
+
+    /// Takes an index and returns the commitment in the ledger db saved with that index
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: u32,
+    ) -> Result<Option<SequencerCommitmentResponse>, anyhow::Error>;
 
     /// Get batch proof by l1 height
     fn get_batch_proof_data_by_l1_height(

@@ -21,6 +21,7 @@ use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
+use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
@@ -31,8 +32,8 @@ const ACCOUNT_IDX_KEY_SIZE: usize = 24;
 const ACCOUNT_IDX_SIZE: usize = 8;
 
 /// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak internally for evm operations
-const DB_ACCOUNT_SIZE_EOA: usize = 42;
-const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
+const DB_ACCOUNT_SIZE_EOA: usize = 41;
+const DB_ACCOUNT_SIZE_CONTRACT: usize = 73;
 
 /// 4 bytes of prefix ("E/a/") + 8 bytes of account id = 12 bytes
 const DB_ACCOUNT_KEY_SIZE: usize = 12;
@@ -47,11 +48,11 @@ const STORAGE_VALUE_SIZE: usize = 32;
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
 /// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 l2 blocks
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
-pub const L1_FEE_OVERHEAD: usize = 3;
+pub const L1_FEE_OVERHEAD: usize = 2;
 
-/// The brotli average compression ratio (compressed size / uncompressed size) was calculated as 0.33 by measuring the size of state diffs of batches before and after brotli compression.
+/// The brotli average compression ratio (compressed size / uncompressed size) was calculated by measuring the size of state diffs of batches before and after brotli compression.
 /// calculated diff size * BROTLI_COMPRESSION_PERCENTAGE/100 gives the estimated size of the state diff that is written to the da.
-pub const BROTLI_COMPRESSION_PERCENTAGE: usize = 33;
+pub const BROTLI_COMPRESSION_PERCENTAGE: usize = 48;
 
 /// We want to charge the user for the amount of data written as fairly as possible, the problem is at the time of when we write batch proof to the da we cannot know the exact state diff
 /// So we calculate the state diff created by a single transaction and use that to charge user
@@ -71,7 +72,7 @@ Let's consider a batch of 1 block with the following transactions:
     If every user pays 0.75 of the account info state diff they created, the total state diff will be covered
 */
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
-const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
+const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 32;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
@@ -239,7 +240,7 @@ where
         self.inspector.create_end(context, inputs, outcome)
     }
     fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
-        (&mut self.inspector as &mut dyn Inspector<DB>).selfdestruct(contract, target, value)
+        self.inspector.selfdestruct(contract, target, value)
     }
 }
 
@@ -308,20 +309,33 @@ where
     Box::new(f)
 }
 
-struct CitreaHandler<SPEC, EXT, DB> {
+pub(crate) struct CitreaHandler<SPEC, EXT, DB> {
     _phantom: std::marker::PhantomData<(SPEC, EXT, DB)>,
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    fn load_precompiles() -> ContextPrecompiles<DB> {
+    pub(crate) fn load_precompiles() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
+            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
 
             let p = precompiles.to_mut();
             p.remove(&u64_to_address(0x0A))
                 .expect("point eval should be removed");
 
-            precompiles.extend([P256VERIFY]);
+            // remove BLS related precompiles until we fix
+            // revm-precompile blst feature compilation for risc0zkv
+            p.remove(&u64_to_address(0x0b));
+            p.remove(&u64_to_address(0x0c));
+            p.remove(&u64_to_address(0x0d));
+            p.remove(&u64_to_address(0x0e));
+            p.remove(&u64_to_address(0x0f));
+            p.remove(&u64_to_address(0x10));
+            p.remove(&u64_to_address(0x11));
+            // TODO: once revm precompile is updated
+            // remvoe these as EIP now defined 0xb to 0x11
+            p.remove(&u64_to_address(0x12));
+            p.remove(&u64_to_address(0x13));
 
             precompiles
         }

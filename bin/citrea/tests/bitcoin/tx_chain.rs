@@ -49,9 +49,9 @@ impl TestCase for TestSequencerTransactionChaining {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -81,7 +81,7 @@ impl TestCase for TestSequencerTransactionChaining {
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // Generate seqcommitment txs and make sure second batch is chained from first batch
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -144,10 +144,10 @@ impl TestSequencerTransactionChaining {
 
         sequencer.restart(None, None).await?;
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -195,10 +195,10 @@ impl TestSequencerTransactionChaining {
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0);
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs and check that they are chained from prev_tx
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -208,7 +208,7 @@ impl TestSequencerTransactionChaining {
         // Restart before generating a block to check `get_prev_utxo` prioritisting UTXO from mempool
         sequencer.restart(None, None).await?;
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -309,10 +309,10 @@ impl TestSequencerTransactionChaining {
 
         assert_eq!(last_monitored_tx.unwrap().txid, prev_tx.compute_txid());
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -363,7 +363,7 @@ impl TestSequencerTransactionChaining {
         )
         .await?;
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -385,10 +385,10 @@ impl TestSequencerTransactionChaining {
 
         assert_eq!(monitored_txs.len(), 2);
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from tx2
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -463,7 +463,7 @@ impl TestCase for TestProverTransactionChaining {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: FINALITY_DEPTH * 2,
+            max_l2_blocks_per_commitment: FINALITY_DEPTH * 2,
             ..Default::default()
         }
     }
@@ -477,9 +477,9 @@ impl TestCase for TestProverTransactionChaining {
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -522,7 +522,7 @@ impl TestCase for TestProverTransactionChaining {
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // // Do another round and make sure second batch is chained from first batch
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -567,7 +567,7 @@ impl TestCase for TestProverTransactionChaining {
         batch_prover.restart(None, None).await?;
 
         // // Do another round post restart and make sure third batch is chained from second batch
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 

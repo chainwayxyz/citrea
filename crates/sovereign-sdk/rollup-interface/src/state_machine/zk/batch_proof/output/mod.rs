@@ -12,6 +12,7 @@ pub type CumulativeStateDiff = BTreeMap<RefCount<[u8]>, Option<RefCount<[u8]>>>;
 
 /// Versioned Batch Proof Output
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
+#[repr(u8)]
 pub enum BatchProofCircuitOutput {
     /// V3 batch proof output
     V3(v3::BatchProofCircuitOutputV3),
@@ -21,19 +22,26 @@ impl BatchProofCircuitOutput {
     /// Get the initial state root
     pub fn initial_state_root(&self) -> [u8; 32] {
         match self {
-            BatchProofCircuitOutput::V3(output) => output.initial_state_root,
+            BatchProofCircuitOutput::V3(output) => *output.state_roots.first().unwrap(),
         }
     }
 
     /// Get the final state root
     pub fn final_state_root(&self) -> [u8; 32] {
         match self {
-            BatchProofCircuitOutput::V3(output) => output.final_state_root,
+            BatchProofCircuitOutput::V3(output) => *output.state_roots.last().unwrap(),
+        }
+    }
+
+    /// Returns the state roots
+    pub fn state_roots(&self) -> Vec<[u8; 32]> {
+        match self {
+            BatchProofCircuitOutput::V3(output) => output.state_roots.clone(),
         }
     }
 
     /// Get the final soft confirmation hash
-    pub fn final_soft_confirmation_hash(&self) -> [u8; 32] {
+    pub fn final_l2_block_hash(&self) -> [u8; 32] {
         match self {
             BatchProofCircuitOutput::V3(output) => output.final_l2_block_hash,
         }

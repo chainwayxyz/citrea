@@ -21,6 +21,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 
 mod commitment;
+mod da;
 pub mod db_migrations;
 mod db_provider;
 mod deposit_data_mempool;

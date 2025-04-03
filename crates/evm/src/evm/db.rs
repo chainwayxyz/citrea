@@ -38,9 +38,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
 
     #[cfg(feature = "native")]
     pub(crate) fn override_block_hash(&mut self, number: u64, hash: B256) {
-        self.evm
-            .latest_block_hashes
-            .set(&number, &hash, self.working_set);
+        self.evm.blockhash_set(number, &hash, self.working_set);
     }
 
     #[cfg(feature = "native")]
@@ -111,13 +109,10 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
         // no need to check block number ranges
         // revm already checks it
 
-        let block_hash = self
+        Ok(self
             .evm
-            .latest_block_hashes
-            .get(&number, self.working_set)
-            .unwrap_or(B256::ZERO);
-
-        Ok(block_hash)
+            .blockhash_get(number, self.working_set)
+            .expect("Block hash does not exist for range checked by revm"))
     }
 }
 

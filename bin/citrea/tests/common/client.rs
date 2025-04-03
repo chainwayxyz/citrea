@@ -3,6 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use alloy::eips::eip2930::AccessListWithGasUsed;
+use alloy::network::TransactionBuilder7702;
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
@@ -11,14 +13,17 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse};
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
 use citrea_batch_prover::GroupCommitments;
-use citrea_evm::{Filter, LogResponse};
+use citrea_evm::{EstimatedDiffSize, Filter, LogResponse};
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
+use revm::primitives::SignedAuthorization;
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
@@ -33,7 +38,7 @@ pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     //client: SignerMiddleware<Provider<Http>, PrivateKeySigner>,
-    client: Box<dyn AlloyProvider<Ethereum>>,
+    pub(crate) client: Box<dyn AlloyProvider<Ethereum>>,
     http_client: HttpClient,
     ws_client: WsClient,
     current_nonce: AtomicU64,
@@ -258,6 +263,38 @@ impl TestClient {
             .nonce(nonce)
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
+
+        self.client
+            .send_transaction(req)
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn send_eip7702_transaction(
+        &self,
+        to_addr: Address,
+        data: Vec<u8>,
+        nonce: Option<u64>,
+        authorization_list: Vec<SignedAuthorization>,
+    ) -> Result<PendingTransactionBuilder<Ethereum>, anyhow::Error> {
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
+        };
+
+        let req = TransactionRequest::default()
+            .from(self.from_addr)
+            .to(to_addr)
+            .input(data.into())
+            .nonce(nonce)
+            .with_authorization_list(authorization_list);
+
+        let gas = self.client.estimate_gas(&req).await.unwrap();
+
+        let req = req
+            .gas_limit(gas)
+            .max_priority_fee_per_gas(10)
+            .max_fee_per_gas(MAX_FEE_PER_GAS);
 
         self.client
             .send_transaction(req)
@@ -498,6 +535,36 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
+    pub(crate) async fn eth_create_access_list(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<AccessListWithGasUsed, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_createAccessList", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn eth_estimate_diff_size(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<EstimatedDiffSize, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_estimateDiffSize", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn eth_estimate_gas(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<U256, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_estimateGas", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
     #[allow(clippy::extra_unused_type_parameters)]
     pub(crate) async fn ledger_get_l2_block_by_number<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
@@ -609,6 +676,18 @@ impl TestClient {
     ) -> GethTrace {
         self.http_client
             .request("debug_traceTransaction", rpc_params![tx_hash, opts])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> GethTrace {
+        self.http_client
+            .request("debug_traceCall", rpc_params![request, block_id, opts])
             .await
             .unwrap()
     }

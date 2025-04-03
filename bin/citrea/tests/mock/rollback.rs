@@ -54,7 +54,7 @@ async fn start_sequencer(
     restart: bool,
 ) -> (TaskManager<()>, Box<TestClient>, SocketAddr) {
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 10,
+        max_l2_blocks_per_commitment: 10,
         test_mode: true,
         ..Default::default()
     };

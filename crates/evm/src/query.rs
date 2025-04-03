@@ -13,7 +13,9 @@ use alloy_rpc_types::{
 };
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, TraceResult};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
 use alloy_serde::{OtherFields, WithOtherFields};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
@@ -43,7 +45,7 @@ use crate::conversions::{create_tx_env, sealed_block_to_block_env};
 use crate::evm::call::{create_txn_env, prepare_call_env};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::handler::{diff_size_send_eth_eoa, TxInfo};
+use crate::handler::{diff_size_send_eth_eoa, TracingCitreaExternal, TxInfo};
 use crate::rpc_helpers::*;
 use crate::{
     citrea_spec_id_to_evm_spec_id, BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError,
@@ -576,14 +578,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .balance;
         let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance)?;
 
-        let result = match inspect_no_citrea_handle(
+        let result = match inspect_with_citrea_handle(
             evm_db,
             cfg_env,
             block_env,
             tx_env,
-            TracingInspector::new(TracingInspectorConfig::none()),
+            &mut TracingCitreaExternal::new(
+                TracingInspector::new(TracingInspectorConfig::none()),
+                0,
+            ),
         ) {
-            Ok(result) => result.result,
+            Ok((result, _)) => result.result,
             Err(err) => {
                 return Err(EthApiError::from(err).into());
             }
@@ -681,10 +686,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // can consume the list since we're not using the request anymore
         let access_list = request.access_list.take().unwrap_or_default();
 
-        let mut inspector = AccessListInspector::new(access_list);
+        let inspector = AccessListInspector::new(access_list);
+        let mut inspector = TracingCitreaExternal::new(inspector, 0);
 
-        let result = inspect_no_citrea_handle(
-            &mut evm_db,
+        let (result, _) = inspect_with_citrea_handle(
+            evm_db,
             cfg_env.clone(),
             block_env.clone(),
             tx_env,
@@ -703,7 +709,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             ExecutionResult::Success { .. } => Ok(()),
         }?;
 
-        let access_list = inspector.into_access_list();
+        let access_list = inspector.inspector.into_access_list();
 
         request.access_list = Some(access_list.clone());
 
@@ -870,6 +876,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<EstimatedTxExpenses> {
         // Disabled because eth_estimateGas is sometimes used with eoa senders
         // See <https://github.com/paradigmxyz/reth/issues/1959>
+        // The revm feature is enabled through reth-rpc dependencies
+        // luckily the execution paths in our evm module use CfgEnv::default, which
+        // sets this and other similar properties to false
         cfg_env.disable_eip3607 = true;
 
         // The basefee should be ignored for eth_estimateGas and similar
@@ -907,12 +916,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     let mut tx_env = tx_env.clone();
                     tx_env.gas_limit = MIN_TRANSACTION_GAS;
 
-                    let res = inspect_with_citrea_handle_no_inspectors(
+                    let res = inspect_with_citrea_handle(
                         self.get_db(working_set),
                         cfg_env.clone(),
                         block_env.clone(),
                         tx_env.clone(),
-                        l1_fee_rate,
+                        &mut TracingCitreaExternal::new(
+                            TracingInspector::new(TracingInspectorConfig::none()),
+                            l1_fee_rate,
+                        ),
                     );
 
                     if let Ok((res, tx_info)) = res {
@@ -956,12 +968,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
-        let result = inspect_with_citrea_handle_no_inspectors(
+        let result = inspect_with_citrea_handle(
             evm_db,
             cfg_env.clone(),
             block_env.clone(),
             tx_env.clone(),
-            l1_fee_rate,
+            &mut TracingCitreaExternal::new(
+                TracingInspector::new(TracingInspectorConfig::none()),
+                l1_fee_rate,
+            ),
         );
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -1035,12 +1050,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if optimistic_gas_limit < highest_gas_limit {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
-            let curr_result = inspect_with_citrea_handle_no_inspectors(
+            let curr_result = inspect_with_citrea_handle(
                 self.get_db(working_set),
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
+                &mut TracingCitreaExternal::new(
+                    TracingInspector::new(TracingInspectorConfig::none()),
+                    l1_fee_rate,
+                ),
             );
             let (curr_result, tx_info) = match curr_result {
                 Ok(result) => result,
@@ -1077,12 +1095,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             tx_env.gas_limit = mid_gas_limit;
 
             let evm_db = self.get_db(working_set);
-            let result = inspect_with_citrea_handle_no_inspectors(
+            let result = inspect_with_citrea_handle(
                 evm_db,
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
+                &mut TracingCitreaExternal::new(
+                    TracingInspector::new(TracingInspectorConfig::none()),
+                    l1_fee_rate,
+                ),
             );
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -1251,6 +1272,84 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
         Ok(traces)
+    }
+
+    /// Returns the trace of a call
+    /// Returns trace for given tx request call.
+    ///
+    /// Handler for `debug_traceCall`
+    #[rpc_method(name = "debug_traceCall")]
+    pub fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> RpcResult<GethTrace> {
+        let block_number = match block_id {
+            Some(BlockId::Number(block_num)) => block_num,
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = self
+                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+                BlockNumberOrTag::Number(block_number)
+            }
+            None => BlockNumberOrTag::Latest,
+        };
+
+        let block_env = match block_number {
+            BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
+            _ => {
+                let block = self
+                    .get_sealed_block_by_number(Some(block_number), working_set)?
+                    .ok_or(EthApiError::HeaderNotFound(
+                        block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
+                    ))?;
+
+                sealed_block_to_block_env(&block.header)
+            }
+        };
+
+        let block_num: u64 = block_env.number.saturating_to();
+
+        // Set evm state to block if needed
+        match block_number {
+            BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
+            _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
+        };
+
+        let citrea_spec_id = fork_from_block_number(block_num).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+
+        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+
+        let sealed_block = self
+            .get_sealed_block_by_number(Some(block_number), working_set)?
+            .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
+        let l1_fee_rate = sealed_block.l1_fee_rate;
+
+        let account = self
+            .account_info(&request.from.unwrap_or_default(), working_set)
+            .unwrap_or_default();
+
+        let mut evm_db = self.get_db(working_set);
+
+        // create tx env
+        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;
+        let trace = trace_call(
+            opts.unwrap_or_default(),
+            cfg_env,
+            block_env,
+            tx_env,
+            &mut evm_db,
+            l1_fee_rate,
+        )?;
+        Ok(trace)
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
@@ -1720,13 +1819,11 @@ pub(crate) fn build_rpc_receipt(
             Call(_) => None,
         },
         effective_gas_price: transaction.effective_gas_price(block_base_fee),
-        // state_root: None
         // EIP-4844 related
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         // None because eip-4844 txs are not accepted
         blob_gas_price: None,
         blob_gas_used: None,
-        // authorization_list: None,
     };
     AnyTransactionReceipt {
         inner: res_receipt,
@@ -1755,7 +1852,16 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit.saturating_to();
 
-    match inspect_with_citrea_handle_no_inspectors(db, cfg_env, block_env, tx_env, l1_fee_rate) {
+    match inspect_with_citrea_handle(
+        db,
+        cfg_env,
+        block_env,
+        tx_env,
+        &mut TracingCitreaExternal::new(
+            TracingInspector::new(TracingInspectorConfig::none()),
+            l1_fee_rate,
+        ),
+    ) {
         Ok((res, _tx_info)) => match res.result {
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to
@@ -1866,8 +1972,8 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         .last(&mut working_set.accessory_state())
         .expect("Head block must be set");
 
-    evm.latest_block_hashes.set(
-        &latest_block.header.number,
+    evm.blockhash_set(
+        latest_block.header.number,
         &latest_block.header.hash(),
         working_set,
     );

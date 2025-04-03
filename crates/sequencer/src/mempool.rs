@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
+use alloy_eips::Typed2718;
 use alloy_primitives::TxHash;
-use anyhow::anyhow;
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
 use reth_execution_types::ChangedAccount;
 use reth_transaction_pool::blobstore::NoopBlobStore;
-use reth_transaction_pool::error::PoolError;
+use reth_transaction_pool::error::{PoolError, PoolErrorKind};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
-    EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit, TransactionPool,
-    TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
+    EthTransactionValidator, Pool, PoolConfig, PoolResult, PoolTransaction, SubPoolLimit,
+    TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
 pub use crate::db_provider::DbProvider;
@@ -31,13 +31,8 @@ impl CitreaMempool {
         mempool_conf: SequencerMempoolConfig,
     ) -> anyhow::Result<Self> {
         let blob_store = NoopBlobStore::default();
-        let genesis_block = client
-            .genesis_block()
-            .map(|b| b.ok_or(anyhow!("Genesis block does not exist")))
-            .map_err(|e| anyhow!("{e}"))??;
+
         let evm_config = client.cfg();
-        let nonce = genesis_block.header.nonce;
-        let genesis_mix_hash = genesis_block.header.mix_hash;
 
         // TODO: DbProvider must correctly support ChainSpecProvider?
         // let chain_spec = ChainSpecBuilder::default()
@@ -79,12 +74,13 @@ impl CitreaMempool {
         };
 
         let validator = TransactionValidationTaskExecutor::eth_builder(client)
-            .no_cancun()
             .no_eip4844()
+            .set_shanghai(true)
+            .set_cancun(true)
+            .set_prague(true)
             // TODO: if we ever increase block gas limits, we need to pull this from
             // somewhere else
             .set_block_gas_limit(evm_config.block_gas_limit)
-            .set_shanghai(true)
             .with_additional_tasks(0)
             .build::<EthPooledTransaction, _>(blob_store);
 
@@ -101,10 +97,22 @@ impl CitreaMempool {
     ) -> PoolResult<TxHash> {
         if transaction.transaction().signer() == SYSTEM_SIGNER {
             return Err(PoolError::other(
-                *transaction.transaction().hash(),
+                *transaction.hash(),
                 "system transactions from rpc are not allowed",
             ));
         }
+
+        if transaction.transaction().is_eip4844() {
+            return Err(PoolError::new(
+                *transaction.hash(),
+                PoolErrorKind::InvalidTransaction(
+                    reth_transaction_pool::error::InvalidPoolTransactionError::Consensus(
+                        reth_primitives::InvalidTransactionError::Eip4844Disabled,
+                    ),
+                ),
+            ));
+        }
+
         self.0.add_external_transaction(transaction).await
     }
 

@@ -4,11 +4,11 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::L2SyncWorker;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
+use l2_syncer::L2Syncer;
 pub use runner::*;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
@@ -18,10 +18,11 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, Mutex};
 
 pub mod da_block_handler;
 pub mod db_migrations;
+mod l2_syncer;
 mod metrics;
 mod runner;
 
@@ -65,8 +66,7 @@ where
     });
 
     let include_tx_bodies = runner_config.include_tx_body;
-    let (l2_signal_tx, l2_signal_rx) = mpsc::channel(1);
-    let l2_sync_worker = L2SyncWorker::new(
+    let l2_syncer = L2Syncer::new(
         runner_config,
         init_params,
         native_stf,
@@ -77,11 +77,10 @@ where
         fork_manager,
         l2_block_tx,
         backup_manager.clone(),
-        l2_signal_tx,
         include_tx_bodies,
     )?;
 
-    let runner = CitreaFullnode::<DA, DB>::new(ledger_db.clone(), l2_sync_worker, l2_signal_rx)?;
+    let runner = CitreaFullnode::<DA, DB>::new(l2_syncer)?;
 
     let l1_block_handler = L1BlockHandler::new(
         ledger_db,

@@ -425,7 +425,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     assert_eq!(
-        evm.latest_block_hashes.get(&257, &mut working_set).unwrap(),
+        evm.blockhash_get(257, &mut working_set).unwrap(),
         evm.blocks
             .get(257, &mut working_set.accessory_state())
             .unwrap()
