@@ -171,7 +171,7 @@ where
 
             let spec = fork_from_block_number(partition.end_height).spec_id;
 
-            let (id, rx) = self.start_proving(input).await;
+            let (id, rx) = self.start_proving(input).await?;
             proving_jobs.push((id, spec, rx));
 
             let commitment_indices = partition
@@ -393,7 +393,7 @@ where
     async fn start_proving(
         &self,
         input: BatchProofCircuitInputV3,
-    ) -> (Uuid, oneshot::Receiver<Proof>) {
+    ) -> anyhow::Result<(Uuid, oneshot::Receiver<Proof>)> {
         let end_l2_height = input
             .sequencer_commitments
             .last()
@@ -416,12 +416,10 @@ where
             assumptions: vec![],
             elf,
         };
-        let (id, rx) = self
+        self
             .prover_service
             .start_proving(proof_data, ReceiptType::Groth16)
-            .await;
-
-        (id, rx)
+            .await
     }
 
     fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, SpecId, oneshot::Receiver<Proof>)>) {

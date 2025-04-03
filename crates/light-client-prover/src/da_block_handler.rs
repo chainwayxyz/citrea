@@ -281,7 +281,6 @@ where
             elf: light_client_elf,
         };
 
-        let proof = prover_service.prove(data, ReceiptType::Succinct).await;
-        Ok(proof)
+        prover_service.prove(data, ReceiptType::Succinct).await
     }
 }
