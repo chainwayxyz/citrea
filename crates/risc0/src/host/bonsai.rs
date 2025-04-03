@@ -103,7 +103,13 @@ impl BonsaiProver {
                 Ok(receipt) => {
                     let serialized_receipt = bincode::serialize(&receipt.inner)
                         .expect("Receipt serialization cannot fail");
-                    let _ = tx.send(serialized_receipt);
+                    // Do not remove pending bonsai session if we couldn't send the proof to caller
+                    // On restart we can again handle it
+                    let Ok(_) = tx.send(serialized_receipt) else {
+                        error!("Bonsai proof receiver channel closed abruptly");
+                        return;
+                    };
+
                     if let Err(e) = this.ledger_db.remove_pending_bonsai_session(job_id) {
                         error!(
                             "Failed to remove pending bonsai session: {} err={}",
