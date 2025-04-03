@@ -34,9 +34,10 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
         NodeMode::SequencerNode,
         None,
     );
-    let mut sequencer_config = SequencerConfig::default();
-    sequencer_config.max_l2_blocks_per_commitment =
-        TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT;
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
+        ..Default::default()
+    };
 
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable

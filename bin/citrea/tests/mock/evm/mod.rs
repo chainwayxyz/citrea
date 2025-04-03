@@ -343,6 +343,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
             // See `Evm::get_storage_address` for how the storage adress is calculated
             let mut hasher: sha2::Sha256 =
                 sha2::Digest::new_with_prefix(account_address.as_slice());
+            #[allow(clippy::unnecessary_fallible_conversions)]
             hasher.update(
                 U256::try_from(storage_proof.key.as_b256())
                     .unwrap()

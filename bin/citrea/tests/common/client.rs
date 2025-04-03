@@ -2,7 +2,6 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
-use std::u64;
 
 use alloy::eips::eip2930::AccessListWithGasUsed;
 use alloy::network::TransactionBuilder7702;
