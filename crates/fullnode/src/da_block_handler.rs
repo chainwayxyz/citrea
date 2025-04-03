@@ -513,7 +513,7 @@ where
         }
 
         let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
-        let mut missing_commitments = HashSet::new();
+        let mut l2_start_height = previous_l2_end_block_number + 1;
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
             .zip(commitments_hashes)
@@ -527,23 +527,26 @@ where
                             hex::encode(expected_hash)
                         ).into());
                 }
+                for i in l2_start_height..=sequencer_commitment.l2_end_block_number {
+                    self.ledger_db
+                        .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)?;
+                }
+                l2_start_height = sequencer_commitment.l2_end_block_number + 1;
             } else {
-                info!("Commitment index {index} is missing for proof, keeping as pending.");
-                missing_commitments.insert(index);
+                return Err(anyhow!(
+                    "Commitment index {index} is missing for proof, discarding proof."
+                )
+                .into());
             }
         }
 
-        // All commitments are missing, discarding proof
-        if missing_commitments.len() as u32
-            == sequencer_commitment_index_range.1 - sequencer_commitment_index_range.0 + 1
-        {
-            return Err(anyhow!("All commitments were missing for proof.").into());
-        }
-
-        // Proof had missing commitments and all existing commitments passed hash validation
-        if !missing_commitments.is_empty() {
+        let previous_batch_proof_last_commitment_index =
+            batch_proof_output.previous_commitment_index().unwrap_or(0);
+        if previous_batch_proof_last_commitment_index + 1 != sequencer_commitment_index_range.0 {
             info!(
-                "Commitments {missing_commitments:?} were missing for proof. Storing as pending."
+                "First commitment in range is not strictly increasing. Expected index {}, got {}",
+                previous_batch_proof_last_commitment_index + 1,
+                sequencer_commitment_index_range.0
             );
             self.ledger_db.store_pending_proof(
                 sequencer_commitment_index_range.0,
@@ -551,19 +554,6 @@ where
                 raw_proof,
             )?;
             return Ok(());
-        }
-
-        let mut l2_start_height = previous_l2_end_block_number + 1;
-        for index in sequencer_commitment_index_range.0..=sequencer_commitment_index_range.1 {
-            let sequencer_commitment = self
-                .ledger_db
-                .get_commitment_by_index(index)?
-                .expect("Commitment should exist");
-            for i in l2_start_height..=sequencer_commitment.l2_end_block_number {
-                self.ledger_db
-                    .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)?;
-            }
-            l2_start_height = sequencer_commitment.l2_end_block_number + 1;
         }
 
         // store in ledger db
