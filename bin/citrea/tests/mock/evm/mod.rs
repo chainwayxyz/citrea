@@ -19,7 +19,7 @@ use citrea_evm::smart_contracts::{
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
 use sha2::Digest;
-use sov_rollup_interface::{Network, CITREA_VERSION};
+use sov_rollup_interface::CITREA_VERSION;
 use sov_state::KeyHash;
 use tokio::time::sleep;
 
@@ -340,9 +340,14 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
 
     for storage_proof in &acc_proof.storage_proof {
         let kaddr = {
+            // See `Evm::get_storage_address` for how the storage adress is calculated
             let mut hasher: sha2::Sha256 =
                 sha2::Digest::new_with_prefix(account_address.as_slice());
-            hasher.update(storage_proof.key.as_b256().as_slice());
+            hasher.update(
+                U256::try_from(storage_proof.key.as_b256())
+                    .unwrap()
+                    .as_le_slice(),
+            );
             let arr = hasher.finalize();
             U256::from_le_slice(&arr)
         };
@@ -369,7 +374,8 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
     }
 }
 
-async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     // citrea::initialize_logging(::tracing::Level::INFO);
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -396,7 +402,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
             None,
             rollup_config,
             Some(sequencer_config),
-            Some(network),
+            None,
             false,
         )
         .await;
@@ -523,11 +529,6 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
 
     seq_task.abort();
     Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_eth_get_proof_devnet() -> Result<(), Box<dyn std::error::Error>> {
-    test_eth_get_proof_on(Network::Devnet).await
 }
 
 #[allow(clippy::borrowed_box)]
