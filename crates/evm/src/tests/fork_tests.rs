@@ -3,25 +3,26 @@ use std::thread::sleep;
 
 use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
+use secp256k1::{Keypair, Message, XOnlyPublicKey, SECP256K1};
 use sha2::Digest;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor, WorkingSet};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
     BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract, P256VerifyCallerContract,
-    SelfDestructorContract, SelfdestructingConstructorContract, SimpleStorageContract,
-    TransientStorageContract,
+    SchnorrVerifyCallerContract, SelfDestructorContract, SelfdestructingConstructorContract,
+    SimpleStorageContract, TransientStorageContract,
 };
 use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     create_contract_message, get_evm, get_evm_config, get_evm_with_spec, set_arg_message,
 };
-use crate::RlpEvmTransaction;
+use crate::{Evm, RlpEvmTransaction};
 type C = DefaultContext;
 
 use super::call_tests::send_money_to_contract_message;
@@ -91,6 +92,23 @@ fn call_p256_verify_transaction(
         .sign_default_transaction(
             TxKind::Call(contract_addr),
             contract.call_p256_verify(input),
+            nonce,
+            0,
+        )
+        .unwrap()
+}
+
+fn call_schnorr_verify_transaction(
+    contract_addr: Address,
+    dev_signer: &TestSigner,
+    nonce: u64,
+    input: Bytes,
+) -> RlpEvmTransaction {
+    let contract = SchnorrVerifyCallerContract::default();
+    dev_signer
+        .sign_default_transaction(
+            TxKind::Call(contract_addr),
+            contract.call_schnorr_verify(input),
             nonce,
             0,
         )
@@ -605,6 +623,137 @@ fn test_p256_verify() {
         .unwrap();
     assert_eq!(storage_value, U256::from(1));
     assert!(receipts.last().unwrap().receipt.success);
+}
+
+#[test]
+fn test_schnorr_verify() {
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Fork2,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let sender_address = generate_address::<C>("sender");
+
+    // Deploy schnorr verify contract
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+        let deploy_message =
+            create_contract_message(&dev_signer, 0, SchnorrVerifyCallerContract::default());
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    let invoke_schnorr_verify_caller =
+        |evm: &mut Evm<DefaultContext>,
+         input: Vec<u8>,
+         nonce: u64,
+         l2_height: u64,
+         working_set: &mut WorkingSet<sov_state::ProverStorage>| {
+            let l2_block_info = HookL2BlockInfo {
+                l2_height,
+                pre_state_root: [10u8; 32],
+                current_spec: SovSpecId::Fork2,
+                sequencer_pub_key: get_test_seq_pub_key(),
+                l1_fee_rate,
+                timestamp: 0,
+            };
+            let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+
+            evm.begin_l2_block_hook(&l2_block_info, working_set);
+            {
+                let call_message = call_schnorr_verify_transaction(
+                    contract_addr,
+                    &dev_signer,
+                    nonce,
+                    Bytes::from(input),
+                );
+
+                evm.call(
+                    CallMessage {
+                        txs: vec![call_message],
+                    },
+                    &context,
+                    working_set,
+                )
+                .unwrap();
+            }
+            evm.end_l2_block_hook(&l2_block_info, working_set);
+            evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+        };
+
+    // failing call
+    {
+        let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
+        let message = Message::from_digest_slice(&[1; 32]).unwrap();
+        let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
+        // wrong pubkey
+        let public_key =
+            XOnlyPublicKey::from_keypair(&Keypair::new(SECP256K1, &mut rand::thread_rng())).0;
+        let mut input = Vec::new();
+        input.extend_from_slice(&public_key.serialize());
+        input.extend_from_slice(message.as_ref());
+        input.extend_from_slice(signature.as_ref());
+
+        invoke_schnorr_verify_caller(&mut evm, input, 1, l2_height, &mut working_set);
+        l2_height += 1;
+
+        let receipts: Vec<_> = evm
+            .receipts
+            .iter(&mut working_set.accessory_state())
+            .collect();
+
+        let storage_value = evm
+            .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+            .unwrap_or_default();
+        assert_eq!(storage_value, U256::ZERO);
+        // will fail on `require(out.length == 32)` as empty bytes was returned
+        assert!(!receipts.last().unwrap().receipt.success);
+    }
+
+    // passing call
+    {
+        let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
+        let message = Message::from_digest_slice(&[1; 32]).unwrap();
+        let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
+        let public_key = XOnlyPublicKey::from_keypair(&keypair).0;
+        let mut input = Vec::new();
+        input.extend_from_slice(&public_key.serialize());
+        input.extend_from_slice(message.as_ref());
+        input.extend_from_slice(signature.as_ref());
+
+        invoke_schnorr_verify_caller(&mut evm, input, 2, l2_height, &mut working_set);
+
+        let receipts: Vec<_> = evm
+            .receipts
+            .iter(&mut working_set.accessory_state())
+            .collect();
+
+        let storage_value = evm
+            .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+            .unwrap();
+        assert_eq!(storage_value, U256::from(1));
+        assert!(receipts.last().unwrap().receipt.success);
+    }
 }
 
 #[test]

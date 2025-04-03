@@ -2186,7 +2186,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=95b8d90#95b8d9056bdf0a69de6e45a154b5d2c79a80ac76"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=9e76552#9e7655202657dd2e500c779030210e1edd26a8cd"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2229,6 +2229,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",
+ "k256",
  "lazy_static",
  "rand",
  "rayon",
@@ -2247,6 +2248,7 @@ dependencies = [
  "revm",
  "revm-inspectors",
  "revm-precompile",
+ "rstest",
  "secp256k1",
  "serde",
  "serde_json",
@@ -6029,6 +6031,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "relative-path"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
+
+[[package]]
 name = "reqwest"
 version = "0.12.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7701,6 +7709,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb09b49230ba22e8c676e7b75dfe2887dea8121f18b530ae0ba519ce442d2b21"
 dependencies = [
  "sha2",
+]
+
+[[package]]
+name = "rstest"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b423f0e62bdd61734b67cd21ff50871dfaeb9cc74f869dcd6af974fbcb19936"
+dependencies = [
+ "futures",
+ "futures-timer",
+ "rstest_macros",
+ "rustc_version 0.4.1",
+]
+
+[[package]]
+name = "rstest_macros"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e1711e7d14f74b12a58411c542185ef7fb7f2e7f8ee6e2940a883628522b42"
+dependencies = [
+ "cfg-if",
+ "glob",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "relative-path",
+ "rustc_version 0.4.1",
+ "syn 2.0.98",
+ "unicode-ident",
 ]
 
 [[package]]

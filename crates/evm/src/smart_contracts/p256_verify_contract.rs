@@ -33,7 +33,7 @@ impl TestContract for P256VerifyCallerContract {
 }
 
 impl P256VerifyCallerContract {
-    /// KZGPointEvaluation bytecode.
+    /// P256VerifyCaller bytecode.
     pub fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
