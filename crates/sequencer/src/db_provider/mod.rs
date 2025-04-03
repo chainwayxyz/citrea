@@ -2,7 +2,6 @@ use core::ops::RangeInclusive;
 
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_genesis::Genesis;
-use alloy_network::BlockResponse;
 use alloy_primitives::map::B256Map;
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
