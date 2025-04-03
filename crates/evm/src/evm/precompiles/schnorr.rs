@@ -5,7 +5,10 @@ use revm_precompile::{
     PrecompileWithAddress, B256,
 };
 
-const SCHNORRVERIFY_BASE: u64 = 3500;
+// Benchmarks show that the zk cycle counts for schorr verification is
+// %33 more than p256r1 verification. So we set the base gas cost
+// to be 4600 as 4600 ~ 1.33 * 3450 (p256r1 base gas cost).
+const SCHNORRVERIFY_BASE: u64 = 4600;
 /// Precompile for verifying Schnorr signatures.
 pub const SCHNORRVERIFY: PrecompileWithAddress =
     PrecompileWithAddress(u64_to_address(0x200), Precompile::Standard(schnorr_verify));
