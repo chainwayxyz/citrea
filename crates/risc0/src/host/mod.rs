@@ -3,7 +3,7 @@
 mod bonsai;
 mod local;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use metrics::histogram;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
@@ -16,27 +16,6 @@ use tracing::{debug, info};
 
 use crate::guest::Risc0Guest;
 use crate::receipt_from_proof;
-
-type StarkSessionId = String;
-type SnarkSessionId = String;
-
-/// Bonsai sessions to be recovered in case of a crash.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub enum BonsaiSession {
-    /// Stark session id if the prover crashed during stark proof generation.
-    StarkSession(StarkSessionId),
-    /// Both Stark and Snark session id if the prover crashed during stark to snarkconversion.
-    SnarkSession(StarkSessionId, SnarkSessionId),
-}
-
-/// Recovered bonsai session.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub struct RecoveredBonsaiSession {
-    /// Used for sending proofs in order
-    pub id: u8,
-    /// Recovered session
-    pub session: BonsaiSession,
-}
 
 /// A [`Risc0BonsaiHost`] stores a binary to execute in the Risc0 VM and prove in the Risc0 Bonsai API.
 #[derive(Clone)]
