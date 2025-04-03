@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use rand::Rng;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
@@ -88,9 +89,9 @@ where
     }
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
-    pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> Proof {
-        let (_, rx) = self.start_proving(data, receipt_type).await;
-        rx.await.expect("Proof channel should not close")
+    pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> anyhow::Result<Proof> {
+        let (_, rx) = self.start_proving(data, receipt_type).await?;
+        Ok(rx.await.expect("Proof channel should not close"))
     }
 
     /// Starts the proving task in the background and returns a channel which will resolve
@@ -100,7 +101,7 @@ where
         &self,
         data: ProofData,
         receipt_type: ReceiptType,
-    ) -> (Uuid, oneshot::Receiver<Proof>) {
+    ) -> anyhow::Result<(Uuid, oneshot::Receiver<Proof>)> {
         self.reserve_proof_slot().await;
 
         let ProofData {
@@ -116,16 +117,19 @@ where
             vm.add_assumption(assumption);
         }
 
-        let ongoing_proof_count = self.ongoing_proof_count.clone();
-        let proof_mode = self.proof_mode;
-        let notifier = self.proof_done_notifier.clone();
         let id = Uuid::now_v7();
 
+        // Start proof immediately
+        let proof_rx = make_proof(vm, id, elf, self.proof_mode, receipt_type)
+            .context("Failed to start proving")?;
+        info!("Started proving job {}", id);
+
+        let ongoing_proof_count = self.ongoing_proof_count.clone();
+        let notifier = self.proof_done_notifier.clone();
         let (tx, rx) = oneshot::channel();
         tokio::spawn(async move {
-            info!("Starting proving job {}", id);
+            let proof = proof_rx.await;
 
-            let proof = make_proof(vm, id, elf, proof_mode, receipt_type).await;
             *ongoing_proof_count.blocking_lock() -= 1;
 
             match proof {
@@ -133,7 +137,7 @@ where
                     tx.send(proof).expect("Proof channel should not close");
                 }
                 Err(e) => {
-                    error!("Failed to make proof: {}", e);
+                    error!("Vm proving channel closed abruptly: {}", e);
                 }
             }
 
@@ -141,7 +145,7 @@ where
             notifier.notify_one();
         });
 
-        (id, rx)
+        Ok((id, rx))
     }
 
     async fn reserve_proof_slot(&self) {
@@ -200,33 +204,37 @@ where
     }
 }
 
-async fn make_proof<Vm>(
+fn make_proof<Vm>(
     mut vm: Vm,
     job_id: Uuid,
     elf: Vec<u8>,
     proof_mode: ProofGenMode,
     receipt_type: ReceiptType,
-) -> Result<Proof, anyhow::Error>
+) -> Result<oneshot::Receiver<Proof>, anyhow::Error>
 where
     Vm: ZkvmHost,
 {
-    let rx = match proof_mode {
-        ProofGenMode::Skip => return Ok(Vec::new()),
-        ProofGenMode::Execute => vm.run(job_id, elf, receipt_type, false),
+    let with_prove = match proof_mode {
+        ProofGenMode::Skip => {
+            let (tx, rx) = oneshot::channel();
+            tx.send(Vec::new()).unwrap();
+            return Ok(rx);
+        }
+        ProofGenMode::Execute => false,
         ProofGenMode::ProveWithSampling => {
             // `make_proof` is called with a probability in this case.
             // When it's called, we have to produce a real proof.
-            vm.run(job_id, elf, receipt_type, true)
+            true
         }
         ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
             // `make_proof` is called unconditionally in this case.
             // When it's called, we have to calculate the probabiliry for a proof
             //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
-            let with_prove = proof_sampling_number == 0
-                || rand::thread_rng().gen_range(0..proof_sampling_number) == 0;
-            vm.run(job_id, elf, receipt_type, with_prove)
+            proof_sampling_number == 0
+                || rand::thread_rng().gen_range(0..proof_sampling_number) == 0
         }
     };
 
-    Ok(rx?.await?)
+    let rx = vm.run(job_id, elf, receipt_type, with_prove)?;
+    Ok(rx)
 }

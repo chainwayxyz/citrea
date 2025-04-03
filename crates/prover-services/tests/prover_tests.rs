@@ -190,7 +190,8 @@ async fn start_proof(
             },
             ReceiptType::Groth16,
         )
-        .await;
+        .await
+        .unwrap();
 
     // Ensure inner proving task is initialized
     tokio::time::sleep(Duration::from_millis(100)).await;

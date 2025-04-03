@@ -9,7 +9,7 @@ use risc0_zkvm::{
     compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt, VerifierContext,
 };
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
-use sov_db::schema::types::BonsaiSession;
+use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
 use sov_rollup_interface::zk::{Proof, ReceiptType};
 use tokio::sync::oneshot;
 use tracing::{error, info};
@@ -83,11 +83,13 @@ impl BonsaiProver {
             job_id, session.uuid
         );
 
+        let db_session = BonsaiSession {
+            kind: BonsaiSessionKind::StarkSession(session.uuid.clone()),
+            image_id: image_id.into(),
+            receipt_type,
+        };
         self.ledger_db
-            .upsert_pending_bonsai_session(
-                job_id,
-                BonsaiSession::StarkSession(session.uuid.clone()),
-            )
+            .upsert_pending_bonsai_session(job_id, db_session)
             .context("Failed to upsert bonsai stark session")?;
 
         let this = self.clone();
@@ -142,11 +144,13 @@ impl BonsaiProver {
 
         let snark_session = self.client.create_snark(session.uuid.clone())?;
 
+        let db_session = BonsaiSession {
+            kind: BonsaiSessionKind::SnarkSession(session.uuid, snark_session.uuid.clone()),
+            image_id: image_id.into(),
+            receipt_type,
+        };
         self.ledger_db
-            .upsert_pending_bonsai_session(
-                job_id,
-                BonsaiSession::SnarkSession(session.uuid, snark_session.uuid.clone()),
-            )
+            .upsert_pending_bonsai_session(job_id, db_session)
             .context("Failed to upsert bonsai snark session")?;
 
         let groth16_receipt = self.wait_snark_receipt(&snark_session).await?;
@@ -221,6 +225,45 @@ impl BonsaiProver {
                 }
             }
         }
+    }
+
+    /// Recovers all pending bonsai sessions, waiting for them to complete if not, and returns job id and their associated proofs.
+    pub async fn recover_proving_sessions(&self) -> anyhow::Result<Vec<(Uuid, Proof)>> {
+        let sessions = self.ledger_db.get_pending_bonsai_sessions()?;
+        if sessions.is_empty() {
+            return Ok(vec![]);
+        }
+
+        info!("Recovering {} bonsai proving sessions", sessions.len());
+
+        let mut proofs = vec![];
+        for (job_id, session) in sessions {
+            let receipt = match session.kind {
+                BonsaiSessionKind::StarkSession(id) => {
+                    self.handle_session(
+                        job_id,
+                        SessionId::new(id),
+                        session.image_id.into(),
+                        session.receipt_type,
+                    )
+                    .await?
+                }
+                BonsaiSessionKind::SnarkSession(_, id) => {
+                    let groth16_receipt = self.wait_snark_receipt(&SnarkId::new(id)).await?;
+                    groth16_receipt
+                        .verify_integrity_with_context(&VerifierContext::default())
+                        .context("Failed to verify bonsai groth16 proof integrity")?;
+                    groth16_receipt
+                }
+            };
+
+            let serialized_receipt =
+                bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail");
+            self.ledger_db.remove_pending_bonsai_session(job_id)?;
+            proofs.push((job_id, serialized_receipt));
+        }
+
+        Ok(proofs)
     }
 }
 
