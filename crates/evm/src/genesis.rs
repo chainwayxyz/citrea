@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use alloy_consensus::constants::{
-    EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, KECCAK_EMPTY,
+    EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, EMPTY_WITHDRAWALS, KECCAK_EMPTY,
 };
 use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
@@ -219,6 +219,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             nonce: config.nonce.into(),
             base_fee_per_gas: Some(config.starting_base_fee),
             extra_data: config.extra_data.clone(),
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             // EIP-4844 related fields
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
@@ -226,7 +227,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // unrelated for rollups
             parent_beacon_block_root: None,
             requests_hash: None,
-            withdrawals_root: None,
         };
 
         let block = Block {

@@ -1,4 +1,4 @@
-use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
+use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_WITHDRAWALS, KECCAK_EMPTY};
 use alloy_consensus::{proofs, Header as AlloyHeader, TxReceipt};
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
@@ -146,7 +146,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             state_root: KECCAK_EMPTY,
             transactions_root: proofs::calculate_transaction_root(transactions.as_slice()),
             receipts_root: proofs::calculate_receipt_root(receipts.as_slice()),
-            withdrawals_root: None,
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             logs_bloom: receipts
                 .iter()
                 .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom()),

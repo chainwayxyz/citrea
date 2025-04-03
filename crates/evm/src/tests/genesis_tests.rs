@@ -1,4 +1,4 @@
-use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
+use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, EMPTY_WITHDRAWALS};
 use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
 use alloy_eips::eip1559::{BaseFeeParams, ETHEREUM_BLOCK_GAS_LIMIT_30M};
 use alloy_primitives::hex_literal::hex;
@@ -133,7 +133,7 @@ fn genesis_block() {
                     base_fee_per_gas: Some(1000000000),
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: *BENEFICIARY,
-                    withdrawals_root: None,
+                    withdrawals_root: Some(EMPTY_WITHDRAWALS),
                     blob_gas_used: Some(0),
                     excess_blob_gas: Some(0),
                     parent_beacon_block_root: None,
@@ -176,7 +176,7 @@ fn genesis_head() {
             base_fee_per_gas: Some(1000000000),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: *BENEFICIARY,
-            withdrawals_root: None,
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
             parent_beacon_block_root: None,
