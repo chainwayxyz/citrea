@@ -89,7 +89,7 @@ where
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
     pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> Proof {
-        let (_, rx) = self.start_proving(Uuid::now_v7(), data, receipt_type).await;
+        let (_, rx) = self.start_proving(data, receipt_type).await;
         rx.await.expect("Proof channel should not close")
     }
 
@@ -98,7 +98,6 @@ where
     /// will block until it can get a slot and start the proof.
     pub async fn start_proving(
         &self,
-        job_id: Uuid,
         data: ProofData,
         receipt_type: ReceiptType,
     ) -> (Uuid, oneshot::Receiver<Proof>) {
@@ -126,7 +125,7 @@ where
         tokio::spawn(async move {
             info!("Starting proving task {}", id);
 
-            let proof = make_proof(vm, job_id, elf, proof_mode, receipt_type).await;
+            let proof = make_proof(vm, id, elf, proof_mode, receipt_type).await;
             *ongoing_proof_count.blocking_lock() -= 1;
 
             match proof {

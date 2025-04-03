@@ -184,7 +184,6 @@ async fn start_proof(
     // Spawn mock proving in the background
     let (_, rx) = prover_service
         .start_proving(
-            Uuid::now_v7(),
             ProofData {
                 input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
                 assumptions: vec![],
