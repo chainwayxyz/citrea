@@ -249,11 +249,17 @@ where
             // Check if the new commitment has a different merkle root but keep the first processed one as canonical
             if existing_commitment.merkle_root != sequencer_commitment.merkle_root {
                 warn!(
-                    "Conflicting sequnecer commitments with different merkle roots at index: {}.
+                    "Conflicting sequencer commitments with different merkle roots at index: {}.
                     Already processed merkle root: 0x{}, conflicting merkle root: 0x{}",
                     sequencer_commitment.index,
                     hex::encode(existing_commitment.merkle_root),
                     hex::encode(sequencer_commitment.merkle_root)
+                );
+            } else {
+                warn!(
+                    "Duplicate sequencer commitments with same merkle root {} at index: {}.",
+                    hex::encode(existing_commitment.merkle_root),
+                    sequencer_commitment.index,
                 );
             }
             return Ok(());
