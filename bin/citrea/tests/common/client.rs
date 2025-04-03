@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
+use std::u64;
 
 use alloy::eips::eip2930::AccessListWithGasUsed;
 use alloy::network::TransactionBuilder7702;
@@ -55,11 +56,12 @@ impl TestClient {
         let http_host = format!("http://localhost:{}", rpc_addr.port());
         let ws_host = format!("ws://localhost:{}", rpc_addr.port());
 
-        let provider = ProviderBuilder::new()
+        let provider = ProviderBuilder::default()
+            .with_chain_id(chain_id)
             // .with_recommended_fillers()
-            .with_chain(chain_id.try_into().unwrap())
             .wallet(EthereumWallet::from(key))
             .on_hyper_http(http_host.parse().unwrap());
+
         let client: Box<dyn AlloyProvider<Ethereum>> = Box::new(provider);
 
         let http_client = HttpClientBuilder::default()
@@ -287,6 +289,7 @@ impl TestClient {
             .to(to_addr)
             .input(data.into())
             .nonce(nonce)
+            .gas_limit(8_000_000)
             .with_authorization_list(authorization_list);
 
         let gas = self.client.estimate_gas(&req).await.unwrap();

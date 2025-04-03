@@ -5,6 +5,7 @@ use alloy_primitives::TxHash;
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
 use reth_execution_types::ChangedAccount;
+use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::{PoolError, PoolErrorKind};
 use reth_transaction_pool::{
@@ -33,23 +34,6 @@ impl CitreaMempool {
         let blob_store = NoopBlobStore::default();
 
         let evm_config = client.cfg();
-
-        // TODO: DbProvider must correctly support ChainSpecProvider?
-        // let chain_spec = ChainSpecBuilder::default()
-        //     .chain(Chain::from_id(evm_config.chain_id))
-        //     .shanghai_activated()
-        //     .genesis(
-        //         Genesis::default()
-        //             .with_nonce(nonce.into())
-        //             .with_timestamp(genesis_block.header.timestamp)
-        //             .with_extra_data(genesis_block.header.extra_data.clone())
-        //             .with_gas_limit(genesis_block.header.gas_limit)
-        //             .with_difficulty(genesis_block.header.difficulty)
-        //             .with_mix_hash(genesis_mix_hash)
-        //             .with_coinbase(genesis_block.header.beneficiary)
-        //             .with_base_fee(genesis_block.header.base_fee_per_gas.map(Into::into)),
-        //     )
-        //     .build();
 
         // Default 10x'ed from standard limits
         let pool_config = PoolConfig {
@@ -81,14 +65,15 @@ impl CitreaMempool {
             // TODO: if we ever increase block gas limits, we need to pull this from
             // somewhere else
             .set_block_gas_limit(evm_config.block_gas_limit)
-            .with_additional_tasks(0)
-            .build::<EthPooledTransaction, _>(blob_store);
+            // .with_additional_tasks(0)
+            .build_with_tasks::<EthPooledTransaction, _, _>(
+                // TODO: can we use our task manager here?
+                // or even better can we use reth's task manager in the repo?
+                TokioTaskExecutor::default(),
+                blob_store,
+            );
 
-        Ok(Self(Pool::eth_pool(
-            TransactionValidationTaskExecutor::new(validator),
-            blob_store,
-            pool_config,
-        )))
+        Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
     }
 
     pub(crate) async fn add_external_transaction(

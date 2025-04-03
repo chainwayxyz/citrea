@@ -1,6 +1,8 @@
 use core::ops::RangeInclusive;
 
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
+use alloy_genesis::Genesis;
+use alloy_network::BlockResponse;
 use alloy_primitives::map::B256Map;
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
@@ -11,14 +13,14 @@ use alloy_serde::WithOtherFields;
 use citrea_evm::{Evm, EvmChainConfig};
 use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
-use reth_chainspec::{ChainInfo, ChainSpec};
+use reth_chainspec::{Chain, ChainInfo, ChainSpec, ChainSpecBuilder};
 use reth_primitives::{Account, Bytecode, RecoveredBlock, SealedHeader};
 use reth_provider::{
     AccountReader, BlockBodyIndicesProvider, BlockHashReader, BlockIdReader, BlockNumReader,
     BlockReader, BlockReaderIdExt, ChainSpecProvider, HashedPostStateProvider, HeaderProvider,
-    OmmersProvider, ProviderResult, ReceiptProvider, ReceiptProviderIdExt, StateProofProvider,
-    StateProvider, StateProviderFactory, StateRootProvider, StorageRootProvider,
-    TransactionsProvider, WithdrawalsProvider,
+    OmmersProvider, ProviderError, ProviderResult, ReceiptProvider, ReceiptProviderIdExt,
+    StateProofProvider, StateProvider, StateProviderFactory, StateRootProvider,
+    StorageRootProvider, TransactionsProvider, WithdrawalsProvider,
 };
 use reth_trie::updates::TrieUpdates;
 use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof};
@@ -138,9 +140,33 @@ impl BlockReaderIdExt for DbProvider {
     }
     fn sealed_header_by_id(
         &self,
-        _id: BlockId,
+        id: BlockId,
     ) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
-        unimplemented!("sealed_header_by_id")
+        let mut working_set = WorkingSet::new(self.storage.clone());
+
+        let block_num = match id {
+            BlockId::Number(num) => num,
+            BlockId::Hash(hash) => {
+                let block_num = self
+                    .evm
+                    .get_block_number_by_block_hash(hash.block_hash, &mut working_set)
+                    .ok_or(ProviderError::BlockHashNotFound(hash.block_hash))?;
+
+                BlockNumberOrTag::Number(block_num)
+            }
+        };
+
+        let block = self
+            .evm
+            .get_block_by_number(Some(block_num), None, &mut working_set)
+            .unwrap()
+            .unwrap();
+        let hash = block.header.hash;
+
+        Ok(Some(SealedHeader::new(
+            block.inner.header.into_consensus(),
+            hash,
+        )))
     }
     fn sealed_header_by_number_or_tag(
         &self,
@@ -417,7 +443,29 @@ impl WithdrawalsProvider for DbProvider {
 impl ChainSpecProvider for DbProvider {
     type ChainSpec = ChainSpec;
     fn chain_spec(&self) -> std::sync::Arc<ChainSpec> {
-        unimplemented!("chain_spec")
+        let cfg = self.cfg();
+
+        let genesis_block = self.genesis_block().unwrap().unwrap();
+
+        let chain_spec = ChainSpecBuilder::default()
+            .chain(Chain::from_id(cfg.chain_id))
+            .shanghai_activated()
+            .cancun_activated()
+            .prague_activated()
+            .genesis(
+                Genesis::default()
+                    .with_nonce(genesis_block.header.nonce.into())
+                    .with_timestamp(genesis_block.header.timestamp)
+                    .with_extra_data(genesis_block.header.extra_data.clone())
+                    .with_gas_limit(genesis_block.header.gas_limit)
+                    .with_difficulty(genesis_block.header.difficulty)
+                    .with_mix_hash(genesis_block.header.mix_hash)
+                    .with_coinbase(genesis_block.header.beneficiary)
+                    .with_base_fee(genesis_block.header.base_fee_per_gas.map(Into::into)),
+            )
+            .build();
+
+        std::sync::Arc::new(chain_spec)
     }
 }
 
