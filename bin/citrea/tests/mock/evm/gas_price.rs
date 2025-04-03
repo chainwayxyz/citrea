@@ -15,7 +15,7 @@ use crate::common::client::TestClient;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::common::TEST_DATA_GENESIS_PATH;
+use crate::common::{TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
@@ -34,7 +34,9 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
         NodeMode::SequencerNode,
         None,
     );
-    let sequencer_config = SequencerConfig::default();
+    let mut sequencer_config = SequencerConfig::default();
+    sequencer_config.max_l2_blocks_per_commitment =
+        TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT;
 
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
