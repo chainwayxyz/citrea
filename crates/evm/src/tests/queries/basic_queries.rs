@@ -28,7 +28,7 @@ fn get_block_by_hash_test() {
 
     let third_block = evm
         .get_block_by_hash(
-            b256!("8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d"),
+            b256!("254e6880b911c562197e3f206de70b00777232fba1b80d9f78c98c4fff9755f6"),
             None,
             &mut working_set,
         )
@@ -481,8 +481,8 @@ fn call_test() {
 fn check_against_third_block(block: &WithOtherFields<AlloyRpcBlock>) {
     // details = false
     let inner_block = serde_json::from_value::<WithOtherFields<AlloyRpcBlock>>(json!({
-        "hash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
-        "parentHash": "0xc2e4cc89bc3817503ec7a406b462c1b38cb7243bd4118ee29a088ac0caa38a6a",
+        "hash": "0x254e6880b911c562197e3f206de70b00777232fba1b80d9f78c98c4fff9755f6",
+        "parentHash": "4376866d75e806da8b3fb6034ba41624b93a0f7f7d8aea52b6b5d88beadf9d8d",
         "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
         "miner": "0x0000000000000000000000000000000000000000",
         "stateRoot": "0x6464646464646464646464646464646464646464646464646464646464646464",
@@ -494,10 +494,10 @@ fn check_against_third_block(block: &WithOtherFields<AlloyRpcBlock>) {
         "gasLimit": "0x1c9c380",
         "gasUsed": "0x19c14",
         "timestamp": "0x18",
-        "totalDifficulty": "0x0",
         "extraData": "0x",
         "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "nonce": "0x0000000000000000",
+        "withdrawalsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
         "baseFeePerGas": "0x2dbf4076",
         "blobGasUsed": "0x0",
         "excessBlobGas": "0x0",
@@ -508,7 +508,7 @@ fn check_against_third_block(block: &WithOtherFields<AlloyRpcBlock>) {
           "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
           "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6"
         ],
-        "size": "0x54e",
+        "size": "0x5ce",
         "l1FeeRate": "0x1"
       })).unwrap();
 

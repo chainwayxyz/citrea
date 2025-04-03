@@ -1,6 +1,9 @@
 use std::ops::{Range, RangeInclusive};
 
-use alloy_consensus::{Transaction as AlloyTransaction, TxReceipt};
+use alloy_consensus::{
+    Block as AlloyConsensusBlock, BlockBody, Header as AlloyConsensusHeader,
+    Transaction as AlloyTransaction, TxReceipt,
+};
 use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::AnyTransactionReceipt;
@@ -158,9 +161,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(sealed_block) => sealed_block,
             None => return Ok(None), // if block doesn't exist return null
         };
-        // Build rpc header response
-        let mut header = AlloyHeader::new(sealed_block.header.unseal());
-        header.total_difficulty = Some(header.difficulty);
+        // header.total_difficulty = Some(header.difficulty);
         // Collect transactions with ids from db
         let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
             .transactions
@@ -172,18 +173,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
             })
             .collect();
 
+        let block_body: BlockBody<TransactionSignedAndRecovered, AlloyConsensusHeader> =
+            BlockBody {
+                transactions,
+                ..Default::default()
+            };
+
+        let block_size =
+            AlloyConsensusBlock::rlp_length_for(sealed_block.header.header(), &block_body);
+
         // Build rpc transactions response
         let transactions = match details {
             Some(true) => alloy_rpc_types::BlockTransactions::Full(
-                transactions
+                block_body
+                    .transactions
                     .iter()
                     .enumerate()
                     .map(|(idx, tx)| {
                         let tx_info = TransactionInfo {
                             hash: Some(*tx.signed_transaction.hash()),
-                            block_hash: Some(header.hash),
+                            block_hash: Some(sealed_block.header.hash()),
                             block_number: Some(tx.block_number),
-                            base_fee: header.base_fee_per_gas,
+                            base_fee: sealed_block.header.base_fee_per_gas,
                             index: Some(idx as u64),
                         };
                         EthTxBuilder::default()
@@ -193,7 +204,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .collect::<Vec<_>>(),
             ),
             _ => alloy_rpc_types::BlockTransactions::Hashes({
-                transactions
+                block_body
+                    .transactions
                     .iter()
                     .map(|tx| *tx.signed_transaction.hash())
                     .collect::<Vec<_>>()
@@ -201,7 +213,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let block = AlloyRpcBlock {
-            header,
+            header: AlloyHeader::new(sealed_block.header.unseal())
+                .with_size(Some(U256::from(block_size))),
             uncles: Default::default(),
             transactions,
             withdrawals: Default::default(),
