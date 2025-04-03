@@ -415,7 +415,7 @@ async fn test_l2_block_save() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: config.seq_min_l2_blocks,
+        max_l2_blocks_per_commitment: config.seq_max_l2_blocks,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };

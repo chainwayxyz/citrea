@@ -54,8 +54,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let last_block_hash = sealed_parent_block.header.hash();
 
         // since we know the previous state root only here, we can set the last block hash
-        self.latest_block_hashes
-            .set(&parent_block_number, &last_block_hash, working_set);
+        self.blockhash_set(parent_block_number, &last_block_hash, working_set);
 
         let cfg = self
             .cfg
@@ -102,8 +101,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Head block should always be set");
 
         let parent_block_hash = self
-            .latest_block_hashes
-            .get(&parent_block.header.number, working_set)
+            .blockhash_get(parent_block.header.number, working_set)
             .expect("Should have parent block hash");
 
         let expected_block_number = parent_block.header.number + 1;

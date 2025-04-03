@@ -223,10 +223,13 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     fn delete_pending_commitment(&self, index: u32) -> Result<()>;
 
     /// Gets the latest state diff
-    fn get_state_diff(&self) -> Result<StateDiff>;
+    fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff>;
 
     /// Sets the latest state diff
-    fn set_state_diff(&self, state_diff: &StateDiff) -> Result<()>;
+    fn set_state_diff(&self, l2_height: L2BlockNumber, state_diff: &StateDiff) -> Result<()>;
+
+    /// Sets the latest state diff
+    fn delete_state_diff(&self, l2_height: L2BlockNumber) -> Result<()>;
 
     /// Insert mempool transaction
     fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()>;

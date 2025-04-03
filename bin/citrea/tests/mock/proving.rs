@@ -115,11 +115,12 @@ async fn full_node_verify_proof_and_store() {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 4, None).await;
@@ -311,11 +312,12 @@ async fn test_batch_prover_prove_rpc() {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 4, None).await;

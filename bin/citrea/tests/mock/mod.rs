@@ -22,7 +22,7 @@ use crate::common::helpers::{
     wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height_proofs, NodeMode,
 };
 use crate::common::{
-    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
 };
 
 mod evm;
@@ -38,7 +38,7 @@ mod sequencer_replacement;
 mod system_transactions;
 
 struct TestConfig {
-    seq_min_l2_blocks: u64,
+    seq_max_l2_blocks: u64,
     deposit_mempool_fetch_limit: usize,
     sequencer_path: PathBuf,
     fullnode_path: PathBuf,
@@ -49,7 +49,7 @@ struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            seq_min_l2_blocks: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+            seq_max_l2_blocks: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
             deposit_mempool_fetch_limit: 10,
             sequencer_path: PathBuf::new(),
             fullnode_path: PathBuf::new(),
@@ -156,11 +156,11 @@ async fn test_all_flow() {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 2, None).await;
-
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&test_client, 1, None).await;
+
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     // send one ether to some address
     let _pending = test_client
@@ -395,7 +395,7 @@ async fn test_ledger_get_head_l2_block() {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: config.seq_min_l2_blocks,
+        max_l2_blocks_per_commitment: config.seq_max_l2_blocks,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };
@@ -459,7 +459,7 @@ async fn initialize_test(
     let fullnode_path = config.fullnode_path.clone();
 
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: config.seq_min_l2_blocks,
+        max_l2_blocks_per_commitment: config.seq_max_l2_blocks,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };

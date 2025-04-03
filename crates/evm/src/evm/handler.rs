@@ -241,7 +241,7 @@ where
         self.inspector.create_end(context, inputs, outcome)
     }
     fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
-        (&mut self.inspector as &mut dyn Inspector<DB>).selfdestruct(contract, target, value)
+        self.inspector.selfdestruct(contract, target, value)
     }
 }
 
@@ -310,12 +310,12 @@ where
     Box::new(f)
 }
 
-struct CitreaHandler<SPEC, EXT, DB> {
+pub(crate) struct CitreaHandler<SPEC, EXT, DB> {
     _phantom: std::marker::PhantomData<(SPEC, EXT, DB)>,
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    fn load_precompiles() -> ContextPrecompiles<DB> {
+    pub(crate) fn load_precompiles() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
             precompiles.extend([P256VERIFY, SCHNORRVERIFY]);

@@ -15,10 +15,11 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock, LastStateDiff,
+    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
     ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
+    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -648,22 +649,37 @@ impl SequencerLedgerOps for LedgerDB {
         }
     }
 
-    /// Sets the latest state diff
+    /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_state_diff(&self, state_diff: &StateDiff) -> anyhow::Result<()> {
+    fn set_state_diff(
+        &self,
+        l2_height: L2BlockNumber,
+        state_diff: &StateDiff,
+    ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<LastStateDiff>(&(), state_diff)?;
+        schema_batch.put::<StateDiffByBlockNumber>(&l2_height, state_diff)?;
 
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
     }
 
-    /// Gets the latest state diff
+    /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
+    fn delete_state_diff(&self, l2_height: L2BlockNumber) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<StateDiffByBlockNumber>(&l2_height)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Gets the state diff by block number
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff, anyhow::Error> {
         self.db
-            .get::<LastStateDiff>(&())
+            .get::<StateDiffByBlockNumber>(&l2_height)
             .map(|diff| diff.unwrap_or_default())
     }
 

@@ -50,7 +50,7 @@ impl TestCase for LightClientProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 5,
+            max_l2_blocks_per_commitment: 5,
             da_update_interval_ms: 500,
             ..Default::default()
         }
@@ -78,14 +78,14 @@ impl TestCase for LightClientProvingTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        // publish min_l2_blocks_per_commitment confirmations
-        for _ in 0..min_l2_blocks_per_commitment {
+        // publish max_l2_blocks_per_commitment confirmations
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(min_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment tx to be submitted to DA
@@ -182,7 +182,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 50,
+            max_l2_blocks_per_commitment: 50,
             da_update_interval_ms: 500,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_size: 2000,
@@ -220,16 +220,16 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let n_commitments = 2;
 
-        // publish min_l2_blocks_per_commitment confirmations
-        for _ in 0..n_commitments * min_l2_blocks_per_commitment {
+        // publish max_l2_blocks_per_commitment confirmations
+        for _ in 0..n_commitments * max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(n_commitments * min_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(n_commitments * max_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment txs to be submitted to DA
@@ -345,14 +345,14 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         );
 
         // Let's generate a new batch proof
-        // publish min_l2_blocks_per_commitment confirmations
+        // publish max_l2_blocks_per_commitment confirmations
         let l2_height = sequencer.client.ledger_get_head_l2_block_height().await?;
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         sequencer
-            .wait_for_l2_height(l2_height + min_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(l2_height + max_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment tx to be submitted to DA
@@ -471,7 +471,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 2,
+            max_l2_blocks_per_commitment: 2,
             da_update_interval_ms: 500,
             ..Default::default()
         }
@@ -513,14 +513,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         )
         .await;
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        // publish min_l2_blocks_per_commitment confirmations
-        for _ in 0..min_l2_blocks_per_commitment {
+        // publish max_l2_blocks_per_commitment confirmations
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(min_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for commitment tx to be submitted to DA
@@ -950,7 +950,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 10000,
+            max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
     }
@@ -1313,7 +1313,7 @@ impl TestCase for UnchainedBatchProofsTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 10000,
+            max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
     }
@@ -1574,7 +1574,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 10000,
+            max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
     }
@@ -1711,7 +1711,7 @@ impl TestCase for ChainProofByCommitmentIndex {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 10000,
+            max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
     }
@@ -1915,7 +1915,7 @@ impl TestCase for ProofWithMissingCommitment {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 10000,
+            max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
     }
