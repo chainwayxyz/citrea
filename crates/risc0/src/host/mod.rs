@@ -3,88 +3,66 @@
 mod bonsai;
 mod local;
 
+use std::mem;
+
+use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
-use metrics::histogram;
+use local::LocalProver;
 use risc0_zkvm::sha::Digest;
-use risc0_zkvm::{
-    compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProverOpts, Receipt,
-};
+use risc0_zkvm::AssumptionReceipt;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
+use tokio::sync::oneshot;
 use tracing::{debug, info};
+use uuid::Uuid;
 
 use crate::guest::Risc0Guest;
 use crate::receipt_from_proof;
 
-/// A [`Risc0BonsaiHost`] stores a binary to execute in the Risc0 VM and prove in the Risc0 Bonsai API.
+/// [`Risc0Host`] stores a binary to execute in the Risc0 VM and prove in the Risc0 Bonsai API.
 #[derive(Clone)]
-pub struct Risc0BonsaiHost {
+pub struct Risc0Host {
     env: Vec<u8>,
     assumptions: Vec<AssumptionReceipt>,
-    _ledger_db: LedgerDB,
-    #[cfg(feature = "testing")]
-    network: Network,
+    prover: Prover,
 }
 
-impl Risc0BonsaiHost {
+impl Risc0Host {
     /// Create a new Risc0Host to prove the given binary.
-    pub fn new(ledger_db: LedgerDB, _network: Network) -> Self {
-        match std::env::var("RISC0_PROVER") {
+    pub fn new(ledger_db: LedgerDB, network: Network) -> Self {
+        let prover = match std::env::var("RISC0_PROVER") {
             Ok(prover) => match prover.as_str() {
-                "bonsai" => {
-                    if std::env::var("BONSAI_API_URL").is_err()
-                        || std::env::var("BONSAI_API_KEY").is_err()
-                    {
-                        panic!("Bonsai API URL and API key must be set when RISC0_PROVER is set to bonsai");
-                    }
-                }
-                "local" => {}
-                "ipc" => {
-                    if std::env::var("RISC0_SERVER_PATH").is_err() {
-                        panic!("RISC0_SERVER_PATH must be set when RISC0_PROVER is set to ipc");
-                    }
-                }
-                _ => {
-                    panic!("Invalid prover specified: {}", prover);
-                }
+                "bonsai" => Prover::Bonsai(BonsaiProver::new(ledger_db)),
+                "ipc" => Prover::Local(LocalProver::new(network)),
+                _ => panic!("Invalid prover specified: {}", prover),
             },
             Err(_) => {
                 debug!("No prover specified.");
-
-                if std::env::var("BONSAI_API_URL").is_ok()
-                    && std::env::var("BONSAI_API_KEY").is_ok()
-                {
-                    panic!(
-                        "Bonsai API URL and API key are set, but RISC0_PROVER is not set to bonsai"
-                    );
-                }
+                Prover::Local(LocalProver::new(network))
             }
-        }
+        };
 
         Self {
             env: Default::default(),
             assumptions: vec![],
-            _ledger_db: ledger_db,
-            #[cfg(feature = "testing")]
-            network: _network,
+            prover,
         }
     }
 }
 
-impl ZkvmHost for Risc0BonsaiHost {
+impl ZkvmHost for Risc0Host {
     type Guest = Risc0Guest;
 
     fn add_hint(&mut self, item: Vec<u8>) {
         info!("Added hint to guest with size {}", item.len());
-
         // write buf
         self.env.extend_from_slice(&item);
     }
 
     /// Guest simulation (execute mode) is run inside the Risc0 VM locally
     fn simulate_with_hints(&mut self) -> Self::Guest {
-        todo!("we don't use it yet")
+        unimplemented!("we don't use it yet")
     }
 
     fn add_assumption(&mut self, receipt_buf: Vec<u8>) {
@@ -92,90 +70,28 @@ impl ZkvmHost for Risc0BonsaiHost {
         self.assumptions.push(receipt.into());
     }
 
-    /// Only with_proof = true is supported.
-    /// Proofs are created on the Bonsai API.
     fn run(
         &mut self,
+        job_id: Uuid,
         elf: Vec<u8>,
-        with_proof: bool,
         receipt_type: ReceiptType,
-    ) -> Result<Proof, anyhow::Error> {
-        if !with_proof {
-            if std::env::var("RISC0_PROVER") == Ok("bonsai".to_string()) {
-                panic!("Bonsai prover requires with_proof to be true");
+        with_prove: bool,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
+        let input = mem::take(&mut self.env);
+        let assumptions = mem::take(&mut self.assumptions);
+
+        match &self.prover {
+            Prover::Local(local) => {
+                local.prove(job_id, elf, input, assumptions, receipt_type, with_prove)
             }
-
-            std::env::set_var("RISC0_DEV_MODE", "1");
-        }
-
-        let mut env = ExecutorEnvBuilder::default();
-        for assumption in self.assumptions.iter() {
-            env.add_assumption(assumption.clone());
-        }
-
-        tracing::debug!("{:?} assumptions added to the env", self.assumptions.len());
-
-        #[cfg(feature = "testing")]
-        {
-            // if we are testing, set guest env var to enable dev mode
-            // so that it verifies fake receipts
-            env.env_var("RISC0_DEV_MODE", "1");
-
-            match self.network {
-                Network::Nightly => {}
-                Network::TestNetworkWithForks => {
-                    env.env_var("ALL_FORKS", "1");
-                }
-                _ => {
-                    panic!("Invalid network in testing feature!")
-                }
+            Prover::Bonsai(bonsai) => {
+                assert!(
+                    with_prove,
+                    "Bonsai prover must always be run with prove set to true"
+                );
+                bonsai.prove(job_id, elf, input, assumptions, receipt_type)
             }
         }
-
-        // std::fs::write("kumquat-input.bin", &self.env).unwrap();
-
-        let env = env.write_slice(&self.env).build().unwrap();
-
-        // The `RISC0_PROVER` environment variable, if specified, will select the
-        // following [Prover] implementation:
-        // * `bonsai`: [BonsaiProver] to prove on Bonsai.
-        // * `local`: LocalProver to prove locally in-process. Note: this
-        //   requires the `prove` feature flag.
-        // * `ipc`: [ExternalProver] to prove using an `r0vm` sub-process. Note: `r0vm`
-        //   must be installed. To specify the path to `r0vm`, use `RISC0_SERVER_PATH`.
-        let prover = default_prover();
-
-        tracing::info!("Starting risc0 proving");
-
-        let prover_opts = match receipt_type {
-            ReceiptType::Groth16 => ProverOpts::groth16(),
-            ReceiptType::Succinct => ProverOpts::succinct(),
-        };
-
-        let risc0_zkvm::ProveInfo { receipt, stats, .. } =
-            prover.prove_with_opts(env, &elf, &prover_opts)?;
-
-        histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
-
-        tracing::info!("Execution Stats: {:?}", stats);
-
-        let image_id = compute_image_id(&elf)?;
-
-        receipt.verify(image_id)?;
-        tracing::trace!("Calculated image id: {:?}", image_id.as_words());
-
-        tracing::info!("Verified the receipt");
-
-        // Instead of serializing full Receipt (as in PreFork2) we serialize only InnerReceipt:
-        let serialized_receipt = bincode::serialize(&receipt.inner)?;
-
-        // Cleanup env
-        self.env.clear();
-
-        // Cleanup assumptions
-        self.assumptions.clear();
-
-        Ok(serialized_receipt)
     }
 
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
@@ -216,7 +132,7 @@ impl ZkvmHost for Risc0BonsaiHost {
     }
 }
 
-impl Zkvm for Risc0BonsaiHost {
+impl Zkvm for Risc0Host {
     type CodeCommitment = Digest;
 
     type Error = anyhow::Error;
@@ -252,36 +168,11 @@ impl Zkvm for Risc0BonsaiHost {
     }
 }
 
-/// Custom `ProveInfo` struct because Risc0 struct doesn't allow construction
-pub struct ProveInfo {
-    /// Receipt
-    pub receipt: Receipt,
-    /// Session stats
-    pub stats: SessionStats,
-}
-
-/// Custom `SessionStats` struct because Risc0 struct doesn't allow construction
-pub struct SessionStats {
-    /// Segments
-    pub segments: usize,
-    /// Total cycles
-    pub total_cycles: u64,
-    /// User cycles
-    pub user_cycles: u64,
-    /// Paging cycles
-    pub paging_cycles: u64,
-    /// Reserved cycles
-    pub reserved_cycles: u64,
-}
-
-impl From<bonsai_sdk::responses::SessionStats> for SessionStats {
-    fn from(value: bonsai_sdk::responses::SessionStats) -> Self {
-        Self {
-            segments: value.segments,
-            total_cycles: value.total_cycles,
-            user_cycles: value.cycles,
-            paging_cycles: 0,
-            reserved_cycles: 0,
-        }
-    }
+/// Supported `Prover` types
+#[derive(Clone)]
+pub enum Prover {
+    /// Local prover
+    Local(LocalProver),
+    /// Bonsai prover
+    Bonsai(BonsaiProver),
 }

@@ -2350,7 +2350,6 @@ dependencies = [
  "borsh",
  "hex",
  "metrics",
- "rand",
  "risc0-zkp",
  "risc0-zkvm",
  "rzup",
@@ -8613,6 +8612,8 @@ dependencies = [
  "borsh",
  "serde",
  "sov-rollup-interface",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -8765,6 +8766,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

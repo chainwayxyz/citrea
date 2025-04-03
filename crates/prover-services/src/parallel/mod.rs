@@ -5,7 +5,7 @@ use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{ProofData, ProofGenMode};
@@ -89,7 +89,7 @@ where
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
     pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> Proof {
-        let (_, rx) = self.start_proving(data, receipt_type).await;
+        let (_, rx) = self.start_proving(Uuid::now_v7(), data, receipt_type).await;
         rx.await.expect("Proof channel should not close")
     }
 
@@ -98,6 +98,7 @@ where
     /// will block until it can get a slot and start the proof.
     pub async fn start_proving(
         &self,
+        job_id: Uuid,
         data: ProofData,
         receipt_type: ReceiptType,
     ) -> (Uuid, oneshot::Receiver<Proof>) {
@@ -122,14 +123,20 @@ where
         let id = Uuid::now_v7();
 
         let (tx, rx) = oneshot::channel();
-        tokio::task::spawn_blocking(move || {
+        tokio::spawn(async move {
             info!("Starting proving task {}", id);
 
-            let proof = make_proof(vm, elf, proof_mode, receipt_type)
-                .expect("Proof creation must not fail");
-
+            let proof = make_proof(vm, job_id, elf, proof_mode, receipt_type).await;
             *ongoing_proof_count.blocking_lock() -= 1;
-            tx.send(proof).expect("Proof channel should not close");
+
+            match proof {
+                Ok(proof) => {
+                    tx.send(proof).expect("Proof channel should not close");
+                }
+                Err(e) => {
+                    error!("Failed to make proof: {}", e);
+                }
+            }
 
             info!("Finished proving task {}", id);
             notifier.notify_one();
@@ -194,8 +201,9 @@ where
     }
 }
 
-fn make_proof<Vm>(
+async fn make_proof<Vm>(
     mut vm: Vm,
+    job_id: Uuid,
     elf: Vec<u8>,
     proof_mode: ProofGenMode,
     receipt_type: ReceiptType,
@@ -203,13 +211,13 @@ fn make_proof<Vm>(
 where
     Vm: ZkvmHost,
 {
-    match proof_mode {
-        ProofGenMode::Skip => Ok(Vec::default()),
-        ProofGenMode::Execute => vm.run(elf, false, receipt_type),
+    let rx = match proof_mode {
+        ProofGenMode::Skip => return Ok(Vec::new()),
+        ProofGenMode::Execute => vm.run(job_id, elf, receipt_type, false),
         ProofGenMode::ProveWithSampling => {
             // `make_proof` is called with a probability in this case.
             // When it's called, we have to produce a real proof.
-            vm.run(elf, true, receipt_type)
+            vm.run(job_id, elf, receipt_type, true)
         }
         ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
             // `make_proof` is called unconditionally in this case.
@@ -217,7 +225,9 @@ where
             //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
             let with_prove = proof_sampling_number == 0
                 || rand::thread_rng().gen_range(0..proof_sampling_number) == 0;
-            vm.run(elf, with_prove, receipt_type)
+            vm.run(job_id, elf, receipt_type, with_prove)
         }
-    }
+    };
+
+    Ok(rx?.await?)
 }

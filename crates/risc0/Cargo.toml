@@ -19,7 +19,6 @@ borsh = { workspace = true }
 metrics = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 uuid = { workspace = true }
-rand = { workspace = true }
 risc0-zkp = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rzup = { workspace = true, optional = true }

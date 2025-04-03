@@ -2,45 +2,36 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::Context;
-use rand::Rng;
-use risc0_zkvm::{AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, Prover, ProverOpts};
-use sov_rollup_interface::zk::ReceiptType;
+use metrics::histogram;
+use risc0_zkvm::{
+    AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
+};
+use sov_rollup_interface::zk::{Proof, ReceiptType};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
 
-use super::{ProveInfo, SessionStats};
-
 #[derive(Clone)]
 pub struct LocalProver {
     dev_mode: bool,
-    prove_sampling: Option<u64>,
     r0vm_path: PathBuf,
     #[cfg_attr(not(feature = "testing"), allow(unused))]
     network: Network,
 }
 
 impl LocalProver {
-    pub fn new(prove_sampling: Option<u64>, network: Network) -> Self {
+    pub fn new(network: Network) -> Self {
         assert!(
             env::var("RISC0_PROVER").map_or(true, |prover| prover == "ipc"),
             "Only supported RISC0_PROVER for LocalProver is ipc"
         );
 
         let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
-        if dev_mode {
-            assert!(
-                prove_sampling.is_none(),
-                "Dev mode and prove sampling should not exist together"
-            );
-        }
-
         let r0vm_path = get_r0vm_path().expect("Could not get r0vm path");
 
         Self {
             dev_mode,
-            prove_sampling,
             r0vm_path,
             network,
         }
@@ -53,16 +44,18 @@ impl LocalProver {
         input: Vec<u8>,
         assumptions: Vec<AssumptionReceipt>,
         receipt_type: ReceiptType,
-    ) -> anyhow::Result<oneshot::Receiver<ProveInfo>> {
-        // Set dev mode if not in already dev mode globally, and random sampling is non-zero
-        if !self.dev_mode {
-            if let Some(sampling) = self.prove_sampling {
-                if sampling != 0 {
-                    if rand::thread_rng().gen_range(0..sampling) != 0 {
-                        // TODO: bug here... this is never unset, so it will never actually prove even if sampling hits
-                        env::set_var("RISC0_DEV_MODE", "1");
-                    }
-                }
+        with_prove: bool,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
+        if self.dev_mode {
+            assert!(
+                !with_prove,
+                "Prove should not be called with prove in dev mode"
+            );
+        } else {
+            if with_prove {
+                env::remove_var("RISC0_DEV_MODE");
+            } else {
+                env::set_var("RISC0_DEV_MODE", "1");
             }
         }
 
@@ -79,8 +72,8 @@ impl LocalProver {
         let (tx, rx) = oneshot::channel();
         tokio::task::spawn_blocking(move || {
             match this.handle_prove(elf, input, assumptions, prover_opts) {
-                Ok(info) => {
-                    let _ = tx.send(info);
+                Ok(proof) => {
+                    let _ = tx.send(proof);
                 }
                 Err(e) => error!("Local proving error: {}", e),
             }
@@ -95,7 +88,7 @@ impl LocalProver {
         input: Vec<u8>,
         assumptions: Vec<AssumptionReceipt>,
         prover_opts: ProverOpts,
-    ) -> anyhow::Result<ProveInfo> {
+    ) -> anyhow::Result<Proof> {
         let assumptions_len = assumptions.len();
 
         let mut env = ExecutorEnvBuilder::default();
@@ -124,20 +117,14 @@ impl LocalProver {
         let env = env.write_slice(&input).build().unwrap();
 
         let prover = ExternalProver::new("ipc", self.r0vm_path.as_path());
-        let prove_info = prover
+        let ProveInfo { receipt, stats, .. } = prover
             .prove_with_opts(env, &elf, &prover_opts)
             .context("Local risc0 proving failed")?;
 
-        Ok(ProveInfo {
-            receipt: prove_info.receipt,
-            stats: SessionStats {
-                segments: prove_info.stats.segments,
-                total_cycles: prove_info.stats.total_cycles,
-                user_cycles: prove_info.stats.user_cycles,
-                paging_cycles: prove_info.stats.paging_cycles,
-                reserved_cycles: prove_info.stats.reserved_cycles,
-            },
-        })
+        tracing::info!("Execution Stats: {:?}", stats);
+        histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
+
+        Ok(bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail"))
     }
 }
 

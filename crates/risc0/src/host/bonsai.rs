@@ -3,17 +3,17 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use bonsai_sdk::blocking::{Client, SessionId, SnarkId};
+use bonsai_sdk::responses::SessionStats;
+use metrics::histogram;
 use risc0_zkvm::{
     compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt, VerifierContext,
 };
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::BonsaiSession;
-use sov_rollup_interface::zk::ReceiptType;
+use sov_rollup_interface::zk::{Proof, ReceiptType};
 use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
-
-use super::ProveInfo;
 
 #[derive(Clone)]
 pub struct BonsaiProver {
@@ -47,7 +47,7 @@ impl BonsaiProver {
         input: Vec<u8>,
         assumptions: Vec<AssumptionReceipt>,
         receipt_type: ReceiptType,
-    ) -> anyhow::Result<oneshot::Receiver<ProveInfo>> {
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         // Upload image id
         let image_id = compute_image_id(&elf).expect("Invalid elf program");
         let image_id_hex = hex::encode(image_id);
@@ -98,8 +98,10 @@ impl BonsaiProver {
                 .handle_session(job_id, session, image_id, receipt_type)
                 .await
             {
-                Ok(info) => {
-                    let _ = tx.send(info);
+                Ok(receipt) => {
+                    let serialized_receipt = bincode::serialize(&receipt.inner)
+                        .expect("Receipt serialization cannot fail");
+                    let _ = tx.send(serialized_receipt);
                     if let Err(e) = this.ledger_db.remove_pending_bonsai_session(job_id) {
                         error!(
                             "Failed to remove pending bonsai session: {} err={}",
@@ -120,15 +122,22 @@ impl BonsaiProver {
         session: SessionId,
         image_id: Digest,
         receipt_type: ReceiptType,
-    ) -> anyhow::Result<ProveInfo> {
-        let succinct_prove_info = self.wait_stark_receipt(&session).await?;
-        succinct_prove_info
-            .receipt
+    ) -> anyhow::Result<Receipt> {
+        let (succinct_receipt, stats) = self.wait_stark_receipt(&session).await?;
+        succinct_receipt
             .verify(image_id)
             .context("Failed to verify bonsai succinct proof")?;
 
+        histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
+        tracing::info!(
+            "Execution Stats: total_cycles{} user_cycles={} segments={}",
+            stats.total_cycles,
+            stats.cycles,
+            stats.segments
+        );
+
         if matches!(receipt_type, ReceiptType::Succinct) {
-            return Ok(succinct_prove_info);
+            return Ok(succinct_receipt);
         }
 
         let snark_session = self.client.create_snark(session.uuid.clone())?;
@@ -145,13 +154,13 @@ impl BonsaiProver {
             .verify_integrity_with_context(&VerifierContext::default())
             .context("Failed to verify bonsai groth16 proof integrity")?;
 
-        return Ok(ProveInfo {
-            receipt: groth16_receipt,
-            stats: succinct_prove_info.stats,
-        });
+        return Ok(groth16_receipt);
     }
 
-    async fn wait_stark_receipt(&self, session: &SessionId) -> anyhow::Result<ProveInfo> {
+    async fn wait_stark_receipt(
+        &self,
+        session: &SessionId,
+    ) -> anyhow::Result<(Receipt, SessionStats)> {
         let polling_interval = Duration::from_secs(1);
         loop {
             let res = session.status(&self.client)?;
@@ -168,10 +177,7 @@ impl BonsaiProver {
                     let receipt: Receipt = bincode::deserialize(&receipt_buf)
                         .expect("Receipt deserialization cannot fail");
 
-                    return Ok(ProveInfo {
-                        receipt,
-                        stats: stats.into(),
-                    });
+                    return Ok((receipt, stats));
                 }
                 _ => {
                     return Err(anyhow!(

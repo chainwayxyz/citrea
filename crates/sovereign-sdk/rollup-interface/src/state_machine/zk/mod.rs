@@ -12,6 +12,8 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use tokio::sync::oneshot;
+use uuid::Uuid;
 
 /// Definitions related to batch proofs.
 pub mod batch_proof;
@@ -50,10 +52,11 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
     fn run(
         &mut self,
+        job_id: Uuid,
         elf: Vec<u8>,
-        with_proof: bool,
         receipt_type: ReceiptType,
-    ) -> Result<Proof, anyhow::Error>;
+        with_prove: bool,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>>;
 
     /// Extracts public input and receipt from the proof.
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error>;

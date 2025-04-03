@@ -8,6 +8,8 @@ use std::sync::{mpsc, Arc, Mutex, RwLock};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::zk::{Matches, Proof, ReceiptType};
+use tokio::sync::oneshot;
+use uuid::Uuid;
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -186,10 +188,11 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
 
     fn run(
         &mut self,
+        _job_id: Uuid,
         _elf: Vec<u8>,
-        _with_proof: bool,
         _receipt_type: ReceiptType,
-    ) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
+        _with_prove: bool,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         let (tx, rx) = mpsc::channel();
 
         let mut tasks = self.waiting_tasks.lock().unwrap();
@@ -199,7 +202,8 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         // Block until finish signal arrives
         rx.recv().unwrap();
 
-        Ok(self.committed_data.pop_front().unwrap_or_default())
+        // TODO: FIX MockZkvm
+        todo!()
     }
 
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
