@@ -853,7 +853,7 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    citrea::initialize_logging(::tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -977,8 +977,6 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
     // now let's try a failing auth
     // followed by a clear delegation tx
-    // TODO: for now we send multiple wrong nonce auths in a single tx
-    // as current version of revm does not support clearing delegation
     {
         let auth = Authorization {
             chain_id: U256::from(test_client.chain_id),
@@ -992,22 +990,18 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         let auth = Authorization {
             chain_id: U256::from(test_client.chain_id),
             address: Address::ZERO,
-            nonce: 1, // wrong nonce
+            nonce: 1,
         };
 
         let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
-        let _signed_auth_clear_delegation = auth.into_signed(signature);
+        let signed_auth_clear_delegation = auth.into_signed(signature);
 
         let _ = test_client
             .send_eip7702_transaction(
                 Address::ZERO,
                 vec![],
                 None,
-                // TODO: our version of revm does not support clearing delegation yet
-                // once we update revm, we can uncomment the following line
-                // and the assert's below can be fixed
-                vec![signed_auth_wrong_nonce.clone(), signed_auth_wrong_nonce],
-                // vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
+                vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
             )
             .await
             .unwrap();
@@ -1019,17 +1013,16 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                 .eth_get_transaction_count(delegating_signer.address(), None)
                 .await
                 .unwrap(),
-            1 // TODO: this would be 2 if the clear delegation worked
+            2
         );
 
-        // TODO: this should work when the clear delegation work
-        // assert_eq!(
-        //     test_client
-        //         .eth_get_code(delegating_signer.address(), None)
-        //         .await
-        //         .unwrap(),
-        //     Bytes::new()
-        // );
+        assert_eq!(
+            test_client
+                .eth_get_code(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            Bytes::new()
+        );
     }
 
     // combine access list with eip7702 tx
