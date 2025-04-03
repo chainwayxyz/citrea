@@ -265,6 +265,29 @@ where
             return Ok(());
         }
 
+        let end_l2_height = sequencer_commitment.l2_end_block_number;
+        if let Some(committed_height) = self
+            .ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
+        {
+            // Only proceed if the commitment height and index are higher than the stored one
+            if end_l2_height <= committed_height.height {
+                info!(
+                    "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
+                    committed_height.height,
+                );
+                return Ok(());
+            }
+
+            if sequencer_commitment.index <= committed_height.commitment_index {
+                info!(
+                    "Skipping sequencer commitment with index {} as it is not strictly superior to the existing commited one",
+                    sequencer_commitment.index,
+                );
+                return Ok(());
+            }
+        }
+
         let start_l2_height = if sequencer_commitment.index == 1 {
             get_fork2_activation_height_non_zero()
         } else {
@@ -286,7 +309,6 @@ where
                 }
             }
         };
-        let end_l2_height = sequencer_commitment.l2_end_block_number;
 
         info!(
             "Processing sequencer commitment for L2 Range = {}-{} at L1 height {}.",
@@ -294,28 +316,6 @@ where
             end_l2_height,
             l1_block.header().height(),
         );
-
-        if let Some(committed_height) = self
-            .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
-        {
-            // Only proceed if the commitment height and index are higher than the stored one
-            if end_l2_height <= committed_height.height {
-                info!(
-                        "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
-                        committed_height.height,
-                    );
-                return Ok(());
-            }
-
-            if sequencer_commitment.index != committed_height.commitment_index + 1 {
-                info!(
-                    "Skipping sequencer commitment with index {} as it is not increasing by one",
-                    sequencer_commitment.index,
-                );
-                return Ok(());
-            }
-        }
 
         // Traverse each item's field of vector of transactions, put them in merkle tree
         // and compare the root with the one from the ledger
