@@ -52,6 +52,19 @@ impl TestCase for RollBackFullNodeSlots {
             .to();
         assert_eq!(last_scanned_l1_height, finalized_height);
 
+        // Check that full node restarts from finalized_height
+        full_node.wait_until_stopped().await?;
+        full_node.start(None, None).await?;
+
+        let last_scanned_l1_height: u64 = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await
+            .unwrap()
+            .to();
+        assert_eq!(last_scanned_l1_height, finalized_height);
+
         // Rollback full node to initial_da_height
         full_node.wait_until_stopped().await?;
 
@@ -72,9 +85,6 @@ impl TestCase for RollBackFullNodeSlots {
                 ],
             )
             .await?;
-        for l in v.split("\n") {
-            println!("{}", l);
-        }
 
         full_node.start(None, None).await?;
 
