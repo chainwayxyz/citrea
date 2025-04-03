@@ -10,8 +10,10 @@ use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::BonsaiSession;
 use sov_rollup_interface::zk::ReceiptType;
 use tokio::sync::oneshot;
-use tracing::{debug, error};
+use tracing::{error, info};
 use uuid::Uuid;
+
+use super::ProveInfo;
 
 #[derive(Clone)]
 pub struct BonsaiProver {
@@ -27,7 +29,10 @@ impl BonsaiProver {
         );
         assert!(env::var("BONSAI_API_URL").is_ok(), "BONSAI_API_URL missing");
         assert!(env::var("BONSAI_API_KEY").is_ok(), "BONSAI_API_KEY missing");
-        assert!(env::var("RISC0_DEV_MODE").is_err(), "RISC0_DEV_MODE should not be set for bonsai");
+        assert!(
+            env::var("RISC0_DEV_MODE").is_err(),
+            "RISC0_DEV_MODE should not be set for bonsai"
+        );
 
         let client =
             Client::from_env(risc0_zkvm::VERSION).expect("Bonsai client build cannot fail");
@@ -73,7 +78,7 @@ impl BonsaiProver {
             .client
             .create_session(image_id_hex, input_id, receipt_ids, false)
             .context("Failed to create session")?;
-        debug!(
+        info!(
             "Started bonsai proving session, job_id={} session_id={}",
             job_id, session.uuid
         );
@@ -95,6 +100,12 @@ impl BonsaiProver {
             {
                 Ok(info) => {
                     let _ = tx.send(info);
+                    if let Err(e) = this.ledger_db.remove_pending_bonsai_session(job_id) {
+                        error!(
+                            "Failed to remove pending bonsai session: {} err={}",
+                            job_id, e
+                        );
+                    }
                 }
                 Err(e) => error!("Failed to handle Bonsai proving session: {}", e),
             }
@@ -116,10 +127,8 @@ impl BonsaiProver {
             .verify(image_id)
             .context("Failed to verify bonsai succinct proof")?;
 
-        match receipt_type {
-            ReceiptType::Succinct => return Ok(succinct_prove_info),
-            // continue if groth16
-            ReceiptType::Groth16 => {}
+        if matches!(receipt_type, ReceiptType::Succinct) {
+            return Ok(succinct_prove_info);
         }
 
         let snark_session = self.client.create_snark(session.uuid.clone())?;
@@ -135,10 +144,6 @@ impl BonsaiProver {
         groth16_receipt
             .verify_integrity_with_context(&VerifierContext::default())
             .context("Failed to verify bonsai groth16 proof integrity")?;
-
-        self.ledger_db
-            .remove_pending_bonsai_session(job_id)
-            .context("Failed to remove pending bonsai session")?;
 
         return Ok(ProveInfo {
             receipt: groth16_receipt,
@@ -231,30 +236,6 @@ fn get_inner_assumption_receipt(
             return Err(anyhow!(
                 "only proven assumptions can be uploaded to Bonsai."
             ));
-        }
-    }
-}
-pub struct ProveInfo {
-    pub receipt: Receipt,
-    pub stats: SessionStats,
-}
-
-pub struct SessionStats {
-    pub segments: usize,
-    pub total_cycles: u64,
-    pub user_cycles: u64,
-    pub paging_cycles: u64,
-    pub reserved_cycles: u64,
-}
-
-impl From<bonsai_sdk::responses::SessionStats> for SessionStats {
-    fn from(value: bonsai_sdk::responses::SessionStats) -> Self {
-        Self {
-            segments: value.segments,
-            total_cycles: value.total_cycles,
-            user_cycles: value.cycles,
-            paging_cycles: 0,
-            reserved_cycles: 0,
         }
     }
 }

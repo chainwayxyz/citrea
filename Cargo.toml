@@ -124,6 +124,7 @@ risc0-zkvm-platform = "2.0.0"
 risc0-zkp = "2.0.0"
 risc0-circuit-rv32im = "2.0.0"
 risc0-build = "2.0.0"
+rzup = "0.4.1"
 
 # EVM dependencies
 revm-inspectors = { version = "=0.8.1", default-features = false }

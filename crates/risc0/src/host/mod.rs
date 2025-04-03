@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use metrics::histogram;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProveInfo, ProverOpts,
+    compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProverOpts, Receipt,
 };
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, ReceiptType, Zkvm, ZkvmHost};
@@ -173,7 +173,8 @@ impl ZkvmHost for Risc0BonsaiHost {
             ReceiptType::Succinct => ProverOpts::succinct(),
         };
 
-        let ProveInfo { receipt, stats, .. } = prover.prove_with_opts(env, &elf, &prover_opts)?;
+        let risc0_zkvm::ProveInfo { receipt, stats, .. } =
+            prover.prove_with_opts(env, &elf, &prover_opts)?;
 
         histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
 
@@ -269,5 +270,39 @@ impl Zkvm for Risc0BonsaiHost {
         receipt.verify(code_commitment.clone())?;
 
         Ok(T::deserialize(&mut receipt.journal.as_ref())?)
+    }
+}
+
+/// Custom `ProveInfo` struct because Risc0 struct doesn't allow construction
+pub struct ProveInfo {
+    /// Receipt
+    pub receipt: Receipt,
+    /// Session stats
+    pub stats: SessionStats,
+}
+
+/// Custom `SessionStats` struct because Risc0 struct doesn't allow construction
+pub struct SessionStats {
+    /// Segments
+    pub segments: usize,
+    /// Total cycles
+    pub total_cycles: u64,
+    /// User cycles
+    pub user_cycles: u64,
+    /// Paging cycles
+    pub paging_cycles: u64,
+    /// Reserved cycles
+    pub reserved_cycles: u64,
+}
+
+impl From<bonsai_sdk::responses::SessionStats> for SessionStats {
+    fn from(value: bonsai_sdk::responses::SessionStats) -> Self {
+        Self {
+            segments: value.segments,
+            total_cycles: value.total_cycles,
+            user_cycles: value.cycles,
+            paging_cycles: 0,
+            reserved_cycles: 0,
+        }
     }
 }

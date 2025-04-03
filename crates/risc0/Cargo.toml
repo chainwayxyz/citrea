@@ -19,8 +19,10 @@ borsh = { workspace = true }
 metrics = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 uuid = { workspace = true }
+rand = { workspace = true }
 risc0-zkp = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
+rzup = { workspace = true, optional = true }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
@@ -38,6 +40,7 @@ native = [
   "dep:metrics",
   "dep:hex",
   "dep:tokio",
+  "dep:rzup",
   "risc0-zkvm/bonsai",
   "risc0-zkvm/client",
   "sov-rollup-interface/native",
