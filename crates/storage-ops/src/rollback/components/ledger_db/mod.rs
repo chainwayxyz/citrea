@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use l2_blocks::rollback_l2_blocks;
 use slots::{rollback_light_client_slots, rollback_slots};
+use sov_db::schema::tables::ProverLastScannedSlot;
+use sov_db::schema::types::SlotNumber;
 use tracing::debug;
 
 use crate::log_result_or_error;
 use crate::pruning::types::StorageNodeType;
-use sov_db::schema::tables::ProverLastScannedSlot;
-use sov_db::schema::types::SlotNumber;
 
 mod l2_blocks;
 mod slots;

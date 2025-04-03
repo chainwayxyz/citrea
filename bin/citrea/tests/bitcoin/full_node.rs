@@ -785,7 +785,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Rollback full node to genesis
         full_node.wait_until_stopped().await?;
-        let output = citrea_cli
+        citrea_cli
             .run(
                 "rollback",
                 &[
@@ -802,9 +802,6 @@ impl TestCase for OutOfRangeProofTest {
                 ],
             )
             .await?;
-        // for l in output.split("\n") {
-        //     println!("{}", l);
-        // }
 
         full_node.start(None, None).await?;
 
