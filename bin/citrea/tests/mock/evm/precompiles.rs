@@ -2,6 +2,7 @@ use alloy::network::TransactionBuilder;
 use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use citrea_common::SequencerConfig;
+use citrea_evm::precompiles::schnorr::SCHNORRVERIFY;
 use citrea_stf::genesis_config::GenesisPaths;
 use revm::precompile::secp256r1::P256VERIFY;
 
@@ -12,7 +13,7 @@ use crate::common::helpers::{
 use crate::common::TEST_DATA_GENESIS_PATH;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_archival_state() -> Result<(), anyhow::Error> {
+async fn test_custom_precompiles() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -74,7 +75,6 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
         let res = seq_test_client.client.estimate_gas(&tx_req).await.unwrap();
 
         // send the same estimation to an empty adress
-
         let res_default = seq_test_client
             .client
             .estimate_gas(
@@ -97,7 +97,48 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
         assert_eq!(res_access_list.gas_used, U256::from(res));
     }
 
-    // TODO: add schnorr verify once it's merged
+    {
+        let addr = SCHNORRVERIFY.address();
+
+        // correct input
+        let mut tx_req = TransactionRequest::default().to(*addr).input(TransactionInput::from(
+            hex::decode("D69C3509BB99E412E68B0FE8544E72837DFA30746D8BE2AA65975F29D22DC7B94DF3C3F68FCC83B27E9D42C90431A72499F17875C81A599B566C9889B969670300000000000000000000003B78CE563F89A0ED9414F5AA28AD0D96D6795F9C6376AFB1548AF603B3EB45C9F8207DEE1060CB71C04E80F593060B07D28308D7F4").unwrap()
+        ));
+
+        let res = seq_test_client.client.call(&tx_req).await.unwrap();
+        assert_eq!(res, Bytes::from(B256::with_last_byte(1).to_vec()));
+
+        // incorrect input
+        tx_req.set_input(hex::decode("DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C891FA62E331EDBC21C394792D2AB1100A7B432B013DF3F6FF4F99FCB33E0E1515F28890B3EDB6E7189B630448B515CE4F8622A954CFE545735AAEA5134FCCDB2BD").unwrap());
+
+        let res = seq_test_client.client.call(&tx_req).await.unwrap();
+        assert_eq!(res, Bytes::new());
+
+        // shows eth_estimateGas uses the custom precompile
+        let res = seq_test_client.client.estimate_gas(&tx_req).await.unwrap();
+
+        // send the same estimation to an empty adress
+        let res_default = seq_test_client
+            .client
+            .estimate_gas(
+                &TransactionRequest::default()
+                    .to(Address::random())
+                    .input(tx_req.input.clone()),
+            )
+            .await
+            .unwrap();
+
+        assert!(res > res_default + 4600); // SCHNORRVERIFY_BASE = 4600
+
+        // shows eth_createAccessList uses the custom precompile
+        let res_access_list = seq_test_client
+            .client
+            .create_access_list(&tx_req)
+            .await
+            .unwrap();
+
+        assert_eq!(res_access_list.gas_used, U256::from(res));
+    }
 
     seq_task.abort();
     Ok(())
