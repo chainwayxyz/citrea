@@ -265,7 +265,9 @@ impl BonsaiProver {
 
             let serialized_receipt =
                 bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail");
+
             self.ledger_db.remove_pending_bonsai_session(job_id)?;
+
             proofs.push((job_id, serialized_receipt));
         }
 
