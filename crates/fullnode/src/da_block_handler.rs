@@ -441,7 +441,7 @@ where
         let end_l2_height = batch_proof_output.last_l2_height();
 
         if end_l2_height <= proven_height.height
-            && sequencer_commitment_index_range.1 <= proven_height.commitment_index
+            || sequencer_commitment_index_range.1 <= proven_height.commitment_index
         {
             tracing::info!(
                 "Skipping proof with height {} and index {} as we already have proof with height {} and index {}",
