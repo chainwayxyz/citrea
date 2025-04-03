@@ -68,7 +68,7 @@ impl TestCase for RollBackFullNodeSlots {
         // Rollback full node to initial_da_height
         full_node.wait_until_stopped().await?;
 
-        let v = citrea_cli
+        citrea_cli
             .run(
                 "rollback",
                 &[
