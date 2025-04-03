@@ -123,7 +123,7 @@ where
 
         let (tx, rx) = oneshot::channel();
         tokio::spawn(async move {
-            info!("Starting proving task {}", id);
+            info!("Starting proving job {}", id);
 
             let proof = make_proof(vm, id, elf, proof_mode, receipt_type).await;
             *ongoing_proof_count.blocking_lock() -= 1;
@@ -137,7 +137,7 @@ where
                 }
             }
 
-            info!("Finished proving task {}", id);
+            info!("Finished proving job {}", id);
             notifier.notify_one();
         });
 
