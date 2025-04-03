@@ -357,15 +357,15 @@ impl TestCase for OutOfOrderCommitmentsTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        let first_range = sequencer
+        let range1 = sequencer
             .client
             .http_client()
             .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
             .await?;
 
-        let first_merkle_root = calculate_merkle_root(&first_range);
+        let merkle_root1 = calculate_merkle_root(&range1);
 
-        let second_range = sequencer
+        let range2 = sequencer
             .client
             .http_client()
             .get_l2_block_range(
@@ -374,16 +374,16 @@ impl TestCase for OutOfOrderCommitmentsTest {
             )
             .await?;
 
-        let second_merkle_root = calculate_merkle_root(&second_range);
+        let merkle_root2 = calculate_merkle_root(&range2);
 
         let first_commitment = SequencerCommitment {
-            merkle_root: first_merkle_root,
+            merkle_root: merkle_root1,
             l2_end_block_number: max_l2_blocks_per_commitment,
             index: 1,
         };
 
         let second_commitment = SequencerCommitment {
-            merkle_root: second_merkle_root,
+            merkle_root: merkle_root2,
             l2_end_block_number: max_l2_blocks_per_commitment * 2,
             index: 2,
         };
@@ -528,13 +528,13 @@ impl TestCase for ConflictingCommitmentsTest {
             "Mempool should be empty"
         );
 
-        let first_range = sequencer
+        let range1 = sequencer
             .client
             .http_client()
             .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
             .await?;
 
-        let correct_merkle_root = calculate_merkle_root(&first_range);
+        let correct_merkle_root = calculate_merkle_root(&range1);
         let commitment_a = SequencerCommitment {
             merkle_root: correct_merkle_root,
             l2_end_block_number: max_l2_blocks_per_commitment,
@@ -603,7 +603,7 @@ impl TestCase for ConflictingCommitmentsTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        let second_range = sequencer
+        let range2 = sequencer
             .client
             .http_client()
             .get_l2_block_range(
@@ -612,9 +612,9 @@ impl TestCase for ConflictingCommitmentsTest {
             )
             .await?;
 
-        let second_merkle_root = calculate_merkle_root(&second_range);
+        let merkle_root2 = calculate_merkle_root(&range2);
         let commitment_c = SequencerCommitment {
-            merkle_root: second_merkle_root,
+            merkle_root: merkle_root2,
             l2_end_block_number: max_l2_blocks_per_commitment * 2,
             index: 2,
         };
@@ -737,19 +737,19 @@ impl TestCase for OutOfRangeProofTest {
 
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
-        let first_range = sequencer
+        let range1 = sequencer
             .client
             .http_client()
             .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
             .await?;
-        let first_merkle_root = calculate_merkle_root(&first_range);
-        let commitment0 = SequencerCommitment {
-            merkle_root: first_merkle_root,
+        let merkle_root1 = calculate_merkle_root(&range1);
+        let commitment1 = SequencerCommitment {
+            merkle_root: merkle_root1,
             l2_end_block_number: max_l2_blocks_per_commitment,
             index: 1,
         };
 
-        let second_range = sequencer
+        let range2 = sequencer
             .client
             .http_client()
             .get_l2_block_range(
@@ -757,19 +757,101 @@ impl TestCase for OutOfRangeProofTest {
                 U64::from(max_l2_blocks_per_commitment * 2),
             )
             .await?;
-        let second_merkle_root = calculate_merkle_root(&second_range);
-        let commitment1 = SequencerCommitment {
-            merkle_root: second_merkle_root,
+        let merkle_root2 = calculate_merkle_root(&range2);
+        let commitment2 = SequencerCommitment {
+            merkle_root: merkle_root2,
             l2_end_block_number: max_l2_blocks_per_commitment * 2,
             index: 2,
         };
 
-        let proof = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
+        let proof1 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
             .await
             .unwrap()[0]
             .clone()
             .proof;
 
+        // Generate a third commitment for second proof
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitments_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        let range3 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(
+                U64::from(max_l2_blocks_per_commitment * 2 + 1),
+                U64::from(max_l2_blocks_per_commitment * 3),
+            )
+            .await?;
+        let merkle_root3 = calculate_merkle_root(&range3);
+        let commitment3 = SequencerCommitment {
+            merkle_root: merkle_root3,
+            l2_end_block_number: max_l2_blocks_per_commitment * 3,
+            index: 3,
+        };
+
+        let proof2 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof;
+
+        // Generate a fourth commitment for third proof
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitments_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        let range4 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(
+                U64::from(max_l2_blocks_per_commitment * 3 + 1),
+                U64::from(max_l2_blocks_per_commitment * 4),
+            )
+            .await?;
+        let merkle_root4 = calculate_merkle_root(&range4);
+        let commitment4 = SequencerCommitment {
+            merkle_root: merkle_root4,
+            l2_end_block_number: max_l2_blocks_per_commitment * 4,
+            index: 4,
+        };
+
+        let proof3 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof;
+
+        /*
+         ** Test that a proof is discarded if it's over a range of sequencer commitment that hasn't been processed yet
+         ** Send proof first then the two commitments in order.
+         */
         // Rollback bitcoin to initial height and drop existing txs so that we can re-send them out of order
         let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
         da.invalidate_block(&initial_height_hash).await?;
@@ -807,7 +889,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send the proof first. It should be discard as none of its commitments exist
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1.clone()), 1)
             .await
             .unwrap();
 
@@ -822,25 +904,25 @@ impl TestCase for OutOfRangeProofTest {
             .http_client()
             .get_last_proven_l2_height()
             .await?;
-        println!("proven_height : {:?}", proven_height);
         assert!(
             proven_height.is_none(),
             "No proof should be processed without commitments"
         );
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment0), 1)
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment1.clone()),
+                1,
+            )
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
-        let commitment0_l1_height = da.get_finalized_height(None).await?;
+        let commitment1_l1_height = da.get_finalized_height(None).await?;
         full_node
-            .wait_for_l1_height(commitment0_l1_height, None)
+            .wait_for_l1_height(commitment1_l1_height, None)
             .await?;
-
-        println!("commitment0_l1_height : {:?}", commitment0_l1_height);
 
         // The first commitment should be processed and no proof should be pending
         let committed_height = full_node
@@ -860,15 +942,18 @@ impl TestCase for OutOfRangeProofTest {
         assert!(proven_height.is_none(), "Proof should have been discarded");
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment1), 1)
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment2.clone()),
+                1,
+            )
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
-        let commitment1_l1_height = da.get_finalized_height(None).await?;
+        let commitment2_l1_height = da.get_finalized_height(None).await?;
         full_node
-            .wait_for_l1_height(commitment1_l1_height, None)
+            .wait_for_l1_height(commitment2_l1_height, None)
             .await?;
 
         // Both commitments should be processed and make sure the proof was discarded
@@ -888,6 +973,181 @@ impl TestCase for OutOfRangeProofTest {
             .get_last_proven_l2_height()
             .await?;
         assert!(proven_height.is_none(), "Proof should have been discarded");
+
+        /*
+         ** Test that a proof is discarded if it's starting
+         ** Send the the two first commitments in order then send the first proof. It should be processed and valid over the range commitment range [1, 2].
+         ** Then send third proof over range [4] (missing proof over range 3) that should be left pending.
+         ** Then send second proof over range [3] that should be processed and then trigger a processing of pending third proof
+         */
+
+        // Rollback bitcoin to initial height and drop existing txs so that we can re-send them out of order
+        let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
+        da.invalidate_block(&initial_height_hash).await?;
+        let block_count = da.get_block_count().await?;
+        assert_eq!(block_count, f.initial_da_height);
+        // Restart and remove rolledback txs from mempool
+        da.restart(None, None).await?;
+        assert_eq!(
+            da.get_raw_mempool().await?.len(),
+            0,
+            "Mempool should be empty"
+        );
+
+        // Rollback full node to genesis
+        full_node.wait_until_stopped().await?;
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "full-node",
+                    "--db-path",
+                    full_node.config.rollup.storage.path.to_str().unwrap(),
+                    "--l2-target",
+                    "0",
+                    "--l1-target",
+                    &f.initial_da_height.to_string(),
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
+            .await?;
+
+        full_node.start(None, None).await?;
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment1.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment2.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitment2_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(commitment2_l1_height, None)
+            .await?;
+
+        // Both commitments should be processed
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 2);
+        assert_eq!(committed_height.commitment_index, 2);
+
+        // Send the proof first. It should be processed as its commitments exist
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        // The proof should have been processed
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+
+        assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
+        assert_eq!(proven_height.commitment_index, 2);
+
+        // Send commitments for proof 2 and proof 3
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment3.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment4.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(4, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitment2_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(commitment2_l1_height, None)
+            .await?;
+
+        // Both commitments should be processed
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
+        assert_eq!(committed_height.commitment_index, 4);
+
+        // Send the third proof first. It should be set as pending as its commitments exist but it's starting commitment index is not proven proof last commitment index + 1
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof3), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        // The proof should be pending
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+
+        assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
+        assert_eq!(proven_height.commitment_index, 2);
+
+        // Now send the second proof. It should be processed and trigger a processing of pending proof3
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof2), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        // All proofs should have been processed
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+
+        assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 4);
+        assert_eq!(proven_height.commitment_index, 4);
 
         Ok(())
     }

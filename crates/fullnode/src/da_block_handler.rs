@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -25,9 +25,15 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
+
+enum ProcessingResult {
+    Success,
+    Discarded,
+    Pending,
+}
 
 pub struct L1BlockHandler<Vm, Da, DB>
 where
@@ -240,7 +246,7 @@ where
         &self,
         l1_block: &Da::FilteredBlock,
         sequencer_commitment: &SequencerCommitment,
-    ) -> Result<(), SyncError> {
+    ) -> Result<ProcessingResult, SyncError> {
         // Skip if we already processed commitment with same index
         if let Some(existing_commitment) = self
             .ledger_db
@@ -262,7 +268,7 @@ where
                     sequencer_commitment.index,
                 );
             }
-            return Ok(());
+            return Ok(ProcessingResult::Discarded);
         }
 
         let end_l2_height = sequencer_commitment.l2_end_block_number;
@@ -276,7 +282,7 @@ where
                     "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
                     committed_height.height,
                 );
-                return Ok(());
+                return Ok(ProcessingResult::Discarded);
             }
 
             if sequencer_commitment.index <= committed_height.commitment_index {
@@ -284,7 +290,7 @@ where
                     "Skipping sequencer commitment with index {} as it is not strictly superior to the existing commited one",
                     sequencer_commitment.index,
                 );
-                return Ok(());
+                return Ok(ProcessingResult::Discarded);
             }
         }
 
@@ -305,7 +311,7 @@ where
                         );
                     self.ledger_db
                         .store_pending_commitment(sequencer_commitment.clone())?;
-                    return Ok(());
+                    return Ok(ProcessingResult::Pending);
                 }
             }
         };
@@ -381,14 +387,14 @@ where
             },
         )?;
 
-        Ok(())
+        Ok(ProcessingResult::Success)
     }
 
     async fn process_zk_proof(
         &self,
         l1_block: &Da::FilteredBlock,
         proof: Proof,
-    ) -> Result<(), SyncError> {
+    ) -> Result<ProcessingResult, SyncError> {
         tracing::info!(
             "Processing zk proof at height: {}",
             l1_block.header().height()
@@ -419,7 +425,7 @@ where
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
-    ) -> Result<(), SyncError> {
+    ) -> Result<ProcessingResult, SyncError> {
         let last_l1_hash_on_bitcoin_light_client_contract =
             batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
         if self
@@ -450,7 +456,7 @@ where
                 proven_height.height,
                 proven_height.commitment_index
             );
-            return Ok(());
+            return Ok(ProcessingResult::Discarded);
         }
 
         let committed_height = self
@@ -540,20 +546,20 @@ where
             }
         }
 
-        let previous_batch_proof_last_commitment_index =
-            batch_proof_output.previous_commitment_index().unwrap_or(0);
-        if previous_batch_proof_last_commitment_index + 1 != sequencer_commitment_index_range.0 {
+        if proven_height.commitment_index + 1 != sequencer_commitment_index_range.0 {
             info!(
-                "First commitment in range is not strictly increasing. Expected index {}, got {}",
-                previous_batch_proof_last_commitment_index + 1,
-                sequencer_commitment_index_range.0
+                "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof as pending for commitment range {}-{}",
+                proven_height.commitment_index + 1,
+                sequencer_commitment_index_range.0,
+                sequencer_commitment_index_range.0,
+                sequencer_commitment_index_range.1
             );
             self.ledger_db.store_pending_proof(
                 sequencer_commitment_index_range.0,
                 sequencer_commitment_index_range.1,
                 raw_proof,
             )?;
-            return Ok(());
+            return Ok(ProcessingResult::Pending);
         }
 
         // store in ledger db
@@ -571,7 +577,7 @@ where
             },
         )?;
 
-        Ok(())
+        Ok(ProcessingResult::Success)
     }
 
     async fn process_pending_commitments(
@@ -610,26 +616,20 @@ where
             return Ok(());
         }
 
-        'proofs: for ((min_index, max_index), proof) in pending_proofs {
-            if self
-                .ledger_db
-                .get_commitment_by_range(min_index..=max_index)?
-                .len()
-                != (max_index - min_index) as usize
-            {
-                debug!(
-                        "Commitment in range {min_index}-{max_index} is missing for pending proof. Keeping proof as pending"
+        for ((min_index, max_index), proof) in pending_proofs {
+            match self.process_zk_proof(l1_block, proof).await {
+                Err(e) => {
+                    warn!(
+                        "Failed to process pending proof with index {min_index}-{max_index}: {e:?}"
                     );
-                // Breaking since pending proofs are sorted by commitment index and we won't be to process anymore from then on
-                break 'proofs;
+                    break;
+                }
+                Ok(ProcessingResult::Success) => {
+                    info!("Succesfully processed pending proof for commitment index range {min_index}-{max_index}");
+                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                }
+                _ => continue,
             }
-
-            if let Err(e) = self.process_zk_proof(l1_block, proof).await {
-                warn!("Failed to process pending proof with index {min_index}-{max_index}: {e:?}");
-                break;
-            }
-
-            self.ledger_db.remove_pending_proof(min_index, max_index)?;
         }
 
         Ok(())
