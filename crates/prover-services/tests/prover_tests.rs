@@ -7,7 +7,6 @@ use sov_mock_da::{MockAddress, MockDaService, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use tokio::sync::oneshot;
-use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() {
