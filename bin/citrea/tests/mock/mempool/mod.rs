@@ -290,7 +290,7 @@ async fn test_tx_with_low_base_fee() {
             poor_addr,
             Some(1),
             // normally base fee is 875 000 000
-            Some(1_000_001),
+            Some(10_000_000),
             None,
             5_000_000_000_000_000_000u128,
         )
@@ -306,7 +306,19 @@ async fn test_tx_with_low_base_fee() {
     let block_transactions: Vec<_> = block.transactions.hashes().clone().collect();
     assert!(!block_transactions.contains(tx_hash_low_fee.tx_hash()));
 
-    // TODO: also check if tx is in the mempool after https://github.com/chainwayxyz/citrea/issues/83
+    let err = test_client
+        .send_eth(
+            poor_addr,
+            Some(1),
+            // normally base fee is 875 000 000
+            Some(1_000_000), // if lower than min allowed, mempool should reject it
+            None,
+            5_000_000_000_000_000_000u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err.to_string().contains("transaction underpriced"));
 
     seq_task.abort();
 }
