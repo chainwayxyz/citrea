@@ -12,7 +12,6 @@ use citrea_fullnode::rpc::FullNodeRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
-use tracing::info;
 
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::batch_prover_test::wait_for_zkproofs;
