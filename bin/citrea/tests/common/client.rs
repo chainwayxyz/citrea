@@ -289,7 +289,6 @@ impl TestClient {
             .to(to_addr)
             .input(data.into())
             .nonce(nonce)
-            .gas_limit(8_000_000)
             .with_authorization_list(authorization_list);
 
         let gas = self.client.estimate_gas(&req).await.unwrap();

@@ -996,6 +996,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 )
                 .into());
             }
+        } else if let Err(EVMError::Transaction(InvalidTransaction::CallGasCostMoreThanGasLimit)) =
+            result
+        {
+            // This failed because the configured gas cost of the tx was lower than what
+            // actually consumed by the tx This can happen if the
+            // request provided fee values manually and the resulting gas cost exceeds the
+            // sender's allowance, so we return the appropriate error here
+            return Err(RpcInvalidTransactionError::GasRequiredExceedsAllowance {
+                gas_limit: tx_env.gas_limit,
+            }
+            .into());
         }
 
         let (result, mut l1_fee, mut diff_size) = match result {
@@ -1111,7 +1122,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             if let Err(EVMError::Transaction(InvalidTransaction::CallerGasLimitMoreThanBlock)) =
                 result
             {
-                // increase the lowest gas limit
+                // gas too high, decrease the highest gas limit
+                highest_gas_limit = mid_gas_limit;
+            } else if let Err(EVMError::Transaction(
+                InvalidTransaction::CallGasCostMoreThanGasLimit,
+            )) = result
+            {
+                // gas was too low, increase the lowest gas limit
                 lowest_gas_limit = mid_gas_limit;
             } else {
                 let (result, tx_info) = match result {
