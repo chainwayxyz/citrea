@@ -69,7 +69,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert!(invalid_block_balance
         .to_string()
-        .contains("block not found: number 0x2d2"));
+        .contains("block not found: 0x2d2"));
 
     let invalid_block_balance = seq_test_client
         .eth_get_balance(addr, Some(BlockId::Hash(invalid_block_hash.into())))
