@@ -143,7 +143,6 @@ dependencies = [
  "c-kzg",
  "derive_more 1.0.0",
  "serde",
- "serde_with",
 ]
 
 [[package]]
@@ -221,7 +220,6 @@ dependencies = [
  "alloy-rlp",
  "k256",
  "serde",
- "serde_with",
  "thiserror 2.0.12",
 ]
 

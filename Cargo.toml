@@ -158,7 +158,7 @@ alloy-serde = { version = "0.11.1", default-features = false }
 alloy-sol-types = { version = "0.8.20", default-features = false, features = ["json"] }
 alloy = { version = "0.11.1", default-features = false }
 alloy-eips = { version = "0.11.1", default-features = false }
-alloy-consensus = { version = "0.11.1", default-features = false, features = ["serde", "serde-bincode-compat"] }
+alloy-consensus = { version = "0.11.1", default-features = false, features = ["serde"] }
 alloy-network = { version = "0.11.1", default-features = false }
 
 citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "9e76552" }
