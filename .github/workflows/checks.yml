@@ -110,6 +110,7 @@ jobs:
           name: citrea-test-build
           path: |
             target/debug/citrea
+            target/debug/citrea-cli
             target/debug/**/methods.rs
           retention-days: 1
 
@@ -231,6 +232,8 @@ jobs:
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
+      - name: Make citrea-cli executable
+        run: chmod +x target/debug/citrea-cli
       - name: Run coverage
         run: make coverage-ci
         env:
@@ -401,6 +404,8 @@ jobs:
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
+      - name: Make citrea-cli executable
+        run: chmod +x target/debug/citrea-cli
       - name: Run nextest
         run: make test-ci
         env:
