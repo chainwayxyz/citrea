@@ -12,6 +12,7 @@ use citrea_fullnode::rpc::FullNodeRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
+use tracing::info;
 
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::batch_prover_test::wait_for_zkproofs;
@@ -1156,6 +1157,452 @@ impl TestCase for OutOfRangeProofTest {
 #[tokio::test]
 async fn test_out_of_range_proof() -> Result<()> {
     TestCaseRunner::new(OutOfRangeProofTest::default())
+        .set_citrea_path(get_citrea_path())
+        .set_citrea_cli_path(get_citrea_cli_path())
+        .run()
+        .await
+}
+
+#[derive(Default)]
+struct OverlappingProofRangesTest {
+    task_manager: TaskManager<()>,
+}
+
+#[async_trait]
+impl TestCase for OverlappingProofRangesTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_citrea_cli: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn cleanup(&self) -> Result<()> {
+        self.task_manager.abort().await;
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let citrea_cli = f.citrea_cli.as_ref().unwrap();
+
+        let sequencer_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
+        )
+        .await;
+
+        let prover_da_service = spawn_bitcoin_da_service(
+            &mut self.task_manager,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        // Generate 3 commitments
+        for _ in 0..max_l2_blocks_per_commitment * 3 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(6, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitments_l1_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        // Extract proof_a over range [1,2,3]
+        let proof_a = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof;
+
+        let range1 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
+            .await?;
+        let merkle_root1 = calculate_merkle_root(&range1);
+
+        let range2 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(
+                U64::from(max_l2_blocks_per_commitment + 1),
+                U64::from(max_l2_blocks_per_commitment * 2),
+            )
+            .await?;
+        let merkle_root2 = calculate_merkle_root(&range2);
+
+        let range3 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(
+                U64::from(max_l2_blocks_per_commitment * 2 + 1),
+                U64::from(max_l2_blocks_per_commitment * 3),
+            )
+            .await?;
+        let merkle_root3 = calculate_merkle_root(&range3);
+
+        let commitment1 = SequencerCommitment {
+            merkle_root: merkle_root1,
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
+        let commitment2 = SequencerCommitment {
+            merkle_root: merkle_root2,
+            l2_end_block_number: max_l2_blocks_per_commitment * 2,
+            index: 2,
+        };
+
+        let commitment3 = SequencerCommitment {
+            merkle_root: merkle_root3,
+            l2_end_block_number: max_l2_blocks_per_commitment * 3,
+            index: 3,
+        };
+
+        // Rollback Bitcoin to initial height
+        let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
+        da.invalidate_block(&initial_height_hash).await?;
+        let block_count = da.get_block_count().await?;
+        assert_eq!(block_count, f.initial_da_height);
+        da.restart(None, None).await?;
+        assert_eq!(
+            da.get_raw_mempool().await?.len(),
+            0,
+            "Mempool should be empty"
+        );
+
+        // Rollback fullnode to genesis
+        full_node.wait_until_stopped().await?;
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "full-node",
+                    "--db-path",
+                    full_node.config.rollup.storage.path.to_str().unwrap(),
+                    "--l2-target",
+                    "0",
+                    "--l1-target",
+                    &f.initial_da_height.to_string(),
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
+            .await?;
+
+        full_node.start(None, None).await?;
+
+        // Rollback batchprover to genesis
+        batch_prover.wait_until_stopped().await?;
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "batch-prover",
+                    "--db-path",
+                    batch_prover.config.rollup.storage.path.to_str().unwrap(),
+                    "--l2-target",
+                    "0",
+                    "--l1-target",
+                    &f.initial_da_height.to_string(),
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
+            .await?;
+
+        batch_prover.start(None, None).await?;
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment1.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        println!("waiting for mempool len 2 for commitment 1");
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(commitment_l1_height, None)
+            .await?;
+
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment);
+        assert_eq!(committed_height.commitment_index, 1);
+
+        let commitments_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        println!("waiting for mempool len 2 for commitment 1 proof");
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        let _discarded_proof = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof;
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment2.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment3.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        let range4 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(
+                U64::from(max_l2_blocks_per_commitment * 3 + 1),
+                U64::from(max_l2_blocks_per_commitment * 4),
+            )
+            .await?;
+        let merkle_root4 = calculate_merkle_root(&range4);
+
+        let commitment4 = SequencerCommitment {
+            merkle_root: merkle_root4,
+            l2_end_block_number: max_l2_blocks_per_commitment * 4,
+            index: 4,
+        };
+
+        da.wait_mempool_len(6, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitments_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
+        assert_eq!(committed_height.commitment_index, 4);
+
+        // Generate a proof over range [2,3,4]
+        batch_prover
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        println!("waiting for mempool len 2 for commitment 2,3,4 proof2");
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_b_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(proof_b_l1_height, None)
+            .await?;
+
+        // Extract proof_b over rnage [2,3,4]
+        let proof_b = wait_for_zkproofs(full_node, proof_b_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof;
+
+        // Rollback Bitcoin to initial height and clear transactions
+        let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
+        da.invalidate_block(&initial_height_hash).await?;
+        let block_count = da.get_block_count().await?;
+        assert_eq!(block_count, f.initial_da_height);
+
+        // Restart Bitcoin node and clear mempool
+        da.restart(None, None).await?;
+        assert_eq!(
+            da.get_raw_mempool().await?.len(),
+            0,
+            "Mempool should be empty"
+        );
+
+        // Rollback fullnode to genesis
+        full_node.wait_until_stopped().await?;
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "full-node",
+                    "--db-path",
+                    full_node.config.rollup.storage.path.to_str().unwrap(),
+                    "--l2-target",
+                    "0",
+                    "--l1-target",
+                    &f.initial_da_height.to_string(),
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
+            .await?;
+
+        full_node.start(None, None).await?;
+
+        // Send all 4 commitments in order
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment1.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment2.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment3.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment4.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(8, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let commitments_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(commitments_l1_height, None)
+            .await?;
+
+        // Check that all commitments were processed
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
+        assert_eq!(committed_height.commitment_index, 4);
+
+        // Send proof_a over commitments [1,2,3]
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_a_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(proof_a_l1_height, None)
+            .await?;
+
+        // Assert that proof was processed
+        let proven_height_a = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(proven_height_a.height, max_l2_blocks_per_commitment * 3);
+        assert_eq!(proven_height_a.commitment_index, 3);
+
+        // Send proof_b with overlapping range of [2,3,4]
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let proof_b_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(proof_b_l1_height, None)
+            .await?;
+
+        // Verify second proof was processed and proven height is now at index 4
+        let proven_height_b = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(proven_height_b.height, max_l2_blocks_per_commitment * 4);
+        assert_eq!(proven_height_b.commitment_index, 4);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_overlapping_proof_ranges() -> Result<()> {
+    TestCaseRunner::new(OverlappingProofRangesTest::default())
         .set_citrea_path(get_citrea_path())
         .set_citrea_cli_path(get_citrea_cli_path())
         .run()
