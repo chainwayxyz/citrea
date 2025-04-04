@@ -135,6 +135,10 @@ where
             // Store commitments by index
             for commitment in l1_commitments.iter() {
                 let index = commitment.index;
+                if index == 0 {
+                    error!("Got commitment with 0 index");
+                    continue;
+                }
 
                 match self.ledger_db.get_commitment_by_index(index)? {
                     Some(db_commitment) => {

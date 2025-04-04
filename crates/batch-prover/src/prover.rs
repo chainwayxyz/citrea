@@ -238,8 +238,7 @@ where
         commitments
             .into_iter()
             .filter_map(|comm| {
-                // TODO: first commitment index will be 1 after https://github.com/chainwayxyz/citrea/pull/2180
-                if comm.index == 0 {
+                if comm.index == 1 {
                     return Some(Ok(comm));
                 }
 
@@ -364,18 +363,13 @@ where
         .await
         .context("Failed to get circuit input from commitments")?;
 
-        let previous_sequencer_commitment = partition
-            .commitments
-            .first()
-            .expect("Must have 1")
-            .index
-            .checked_sub(1)
-            .map(|index| {
-                self.ledger_db
-                    .get_commitment_by_index(index)
-                    .expect("Should get commitment")
-                    .expect("Commitment should exist")
-            });
+        let first_commitment = &partition.commitments[0];
+        let previous_sequencer_commitment = (first_commitment.index != 1).then(|| {
+            self.ledger_db
+                .get_commitment_by_index(first_commitment.index)
+                .expect("Should get commitment")
+                .expect("Commitment should exist")
+        });
 
         Ok(BatchProofCircuitInputV3 {
             initial_state_root,
