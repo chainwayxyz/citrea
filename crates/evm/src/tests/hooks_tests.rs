@@ -96,7 +96,7 @@ fn end_l2_block_hook_sets_head() {
         Block {
             header: alloy_consensus::Header {
                 parent_hash: B256::from(hex!(
-                    "767311c3e9ea009f0243dd539953f389d7aebdf2ee1b235b224c61a505101827"
+                    "8220076b16e323c5d818bcc8caf2d372e158d4fbf365a483276e0ee6b617f647"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
