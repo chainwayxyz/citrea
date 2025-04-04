@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::Context;
 use rocksdb::WriteBatch;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
@@ -149,6 +150,21 @@ impl LedgerDB {
         let l2_block_number = L2BlockNumber(l2_block.height);
         schema_batch.put::<L2BlockByNumber>(&l2_block_number, l2_block)?;
         schema_batch.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number)
+    }
+
+    /// Removes the head l2 block
+    pub fn pop_head_l2_block(
+        &self,
+    ) -> Result<(), anyhow::Error> {
+        let head_height = self.get_head_l2_block_height()?.context("Head L2 block height not found")?;
+        let mut schema_batch = SchemaBatch::new();
+        
+        let l2_block = self.get_l2_block_by_number(&L2BlockNumber(head_height))?.expect("Head L2 block must exist");
+        let hash = l2_block.hash;
+
+        schema_batch.delete::<L2BlockByNumber>(&L2BlockNumber(head_height))?;
+        schema_batch.delete::<L2BlockByHash>(&hash)?;
+        self.db.write_schemas(schema_batch)
     }
 
     /// Write raw rocksdb WriteBatch
