@@ -163,7 +163,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(sealed_block) => sealed_block,
             None => return Ok(None), // if block doesn't exist return null
         };
-        // header.total_difficulty = Some(header.difficulty);
         // Collect transactions with ids from db
         let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
             .transactions
