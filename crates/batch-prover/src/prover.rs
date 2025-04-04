@@ -102,12 +102,12 @@ where
                 l2_signal = self.l2_block_rx.recv() => {
                     let l2_height = l2_signal.expect("L2 signal sender channel closed abruptly");
                     let Some(sync_target_l2_height) = self.sync_target_l2_height else {
-                        // we are already fully synced or no commitments are waiting for l2 blocks, ignore
+                        // we are already fully synced or no commitments are waiting for l2 blocks
                         continue;
                     };
 
                     if l2_height < sync_target_l2_height {
-                        // new l2 height has not yet reached the next sync target, ignore
+                        // new l2 height has not yet reached the next sync target
                         continue;
                     }
 
