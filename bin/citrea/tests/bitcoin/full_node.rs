@@ -967,6 +967,7 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(committed_height.commitment_index, 2);
 
         // Make sure proof was discarded even after processing its commitment range
+        // It was discarded as at the time of proof processing, the commitment range wasn't valid
         let proven_height = full_node
             .client
             .http_client()
