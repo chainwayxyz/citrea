@@ -1355,7 +1355,6 @@ impl TestCase for OverlappingProofRangesTest {
             .await
             .unwrap();
 
-        println!("waiting for mempool len 2 for commitment 1");
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let commitment_l1_height = da.get_finalized_height(None).await?;
@@ -1378,7 +1377,6 @@ impl TestCase for OverlappingProofRangesTest {
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
 
-        println!("waiting for mempool len 2 for commitment 1 proof");
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
@@ -1448,7 +1446,6 @@ impl TestCase for OverlappingProofRangesTest {
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
 
-        println!("waiting for mempool len 2 for commitment 2,3,4 proof2");
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let proof_b_l1_height = da.get_finalized_height(None).await?;
