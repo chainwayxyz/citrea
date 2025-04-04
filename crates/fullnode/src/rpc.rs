@@ -43,7 +43,7 @@ pub fn register_rpc_methods<DB: NodeLedgerOps + Clone + 'static>(
     Ok(rpc_methods)
 }
 
-#[rpc(client, server, namespace = "fullNode")]
+#[rpc(client, server, namespace = "citrea")]
 pub trait FullNodeRpc {
     /// Get the last L2 height that has been committed
     #[method(name = "getLastCommittedL2Height")]
