@@ -5,6 +5,7 @@ use alloy_consensus::constants::{
 };
 use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
 use revm::primitives::Bytecode;
 use serde::{Deserialize, Deserializer};
@@ -225,8 +226,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             excess_blob_gas: Some(0),
             // EIP-4788 related field
             // unrelated for rollups
-            parent_beacon_block_root: None,
-            requests_hash: None,
+            parent_beacon_block_root: Some(B256::ZERO),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
         };
 
         let block = Block {

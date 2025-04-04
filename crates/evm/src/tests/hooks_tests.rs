@@ -1,5 +1,6 @@
 use alloy_consensus::constants::{EMPTY_WITHDRAWALS, KECCAK_EMPTY};
 use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, PrimitiveSignature, B256, B64, U256};
 use lazy_static::lazy_static;
@@ -123,8 +124,8 @@ fn end_l2_block_hook_sets_head() {
                 extra_data: Bytes::default(),
                 blob_gas_used: Some(0),
                 excess_blob_gas: Some(0),
-                parent_beacon_block_root: None,
-                requests_hash: None,
+                parent_beacon_block_root: Some(B256::ZERO),
+                requests_hash: Some(EMPTY_REQUESTS_HASH),
             },
             l1_fee_rate: 0,
             transactions: 0..2
@@ -319,8 +320,8 @@ fn finalize_hook_creates_final_block() {
         extra_data: Bytes::default(),
         blob_gas_used: Some(0),
         excess_blob_gas: Some(0),
-        parent_beacon_block_root: None,
-        requests_hash: None,
+        parent_beacon_block_root: Some(B256::ZERO),
+        requests_hash: Some(EMPTY_REQUESTS_HASH),
     };
 
     let hash = header.hash_slow();

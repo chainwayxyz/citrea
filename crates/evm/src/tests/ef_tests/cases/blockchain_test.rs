@@ -5,6 +5,8 @@ use std::fs;
 use std::path::Path;
 
 use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
+use alloy_primitives::B256;
 use alloy_rlp::{Decodable, Encodable};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use reth_primitives::{Block as RethBlock, SealedBlock};
@@ -150,8 +152,8 @@ impl Case for BlockchainTestCase {
                     excess_blob_gas: case.genesis_block_header.excess_blob_gas.map(|b| b.to()),
                     // EIP-4788 related field
                     // unrelated for rollups
-                    parent_beacon_block_root: None,
-                    requests_hash: None,
+                    parent_beacon_block_root: Some(B256::ZERO),
+                    requests_hash: Some(EMPTY_REQUESTS_HASH),
                 };
 
                 let block = Block {
