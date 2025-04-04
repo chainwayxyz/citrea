@@ -256,7 +256,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
     )> {
-        let mut native_stf = StfBlueprint::new();
+        let native_stf = StfBlueprint::new();
 
         let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
         let state_version = next_version.checked_sub(2).unwrap_or(0);
@@ -264,15 +264,25 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(get_forks(), state_version);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
-        self.sync_ledger_and_state_db(
-            state_version,
-            &ledger_db,
-            &storage_manager,
-            &rollup_config,
-            da_service.clone(),
-            &mut fork_manager,
-            &mut native_stf
-        ).await?;
+        if let Some(ledger_version) = ledger_db.get_head_l2_block_height()?{
+            if ledger_version == (state_version + 1) {
+                tracing::debug!(
+                    "Version mismatch. LedgerDB version: {}, StateDB version: {}.
+                    Popping head l2 block from LedgerDB",
+                    ledger_version,
+                    state_version
+                );
+                ledger_db.pop_head_l2_block()?;
+            } else if ledger_version == state_version {
+                tracing::debug!("LedgerDB version is equal to StateDB version: {}", ledger_version);
+            } else {
+                anyhow::bail!(
+                    "LedgerDB version is greater than StateDB version + 1, LedgerDB version: {}, StateDB version: {}",
+                    ledger_version,
+                    state_version
+                );
+            }
+        }
 
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
@@ -314,7 +324,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
     )> {
-        let native_stf = StfBlueprint::new();
+        let mut native_stf = StfBlueprint::new();
 
         let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
         let state_version = next_version.checked_sub(2).unwrap_or(0);
@@ -322,25 +332,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(get_forks(), state_version);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
         
-        if let Some(ledger_version) = ledger_db.get_head_l2_block_height()?{
-            if ledger_version == (state_version + 1) {
-                tracing::debug!(
-                    "Version mismatch. LedgerDB version: {}, StateDB version: {}.
-                    Popping head l2 block from LedgerDB",
-                    ledger_version,
-                    state_version
-                );
-                ledger_db.pop_head_l2_block()?;
-            } else if ledger_version == state_version {
-                tracing::debug!("LedgerDB version is equal to StateDB version: {}", ledger_version);
-            } else {
-                anyhow::bail!(
-                    "LedgerDB version is greater than StateDB version + 1, LedgerDB version: {}, StateDB version: {}",
-                    ledger_version,
-                    state_version
-                );
-            }
-        }
+        self.sync_ledger_and_state_db(
+            state_version,
+            &ledger_db,
+            &storage_manager,
+            &rollup_config,
+            da_service.clone(),
+            &mut fork_manager,
+            &mut native_stf
+        ).await?;
+
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
