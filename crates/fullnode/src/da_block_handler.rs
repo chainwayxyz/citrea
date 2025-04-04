@@ -25,7 +25,7 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
 
@@ -592,15 +592,26 @@ where
         for (index, commitment) in pending_commitments {
             // Check if we can process this commitment now
             if self.ledger_db.get_commitment_by_index(index - 1)?.is_some() {
-                if let Err(e) = self
+                match self
                     .process_sequencer_commitment(l1_block, &commitment)
                     .await
                 {
-                    warn!("Failed to process pending commitment with index {index}: {e:?}");
-                    break;
+                    Err(e) => {
+                        warn!("Failed to process pending commitment with index {index}: {e:?}");
+                        break;
+                    }
+                    Ok(ProcessingResult::Success) => {
+                        info!("Succesfully processed pending commitment {index}");
+                        self.ledger_db.remove_pending_commitment(index)?;
+                    }
+                    Ok(ProcessingResult::Discarded) => {
+                        info!("Discarding pending commitment {index}");
+                        self.ledger_db.remove_pending_commitment(index)?;
+                    }
+                    Ok(ProcessingResult::Pending) => {
+                        debug!("Keeping commitment {index} as pending")
+                    }
                 }
-
-                self.ledger_db.remove_pending_commitment(index)?;
             } else {
                 // Breaking since pending commitments are sorted and we won't be to process anymore from then on
                 break;
@@ -628,7 +639,13 @@ where
                     info!("Succesfully processed pending proof for commitment index range {min_index}-{max_index}");
                     self.ledger_db.remove_pending_proof(min_index, max_index)?;
                 }
-                _ => continue,
+                Ok(ProcessingResult::Discarded) => {
+                    info!("Discarding pending proof for commitment index range {min_index}-{max_index}");
+                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                }
+                Ok(ProcessingResult::Pending) => {
+                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending")
+                }
             }
         }
 
