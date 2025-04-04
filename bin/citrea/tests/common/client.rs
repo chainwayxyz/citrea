@@ -12,12 +12,12 @@ use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use citrea_batch_prover::GroupCommitments;
-use citrea_evm::{EstimatedDiffSize, Filter, LogResponse};
+use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -511,12 +511,12 @@ impl TestClient {
 
     /// params is a tuple of (fromBlock, toBlock, address, topics, blockHash)
     /// any of these params are optional
-    pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<LogResponse>
+    pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<Log>
     where
         P: serde::Serialize,
     {
         let rpc_params = rpc_params!(params);
-        let eth_logs: Vec<LogResponse> = self
+        let eth_logs: Vec<Log> = self
             .http_client
             .request("eth_getLogs", rpc_params)
             .await
@@ -768,7 +768,7 @@ impl TestClient {
         rx
     }
 
-    pub(crate) async fn subscribe_logs(&self, filter: Filter) -> mpsc::Receiver<LogResponse> {
+    pub(crate) async fn subscribe_logs(&self, filter: Filter) -> mpsc::Receiver<Log> {
         let (tx, rx) = mpsc::channel();
         let mut subscription = self
             .ws_client

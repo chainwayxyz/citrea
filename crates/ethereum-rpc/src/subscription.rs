@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use alloy_rpc_types::{Block, BlockNumberOrTag};
+use alloy_rpc_types::{Block, BlockNumHash, BlockNumberOrTag, Filter, FilteredParams, Log};
 use alloy_serde::WithOtherFields;
-use citrea_evm::{log_matches_filter, Evm, Filter, LogResponse};
+use citrea_evm::Evm;
 use futures::future;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
+use reth_rpc_eth_types::logs_utils::log_matches_filter;
 use sov_modules_api::WorkingSet;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::task::JoinHandle;
@@ -100,7 +101,7 @@ pub async fn new_heads_notifier(
 }
 
 pub async fn logs_notifier(
-    mut rx: mpsc::Receiver<Vec<LogResponse>>,
+    mut rx: mpsc::Receiver<Vec<Log>>,
     logs_subscriptions: Arc<RwLock<Vec<(Filter, SubscriptionSink)>>>,
 ) {
     while let Some(logs) = rx.recv().await {
@@ -109,11 +110,15 @@ pub async fn logs_notifier(
         let mut send_tasks = vec![];
         for log in logs {
             for (filter, subscription) in subscriptions.iter() {
+                let num_hash = BlockNumHash::new(
+                    *log.block_number.as_ref().unwrap(),
+                    *log.block_hash.as_ref().unwrap(),
+                );
+
                 if log_matches_filter(
-                    &log.clone().try_into().unwrap(),
-                    filter,
-                    log.block_hash.as_ref().unwrap(),
-                    &log.block_number.as_ref().unwrap().to::<u64>(),
+                    num_hash,
+                    &log.inner,
+                    &FilteredParams::new(Some(filter.clone())),
                 ) {
                     let msg = SubscriptionMessage::new(
                         subscription.method_name(),
@@ -135,7 +140,7 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
     storage: C::Storage,
     mut l2_block_rx: broadcast::Receiver<u64>,
     new_heads_tx: mpsc::Sender<WithOtherFields<Block>>,
-    logs_tx: mpsc::Sender<Vec<LogResponse>>,
+    logs_tx: mpsc::Sender<Vec<Log>>,
 ) {
     let evm = Evm::<C>::default();
     while let Ok(height) = l2_block_rx.recv().await {

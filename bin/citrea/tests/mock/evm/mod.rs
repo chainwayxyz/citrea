@@ -575,13 +575,16 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 
     assert_eq!(logs.len(), 1);
     assert_eq!(
-        hex::encode(logs[0].topics[0]).to_string(),
+        hex::encode(logs[0].topics()[0]).to_string(),
         "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
     );
 
     let sepolia_log_data = "\"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\"".to_string();
     let len = sepolia_log_data.len();
-    assert_eq!(sepolia_log_data[1..len - 1], logs[0].data.to_string());
+    assert_eq!(
+        sepolia_log_data[1..len - 1],
+        logs[0].data().data.to_string()
+    );
 
     // Deploy another contract
     let contract_address2 = {
@@ -629,8 +632,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let logs = client.eth_get_logs(address_and_range_filter).await;
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
-    assert_eq!(logs[0].address, contract_address);
-    assert_eq!(logs[1].address, contract_address);
+    assert_eq!(logs[0].address(), contract_address);
+    assert_eq!(logs[1].address(), contract_address);
 
     Ok(())
 }

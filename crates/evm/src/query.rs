@@ -5,14 +5,14 @@ use alloy_consensus::{
     Transaction as AlloyTransaction, TxReceipt,
 };
 use alloy_eips::eip2930::AccessListWithGasUsed;
-use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
 use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::TxKind::{Call, Create};
 use alloy_primitives::{Address, Bytes, Uint, B256, U256, U64};
 use alloy_rpc_types::state::StateOverride;
 use alloy_rpc_types::{
-    AnyReceiptEnvelope, BlockOverrides, Header as AlloyHeader, Log, ReceiptWithBloom, Transaction,
-    TransactionInfo, TransactionReceipt,
+    AnyReceiptEnvelope, BlockOverrides, BloomFilter, Filter, FilterBlockOption, FilteredParams,
+    Header as AlloyHeader, Log, ReceiptWithBloom, Transaction, TransactionInfo, TransactionReceipt,
 };
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
@@ -25,11 +25,13 @@ use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{Recovered, SealedHeader, TransactionSigned};
 use reth_provider::ProviderError;
+use reth_rpc::eth::filter::EthFilterError;
 use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_api::TransactionCompat;
 use reth_rpc_eth_types::error::{
     ensure_success, EthApiError, EthResult, RevertError, RpcInvalidTransactionError,
 };
+use reth_rpc_eth_types::logs_utils::log_matches_filter;
 use revm::primitives::{
     BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason,
     InvalidTransaction, SpecId, TransactTo,
@@ -52,9 +54,7 @@ use crate::evm::primitive_types::{
 };
 use crate::handler::{diff_size_send_eth_eoa, TracingCitreaExternal, TxInfo};
 use crate::rpc_helpers::*;
-use crate::{
-    citrea_spec_id_to_evm_spec_id, BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError,
-};
+use crate::{citrea_spec_id_to_evm_spec_id, Evm, EvmChainConfig};
 /// Gas per transaction not creating a contract.
 pub const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 
@@ -1181,7 +1181,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         filter: Filter,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<Vec<LogResponse>> {
+    ) -> RpcResult<Vec<Log>> {
         // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L302
         Ok(self.logs_for_filter(filter, working_set)?)
     }
@@ -1388,7 +1388,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         filter: Filter,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<Vec<LogResponse>, FilterError> {
+    ) -> Result<Vec<Log>, EthFilterError> {
         match filter.block_option {
             FilterBlockOption::AtBlockHash(block_hash) => {
                 let block_number = match self
@@ -1397,7 +1397,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 {
                     Some(block_number) => block_number,
                     None => {
-                        return Err(FilterError::EthAPIError(
+                        return Err(EthFilterError::EthAPIError(
                             ProviderError::BlockHashNotFound(block_hash).into(),
                         ))
                     }
@@ -1410,9 +1410,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set");
 
                 // all of the logs we have in the block
-                let mut all_logs: Vec<LogResponse> = Vec::new();
+                let mut all_logs: Vec<Log> = Vec::new();
 
-                self.append_matching_block_logs(working_set, &mut all_logs, &filter, block);
+                self.append_matching_block_logs(working_set, &mut all_logs, filter.clone(), block);
 
                 Ok(all_logs)
             }
@@ -1459,13 +1459,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         filter: &Filter,
         from_block_number: u64,
         to_block_number: u64,
-    ) -> Result<Vec<LogResponse>, FilterError> {
+    ) -> Result<Vec<Log>, EthFilterError> {
         let max_blocks_per_filter: u64 = DEFAULT_MAX_BLOCKS_PER_FILTER;
         if to_block_number - from_block_number >= max_blocks_per_filter {
-            return Err(FilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
+            return Err(EthFilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
         }
         // all of the logs we have in the block
-        let mut all_logs: Vec<LogResponse> = Vec::new();
+        let mut all_logs: Vec<Log> = Vec::new();
 
         let address_filter: BloomFilter = filter.address.to_bloom_filter();
         let topics_filter: Vec<BloomFilter> =
@@ -1485,7 +1485,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 {
                     Some(block) => block,
                     None => {
-                        return Err(FilterError::EthAPIError(
+                        return Err(EthFilterError::EthAPIError(
                             // from and to are checked against last block
                             // so this should never happen ideally
                             ProviderError::BlockBodyIndicesNotFound(idx).into(),
@@ -1494,18 +1494,25 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 };
 
                 let logs_bloom = block.header.logs_bloom;
-
-                let alloy_logs_bloom = alloy_primitives::Bloom::from(logs_bloom.data());
-                if matches_address(alloy_logs_bloom, &address_filter)
-                    && matches_topics(alloy_logs_bloom, &topics_filter)
+                if FilteredParams::matches_address(logs_bloom, &address_filter)
+                    && FilteredParams::matches_topics(logs_bloom, &topics_filter)
                 {
-                    self.append_matching_block_logs(working_set, &mut all_logs, filter, block);
+                    self.append_matching_block_logs(
+                        working_set,
+                        &mut all_logs,
+                        filter.clone(),
+                        block,
+                    );
                     let max_logs_per_response = DEFAULT_MAX_LOGS_PER_RESPONSE;
                     // size check but only if range is multiple blocks, so we always return all
                     // logs of a single block
                     let is_multi_block_range = from_block_number != to_block_number;
                     if is_multi_block_range && all_logs.len() > max_logs_per_response {
-                        return Err(FilterError::QueryExceedsMaxResults(max_logs_per_response));
+                        return Err(EthFilterError::QueryExceedsMaxResults {
+                            max_logs: max_logs_per_response,
+                            from_block: from,
+                            to_block: idx - 1,
+                        });
                     }
                 }
             }
@@ -1517,19 +1524,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
     fn append_matching_block_logs(
         &self,
         working_set: &mut WorkingSet<C::Storage>,
-        all_logs: &mut Vec<LogResponse>,
-        filter: &Filter,
+        all_logs: &mut Vec<Log>,
+        filter: Filter,
         block: SealedBlock,
     ) {
         // tracks the index of a log in the entire block
-        let mut log_index: u32 = 0;
+        let mut log_index: u64 = 0;
 
         // TODO: Understand how to handle this
         // TAG - true when the log was removed, due to a chain reorganization. false if its a valid log.
         let removed = false;
 
         let tx_range = block.transactions;
-
+        let filter = FilteredParams::new(Some(filter));
         for i in tx_range {
             let receipt = self
                 .receipts
@@ -1541,19 +1548,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .unwrap();
 
             for log in receipt.receipt.logs() {
-                if log_matches_filter(log, filter, &block.header.hash(), &block.header.number) {
-                    let log = LogResponse {
-                        address: log.address,
-                        topics: log.topics().to_vec(),
-                        data: log.data.data.to_vec().into(),
+                let num_hash = BlockNumHash::new(block.header.number, block.header.hash());
+
+                if log_matches_filter(num_hash, log, &filter) {
+                    all_logs.push(Log {
+                        inner: log.clone(),
                         block_hash: Some(block.header.hash()),
-                        block_number: Some(U256::from(block.header.number)),
+                        block_number: Some(block.header.number),
+                        block_timestamp: Some(block.header.timestamp),
                         transaction_hash: Some(*tx.signed_transaction.hash()),
-                        transaction_index: Some(U256::from(i)),
-                        log_index: Some(U256::from(log_index)),
+                        transaction_index: Some(i),
+                        log_index: Some(log_index),
                         removed,
-                    };
-                    all_logs.push(log);
+                    });
                 }
                 log_index += 1;
             }

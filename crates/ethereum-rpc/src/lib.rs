@@ -9,11 +9,11 @@ use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index,
-    Transaction,
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory,
+    Filter, Index, Transaction,
 };
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{Evm, Filter};
+use citrea_evm::Evm;
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;

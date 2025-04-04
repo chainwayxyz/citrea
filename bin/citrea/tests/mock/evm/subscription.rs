@@ -5,10 +5,10 @@ use std::time::Duration;
 use alloy_primitives::FixedBytes;
 // use citrea::initialize_logging;
 use alloy_primitives::{keccak256, Address};
+use alloy_rpc_types::{Filter, Log};
 use alloy_sol_types::SolEvent;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{AnotherLogEvent, LogEvent, LogsContract, TestContract};
-use citrea_evm::{Filter, LogResponse};
 use citrea_stf::genesis_config::GenesisPaths;
 use tokio::time::sleep;
 
@@ -143,13 +143,12 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn logs subscriber with no filter
     let logs_by_tx_no_filter = spawn_logs_subscriber(&test_client, Filter::default()).await;
     // Spawn logs subscriber with logs_contract_address1 filter
-    let mut filter = Filter::default();
-    filter.address.0.insert(logs_contract_address1);
+    let filter = Filter::new().address(logs_contract_address1);
     let logs_by_tx_address1_filter = spawn_logs_subscriber(&test_client, filter).await;
     // Spawn logs subscriber with logs_contract_address2 filter and a topic
-    let mut filter = Filter::default();
-    filter.address.0.insert(logs_contract_address2);
-    filter.topics[0].0.insert(AnotherLogEvent::SIGNATURE_HASH);
+    let filter = Filter::new()
+        .address(logs_contract_address2)
+        .event(AnotherLogEvent::SIGNATURE);
     let logs_by_tx_address2_filter = spawn_logs_subscriber(&test_client, filter).await;
 
     // Call logs_contract1 and logs_contract2 contracts once and observe that
@@ -240,7 +239,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
             let logs = logs_by_tx_address2_filter.get(&tx_hash2).unwrap();
             assert_eq!(logs.len(), 1);
 
-            let log: alloy_primitives::Log = logs[0].clone().try_into().unwrap();
+            let log: alloy_primitives::Log = logs[0].clone().into();
             let another_log_payload = LogsContract::decode_another_log_event(&log).unwrap();
 
             // Verify tx1 events payload
@@ -255,7 +254,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
 async fn spawn_logs_subscriber(
     client: &TestClient,
     filter: Filter,
-) -> Arc<Mutex<HashMap<FixedBytes<32>, Vec<LogResponse>>>> {
+) -> Arc<Mutex<HashMap<FixedBytes<32>, Vec<Log>>>> {
     let logs_rx = client.subscribe_logs(filter).await;
     let logs_by_tx = Arc::new(Mutex::new(HashMap::new()));
     let logs_by_tx_c = logs_by_tx.clone();
@@ -276,15 +275,15 @@ async fn spawn_logs_subscriber(
 }
 
 fn parse_log_contract_logs(
-    logs: &[LogResponse],
+    logs: &[Log],
 ) -> (
     alloy_primitives::Log<LogEvent>,
     alloy_primitives::Log<AnotherLogEvent>,
 ) {
     assert_eq!(logs.len(), 2);
 
-    let log1: alloy_primitives::Log = logs[0].clone().try_into().unwrap();
-    let log2: alloy_primitives::Log = logs[1].clone().try_into().unwrap();
+    let log1: alloy_primitives::Log = logs[0].clone().into();
+    let log2: alloy_primitives::Log = logs[1].clone().into();
 
     let log_payload = LogsContract::decode_log_event(&log1).unwrap();
     let another_log_payload = LogsContract::decode_another_log_event(&log2).unwrap();
