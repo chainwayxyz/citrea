@@ -1383,6 +1383,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
+        // Generate a proof over commitment range [1] that will be discarded
         let _discarded_proof = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
             .await
             .unwrap()[0]
