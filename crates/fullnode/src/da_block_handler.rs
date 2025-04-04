@@ -456,7 +456,7 @@ where
             .unwrap_or_default();
 
         if proven_height > committed_height {
-            panic!("Proven height {proven_height:?} above committed height {commited_height:?}");
+            panic!("Proven height {proven_height:?} above committed height {committed_height:?}");
         }
 
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
