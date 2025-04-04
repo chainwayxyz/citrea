@@ -407,9 +407,6 @@ pub trait LedgerRpcProvider {
         end: u64,
     ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error>;
 
-    /// Takes an L2 Height and and returns the l2 block status of the l2 block
-    fn get_l2_block_status(&self, l2_block_receipt: u64) -> Result<L2BlockStatus, anyhow::Error>;
-
     /// Returns the L2 genesis state root
     fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error>;
 

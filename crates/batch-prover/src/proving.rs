@@ -18,7 +18,6 @@ use sov_modules_api::{L2Block, SlotData, SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
-use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -305,7 +304,7 @@ where
         proof_rxs.push(rx);
     }
 
-    save_commitments(ledger.clone(), &sequencer_commitments, l1_height);
+    save_commitments(ledger.clone(), sequencer_commitments, l1_height);
 
     tokio::spawn(async move {
         // Wait for all proofs to be completed
@@ -613,33 +612,15 @@ where
 
 pub(crate) fn save_commitments<DB>(
     ledger_db: DB,
-    sequencer_commitments: &[SequencerCommitment],
+    sequencer_commitments: Vec<SequencerCommitment>,
     l1_height: u64,
 ) where
     DB: BatchProverLedgerOps,
 {
-    for sequencer_commitment in sequencer_commitments.iter() {
-        let l2_start_block_number = if sequencer_commitment.index == 1 {
-            get_fork2_activation_height_non_zero()
-        } else {
-            ledger_db
-                .get_commitment_by_index(sequencer_commitment.index - 1)
-                .expect("Ledger should not error out")
-                .expect("There should exist a commitment")
-                .l2_end_block_number
-                + 1
-        };
+    for sequencer_commitment in sequencer_commitments {
         // Save commitments on prover ledger db
         ledger_db
-            .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
+            .update_commitments_on_da_slot(l1_height, sequencer_commitment)
             .unwrap();
-
-        let l2_start_height = l2_start_block_number;
-        let l2_end_height = sequencer_commitment.l2_end_block_number;
-        for i in l2_start_height..=l2_end_height {
-            ledger_db
-                .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)
-                .unwrap_or_else(|_| panic!("Failed to put l2 block status in the ledger db {}", i));
-        }
     }
 }

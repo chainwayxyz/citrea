@@ -16,7 +16,6 @@ use sov_db::schema::types::l2_block::StoredL2Block;
 use sov_db::schema::types::{L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber};
 use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
-use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -357,11 +356,6 @@ where
             sequencer_commitment.clone(),
         )?;
 
-        for i in start_l2_height..=end_l2_height {
-            self.ledger_db
-                .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Finalized)?;
-        }
-
         self.ledger_db.set_l2_range_by_commitment_merkle_root(
             sequencer_commitment.merkle_root,
             (L2BlockNumber(start_l2_height), L2BlockNumber(end_l2_height)),
@@ -507,7 +501,6 @@ where
         }
 
         let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
-        let mut l2_start_height = previous_l2_end_block_number + 1;
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
             .zip(commitments_hashes)
@@ -521,11 +514,6 @@ where
                             hex::encode(expected_hash)
                         ).into());
                 }
-                for i in l2_start_height..=sequencer_commitment.l2_end_block_number {
-                    self.ledger_db
-                        .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)?;
-                }
-                l2_start_height = sequencer_commitment.l2_end_block_number + 1;
             } else {
                 return Err(anyhow!(
                     "Commitment index {index} is missing for proof, discarding proof."

@@ -15,7 +15,7 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
+    L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
     LightClientProofBySlotNumber, MempoolTxs, PendingProofs, PendingProvingSessions,
     PendingSequencerCommitment, PendingSequencerCommitments, ProofsBySlotNumberV2,
     ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
@@ -272,25 +272,6 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
-    }
-
-    /// Saves a l2 block status for a given L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn put_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-        status: sov_rollup_interface::rpc::L2BlockStatus,
-    ) -> Result<(), anyhow::Error> {
-        self.db.put::<L2BlockStatus>(&height, &status)
-    }
-
-    /// Saves a l2 block status for a given L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-    ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>, anyhow::Error> {
-        self.db.get::<L2BlockStatus>(&height)
     }
 
     /// Gets the commitments in the da slot with given height if any

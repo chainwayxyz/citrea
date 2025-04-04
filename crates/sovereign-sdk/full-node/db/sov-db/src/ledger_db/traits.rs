@@ -45,19 +45,6 @@ pub trait SharedLedgerOps {
     /// Gets l1 height of l1 hash
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 
-    /// Saves a l2 block status for a given L1 height
-    fn put_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-        status: sov_rollup_interface::rpc::L2BlockStatus,
-    ) -> Result<()>;
-
-    /// Returns a l2 block status for a given L1 height
-    fn get_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-    ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>>;
-
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
     fn update_commitments_on_da_slot(
