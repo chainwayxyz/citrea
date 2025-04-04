@@ -122,10 +122,7 @@ impl From<TransactionSignedAndRecovered> for Recovered<TransactionSigned> {
 pub(crate) fn sealed_block_to_block_env(
     sealed_header: &reth_primitives::SealedHeader,
 ) -> revm::primitives::BlockEnv {
-    use revm::primitives::{BlobExcessGasAndPrice, SpecId};
-
-    let citrea_spec = citrea_primitives::forks::fork_from_block_number(sealed_header.number);
-    let evm_spec = crate::citrea_spec_id_to_evm_spec_id(citrea_spec.spec_id);
+    use revm::primitives::BlobExcessGasAndPrice;
 
     revm::primitives::BlockEnv {
         number: U256::from(sealed_header.number),
@@ -138,6 +135,6 @@ pub(crate) fn sealed_block_to_block_env(
         blob_excess_gas_and_price: sealed_header
             .excess_blob_gas
             .or(Some(0))
-            .map(|gas| BlobExcessGasAndPrice::new(gas, evm_spec.is_enabled_in(SpecId::PRAGUE))),
+            .map(|gas| BlobExcessGasAndPrice::new(gas, true)),
     }
 }

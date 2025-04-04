@@ -3,7 +3,7 @@ use alloy_consensus::{proofs, Header as AlloyHeader, TxReceipt};
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
+use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
@@ -14,7 +14,7 @@ use tracing::instrument;
 use crate::evm::primitive_types::Block;
 #[cfg(feature = "native")]
 use crate::evm::system_events::SystemEvent;
-use crate::{citrea_spec_id_to_evm_spec_id, Evm};
+use crate::Evm;
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
@@ -69,11 +69,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg.base_fee_params,
         );
 
-        let active_evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec());
-        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(
-            0,
-            active_evm_spec.is_enabled_in(SpecId::PRAGUE),
-        ));
+        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0, true));
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block_number + 1),

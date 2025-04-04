@@ -51,10 +51,7 @@ fn begin_l2_block_hook_creates_pending_block() {
             basefee: U256::from(765625000),
             gas_limit: U256::from(config.block_gas_limit),
             difficulty: U256::ZERO,
-            blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(
-                0,
-                evm_spec.is_enabled_in(EvmSpecId::PRAGUE)
-            ))
+            blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0, true))
         }
     );
 }
