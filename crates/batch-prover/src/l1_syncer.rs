@@ -11,6 +11,7 @@ use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::select;
+use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -170,8 +171,11 @@ where
         }
 
         // signal that new l1 blocks are processed
-        if let Err(_) = self.l1_signal_tx.send(()).await {
-            error!("L1 signal channel closed for some reason");
+        if let Err(e) = self.l1_signal_tx.try_send(()) {
+            match e {
+                TrySendError::Closed(_) => error!("L1 signal receiver channel closed"),
+                TrySendError::Full(_) => warn!("L1 signal receiver channel full"),
+            }
         }
 
         Ok(())

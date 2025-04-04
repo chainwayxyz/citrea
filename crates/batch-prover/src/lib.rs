@@ -96,7 +96,6 @@ where
 
     let runner = CitreaBatchProver::new(l2_syncer)?;
 
-    // TODO: convert this to notify channel? else consider buf size? else make l1 syncer not block when channel is full.
     let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);
 
     let l1_syncer = L1Syncer::new(
