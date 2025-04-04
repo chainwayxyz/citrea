@@ -6,7 +6,7 @@ use metrics::histogram;
 use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
 };
-use sov_rollup_interface::zk::{Proof, ReceiptType};
+use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::error;
@@ -45,7 +45,7 @@ impl LocalProver {
         assumptions: Vec<AssumptionReceipt>,
         receipt_type: ReceiptType,
         with_prove: bool,
-    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
+    ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
         if self.dev_mode {
             assert!(
                 !with_prove,
@@ -73,7 +73,7 @@ impl LocalProver {
         tokio::task::spawn_blocking(move || {
             match this.handle_prove(elf, input, assumptions, prover_opts) {
                 Ok(proof) => {
-                    let _ = tx.send(proof);
+                    let _ = tx.send(ProofWithJob { job_id, proof });
                 }
                 Err(e) => error!("Local proving error: {}", e),
             }

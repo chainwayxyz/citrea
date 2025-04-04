@@ -11,7 +11,7 @@ use local::LocalProver;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::AssumptionReceipt;
 use sov_db::ledger_db::LedgerDB;
-use sov_rollup_interface::zk::{Proof, ReceiptType, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
@@ -76,7 +76,7 @@ impl ZkvmHost for Risc0Host {
         elf: Vec<u8>,
         receipt_type: ReceiptType,
         with_prove: bool,
-    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
+    ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
         let input = mem::take(&mut self.env);
         let assumptions = mem::take(&mut self.assumptions);
 
@@ -101,34 +101,14 @@ impl ZkvmHost for Risc0Host {
         Ok(T::try_from_slice(&journal.bytes)?)
     }
 
-    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
-        Ok(Vec::new())
-
-        // TODO: fix this https://github.com/chainwayxyz/citrea/issues/1410
-        //
-        // let sessions = self.ledger_db.get_pending_proving_sessions()?;
-        // tracing::info!("Recovering {} bonsai sessions", sessions.len());
-        // let mut proofs = Vec::new();
-        // for session in sessions {
-        //     let bonsai_session: RecoveredBonsaiSession = BorshDeserialize::try_from_slice(&session)
-        //         .expect("Bonsai host should be able to recover bonsai sessions");
-
-        //     tracing::info!("Recovering bonsai session: {:?}", bonsai_session);
-        // match bonsai_session.session {
-        //     BonsaiSession::StarkSession(stark_session) => {
-        //         let _receipt = self.wait_for_receipt(&stark_session)?;
-        //         let proof = self.wait_for_stark_to_snark_conversion(None, &stark_session)?;
-        //         proofs.push(proof);
-        //     }
-        //     BonsaiSession::SnarkSession(stark_session, snark_session) => {
-        //         let _receipt = self.wait_for_receipt(&stark_session)?;
-        //         let proof = self
-        //             .wait_for_stark_to_snark_conversion(Some(&snark_session), &stark_session)?;
-        //         proofs.push(proof)
-        //     }
-        // }
-        // }
-        // Ok(proofs)
+    fn start_session_recovery(
+        &self,
+    ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
+        let Prover::Bonsai(prover) = &self.prover else {
+            info!("Skipping proving recovery...");
+            return Ok(vec![]);
+        };
+        prover.start_recovery()
     }
 }
 

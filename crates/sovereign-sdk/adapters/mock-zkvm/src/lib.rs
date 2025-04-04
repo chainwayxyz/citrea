@@ -7,7 +7,7 @@ use std::sync::{mpsc, Arc, Mutex, RwLock};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{Matches, Proof, ReceiptType};
+use sov_rollup_interface::zk::{Matches, Proof, ProofWithJob, ReceiptType};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -192,7 +192,7 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         _elf: Vec<u8>,
         _receipt_type: ReceiptType,
         _with_prove: bool,
-    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
+    ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
         let (tx, rx) = mpsc::channel();
 
         let mut tasks = self.waiting_tasks.lock().unwrap();
@@ -212,7 +212,9 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         T::try_from_slice(&data.hint).map_err(Into::into)
     }
 
-    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
+    fn start_session_recovery(
+        &self,
+    ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
         unimplemented!()
     }
 }

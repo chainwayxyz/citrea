@@ -416,8 +416,7 @@ where
             assumptions: vec![],
             elf,
         };
-        self
-            .prover_service
+        self.prover_service
             .start_proving(proof_data, ReceiptType::Groth16)
             .await
     }

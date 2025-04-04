@@ -4,7 +4,7 @@ use anyhow::Context;
 use rand::Rng;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -134,7 +134,8 @@ where
 
             match proof {
                 Ok(proof) => {
-                    tx.send(proof).expect("Proof channel should not close");
+                    tx.send(proof.proof)
+                        .expect("Proof channel should not close");
                 }
                 Err(e) => {
                     error!("Vm proving channel closed abruptly: {}", e);
@@ -194,13 +195,9 @@ where
         Ok(tx_and_proof)
     }
 
-    pub async fn recover_and_submit_proving_sessions(
-        &self,
-    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+    pub fn start_session_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
         let vm = self.vm.clone();
-        let proofs = vm.recover_proving_sessions()?;
-
-        self.submit_proofs(proofs).await
+        vm.start_session_recovery()
     }
 }
 
@@ -210,15 +207,13 @@ fn make_proof<Vm>(
     elf: Vec<u8>,
     proof_mode: ProofGenMode,
     receipt_type: ReceiptType,
-) -> Result<oneshot::Receiver<Proof>, anyhow::Error>
+) -> Result<oneshot::Receiver<ProofWithJob>, anyhow::Error>
 where
     Vm: ZkvmHost,
 {
     let with_prove = match proof_mode {
         ProofGenMode::Skip => {
-            let (tx, rx) = oneshot::channel();
-            tx.send(Vec::new()).unwrap();
-            return Ok(rx);
+            unimplemented!("ProofGenMode::Skip is not yet implemented")
         }
         ProofGenMode::Execute => false,
         ProofGenMode::ProveWithSampling => {
@@ -226,12 +221,11 @@ where
             // When it's called, we have to produce a real proof.
             true
         }
-        ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
+        ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling) => {
             // `make_proof` is called unconditionally in this case.
             // When it's called, we have to calculate the probabiliry for a proof
             //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
-            proof_sampling_number == 0
-                || rand::thread_rng().gen_range(0..proof_sampling_number) == 0
+            proof_sampling == 0 || rand::thread_rng().gen_range(0..proof_sampling) == 0
         }
     };
 
