@@ -12,6 +12,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+#[cfg(feature = "native")]
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -42,6 +43,7 @@ pub enum ReceiptType {
 }
 
 /// A trait implemented by the prover ("host") of a zkVM program.
+#[cfg(feature = "native")]
 pub trait ZkvmHost: Zkvm + Clone {
     /// The associated guest type
     type Guest: ZkvmGuest;
