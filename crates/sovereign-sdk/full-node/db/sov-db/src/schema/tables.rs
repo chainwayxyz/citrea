@@ -70,6 +70,9 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     ShortHeaderProofBySlotHash::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    L2StatusHeights::table_name(),
+    PendingSequencerCommitments::table_name(),
+    PendingProofs::table_name(),
     // ########
     #[cfg(test)]
     TestTableOld::table_name(),
