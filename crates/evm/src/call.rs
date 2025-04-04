@@ -10,7 +10,7 @@ use crate::conversions::ConversionError;
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
-use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{CitreaReceiptWithBloom, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::{citrea_spec_id_to_evm_spec_id, Evm, PendingTransaction};
 
@@ -103,7 +103,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let logs = result.into_logs();
             let logs_len = logs.len() as u64;
 
-            let receipt = Receipt {
+            let receipt = CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: evm_tx_recovered.tx_type(),
                     success,

@@ -18,7 +18,7 @@ use sov_state::ProverStorage;
 
 use super::utils::commit;
 use crate::call::CallMessage;
-use crate::evm::primitive_types::Receipt;
+use crate::evm::primitive_types::CitreaReceiptWithBloom;
 use crate::evm::system_contracts::BitcoinLightClient;
 use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
@@ -176,7 +176,7 @@ fn test_sys_bitcoin_light_client() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt { // BitcoinLightClient::initializeBlockNumber(U256)
+            CitreaReceiptWithBloom { // BitcoinLightClient::initializeBlockNumber(U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -187,7 +187,7 @@ fn test_sys_bitcoin_light_client() {
                 log_index_start: 0,
                 l1_diff_size: 28,
             },
-            Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
+            CitreaReceiptWithBloom { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -206,7 +206,7 @@ fn test_sys_bitcoin_light_client() {
                 log_index_start: 0,
                 l1_diff_size: 72,
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -339,7 +339,7 @@ fn test_sys_bitcoin_light_client() {
 
     assert_eq!(receipts,
         [
-            Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
+            CitreaReceiptWithBloom { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -358,7 +358,7 @@ fn test_sys_bitcoin_light_client() {
                 log_index_start: 0,
                 l1_diff_size: 72,
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,

@@ -20,7 +20,7 @@ use sov_modules_api::{
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
-use crate::evm::primitive_types::Receipt;
+use crate::evm::primitive_types::CitreaReceiptWithBloom;
 use crate::handler::{BROTLI_COMPRESSION_PERCENTAGE, L1_FEE_OVERHEAD};
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
@@ -122,7 +122,7 @@ fn call_multiple_test() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -134,7 +134,7 @@ fn call_multiple_test() {
                 log_index_start: 0,
                 l1_diff_size: 36
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -146,7 +146,7 @@ fn call_multiple_test() {
                 log_index_start: 0,
                 l1_diff_size: 28
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -158,7 +158,7 @@ fn call_multiple_test() {
                 log_index_start: 0,
                 l1_diff_size: 28
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -234,7 +234,7 @@ fn call_test() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -246,7 +246,7 @@ fn call_test() {
                 log_index_start: 0,
                 l1_diff_size: 36
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -916,7 +916,7 @@ fn test_l1_fee_success() {
             evm.receipts
                 .iter(&mut working_set.accessory_state())
                 .collect::<Vec<_>>(),
-            [Receipt {
+            [CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -1090,7 +1090,7 @@ fn test_l1_fee_halt() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -1102,7 +1102,7 @@ fn test_l1_fee_halt() {
                 log_index_start: 0,
                 l1_diff_size: 36
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: false,

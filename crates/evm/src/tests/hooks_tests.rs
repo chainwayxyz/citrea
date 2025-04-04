@@ -10,7 +10,9 @@ use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
-use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{
+    Block, CitreaReceiptWithBloom, SealedBlock, TransactionSignedAndRecovered,
+};
 use crate::tests::genesis_tests::BENEFICIARY;
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
@@ -221,7 +223,7 @@ fn create_pending_transaction(index: u64, nonce: u64) -> PendingTransaction {
             signed_transaction,
             block_number: 1,
         },
-        receipt: Receipt {
+        receipt: CitreaReceiptWithBloom {
             receipt: reth_primitives::Receipt {
                 tx_type: reth_primitives::TxType::Eip1559,
                 success: true,

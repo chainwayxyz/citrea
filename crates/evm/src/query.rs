@@ -47,7 +47,9 @@ use crate::call::get_cfg_env;
 use crate::conversions::{create_tx_env, sealed_block_to_block_env};
 use crate::evm::call::{create_txn_env, prepare_call_env};
 use crate::evm::db::EvmDb;
-use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{
+    CitreaReceiptWithBloom, SealedBlock, TransactionSignedAndRecovered,
+};
 use crate::handler::{diff_size_send_eth_eoa, TracingCitreaExternal, TxInfo};
 use crate::rpc_helpers::*;
 use crate::{
@@ -1777,7 +1779,7 @@ pub(crate) fn build_rpc_receipt(
     block: &SealedBlock,
     tx: TransactionSignedAndRecovered,
     tx_number: u64,
-    receipt: Receipt,
+    receipt: CitreaReceiptWithBloom,
 ) -> AnyTransactionReceipt {
     let transaction: Recovered<TransactionSigned> = tx.into();
     let transaction_kind = transaction.kind();

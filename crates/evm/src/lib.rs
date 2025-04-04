@@ -45,7 +45,7 @@ use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
 use crate::evm::primitive_types::SealedBlock;
-use crate::evm::primitive_types::{Block, Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Block, CitreaReceiptWithBloom, TransactionSignedAndRecovered};
 pub use crate::EvmConfig;
 
 #[derive(
@@ -54,7 +54,7 @@ pub use crate::EvmConfig;
 /// Pending EVM transaction
 pub struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
-    pub(crate) receipt: Receipt,
+    pub(crate) receipt: CitreaReceiptWithBloom,
 }
 
 impl PendingTransaction {
@@ -165,7 +165,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
+    pub(crate) receipts: sov_modules_api::AccessoryStateVec<CitreaReceiptWithBloom, RlpCodec>,
 }
 
 impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
