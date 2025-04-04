@@ -219,12 +219,12 @@ where
             }
         }
 
-        if let Err(e) = self.process_pending_proofs(l1_block).await {
-            error!("Error processing pending proofs: {e:?}");
-        }
-
         if let Err(e) = self.process_pending_commitments(l1_block).await {
             error!("Error processing pending commitments: {e:?}");
+        }
+
+        if let Err(e) = self.process_pending_proofs(l1_block).await {
+            error!("Error processing pending proofs: {e:?}");
         }
 
         // We do not care about the result of writing this height to the ledger db
