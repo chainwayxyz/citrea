@@ -603,6 +603,11 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
+    fn get_proof_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<StoredBatchProof>> {
+        self.db.get::<ProofByJobId>(&id)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
     fn get_pending_l1_submission_jobs(&self) -> anyhow::Result<Vec<Uuid>> {
         let mut iter = self.db.iter::<PendingL1SubmissionJobs>()?;
         iter.seek_to_first();

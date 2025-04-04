@@ -8,7 +8,7 @@ use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use uuid::Uuid;
 
-use crate::schema::types::batch_proof::StoredBatchProofOutput;
+use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
@@ -190,6 +190,9 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Updates job tx id and removes job from running jobs
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
+
+    /// Get stored proof by job id
+    fn get_proof_by_job_id(&self, id: Uuid) -> Result<Option<StoredBatchProof>>;
 
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;

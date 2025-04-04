@@ -12,7 +12,7 @@ use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType};
 use tokio::sync::oneshot;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -261,7 +261,7 @@ impl BonsaiProver {
             return Ok(vec![]);
         }
 
-        info!("Recovering {} bonsai proving sessions", sessions.len());
+        debug!("Recovering {} bonsai proving sessions", sessions.len());
 
         let mut rxs = vec![];
         for (job_id, session) in sessions {

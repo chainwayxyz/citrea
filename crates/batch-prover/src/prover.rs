@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{hash_map, HashMap, VecDeque};
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -23,13 +23,13 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use sov_state::Witness;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, info_span, instrument, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
 
@@ -86,6 +86,8 @@ where
     }
 
     pub async fn run(mut self, cancellation_token: CancellationToken) {
+        self.recover_proving_sessions().await;
+
         loop {
             select! {
                 biased;
@@ -169,10 +171,8 @@ where
                 .await
                 .context("Failed to create circuit input")?;
 
-            let spec = fork_from_block_number(partition.end_height).spec_id;
-
             let (id, rx) = self.start_proving(input).await?;
-            proving_jobs.push((id, spec, rx));
+            proving_jobs.push((id, rx));
 
             let commitment_indices = partition
                 .commitments
@@ -421,7 +421,7 @@ where
             .await
     }
 
-    fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, SpecId, oneshot::Receiver<Proof>)>) {
+    fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, oneshot::Receiver<Proof>)>) {
         assert!(!proving_jobs.is_empty(), "received empty jobs list");
 
         let ledger_db = self.ledger_db.clone();
@@ -430,15 +430,17 @@ where
 
         let mut proving_jobs = proving_jobs
             .into_iter()
-            .map(|(job_id, spec, rx)| async move {
+            .map(|(job_id, rx)| async move {
                 let proof = rx.await.expect("Proof channel should never close");
-                (job_id, spec, proof)
+                (job_id, proof)
             })
             .collect::<FuturesUnordered<_>>();
 
         tokio::spawn(async move {
-            while let Some((job_id, spec, proof)) = proving_jobs.next().await {
-                let output = extract_proof_output::<Vm>(&proof, spec, &code_commitments_by_spec);
+            while let Some((job_id, proof)) = proving_jobs.next().await {
+                info!("Proving job finished {}", job_id);
+
+                let output = extract_proof_output::<Vm>(&proof, &code_commitments_by_spec);
 
                 // stores proof and marks job as waiting for da
                 ledger_db
@@ -448,16 +450,85 @@ where
                 let tx_id = prover_service
                     .submit_proof(proof)
                     .await
-                    .expect("Proof submission channel must never close");
+                    .expect("Failed to submit proof");
 
-                // stores tx id and removes job from running jobs
+                info!("Job {} proof sent to DA", job_id);
+
+                // stores tx id and removes job from pending da submission
                 ledger_db
                     .finalize_proving_job(job_id, tx_id.into())
                     .expect("Should update proving job tx id");
-
-                info!("Completed proving job {}", job_id);
             }
         });
+    }
+
+    #[instrument(name = "recovery", skip_all)]
+    async fn recover_proving_sessions(&self) {
+        // recover proving sessions
+        let proving_jobs = self
+            .prover_service
+            .start_session_recovery()
+            .expect("Failed to start proving session recovery");
+        let mut proving_jobs = proving_jobs
+            .into_iter()
+            .map(|rx| async move { rx.await.expect("Proof recovery channel closed abruptly") })
+            .collect::<FuturesUnordered<_>>();
+
+        info!("Recovering {} proving sessions", proving_jobs.len());
+
+        let mut proofs = HashMap::with_capacity(proving_jobs.len());
+        while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
+            info!("Proving job finished {}", job_id);
+
+            let output = extract_proof_output::<Vm>(&proof, &self.code_commitments_by_spec);
+
+            // stores proof and marks job as waiting for da
+            self.ledger_db
+                .put_proof_by_job_id(job_id, proof.clone(), output.into())
+                .expect("Should put proof to db");
+
+            info!("Completed proving job {}", job_id);
+
+            proofs.insert(job_id, proof);
+
+            // TODO: there is a quite small chance that proving has started, but job commitment indices
+            // pending commitments haven't been updated in db, maybe we should also try to recover that?
+        }
+
+        // merge proofs of da submission pending jobs
+        let job_ids = self
+            .ledger_db
+            .get_pending_l1_submission_jobs()
+            .expect("Should get pending l1 jobs");
+        for job_id in job_ids {
+            if let hash_map::Entry::Vacant(entry) = proofs.entry(job_id) {
+                let stored_proof = self
+                    .ledger_db
+                    .get_proof_by_job_id(job_id)
+                    .expect("Should get proof by job id")
+                    .expect("Proof of job must exist");
+                assert_eq!(
+                    stored_proof.l1_tx_id, [0; 32],
+                    "Got pending l1 submission job which contains l1 tx id"
+                );
+                entry.insert(stored_proof.proof);
+            }
+        }
+
+        // submit all proofs to da
+        for (job_id, proof) in proofs {
+            let tx_id = self
+                .prover_service
+                .submit_proof(proof)
+                .await
+                .expect("Failed to submit transaction");
+            info!("Job {} proof sent to DA", job_id);
+
+            // stores tx id and removes job from pending da submission
+            self.ledger_db
+                .finalize_proving_job(job_id, tx_id.into())
+                .expect("Should update proving job tx id");
+        }
     }
 
     fn get_state_diff(&self, start_height: u64, end_height: u64) -> anyhow::Result<StateDiff> {
@@ -704,11 +775,15 @@ async fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
 
 fn extract_proof_output<Vm: ZkvmHost>(
     proof: &Proof,
-    spec: SpecId,
     code_commitments_by_spec: &HashMap<SpecId, Vm::CodeCommitment>,
 ) -> BatchProofCircuitOutput {
     let output = Vm::extract_output::<BatchProofCircuitOutput>(proof)
         .expect("Failed to extract batch proof output");
+
+    let last_l2_height = match &output {
+        BatchProofCircuitOutput::V3(v3) => v3.last_l2_height,
+    };
+    let spec = fork_from_block_number(last_l2_height).spec_id;
 
     let code_commitment = code_commitments_by_spec
         .get(&spec)
