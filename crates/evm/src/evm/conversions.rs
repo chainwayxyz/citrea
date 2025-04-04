@@ -78,7 +78,7 @@ pub(crate) fn create_tx_env(tx: &Recovered<TransactionSigned>) -> TxEnv {
 pub enum ConversionError {
     EmptyRawTransactionData,
     FailedToDecodeSignedTransaction,
-    SignerMismatch,
+    InvalidSignature,
 }
 
 impl TryFrom<RlpEvmTransaction> for TransactionSigned {
@@ -108,7 +108,7 @@ impl TryFrom<RlpEvmTransaction> for Recovered<TransactionSigned> {
             return Ok(Self::new_unchecked(tx, SYSTEM_SIGNER));
         }
         tx.try_into_recovered()
-            .map_err(|_| ConversionError::SignerMismatch)
+            .map_err(|_| ConversionError::InvalidSignature)
     }
 }
 
