@@ -546,14 +546,14 @@ where
             }
         }
 
-        if proven_height.commitment_index + 1 != sequencer_commitment_index_range.0 {
+        if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
             info!(
-                "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof as pending for commitment range {}-{}",
-                proven_height.commitment_index + 1,
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.1
-            );
+                    "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof as pending for commitment range {}-{}",
+                    proven_height.commitment_index + 1,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1
+                );
             self.ledger_db.store_pending_proof(
                 sequencer_commitment_index_range.0,
                 sequencer_commitment_index_range.1,
