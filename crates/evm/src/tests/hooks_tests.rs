@@ -6,7 +6,7 @@ use alloy_primitives::{Address, Bloom, Bytes, PrimitiveSignature, B256, B64, U25
 use lazy_static::lazy_static;
 use rand::Rng;
 use reth_primitives::{Header, TransactionSigned};
-use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId as EvmSpecId};
+use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
@@ -17,7 +17,7 @@ use crate::evm::primitive_types::{
 use crate::tests::genesis_tests::BENEFICIARY;
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
-use crate::{citrea_spec_id_to_evm_spec_id, PendingTransaction};
+use crate::PendingTransaction;
 
 lazy_static! {
     pub(crate) static ref DA_ROOT_HASH: B256 = B256::from([5u8; 32]);
@@ -26,7 +26,7 @@ lazy_static! {
 #[test]
 fn begin_l2_block_hook_creates_pending_block() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set, spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
     let l2_block_info = HookL2BlockInfo {
@@ -40,7 +40,6 @@ fn begin_l2_block_hook_creates_pending_block() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     let pending_block = evm.block_env;
-    let evm_spec = citrea_spec_id_to_evm_spec_id(spec_id);
     assert_eq!(
         pending_block,
         BlockEnv {
