@@ -1843,7 +1843,7 @@ pub(crate) fn build_rpc_receipt(
             Create => None,
             Call(addr) => Some(addr),
         },
-        gas_used: receipt.gas_used as u64, // TODO Receipt::gas_used u64?
+        gas_used: receipt.gas_used,
         contract_address: match transaction_kind {
             Create => Some(transaction.signer().create(transaction.nonce())),
             Call(_) => None,

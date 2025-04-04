@@ -136,7 +136,7 @@ async fn execute(
 
     let block = client.eth_get_block_by_number(None).await;
     assert!(
-        block.header.gas_used as u64 <= ETHEREUM_BLOCK_GAS_LIMIT_30M,
+        block.header.gas_used <= ETHEREUM_BLOCK_GAS_LIMIT_30M,
         "Block has gas limit"
     );
     assert!(
