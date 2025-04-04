@@ -1,6 +1,8 @@
+use alloy_network::{AnyTransactionReceipt, TransactionResponse};
 use alloy_primitives::B256;
-use alloy_rpc_types::{AnyNetworkBlock, AnyTransactionReceipt, BlockTransactions};
-use reth_primitives::BlockNumberOrTag;
+use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
+use alloy_rpc_types_eth::Block as AlloyRpcBlock;
+use alloy_serde::WithOtherFields;
 use reth_rpc_eth_types::EthResult;
 use schnellru::{ByLength, LruMap};
 use sov_modules_api::WorkingSet;
@@ -8,7 +10,7 @@ use sov_modules_api::WorkingSet;
 /// Cache for gas oracle
 pub struct BlockCache<C: sov_modules_api::Context> {
     number_to_hash: LruMap<u64, B256, ByLength>, // Number -> hash mapping
-    cache: LruMap<B256, AnyNetworkBlock, ByLength>,
+    cache: LruMap<B256, WithOtherFields<AlloyRpcBlock>, ByLength>,
     provider: citrea_evm::Evm<C>,
 }
 
@@ -27,7 +29,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         &mut self,
         block_hash: B256,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> EthResult<Option<AnyNetworkBlock>> {
+    ) -> EthResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         // Check if block is in cache
         if let Some(block) = self.cache.get(&block_hash) {
             // Even though block is in cache, ask number_to_hash to keep it in sync
@@ -58,7 +60,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         &mut self,
         block_number: u64,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> EthResult<Option<AnyNetworkBlock>> {
+    ) -> EthResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         // Check if block is in cache
         if let Some(block_hash) = self.number_to_hash.get(&block_number) {
             return Ok(Some(self.cache.get(block_hash).unwrap().clone()));
@@ -90,7 +92,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         &mut self,
         block_number: u64,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> EthResult<Option<(AnyNetworkBlock, Vec<AnyTransactionReceipt>)>> {
+    ) -> EthResult<Option<(WithOtherFields<AlloyRpcBlock>, Vec<AnyTransactionReceipt>)>> {
         // if height not in cache, get hash from provider and call get_block
         let block = self.get_block_by_number(block_number, working_set)?;
         if let Some(block) = block {
@@ -101,7 +103,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
                         .iter()
                         .map(|tx| {
                             self.provider
-                                .get_transaction_receipt(tx.hash, working_set)
+                                .get_transaction_receipt(tx.tx_hash(), working_set)
                                 .unwrap()
                                 .unwrap() // There is no way to get None here
                         })

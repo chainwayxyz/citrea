@@ -1,7 +1,8 @@
 use std::str::FromStr;
 
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_primitives::{Address, TxKind};
-use reth_primitives::TransactionSignedEcRecovered;
+use reth_primitives::{Recovered, TransactionSigned};
 use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
@@ -58,7 +59,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
 
         let tx = &tx.try_into().unwrap();
         let block_env = BlockEnv {
-            gas_limit: U256::from(reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT),
+            gas_limit: U256::from(ETHEREUM_BLOCK_GAS_LIMIT_30M),
             ..Default::default()
         };
 
@@ -151,7 +152,7 @@ fn output(result: ExecutionResult) -> alloy_primitives::Bytes {
 pub(crate) fn execute_tx<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
     db: &mut EvmDb<C>,
     block_env: BlockEnv,
-    tx: &TransactionSignedEcRecovered,
+    tx: &Recovered<TransactionSigned>,
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
 ) -> ExecutionResult {

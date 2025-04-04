@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 
+use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::{address, Address, Bytes, TxKind, B256};
 use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::{BlockId, BlockOverrides, TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
-use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;

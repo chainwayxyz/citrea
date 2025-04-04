@@ -8,22 +8,21 @@ use alloy::network::TransactionBuilder7702;
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
+use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
-use alloy::transports::http::{Http, HyperClient};
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::{AnyNetworkBlock, EIP1186AccountProofResponse};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use citrea_batch_prover::GroupCommitments;
-use citrea_evm::{EstimatedDiffSize, Filter, LogResponse};
+use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use revm::primitives::SignedAuthorization;
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
@@ -39,7 +38,7 @@ pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     //client: SignerMiddleware<Provider<Http>, PrivateKeySigner>,
-    pub(crate) client: Box<dyn AlloyProvider<Http<HyperClient>>>,
+    pub(crate) client: Box<dyn AlloyProvider<Ethereum>>,
     http_client: HttpClient,
     ws_client: WsClient,
     current_nonce: AtomicU64,
@@ -56,12 +55,13 @@ impl TestClient {
         let http_host = format!("http://localhost:{}", rpc_addr.port());
         let ws_host = format!("ws://localhost:{}", rpc_addr.port());
 
-        let provider = ProviderBuilder::new()
-            // .with_recommended_fillers()
+        let provider = ProviderBuilder::default()
             .with_chain_id(chain_id)
+            // .with_recommended_fillers()
             .wallet(EthereumWallet::from(key))
             .on_hyper_http(http_host.parse().unwrap());
-        let client: Box<dyn AlloyProvider<Http<HyperClient>>> = Box::new(provider);
+
+        let client: Box<dyn AlloyProvider<Ethereum>> = Box::new(provider);
 
         let http_client = HttpClientBuilder::default()
             .request_timeout(Duration::from_secs(120))
@@ -122,10 +122,7 @@ impl TestClient {
         &self,
         byte_code: Vec<u8>,
         nonce: Option<u64>,
-    ) -> Result<
-        PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>,
-        Box<dyn std::error::Error>,
-    > {
+    ) -> Result<PendingTransactionBuilder<Ethereum>, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -178,7 +175,7 @@ impl TestClient {
         contract_address: Address,
         data: Vec<u8>,
         nonce: Option<u64>,
-    ) -> PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum> {
+    ) -> PendingTransactionBuilder<Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -208,7 +205,7 @@ impl TestClient {
         max_fee_per_gas: u64,
         value: Option<u64>,
         nonce: Option<u64>,
-    ) -> PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum> {
+    ) -> PendingTransactionBuilder<Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -253,7 +250,7 @@ impl TestClient {
         max_fee_per_gas: Option<u128>,
         nonce: Option<u64>,
         value: u128,
-    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<Ethereum>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -280,7 +277,7 @@ impl TestClient {
         data: Vec<u8>,
         nonce: Option<u64>,
         authorization_list: Vec<SignedAuthorization>,
-    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<Ethereum>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -313,7 +310,7 @@ impl TestClient {
         max_fee_per_gas: Option<u128>,
         gas: u64,
         value: u128,
-    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<Ethereum>, anyhow::Error> {
         let nonce = self.current_nonce.fetch_add(1, Ordering::Relaxed);
 
         let req = TransactionRequest::default()
@@ -442,7 +439,7 @@ impl TestClient {
     pub(crate) async fn eth_get_block_by_number_with_detail(
         &self,
         block_number: Option<BlockNumberOrTag>,
-    ) -> AnyNetworkBlock {
+    ) -> WithOtherFields<Block> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
             .await
@@ -514,12 +511,12 @@ impl TestClient {
 
     /// params is a tuple of (fromBlock, toBlock, address, topics, blockHash)
     /// any of these params are optional
-    pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<LogResponse>
+    pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<Log>
     where
         P: serde::Serialize,
     {
         let rpc_params = rpc_params!(params);
-        let eth_logs: Vec<LogResponse> = self
+        let eth_logs: Vec<Log> = self
             .http_client
             .request("eth_getLogs", rpc_params)
             .await
@@ -751,7 +748,7 @@ impl TestClient {
         traces.into_iter().flatten().collect()
     }
 
-    pub(crate) async fn subscribe_new_heads(&self) -> mpsc::Receiver<AnyNetworkBlock> {
+    pub(crate) async fn subscribe_new_heads(&self) -> mpsc::Receiver<WithOtherFields<Block>> {
         let (tx, rx) = mpsc::channel();
         let mut subscription = self
             .ws_client
@@ -771,7 +768,7 @@ impl TestClient {
         rx
     }
 
-    pub(crate) async fn subscribe_logs(&self, filter: Filter) -> mpsc::Receiver<LogResponse> {
+    pub(crate) async fn subscribe_logs(&self, filter: Filter) -> mpsc::Receiver<Log> {
         let (tx, rx) = mpsc::channel();
         let mut subscription = self
             .ws_client
