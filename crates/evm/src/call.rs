@@ -118,10 +118,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             log_index_start += logs_len;
 
+            let (signed_transaction, signer) = evm_tx_recovered.into_parts();
+
             let pending_transaction = PendingTransaction {
                 transaction: TransactionSignedAndRecovered {
-                    signer: evm_tx_recovered.signer(),
-                    signed_transaction: evm_tx_recovered.into_tx(),
+                    signer,
+                    signed_transaction,
                     block_number: block_number.saturating_to(),
                 },
                 receipt,
