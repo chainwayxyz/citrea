@@ -29,7 +29,7 @@ use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, info_span, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
 
