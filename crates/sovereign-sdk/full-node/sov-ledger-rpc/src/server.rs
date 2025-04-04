@@ -1,6 +1,6 @@
 //! A JSON-RPC server implementation for any [`LedgerRpcProvider`].
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
@@ -145,6 +145,15 @@ where
         self.ledger
             .get_head_l2_block_height()
             .map(U64::from)
+            .map_err(to_ledger_rpc_error)
+    }
+
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: U32,
+    ) -> RpcResult<Option<SequencerCommitmentResponse>> {
+        self.ledger
+            .get_sequencer_commitment_by_index(index.to())
             .map_err(to_ledger_rpc_error)
     }
 }

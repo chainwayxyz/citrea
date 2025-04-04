@@ -42,7 +42,8 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
-    let rpc_context = rpc::create_rpc_context(ledger_db.clone());
+    let rpc_storage = storage_manager.create_final_view_storage();
+    let rpc_context = rpc::create_rpc_context(ledger_db.clone(), rpc_storage);
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
     let l1_block_handler = L1BlockHandler::new(

@@ -82,10 +82,11 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	$(MAKE) install-sp1
 
 install-risc0:
-	curl -L https://risczero.com/install | bash
-	source ~/.bashrc
-	source ~/.zshrc
-	rzup install
+	curl -L https://risczero.com/install | bash && \
+	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
+	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
+	rzup install && \
+	rzup install rust 1.85.0
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash

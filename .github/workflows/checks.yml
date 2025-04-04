@@ -64,6 +64,8 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:28.0"
+  CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+  CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -108,6 +110,7 @@ jobs:
           name: citrea-test-build
           path: |
             target/debug/citrea
+            target/debug/citrea-cli
             target/debug/**/methods.rs
           retention-days: 1
 
@@ -158,10 +161,10 @@ jobs:
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Toolchain
+      - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2024-07-27
+          toolchain: nightly
           override: true
       - name: Install risc0
         uses: ./.github/actions/install-risc0
@@ -196,7 +199,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.81.0
+      - uses: dtolnay/rust-toolchain@1.85.0
         with:
           components: llvm-tools-preview
       - name: Rust Cache
@@ -229,13 +232,14 @@ jobs:
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
+      - name: Make citrea-cli executable
+        run: chmod +x target/debug/citrea-cli
       - name: Run coverage
         run: make coverage-ci
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
-          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
       - name: Upload e2e test dir
@@ -369,7 +373,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@1.81.0
+        uses: dtolnay/rust-toolchain@1.85.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
       - name: Setup env
@@ -400,13 +404,14 @@ jobs:
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
+      - name: Make citrea-cli executable
+        run: chmod +x target/debug/citrea-cli
       - name: Run nextest
         run: make test-ci
         env:
           RUST_BACKTRACE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
-          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test
       - name: Upload e2e test dir

@@ -1,6 +1,7 @@
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, B256, U256};
 #[cfg(feature = "native")]
 use reth_primitives::SealedHeader;
+use revm::primitives::BLOCK_HASH_HISTORY;
 use sha2::Digest;
 #[cfg(feature = "native")]
 use sov_modules_api::StateVecAccessor;
@@ -75,6 +76,34 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) {
         let kaddr = Self::get_storage_address(account, key);
         self.storage.set(&kaddr, value, working_set)
+    }
+
+    /// Gets a block hash for the given block number.
+    /// Only the last 256 block hashes are stored.
+    /// This is used for the `blockhash` opcode.
+    pub fn blockhash_get(
+        &self,
+        block_number: u64,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Option<B256> {
+        self.latest_block_hashes
+            .get(&(block_number % BLOCK_HASH_HISTORY), working_set)
+    }
+
+    /// Sets a block hash for the given block number.
+    /// Only the last 256 block hashes are stored.
+    /// This is used for the `blockhash` opcode.
+    pub fn blockhash_set(
+        &self,
+        block_number: u64,
+        block_hash: &B256,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) {
+        self.latest_block_hashes.set(
+            &(block_number % BLOCK_HASH_HISTORY),
+            block_hash,
+            working_set,
+        );
     }
 
     #[cfg(feature = "native")]

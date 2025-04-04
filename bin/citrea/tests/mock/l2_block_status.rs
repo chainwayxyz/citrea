@@ -28,7 +28,7 @@ async fn test_l2_blocks_status_one_l1() -> Result<(), anyhow::Error> {
             da_path: da_db_dir.clone(),
             sequencer_path: sequencer_db_dir.clone(),
             fullnode_path: fullnode_db_dir.clone(),
-            seq_min_l2_blocks: 3,
+            seq_max_l2_blocks: 3,
             deposit_mempool_fetch_limit: 10,
             pruning_config: None,
         })
@@ -94,7 +94,7 @@ async fn test_l2_blocks_status_two_l1() -> Result<(), anyhow::Error> {
             da_path: da_db_dir.clone(),
             sequencer_path: sequencer_db_dir.clone(),
             fullnode_path: fullnode_db_dir.clone(),
-            seq_min_l2_blocks: 3,
+            seq_max_l2_blocks: 3,
             deposit_mempool_fetch_limit: 10,
             ..Default::default()
         })

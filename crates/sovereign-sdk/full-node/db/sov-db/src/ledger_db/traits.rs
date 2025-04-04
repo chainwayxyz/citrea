@@ -87,7 +87,6 @@ pub trait SharedLedgerOps {
     ) -> Result<Vec<StoredL2Block>>;
 
     /// Gets all l2 blocks by numbers
-
     fn get_l2_block_by_number(&self, number: &L2BlockNumber) -> Result<Option<StoredL2Block>>;
 
     /// Get the most recent committed batch
@@ -239,10 +238,13 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     fn delete_pending_commitment(&self, index: u32) -> Result<()>;
 
     /// Gets the latest state diff
-    fn get_state_diff(&self) -> Result<StateDiff>;
+    fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff>;
 
     /// Sets the latest state diff
-    fn set_state_diff(&self, state_diff: &StateDiff) -> Result<()>;
+    fn set_state_diff(&self, l2_height: L2BlockNumber, state_diff: &StateDiff) -> Result<()>;
+
+    /// Sets the latest state diff
+    fn delete_state_diff(&self, l2_height: L2BlockNumber) -> Result<()>;
 
     /// Insert mempool transaction
     fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()>;

@@ -10,7 +10,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_mock_da::{MockAddress, MockDaService};
-use tokio::runtime::Runtime;
 use tokio::time::sleep;
 
 use super::init_test_rollup;
@@ -345,38 +344,29 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let seq_test_client = make_test_client(seq_port).await?;
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
 
     let prover_db_dir_cloned = prover_db_dir.clone();
     let da_db_dir_cloned = da_db_dir.clone();
 
-    let _handle = std::thread::spawn(move || {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let rollup_config = create_default_rollup_config(
-                true,
-                &prover_db_dir_cloned,
-                &da_db_dir_cloned,
-                NodeMode::Prover(seq_port),
-                None,
-            );
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir_cloned,
+        &da_db_dir_cloned,
+        NodeMode::Prover(seq_port),
+        None,
+    );
 
-            let _prover_node_task = tokio::spawn(async move {
-                start_rollup(
-                    prover_node_port_tx,
-                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(BatchProverConfig::default()),
-                    None,
-                    rollup_config,
-                    None,
-                    None,
-                    false,
-                )
-                .await;
-            });
-        });
-        thread_kill_receiver.recv().unwrap();
-    });
+    let prover_node_task_manager = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig::default()),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await?;
@@ -394,24 +384,22 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 4, None).await;
+
     // sequencer commitment should be sent
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 3, None).await;
     // Block that contains the commitment
-    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     // seq comm is in block 3
     wait_for_prover_l1_height_proofs(&prover_node_test_client, 3, None).await?;
 
     // Contains the proof
-    wait_for_l1_block(&da_service, 5, None).await;
+    wait_for_l1_block(&da_service, 4, None).await;
 
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
-    // prover_node_task.abort();
-    thread_kill_sender.send("kill").unwrap();
+    prover_node_task_manager.abort().await;
 
     sleep(Duration::from_secs(1)).await;
 
@@ -420,38 +408,28 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
 
     let prover_copy_db_dir = storage_dir.path().join("prover_copy");
     let da_db_dir_cloned = da_db_dir.clone();
 
-    let _handle = std::thread::spawn(move || {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let rollup_config = create_default_rollup_config(
-                true,
-                &prover_copy_db_dir,
-                &da_db_dir_cloned,
-                NodeMode::Prover(seq_port),
-                None,
-            );
-            let _prover_node_task = tokio::spawn(async move {
-                start_rollup(
-                    prover_node_port_tx,
-                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(BatchProverConfig::default()),
-                    None,
-                    rollup_config,
-                    None,
-                    None,
-                    false,
-                )
-                .await;
-            });
-        });
-
-        thread_kill_receiver.recv().unwrap();
-    });
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_copy_db_dir,
+        &da_db_dir_cloned,
+        NodeMode::Prover(seq_port),
+        None,
+    );
+    let prover_node_task_manager = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig::default()),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await?;
@@ -466,7 +444,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 6);
 
-    thread_kill_sender.send("kill").unwrap();
+    prover_node_task_manager.abort().await;
     sleep(Duration::from_secs(2)).await;
 
     seq_test_client.send_publish_batch_request().await;
@@ -477,57 +455,52 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(2)).await;
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
+
     let prover_copy2_dir_cloned = storage_dir.path().join("prover_copy2");
     let da_db_dir_cloned = da_db_dir.clone();
 
-    let _handle = std::thread::spawn(move || {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let _prover_node_task = tokio::spawn(async move {
-                let rollup_config = create_default_rollup_config(
-                    true,
-                    &prover_copy2_dir_cloned,
-                    &da_db_dir_cloned,
-                    NodeMode::Prover(seq_port),
-                    None,
-                );
-                start_rollup(
-                    prover_node_port_tx,
-                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(BatchProverConfig::default()),
-                    None,
-                    rollup_config,
-                    None,
-                    None,
-                    false,
-                )
-                .await;
-            });
-        });
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_copy2_dir_cloned,
+        &da_db_dir_cloned,
+        NodeMode::Prover(seq_port),
+        None,
+    );
 
-        thread_kill_receiver.recv().unwrap();
-    });
+    let prover_node_task_manager = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig::default()),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await?;
     sleep(Duration::from_secs(2)).await;
     // Publish a DA to force prover to process new blocks
     da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 6, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
 
     // We have 8 blocks in total, make sure the prover syncs
     // and starts proving the second commitment.
-    wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(300))).await;
+    wait_for_l2_block(&prover_node_test_client, 7, Some(Duration::from_secs(300))).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
     sleep(Duration::from_secs(1)).await;
+
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 9, None).await;
+
     da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 7, None).await;
+    wait_for_l1_block(&da_service, 6, None).await;
     sleep(Duration::from_secs(1)).await;
+
     // Commitment is sent
-    wait_for_l1_block(&da_service, 8, None).await;
+    wait_for_l1_block(&da_service, 7, None).await;
     // wait here until we see from prover's rpc that it finished proving
     // seq comm is in block 6
     wait_for_prover_l1_height_proofs(&prover_node_test_client, 6, None).await?;
@@ -540,6 +513,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     assert!(prover_node_test_client.eth_block_number().await >= 8);
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
-    thread_kill_sender.send("kill").unwrap();
+    prover_node_task_manager.abort().await;
     Ok(())
 }

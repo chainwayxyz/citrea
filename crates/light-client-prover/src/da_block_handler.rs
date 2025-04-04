@@ -248,6 +248,8 @@ where
             circuit_output
         );
 
+        assert_eq!(circuit_output.lcp_state_root, result.lcp_state_root);
+
         // Only save after the proof is generated
         self.storage_manager.finalize_storage(result.change_set);
 
