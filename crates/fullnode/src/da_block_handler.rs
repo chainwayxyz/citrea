@@ -181,12 +181,6 @@ where
                             SyncError::SequencerCommitmentWithIndexNotFound(_) => {
                                 unreachable!("Error irrelevant!")
                             }
-                            SyncError::ProvenHeightExceedsCommittedHeight(
-                                proven_height,
-                                committed_height,
-                            ) => {
-                                error!("Could not process ZK proofs: L2 status proven height {proven_height:?} above committed height {committed_height:?}")
-                            }
                             SyncError::UnknownL1Hash => unreachable!("Error irrelevant!"),
                         }
                     }
@@ -206,9 +200,6 @@ where
                             }
                             SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
                                 error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
-                            }
-                            SyncError::ProvenHeightExceedsCommittedHeight(_, _) => {
-                                unreachable!("Error irrelevant!")
                             }
                             SyncError::UnknownL1Hash => {
                                 error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
@@ -465,10 +456,7 @@ where
             .unwrap_or_default();
 
         if proven_height > committed_height {
-            return Err(SyncError::ProvenHeightExceedsCommittedHeight(
-                proven_height,
-                committed_height,
-            ));
+            panic!("Proven height {proven_height:?} above committed height {commited_height:?}");
         }
 
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary

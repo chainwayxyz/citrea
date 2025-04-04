@@ -7,7 +7,6 @@ pub enum SyncError {
     // Should not retry in this case
     SequencerCommitmentNotFound([u8; 32]),
     SequencerCommitmentWithIndexNotFound(u32),
-    ProvenHeightExceedsCommittedHeight(L2HeightAndIndex, L2HeightAndIndex),
     UnknownL1Hash,
     Error(anyhow::Error),
 }
