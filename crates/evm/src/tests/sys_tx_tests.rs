@@ -481,7 +481,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         )
         .unwrap();
 
-        let pending_cumulative_from_sum: u128 = evm
+        let pending_cumulative_from_sum: u64 = evm
             .pending_transactions
             .iter()
             .map(|tx| tx.receipt.gas_used)
@@ -495,10 +495,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             .cumulative_gas_used();
 
         // sanity check
-        assert_eq!(
-            pending_cumulative_from_sum,
-            pending_cumulative_gas_used as u128
-        );
+        assert_eq!(pending_cumulative_from_sum, pending_cumulative_gas_used);
 
         let sys_tx_gas_usage = pending_cumulative_gas_used;
         assert_eq!(sys_tx_gas_usage, 83322);
@@ -563,7 +560,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         )
         .unwrap();
 
-        let pending_cumulative_from_sum: u128 = evm
+        let pending_cumulative_from_sum: u64 = evm
             .pending_transactions
             .iter()
             .map(|tx| tx.receipt.gas_used)
@@ -577,10 +574,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             .cumulative_gas_used();
 
         // sanity check
-        assert_eq!(
-            pending_cumulative_from_sum,
-            pending_cumulative_gas_used as u128
-        );
+        assert_eq!(pending_cumulative_from_sum, pending_cumulative_gas_used);
 
         let sys_tx_gas_usage = pending_cumulative_gas_used;
         assert_eq!(sys_tx_gas_usage, 83322);

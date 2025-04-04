@@ -111,7 +111,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     logs,
                 }
                 .into(),
-                gas_used: gas_used as u128,
+                gas_used,
                 log_index_start,
                 l1_diff_size: tx_info.l1_diff_size,
             };

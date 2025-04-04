@@ -49,5 +49,4 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", default-features = false }
 
 [dev-dependencies]
-alloy-consensus = { workspace = true }
 tokio = { workspace = true }
