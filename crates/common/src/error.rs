@@ -1,5 +1,4 @@
 use citrea_primitives::types::BlockNumber;
-use sov_db::schema::types::L2HeightAndIndex;
 
 #[derive(Debug)]
 pub enum SyncError {
