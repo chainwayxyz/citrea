@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 
 use alloy_primitives::{U32, U64};
 use block::L2BlockResponse;
-use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
 
