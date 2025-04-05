@@ -11,7 +11,6 @@ use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
-use sov_db::state_db::StateDB;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -70,7 +69,8 @@ where
         backup_manager: Arc<BackupManager>,
         include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
-        let start_l2_height = StateDB::new(storage_manager.get_state_db_handle()).next_version() - 1;
+        let start_l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
+
         info!("Starting L2 height: {}", start_l2_height);
 
         Ok(Self {
