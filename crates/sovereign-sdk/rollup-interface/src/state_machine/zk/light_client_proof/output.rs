@@ -17,19 +17,18 @@ pub struct LightClientCircuitOutput {
     /// Latest da state output of the previous light client proof
     /// If None, initial hardcoded da block will be used for verification
     pub latest_da_state: LatestDaState,
-    /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
-    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
-    /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    /// The last sequencer commitment index of the last fully stitched and verified batch proof
+    pub last_sequencer_commitment_index: u32,
 }
 
 /// The batch proof that was not verified in the light client circuit because it was missing another proof for state root chaining
-/// This struct is passed as an output to the light client circuit
-/// After that the new circuit will read that info to update the state root if possible
+/// This struct is used in the light client circuit jmt to store info about unchained batch proofs' commitments
+/// The circuit will query by commitment index to get this info of state transition
+/// Initial and final state root belong to the commitment it self not the whole batch proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq, Serialize, Deserialize)]
-pub struct BatchProofInfo {
+pub struct VerifiedStateTransitionForSequencerCommitmentIndex {
     /// Initial state root of the batch proof
     pub initial_state_root: [u8; 32],
     /// Final state root of the batch proof
@@ -38,7 +37,7 @@ pub struct BatchProofInfo {
     pub last_l2_height: u64,
 }
 
-impl BatchProofInfo {
+impl VerifiedStateTransitionForSequencerCommitmentIndex {
     /// Create a new `BatchProofInfo` instance.
     pub fn new(
         initial_state_root: [u8; 32],

@@ -4,12 +4,9 @@ use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::rpc::{
-    BatchProofMethodIdRpcResponse, LatestDaStateRpcResponse, LightClientProofOutputRpcResponse,
-    LightClientProofResponse,
+    LatestDaStateRpcResponse, LightClientProofOutputRpcResponse, LightClientProofResponse,
 };
-use sov_rollup_interface::zk::light_client_proof::output::{
-    BatchProofInfo, LightClientCircuitOutput,
-};
+use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::Proof;
 
 /// Latest da state to verify and apply da block changes
@@ -42,13 +39,10 @@ pub struct StoredLightClientProofOutput {
     pub light_client_proof_method_id: [u32; 8],
     /// Latest DA state after proof
     pub latest_da_state: StoredLatestDaState,
-    /// Unchained batch proofs are proofs that are not consecutive,
-    /// hence can not be proven yet kproofs.
-    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height after proof.
     pub last_l2_height: u64,
-    /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    /// The last sequencer commitment index of the last fully stitched and verified batch proof
+    pub last_sequencer_commitment_index: u32,
 }
 
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
@@ -71,21 +65,9 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                     .try_into()
                     .expect("should have 11 elements"),
             },
-            unchained_batch_proofs_info: value
-                .unchained_batch_proofs_info
-                .into_iter()
-                .map(Into::into)
-                .collect(),
             last_l2_height: U64::from(value.last_l2_height),
-            batch_proof_method_ids: value
-                .batch_proof_method_ids
-                .into_iter()
-                .map(|(height, method_id)| BatchProofMethodIdRpcResponse {
-                    height: U64::from(height),
-                    method_id: method_id.into(),
-                })
-                .collect(),
             lcp_state_root: value.lcp_state_root,
+            last_sequencer_commitment_index: U32::from(value.last_sequencer_commitment_index),
         }
     }
 }
@@ -104,10 +86,9 @@ impl From<LightClientCircuitOutput> for StoredLightClientProofOutput {
                 epoch_start_time: latest_da_state.epoch_start_time,
                 prev_11_timestamps: latest_da_state.prev_11_timestamps,
             },
-            unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
-            batch_proof_method_ids: circuit_output.batch_proof_method_ids,
             lcp_state_root: circuit_output.lcp_state_root,
+            last_sequencer_commitment_index: circuit_output.last_sequencer_commitment_index,
         }
     }
 }
@@ -126,10 +107,9 @@ impl From<StoredLightClientProofOutput> for LightClientCircuitOutput {
                 epoch_start_time: latest_da_state.epoch_start_time,
                 prev_11_timestamps: latest_da_state.prev_11_timestamps,
             },
-            unchained_batch_proofs_info: db_output.unchained_batch_proofs_info,
             last_l2_height: db_output.last_l2_height,
-            batch_proof_method_ids: db_output.batch_proof_method_ids,
             lcp_state_root: db_output.lcp_state_root,
+            last_sequencer_commitment_index: db_output.last_sequencer_commitment_index,
         }
     }
 }

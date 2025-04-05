@@ -1,12 +1,12 @@
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
-use reth_primitives::TransactionSignedEcRecovered;
+use reth_primitives::{Recovered, TransactionSigned};
 
 use super::types::{PreFork2Context, PreFork2Transaction, SoftConfirmationResponse};
 
 pub fn collect_user_txs(
     l2_block_response: &SoftConfirmationResponse,
-) -> Vec<TransactionSignedEcRecovered> {
+) -> Vec<Recovered<TransactionSigned>> {
     let mut user_txs = Vec::new();
     if let Some(txs) = &l2_block_response.txs {
         for tx in txs {
@@ -20,8 +20,7 @@ pub fn collect_user_txs(
                     EvmCallMessage::try_from_slice(&runtime_msg[1..]).expect("Should be the tx");
                 let evm_txs = evm_call_message.txs;
                 for tx in evm_txs {
-                    let tx = TransactionSignedEcRecovered::try_from(tx)
-                        .expect("Should deserialize evm transaction");
+                    let tx = Recovered::try_from(tx).expect("Should deserialize evm transaction");
                     if tx.signer() != SYSTEM_SIGNER {
                         user_txs.push(tx);
                     }

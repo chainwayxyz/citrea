@@ -1,10 +1,10 @@
 //! Consist of types adjacent to the fee history cache and its configs
 use std::fmt::Debug;
 
-use alloy_network::AnyNetwork;
+use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::B256;
-use alloy_rpc_types::{AnyNetworkBlock, AnyTransactionReceipt, BlockTransactions, TxGasAndReward};
-use reth_rpc_eth_api::RpcTransaction;
+use alloy_rpc_types::{Block, BlockTransactions, Transaction, TxGasAndReward};
+use alloy_serde::WithOtherFields;
 use reth_rpc_eth_types::EthApiError;
 use schnellru::{ByLength, LruMap};
 use serde::{Deserialize, Serialize};
@@ -72,7 +72,10 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     }
 
     /// Processing of the arriving blocks
-    pub fn insert_blocks(&mut self, blocks: Vec<(AnyNetworkBlock, Vec<AnyTransactionReceipt>)>) {
+    pub fn insert_blocks(
+        &mut self,
+        blocks: Vec<(WithOtherFields<Block>, Vec<AnyTransactionReceipt>)>,
+    ) {
         let percentiles = self.predefined_percentiles();
         // Insert all new blocks and calculate approximated rewards
         for (block, receipts) in blocks {
@@ -166,7 +169,7 @@ pub(crate) fn calculate_reward_percentiles_for_block(
     percentiles: &[f64],
     gas_used: u64,
     base_fee_per_gas: u64,
-    transactions: &[RpcTransaction<AnyNetwork>],
+    transactions: &[Transaction],
     receipts: &[AnyTransactionReceipt],
 ) -> Result<Vec<u128>, EthApiError> {
     let mut transactions = transactions
@@ -184,7 +187,7 @@ pub(crate) fn calculate_reward_percentiles_for_block(
             *previous_gas = cumulative_gas_used;
 
             Some(TxGasAndReward {
-                gas_used: gas_used.try_into().unwrap(),
+                gas_used,
                 reward: effective_gas_tip(tx, Some(base_fee_per_gas as u128)).unwrap_or_default(),
             })
         })
@@ -244,7 +247,7 @@ impl FeeHistoryEntry {
     /// Creates a new entry from a sealed block.
     ///
     /// Note: This does not calculate the rewards for the block.
-    pub fn new(block: &AnyNetworkBlock) -> Self {
+    pub fn new(block: &WithOtherFields<Block>) -> Self {
         let base_fee_per_gas = block.header.base_fee_per_gas.unwrap_or_default();
 
         let gas_used = block.header.gas_used;

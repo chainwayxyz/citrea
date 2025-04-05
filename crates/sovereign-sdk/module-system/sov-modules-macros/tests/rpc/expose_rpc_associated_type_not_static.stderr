@@ -58,14 +58,6 @@ error[E0599]: the method `get` exists for struct `StateValue<D>`, but its trait 
            `BorshCodec: StateValueCodec<D>`
            which is required by `sov_modules_api::StateValue<D>: sov_modules_api::StateValueAccessor<D, BorshCodec, sov_modules_api::WorkingSet<_>>`
 
-warning: unused import: `sov_modules_api::prelude`
- --> tests/rpc/expose_rpc_associated_type_not_static.rs:4:5
-  |
-4 | use sov_modules_api::prelude::*;
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` on by default
-
 error[E0310]: the parameter type `S` may not live long enough
   --> tests/rpc/expose_rpc_associated_type_not_static.rs:96:1
    |

@@ -1,6 +1,8 @@
+use alloy_consensus::Transaction;
+use alloy_eips::Typed2718;
 use alloy_primitives::{keccak256, U256};
 use alloy_sol_types::SolCall;
-use reth_primitives::TransactionSignedEcRecovered;
+use reth_primitives::{Recovered, TransactionSigned};
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
@@ -20,7 +22,7 @@ pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
     pub(crate) evm: revm::Evm<'a, EXT, DB>,
 }
 
-impl<'a, EXT, DB> CitreaEvm<'a, EXT, DB>
+impl<EXT, DB> CitreaEvm<'_, EXT, DB>
 where
     DB: Database,
     EXT: CitreaExternalExt,
@@ -39,7 +41,7 @@ where
     /// to return the result and state diff (without applying it).
     pub(crate) fn transact(
         &mut self,
-        tx: &TransactionSignedEcRecovered,
+        tx: &Recovered<TransactionSigned>,
     ) -> Result<ResultAndState, EVMError<DB::Error>> {
         self.evm.context.external.set_current_tx_hash(tx.hash());
         *self.evm.tx_mut() = create_tx_env(tx);
@@ -57,14 +59,16 @@ where
 
 /// Will fail on the first error.
 /// Rendering the l2 block invalid
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
     db: EvmDb<C>,
     block_env: BlockEnv,
-    txs: &[TransactionSignedEcRecovered],
+    txs: &[Recovered<TransactionSigned>],
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
     l2_height: u64,
+    should_be_end_of_sys_txs: &mut bool,
 ) -> Result<Vec<ExecutionResult>, L2BlockModuleCallError> {
     if txs.is_empty() {
         return Ok(vec![]);
@@ -78,10 +82,6 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
 
     let mut tx_results = Vec::with_capacity(txs.len());
 
-    // Set to true as soon as a user tx is found
-    // If a sys tx is encountered after a user tx it is an error
-    let mut should_be_end_of_sys_txs = false;
-
     for (_i, tx) in txs.iter().enumerate() {
         #[cfg(feature = "native")]
         let _span =
@@ -89,14 +89,16 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
                 .entered();
 
         if tx.signer() == SYSTEM_SIGNER {
-            if should_be_end_of_sys_txs {
+            if *should_be_end_of_sys_txs {
                 native_error!("System transaction found after user txs");
                 return Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
             verify_system_tx(evm.evm.db_mut(), tx, l2_height)?;
         } else {
-            should_be_end_of_sys_txs = true;
+            // Set to true as soon as a user tx is found
+            // If a sys tx is encountered after a user tx it is an error
+            *should_be_end_of_sys_txs = true;
         }
 
         // if tx is eip4844 error out
@@ -116,8 +118,12 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
             }
         })?;
 
-        if !should_be_end_of_sys_txs {
-            assert!(result_and_state.result.is_success());
+        if !*should_be_end_of_sys_txs && !result_and_state.result.is_success() {
+            native_error!(
+                "System transaction not successful. Result: {:?}",
+                result_and_state.result
+            );
+            return Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful);
         }
 
         // Check if the transaction used more gas than the available block gas limit
@@ -142,7 +148,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context, EXT: CitreaExtern
 
 fn verify_system_tx<C: sov_modules_api::Context>(
     db: &mut EvmDb<C>,
-    tx: &TransactionSignedEcRecovered,
+    tx: &Recovered<TransactionSigned>,
     l2_height: u64,
 ) -> Result<(), L2BlockModuleCallError> {
     // Early return if this is the first block because sequencer will not have any L1 block hash in system contract before setblock info call
@@ -158,27 +164,15 @@ fn verify_system_tx<C: sov_modules_api::Context>(
         .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
 
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
-        let l1_block_hash: [u8; 32] = tx
-            .input()
-            .get(4..36)
-            .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?
-            .try_into()
-            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
-        let shp_provider = SHORT_HEADER_PROOF_PROVIDER
-            .get()
-            .expect("Short header proof provider not set");
-        let txs_commitment: [u8; 32] = tx
-            .input()
-            .get(36..68)
-            .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?
-            .try_into()
-            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
-        let coinbase_depth: u8 = U256::from_be_slice(
-            tx.input()
-                .get(68..100)
-                .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?,
+        let call = BitcoinLightClientContract::setBlockInfoCall::abi_decode(
+            tx.input(),
+            /*validate*/ true,
         )
-        .to::<u8>();
+        .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
+
+        let l1_block_hash = call._blockHash;
+        let txs_commitment = call._witnessRoot;
+        let coinbase_depth = call._coinbaseDepth.to::<u8>();
 
         let (last_l1_height, prev_hash) =
             get_last_l1_height_and_hash_in_light_client::<C>(db.evm, db.working_set);
@@ -186,11 +180,14 @@ fn verify_system_tx<C: sov_modules_api::Context>(
         // counter intuitively the contract stores next block height (expected on setBlockInfo)
         let next_l1_height: u64 = last_l1_height.to::<u64>();
 
+        let shp_provider = SHORT_HEADER_PROOF_PROVIDER
+            .get()
+            .expect("Short header proof provider not set");
         match shp_provider.get_and_verify_short_header_proof_by_l1_hash(
-            l1_block_hash,
+            l1_block_hash.0,
             prev_hash.unwrap().to_be_bytes(),
             next_l1_height,
-            txs_commitment,
+            txs_commitment.0,
             coinbase_depth,
             l2_height,
         ) {

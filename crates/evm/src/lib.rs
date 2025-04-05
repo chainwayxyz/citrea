@@ -6,11 +6,13 @@ mod genesis;
 mod hooks;
 mod provider_functions;
 
+use alloy_consensus::TxReceipt;
 pub use alloy_primitives::{keccak256, U256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
+#[cfg(feature = "native")]
 pub use hooks::{
     create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
 };
@@ -43,7 +45,7 @@ use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
 use crate::evm::primitive_types::SealedBlock;
-use crate::evm::primitive_types::{Block, Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Block, CitreaReceiptWithBloom, TransactionSignedAndRecovered};
 pub use crate::EvmConfig;
 
 #[derive(
@@ -52,18 +54,18 @@ pub use crate::EvmConfig;
 /// Pending EVM transaction
 pub struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
-    pub(crate) receipt: Receipt,
+    pub(crate) receipt: CitreaReceiptWithBloom,
 }
 
 impl PendingTransaction {
     /// Returns the transaction's hash
-    pub fn hash(&self) -> TxHash {
-        self.transaction.signed_transaction.hash
+    pub fn hash(&self) -> &TxHash {
+        self.transaction.signed_transaction.hash()
     }
 
     /// Returns the cumulative gas used for this transaction
     pub fn cumulative_gas_used(&self) -> u64 {
-        self.receipt.receipt.cumulative_gas_used
+        self.receipt.receipt.cumulative_gas_used()
     }
 }
 
@@ -109,6 +111,11 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// And not in any place such as functions that might be called from RPC etc.
     #[memory]
     pub(crate) block_env: BlockEnv,
+
+    /// Module level flag used to indicate that the current L2 block should not contain system
+    /// transactions after a user transaction has been processed.
+    #[memory]
+    pub(crate) should_be_end_of_sys_txs: bool,
 
     /// Transactions that will be added to the current block.
     /// Valid transactions are added to the vec on every call message.
@@ -158,7 +165,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
+    pub(crate) receipts: sov_modules_api::AccessoryStateVec<CitreaReceiptWithBloom, RlpCodec>,
 }
 
 impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
@@ -192,5 +199,5 @@ impl<C: sov_modules_api::Context> Evm<C> {
 }
 
 const fn citrea_spec_id_to_evm_spec_id(_spec_id: CitreaSpecId) -> EvmSpecId {
-    EvmSpecId::CANCUN
+    EvmSpecId::PRAGUE
 }

@@ -53,7 +53,7 @@ impl<K, V, Codec> AccessoryStateMap<K, V, Codec> {
     }
 }
 
-impl<'a, K, V, Codec, S> StateMapAccessor<K, V, Codec, AccessoryWorkingSet<'a, S>>
+impl<K, V, Codec, S> StateMapAccessor<K, V, Codec, AccessoryWorkingSet<'_, S>>
     for AccessoryStateMap<K, V, Codec>
 where
     Codec: StateCodec,

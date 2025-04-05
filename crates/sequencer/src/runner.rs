@@ -23,7 +23,6 @@ use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
-use reth_primitives::TransactionSignedEcRecovered;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
@@ -32,6 +31,7 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -50,25 +50,20 @@ use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
-use crate::commitment::CommitmentService;
+use crate::commitment::service::CommitmentService;
+use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
-
-/// Represents information about the current DA state.
-///
-/// Contains previous height, latest finalized block and fee rate.
-type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 
@@ -79,7 +74,6 @@ where
 {
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool>,
-    // TODO: Use k256 private key here before mainnet
     pub(crate) sov_tx_signer_priv_key: K256PrivateKey,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider,
@@ -206,11 +200,7 @@ where
                     continue;
                 }
 
-                let mut buf = vec![];
-                evm_tx
-                    .to_recovered_transaction()
-                    .into_signed()
-                    .encode_2718(&mut buf);
+                let buf = evm_tx.to_consensus().into_tx().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
                     txs: vec![rlp_tx.clone()],
@@ -287,6 +277,9 @@ where
                             L2BlockModuleCallError::EvmSystemTxParseError => {
                                 panic!("Sequencer produced incorrectly formatted system tx")
                             }
+                            L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
+                                panic!("System tx failed")
+                            }
                         },
                     }
                 };
@@ -307,6 +300,7 @@ where
     }
 
     fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) {
+        info!("Saving short header proofs to ledger db");
         for da_block in da_blocks {
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
                 Da::block_to_short_header_proof(da_block.clone());
@@ -317,6 +311,10 @@ where
                         .expect("Should serialize short header proof"),
                 )
                 .expect("Should save short header proof to ledger db");
+            info!(
+                "Saved short header proof for block: {}",
+                hex::encode(da_block.hash())
+            );
         }
     }
 
@@ -325,7 +323,7 @@ where
         mut da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         last_used_l1_height: &mut u64,
-    ) -> anyhow::Result<(u64, StateDiff)> {
+    ) -> anyhow::Result<u64> {
         let start: Instant = Instant::now();
         let l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
         self.fork_manager.register_block(l2_height)?;
@@ -356,7 +354,7 @@ where
         l1_fee_rate: u128,
         l2_height: u64,
         last_used_l1_height: &mut u64,
-    ) -> anyhow::Result<(u64, StateDiff)> {
+    ) -> anyhow::Result<u64> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
         // TODO: after L2Block refactor PR, we'll need to change native provider
@@ -478,6 +476,9 @@ where
 
         let state_diff = self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
 
+        self.ledger_db
+            .set_state_diff(L2BlockNumber(l2_height), &state_diff)?;
+
         self.maintain_mempool(l1_fee_failed_txs)?;
 
         // Update last used l1 height if this is a new da block
@@ -485,7 +486,7 @@ where
             *last_used_l1_height = l1_height;
         }
 
-        Ok((l2_height, state_diff))
+        Ok(l2_height)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -531,8 +532,6 @@ where
 
         self.state_root = next_state_root;
         self.l2_block_hash = l2_block_hash;
-
-        // this was saving L2 block
 
         Ok(l2_block_result.state_diff)
     }
@@ -585,7 +584,7 @@ where
                     return Err(e);
                 }
             };
-        let mut last_finalized_height = last_finalized_block.header().height();
+        let mut last_finalized_l1_height = last_finalized_block.header().height();
         let prestate = self.storage_manager.create_final_view_storage();
         let mut working_set = WorkingSet::new(prestate.clone());
         let evm = Evm::<DefaultContext>::default();
@@ -595,26 +594,24 @@ where
             match get_last_l1_height_in_light_client(&evm, &mut working_set) {
                 Some(l1_height) => l1_height.to(),
                 // Set to 1 less so that we do not skip processing the first l1 block
-                None => last_finalized_height - 1,
+                None => last_finalized_l1_height - 1,
             };
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
-        let (da_commitment_tx, da_commitment_rx) = unbounded_channel::<(u64, StateDiff)>();
 
-        let mut commitment_service = CommitmentService::new(
+        let commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
             self.da_service.clone(),
             self.sequencer_da_pub_key.clone(),
-            self.config.min_l2_blocks_per_commitment,
-            da_commitment_rx,
+            self.config.max_l2_blocks_per_commitment,
         );
-        if self.l2_block_hash != [0; 32] {
-            // Resubmit if there were pending commitments on restart, skip it on first init
-            commitment_service.resubmit_pending_commitments().await?;
-        }
 
-        tokio::spawn(commitment_service.run(cancellation_token.child_token()));
+        tokio::spawn(commitment_service.run(
+            self.storage_manager.clone(),
+            self.l2_block_hash,
+            cancellation_token.child_token(),
+        ));
 
         tokio::spawn(da_block_monitor(
             self.da_service.clone(),
@@ -629,7 +626,7 @@ where
         // empty block per DA block. Which means that we have to keep count of missed blocks
         // and only resume normal operations once the sequencer has caught up.
         let mut missed_da_blocks_count =
-            self.da_blocks_missed(last_finalized_height, last_used_l1_height);
+            self.da_blocks_missed(last_finalized_l1_height, last_used_l1_height);
 
         let mut block_production_tick = tokio::time::interval(target_block_time);
         block_production_tick.tick().await;
@@ -639,17 +636,19 @@ where
             tokio::select! {
                 // Receive updates from DA layer worker.
                 l1_data = da_height_update_rx.recv() => {
-                    // Stop receiving updates from DA layer until we have caught up.
-                    if missed_da_blocks_count > 0 {
-                        continue;
-                    }
                     if let Some(l1_data) = l1_data {
                         (last_finalized_block, l1_fee_rate) = l1_data;
-                        last_finalized_height = last_finalized_block.header().height();
+                        let new_finalized_l1_height = last_finalized_block.header().height();
+                        if new_finalized_l1_height < last_finalized_l1_height {
+                            info!("DA potential fork detected, known last finalized L1 height: {last_finalized_l1_height}, new finalized L1 height: {new_finalized_l1_height}")
+                        }
+                        last_finalized_l1_height = new_finalized_l1_height;
 
-                        missed_da_blocks_count = self.da_blocks_missed(last_finalized_height, last_used_l1_height);
+                        info!("New finalized L1 block at height {}", last_finalized_l1_height);
+
+                        missed_da_blocks_count = self.da_blocks_missed(last_finalized_l1_height, last_used_l1_height);
                     }
-                    SEQUENCER_METRICS.current_l1_block.set(last_finalized_height as f64);
+                    SEQUENCER_METRICS.current_l1_block.set(last_finalized_l1_height as f64);
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
@@ -667,12 +666,10 @@ where
                     }
                     let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
-                        Ok((l2_height, state_diff)) => {
+                        Ok(l2_height) => {
 
                             // Only errors when there are no receivers
                             let _ = self.l2_block_tx.send(l2_height);
-
-                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -700,11 +697,9 @@ where
 
                     let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
-                        Ok((l2_height, state_diff)) => {
+                        Ok(l2_height) => {
                             // Only errors when there are no receivers
                             let _ = self.l2_block_tx.send(l2_height);
-
-                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -814,7 +809,7 @@ where
         for address in addresses {
             let account = self
                 .db_provider
-                .basic_account(address)?
+                .basic_account(&address)?
                 .expect("Account must exist");
             updates.push(ChangedAccount {
                 address,
@@ -918,6 +913,8 @@ where
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
 
+                info!("Initializign Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
+
                 let initialize_events = create_initial_system_events(
                     l1_block.header().hash().into(),
                     l1_block.header().txs_commitment().into(),
@@ -965,6 +962,8 @@ where
         Vec<RlpEvmTransaction>,
         WorkingSet<<DefaultContext as Spec>::Storage>,
     )> {
+        info!("Processing {} system transactions", system_events.len());
+
         let mut all_txs = vec![];
         let system_signer = evm
             .account_info(&SYSTEM_SIGNER, &mut working_set_to_discard)
@@ -979,14 +978,7 @@ where
 
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
         for sys_tx in sys_txs {
-            let sys_tx = sys_tx.into_signed();
-
-            // Cannot do into_ecrecovered here because we don't have a valid signature
-            let sys_tx_ec_recovered =
-                TransactionSignedEcRecovered::from_signed_transaction(sys_tx, SYSTEM_SIGNER);
-
-            let mut buf = vec![];
-            sys_tx_ec_recovered.encode_2718(&mut buf);
+            let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
             let call_txs = CallMessage {
@@ -1015,68 +1007,4 @@ where
 
         Ok((all_txs, working_set_to_discard))
     }
-}
-
-async fn da_block_monitor<Da>(
-    da_service: Arc<Da>,
-    sender: mpsc::Sender<L1Data<Da>>,
-    loop_interval: u64,
-    cancellation_token: CancellationToken,
-) where
-    Da: DaService,
-{
-    loop {
-        tokio::select! {
-            biased;
-            _ = cancellation_token.cancelled() => {
-                return;
-            }
-            l1_data = get_da_block_data(da_service.clone()) => {
-                let l1_data = match l1_data {
-                    Ok(l1_data) => l1_data,
-                    Err(e) => {
-                        error!("Could not fetch L1 data, {}", e);
-                        continue;
-                    }
-                };
-
-                let _ = sender.send(l1_data).await;
-
-                sleep(Duration::from_millis(loop_interval)).await;
-            },
-        }
-    }
-}
-
-async fn get_da_block_data<Da>(da_service: Arc<Da>) -> anyhow::Result<L1Data<Da>>
-where
-    Da: DaService,
-{
-    let last_finalized_height = match da_service.get_last_finalized_block_header().await {
-        Ok(header) => header.height(),
-        Err(e) => {
-            return Err(anyhow!("Finalized L1 height: {}", e));
-        }
-    };
-
-    let last_finalized_block = match da_service.get_block_at(last_finalized_height).await {
-        Ok(block) => block,
-        Err(e) => {
-            return Err(anyhow!("Finalized L1 block: {}", e));
-        }
-    };
-
-    debug!(
-        "Sequencer: last finalized L1 height: {:?}",
-        last_finalized_height
-    );
-
-    let l1_fee_rate = match da_service.get_fee_rate().await {
-        Ok(fee_rate) => fee_rate,
-        Err(e) => {
-            return Err(anyhow!("L1 fee rate: {}", e));
-        }
-    };
-
-    Ok((last_finalized_block, l1_fee_rate))
 }

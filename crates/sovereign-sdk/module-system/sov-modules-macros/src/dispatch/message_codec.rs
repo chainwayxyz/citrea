@@ -3,7 +3,7 @@ use syn::DeriveInput;
 
 use crate::common::{get_generics_type_param, StructDef, StructFieldExtractor, CALL};
 
-impl<'a> StructDef<'a> {
+impl StructDef<'_> {
     fn create_message_codec(&self) -> TokenStream {
         let original_ident = &self.ident;
         let call_enum = self.enum_ident(CALL);

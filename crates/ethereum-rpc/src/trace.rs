@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use alloy_rpc_types::BlockNumberOrTag;
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame, TraceResult,
@@ -9,7 +10,6 @@ use citrea_evm::Evm;
 use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
-use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::error::EthApiError;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
@@ -121,9 +121,9 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     opts: Option<GethDebugTracingOptions>,
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
     // If tracer option is not specified, or it is JsTracer, then do not check cache or insert cache, just perform the operation
-    let skip_cache = opts.as_ref().map_or(true, |o| {
-        matches!(o.tracer, None | Some(GethDebugTracerType::JsTracer(_)))
-    });
+    let skip_cache = opts
+        .as_ref()
+        .is_none_or(|o| matches!(o.tracer, None | Some(GethDebugTracerType::JsTracer(_))));
     if skip_cache {
         let mut traces = evm.trace_block_transactions_by_number(
             block_number,

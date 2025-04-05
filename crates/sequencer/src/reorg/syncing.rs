@@ -21,7 +21,7 @@ use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use jsonrpsee::core::client::{ClientT, Error as JsonrpseeError};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use reth_primitives::TransactionSignedEcRecovered;
+use reth_primitives::{Recovered, TransactionSigned};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -560,7 +560,7 @@ where
 
     fn dry_run_transactions_post_fork2(
         &mut self,
-        user_transactions: Vec<TransactionSignedEcRecovered>,
+        user_transactions: Vec<Recovered<TransactionSigned>>,
         pub_key: &K256PublicKey,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
@@ -593,8 +593,7 @@ where
         )?;
 
         for evm_tx in user_transactions {
-            let mut buf = vec![];
-            evm_tx.into_signed().encode_2718(&mut buf);
+            let buf = evm_tx.encoded_2718();
             let rlp_tx = RlpEvmTransaction { rlp: buf };
             let call_txs = CallMessage {
                 txs: vec![rlp_tx.clone()],
@@ -622,7 +621,7 @@ where
                     .append(true)
                     .open(error_log_path)?;
 
-                let tx = TransactionSignedEcRecovered::try_from(rlp_tx.clone())
+                let tx = Recovered::try_from(rlp_tx.clone())
                     .expect("Should deserialize evm transaction");
 
                 writeln!(file, "Error: {:?}, Transaction rlp: {:?}, tx signed ec recovered: {:?}, l2 block info: {:?}\n", e, rlp_tx, tx, l2_block_info)?;
@@ -677,6 +676,9 @@ where
                             }
                             L2BlockModuleCallError::EvmSystemTxParseError => {
                                 panic!("Sequencer produced incorrectly formatted system tx")
+                            }
+                            L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
+                                panic!("EvmSystemTransactionNotSuccessful")
                             }
                         }
                     }

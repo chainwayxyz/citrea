@@ -5,7 +5,7 @@ use crate::common::{
     get_generics_type_param, get_serialization_attrs, StructDef, StructFieldExtractor, CALL,
 };
 
-impl<'a> StructDef<'a> {
+impl StructDef<'_> {
     fn create_call_enum_legs(&self) -> Vec<proc_macro2::TokenStream> {
         self.fields
             .iter()

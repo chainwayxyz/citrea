@@ -1,4 +1,6 @@
-use alloy_consensus::Header as AlloyHeader;
+use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_WITHDRAWALS, KECCAK_EMPTY};
+use alloy_consensus::{proofs, Header as AlloyHeader, TxReceipt};
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
@@ -10,6 +12,7 @@ use sov_rollup_interface::zk::StorageRootHash;
 use tracing::instrument;
 
 use crate::evm::primitive_types::Block;
+#[cfg(feature = "native")]
 use crate::evm::system_events::SystemEvent;
 use crate::Evm;
 
@@ -53,8 +56,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let last_block_hash = sealed_parent_block.header.hash();
 
         // since we know the previous state root only here, we can set the last block hash
-        self.latest_block_hashes
-            .set(&parent_block_number, &last_block_hash, working_set);
+        self.blockhash_set(parent_block_number, &last_block_hash, working_set);
 
         let cfg = self
             .cfg
@@ -67,7 +69,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg.base_fee_params,
         );
 
-        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0));
+        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0, true));
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block_number + 1),
@@ -83,6 +85,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // set early. so that if underlying calls use `self.block_env`
         // they don't use the wrong value
         self.block_env = new_pending_env;
+
+        self.should_be_end_of_sys_txs = false;
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
@@ -99,8 +103,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Head block should always be set");
 
         let parent_block_hash = self
-            .latest_block_hashes
-            .get(&parent_block.header.number, working_set)
+            .blockhash_get(parent_block.header.number, working_set)
             .expect("Should have parent block hash");
 
         let expected_block_number = parent_block.header.number + 1;
@@ -118,34 +121,32 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let gas_used = pending_transactions
             .last()
-            .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
+            .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used());
 
-        let transactions: Vec<&reth_primitives::TransactionSigned> = pending_transactions
+        let transactions: Vec<_> = pending_transactions
             .iter()
-            .map(|tx| &tx.transaction.signed_transaction)
+            .map(|tx| tx.transaction.signed_transaction.clone()) // TODO: https://github.com/alloy-rs/alloy/issues/2214
             .collect();
 
-        let receipts: Vec<reth_primitives::ReceiptWithBloom> = pending_transactions
-            .iter()
-            .map(|tx| tx.receipt.receipt.clone().with_bloom())
+        let receipts: Vec<_> = pending_transactions
+            .iter_mut()
+            .map(|tx| tx.receipt.receipt.clone())
             .collect();
 
         let header = AlloyHeader {
             parent_hash: parent_block_hash,
             timestamp: self.block_env.timestamp.saturating_to(),
             number: self.block_env.number.saturating_to(),
-            ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
+            ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook
-            state_root: reth_primitives::constants::KECCAK_EMPTY,
-            transactions_root: reth_primitives::proofs::calculate_transaction_root(
-                transactions.as_slice(),
-            ),
-            receipts_root: reth_primitives::proofs::calculate_receipt_root(receipts.as_slice()),
-            withdrawals_root: None,
+            state_root: KECCAK_EMPTY,
+            transactions_root: proofs::calculate_transaction_root(transactions.as_slice()),
+            receipts_root: proofs::calculate_receipt_root(receipts.as_slice()),
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             logs_bloom: receipts
                 .iter()
-                .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom),
+                .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom()),
             difficulty: U256::ZERO,
             gas_limit: self.block_env.gas_limit.saturating_to(),
             gas_used,
@@ -159,8 +160,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             excess_blob_gas: Some(0),
             // EIP-4788 related field
             // unrelated for rollups
-            parent_beacon_block_root: None,
-            requests_root: None,
+            parent_beacon_block_root: Some(B256::ZERO),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
         };
 
         let block = Block {
@@ -170,6 +171,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         self.head.set(&block, working_set);
+
+        self.should_be_end_of_sys_txs = false;
 
         #[cfg(not(feature = "native"))]
         pending_transactions.clear();
@@ -192,7 +195,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 self.receipts.push(receipt, &mut accessory_state);
 
                 self.transaction_hashes.set(
-                    &transaction.signed_transaction.hash,
+                    transaction.signed_transaction.hash(),
                     &tx_index,
                     &mut accessory_state,
                 );
@@ -254,6 +257,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 }
 
 /// Initializes system contracts
+#[cfg(feature = "native")]
 pub fn create_initial_system_events(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
@@ -274,11 +278,13 @@ pub fn create_initial_system_events(
 }
 
 /// If new l1 block arrives we set it in light client contract
+#[cfg(feature = "native")]
 pub fn populate_set_block_info_event(
     current_slot_hash: [u8; 32],
     current_da_txs_commitment: [u8; 32],
     coinbase_depth: u64,
 ) -> SystemEvent {
+    tracing::info!("Populating BitcoinLightClientSetBlockInfo event with block hash {}, commitment {}, coinbase depth {}", hex::encode(current_slot_hash), hex::encode(current_da_txs_commitment), coinbase_depth);
     SystemEvent::BitcoinLightClientSetBlockInfo(
         current_slot_hash,
         current_da_txs_commitment,
@@ -287,7 +293,9 @@ pub fn populate_set_block_info_event(
 }
 
 /// Populates deposit system events.
+#[cfg(feature = "native")]
 pub fn populate_deposit_system_events(deposit_data: &[Vec<u8>]) -> Vec<SystemEvent> {
+    tracing::info!("Populating {} deposit transactions", deposit_data.len());
     let mut system_events = vec![];
     deposit_data.iter().for_each(|params| {
         system_events.push(SystemEvent::BridgeDeposit(params.clone()));

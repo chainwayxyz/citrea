@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{Address, U64};
+use alloy_primitives::{Address, U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
@@ -104,14 +104,14 @@ impl TestCase for BasicProverTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -119,6 +119,7 @@ impl TestCase for BasicProverTest {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
 
         // Wait for batch proof tx to hit mempool
         da.wait_mempool_len(2, None).await?;
@@ -150,6 +151,46 @@ impl TestCase for BasicProverTest {
             );
         }
 
+        let index_range = proofs[0].proof_output.sequencer_commitment_index_range;
+        let index_range = (index_range.0.to::<u32>(), index_range.1.to::<u32>());
+
+        for (i, commitment_idx) in (index_range.0..=index_range.1).enumerate() {
+            let commitment = full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(commitment_idx))
+                .await?
+                .unwrap();
+            let l2_block = sequencer
+                .client
+                .http_client()
+                .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+                .await?
+                .unwrap();
+            let state_roots = proofs[0].proof_output.state_roots.clone();
+            assert_eq!(state_roots[i + 1].0, l2_block.header.state_root.to_vec());
+        }
+
+        // Generate proof against seqcom not starting from genesis
+        for _ in 0..max_l2_blocks_per_commitment * 2 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(4, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
         Ok(())
     }
 }
@@ -180,7 +221,7 @@ async fn basic_prover_test() -> Result<()> {
 
 //     fn sequencer_config() -> SequencerConfig {
 //         SequencerConfig {
-//             min_l2_blocks_per_commitment: 1,
+//             max_l2_blocks_per_commitment: 1,
 //             ..Default::default()
 //         }
 //     }
@@ -248,9 +289,9 @@ async fn basic_prover_test() -> Result<()> {
 //         // Generate FINALIZED DA block.
 //         da.generate(FINALITY_DEPTH).await?;
 
-//         let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+//         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-//         for _ in 0..min_l2_blocks_per_commitment {
+//         for _ in 0..max_l2_blocks_per_commitment {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
@@ -317,7 +358,7 @@ async fn basic_prover_test() -> Result<()> {
 //         da.wait_mempool_len(2, None).await?;
 
 //         Trigger a new commitment.
-//         for _ in 0..min_l2_blocks_per_commitment {
+//         for _ in 0..max_l2_blocks_per_commitment {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
@@ -406,7 +447,7 @@ impl TestCase for LocalProvingTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             // Made this 1 or-else proving takes forever
-            min_l2_blocks_per_commitment: 1,
+            max_l2_blocks_per_commitment: 1,
             ..Default::default()
         }
     }
@@ -419,9 +460,9 @@ impl TestCase for LocalProvingTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
         // Generate l2 blocks to invoke commitment creation
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -491,7 +532,7 @@ impl TestCase for ParallelProvingTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 100,
+            max_l2_blocks_per_commitment: 100,
             mempool_conf: SequencerMempoolConfig {
                 max_account_slots: 1000,
                 ..Default::default()
@@ -510,7 +551,7 @@ impl TestCase for ParallelProvingTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let seq_test_client = make_test_client(SocketAddr::new(
             sequencer.config().rpc_bind_host().parse()?,
@@ -519,7 +560,7 @@ impl TestCase for ParallelProvingTest {
         .await?;
 
         // Invoke 2 sequencer commitments
-        for _ in 0..min_l2_blocks_per_commitment * 2 {
+        for _ in 0..max_l2_blocks_per_commitment * 2 {
             // 6 txs in each block
             for _ in 0..6 {
                 let _ = seq_test_client
@@ -601,7 +642,7 @@ async fn parallel_proving_test() -> Result<()> {
 //         // Set just below kumquat height so we can generate first soft com txs in genesis
 //         // and second batch above kumquat
 //         SequencerConfig {
-//             min_l2_blocks_per_commitment: kumquat_height - 5,
+//             max_l2_blocks_per_commitment: kumquat_height - 5,
 //             ..Default::default()
 //         }
 //     }
@@ -625,7 +666,7 @@ async fn parallel_proving_test() -> Result<()> {
 //             .await
 //             .unwrap();
 
-//         let min_l2_blocks = sequencer.min_l2_blocks_per_commitment();
+//         let min_l2_blocks = sequencer.max_l2_blocks_per_commitment();
 
 //         for _ in 0..min_l2_blocks {
 //             sequencer.client.send_publish_batch_request().await?;
@@ -820,7 +861,7 @@ impl TestCase for L1HashOutputTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 12,
+            max_l2_blocks_per_commitment: 12,
             ..Default::default()
         }
     }

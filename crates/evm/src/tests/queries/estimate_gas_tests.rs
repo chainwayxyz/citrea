@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
+use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::{address, b256, Address, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
-use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
@@ -102,7 +102,7 @@ fn test_tx_request_fields_gas_fork1() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x4"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x7"}])
             .unwrap()
     );
 
@@ -119,7 +119,7 @@ fn test_tx_request_fields_gas_fork1() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x4"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x7"}])
             .unwrap()
     );
 

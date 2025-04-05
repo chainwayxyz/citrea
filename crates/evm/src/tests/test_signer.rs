@@ -1,6 +1,10 @@
-use alloy_consensus::{TxEip1559 as RethTxEip1559, TxEip4844 as RethTxEip4844};
+use alloy_consensus::{
+    TxEip1559 as RethTxEip1559, TxEip4844 as RethTxEip4844, TxEip7702 as RethTxEip7702,
+};
 use alloy_eips::eip2718::Encodable2718;
+use alloy_eips::eip7702::SignedAuthorization;
 use alloy_primitives::{Address, Bytes as RethBytes, TxKind, B256, U256};
+use alloy_rpc_types::Authorization;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use reth_primitives::Transaction as RethTransaction;
@@ -153,6 +157,45 @@ impl TestSigner {
         };
 
         let reth_tx = RethTransaction::Eip4844(reth_tx);
+        let signed = self.signer.sign_transaction(reth_tx, self.address)?;
+        let mut buf = vec![];
+        signed.encode_2718(&mut buf);
+        Ok(RlpEvmTransaction { rlp: buf })
+    }
+
+    pub(crate) fn get_signed_authorization(
+        &self,
+        to: Address,
+        nonce: u64,
+    ) -> Result<SignedAuthorization, SignError> {
+        let authorization = Authorization {
+            chain_id: U256::from(DEFAULT_CHAIN_ID),
+            address: to,
+            nonce,
+        };
+
+        self.signer.sign_authorization(authorization, self.address)
+    }
+
+    pub(crate) fn sign_eip7702_transaction(
+        &self,
+        to: Address,
+        data: Vec<u8>,
+        nonce: u64,
+        authorization_list: Vec<SignedAuthorization>,
+    ) -> Result<RlpEvmTransaction, SignError> {
+        let tx = RethTxEip7702 {
+            chain_id: DEFAULT_CHAIN_ID,
+            nonce,
+            gas_limit: 1_000_000,
+            max_fee_per_gas: 100000000000u128,
+            to,
+            authorization_list,
+            input: RethBytes::from(data),
+            ..Default::default()
+        };
+
+        let reth_tx = RethTransaction::Eip7702(tx);
         let signed = self.signer.sign_transaction(reth_tx, self.address)?;
         let mut buf = vec![];
         signed.encode_2718(&mut buf);
