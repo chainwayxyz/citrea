@@ -1,7 +1,7 @@
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2RangeByL1Height,
-    L2StatusHeights, L2Witness, LightClientProofBySlotNumber, ProofsBySlotNumber,
-    ProofsBySlotNumberV2, ProverStateDiffs,
+    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2StatusHeights,
+    L2Witness, LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2,
+    ProverStateDiffs,
 };
 use sov_db::schema::types::{DbHash, L2BlockNumber, L2HeightStatus, SlotNumber};
 use sov_schema_db::DB;
@@ -21,7 +21,6 @@ pub(crate) fn delete_l2_blocks_by_number(
     }
 
     ledger_db.delete::<L2BlockByHash>(&l2_block_hash)?;
-    ledger_db.delete::<L2BlockStatus>(&l2_block_number)?;
 
     if matches!(node_type, StorageNodeType::BatchProver) {
         ledger_db.delete::<L2Witness>(&l2_block_number)?;

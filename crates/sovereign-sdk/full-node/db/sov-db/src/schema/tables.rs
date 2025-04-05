@@ -391,11 +391,6 @@ define_table_with_seek_key_codec!(
     (ProverLastScannedSlot) () => SlotNumber
 );
 
-define_table_with_default_codec!(
-    /// Check whether a block is finalized
-    (L2BlockStatus) L2BlockNumber => sov_rollup_interface::rpc::L2BlockStatus
-);
-
 define_table_with_seek_key_codec!(
     /// Index to sequencer commitment mapping
     (SequencerCommitmentByIndex) u32 => SequencerCommitment

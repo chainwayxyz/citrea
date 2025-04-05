@@ -363,18 +363,6 @@ pub enum ItemOrHash<T> {
     Full(T),
 }
 
-/// Statuses for l2 block
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum L2BlockStatus {
-    /// No confirmation yet, rely on the sequencer
-    Trusted,
-    /// The l2 block has been finalized with a sequencer commitment
-    Finalized,
-    /// The l2 block has been ZK-proven
-    Proven,
-}
-
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
