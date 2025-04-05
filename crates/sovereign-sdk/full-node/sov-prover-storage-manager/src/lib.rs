@@ -81,11 +81,12 @@ impl ProverStorageManager {
 
         let (state_batch, native_batch) = storage.freeze().expect("Storage freeze must not fail");
 
-        self.state_db
-            .write_schemas(state_batch)
-            .expect("DB write must not fail");
         self.native_db
             .write_schemas(native_batch)
+            .expect("DB write must not fail");
+
+        self.state_db
+            .write_schemas(state_batch)
             .expect("DB write must not fail");
     }
 
