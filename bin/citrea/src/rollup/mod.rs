@@ -151,6 +151,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         ledger_db: &LedgerDB,
         storage_manager: &ProverStorageManager,
+        node_type: StorageNodeType,
     ) -> Result<()> {
         let ledger_version = match ledger_db.get_head_l2_block_height().context("Failed to get head l2 block")?{
             Some(height) => height,
@@ -179,7 +180,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
             rollback
                 .execute(
-                    StorageNodeType::Sequencer,
+                    node_type,
                     state_version,
                     state_version,
                     l1_target,
@@ -261,7 +262,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager).await?;
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::FullNode).await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
@@ -313,7 +314,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager).await?;
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::BatchProver).await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
