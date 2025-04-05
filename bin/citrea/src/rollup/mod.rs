@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
 use citrea_batch_prover::da_block_handler::L1BlockHandler as BatchProverL1BlockHandler;
 use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::backup::BackupManager;
@@ -19,6 +18,8 @@ use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
+use citrea_storage_ops::rollback::Rollback;
+use citrea_storage_ops::pruning::types::StorageNodeType;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -26,14 +27,12 @@ use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::L2BlockNumber;
 use sov_db::state_db::StateDB;
-use sov_keys::default_signature::K256PublicKey;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
     GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
 };
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
@@ -146,52 +145,54 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     }
 
     /// In case of an interrupt between l2 block commits of LedgerDB and StateDB,
-    /// this function will reapply the last l2 block to the stateDB.
+    /// this function rollbacks dbs to the StateDB version.
     /// Returns Err if the LedgerDB version > StateDB version + 1
     async fn sync_ledger_and_state_db(
         &self,
-        state_version: u64,
         ledger_db: &LedgerDB,
         storage_manager: &ProverStorageManager,
-        rollup_config: &FullNodeConfig<Self::DaConfig>,
-        da_service: Arc<<Self as RollupBlueprint>::DaService>,
-        fork_manager: &mut ForkManager,
-        stf: &mut StfBlueprint<
-            DefaultContext,
-            Self::DaSpec,
-            CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >,
     ) -> Result<()> {
-        let runner_config = rollup_config.runner.as_ref().expect("Runner config is missing");
-        
-        if let Some(ledger_version) = ledger_db.get_head_l2_block_height()?{
-            if ledger_version == (state_version + 1) {
-                tracing::debug!("Version mismatch. LedgerDB version: {}, StateDB version: {}. Applying the latest l2 block again", ledger_version, state_version);
-                
-                let (_, l2_block) = ledger_db.get_head_l2_block()?.expect("Head L2 block should exist");
-                let l2_block_response: L2BlockResponse = l2_block.try_into().expect("Failed to convert L2Block");
-                let current_l2_block_hash = ledger_db.get_l2_block_by_number(&L2BlockNumber(state_version))?.map(|block| block.hash).unwrap_or([0; 32]);
-                let current_state_root = storage_manager.create_storage_for_next_l2_height().get_root_hash(state_version + 1)?; // must exists here as storage is already initialized
-                let sequencer_pub_key = K256PublicKey::try_from_slice(&rollup_config.public_keys.sequencer_public_key)?;
-                
-                citrea_common::l2::process_l2_block(
-                    &l2_block_response,
-                    storage_manager,
-                    fork_manager,
-                    da_service.clone(),
-                    ledger_db,
-                    stf,
-                    current_l2_block_hash,
-                    current_state_root,
-                    &sequencer_pub_key,
-                    runner_config.include_tx_body,
+        let ledger_version = match ledger_db.get_head_l2_block_height().context("Failed to get head l2 block")?{
+            Some(height) => height,
+            None => { return Ok(()); }
+        };
+        let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
+        let state_version = next_version - 2; // next version >= 2 at this point
+
+        if ledger_version == (state_version + 1) {
+            tracing::debug!(
+                "Version mismatch. LedgerDB version: {}, StateDB version: {}. Rolling back to StateDB version.",
+                ledger_version,
+                state_version
+            );
+            let rollback = Rollback::new(
+                ledger_db.inner(), 
+                storage_manager.get_state_db_handle(),
+                storage_manager.get_native_db_handle(),
+            );
+            let l1_target = ledger_db.get_last_scanned_l1_height()?
+                .map(|height| height.0)
+                .unwrap_or(0);
+            let last_sequencer_commitment_index = ledger_db.get_last_commitment()?
+                .map(|commitment| commitment.index)
+                .unwrap_or(0);
+
+            rollback
+                .execute(
+                    StorageNodeType::Sequencer,
+                    state_version,
+                    state_version,
+                    l1_target,
+                    last_sequencer_commitment_index,
                 ).await?;
-            }
-            else if ledger_version == state_version {
-                tracing::debug!("LedgerDB version is equal to StateDB version: {}", ledger_version);
-            } else {
-                anyhow::bail!("LedgerDB version is greater than StateDB version + 1, LedgerDB version: {}, StateDB version: {}", ledger_version, state_version);
-            }
+        } else if ledger_version == state_version {
+            tracing::debug!("LedgerDB version is equal to StateDB version: {}", ledger_version);
+        } else {
+            anyhow::bail!(
+                "Storage is corrupted, LedgerDB version: {}, StateDB version: {}",
+                ledger_version,
+                state_version
+            );
         }
         return Ok(());
     }
@@ -256,40 +257,24 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
     )> {
+        let runner_config = rollup_config.runner.expect("Runner config is missing");
+
         let native_stf = StfBlueprint::new();
 
-        let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
-        let state_version = next_version.checked_sub(2).unwrap_or(0);
-        
-        let mut fork_manager = ForkManager::new(get_forks(), state_version);
-        fork_manager.register_handler(Box::new(ledger_db.clone()));
-
-        if let Some(ledger_version) = ledger_db.get_head_l2_block_height()?{
-            if ledger_version == (state_version + 1) {
-                tracing::debug!(
-                    "Version mismatch. LedgerDB version: {}, StateDB version: {}.
-                    Popping head l2 block from LedgerDB",
-                    ledger_version,
-                    state_version
-                );
-                ledger_db.pop_head_l2_block()?;
-            } else if ledger_version == state_version {
-                tracing::debug!("LedgerDB version is equal to StateDB version: {}", ledger_version);
-            } else {
-                anyhow::bail!(
-                    "LedgerDB version is greater than StateDB version + 1, LedgerDB version: {}, StateDB version: {}",
-                    ledger_version,
-                    state_version
-                );
-            }
-        }
-
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager).await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
-        
+
+        let current_l2_height = ledger_db
+            .get_head_l2_block_height()
+            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .unwrap_or(0);
+
+        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
+
         let code_commitments = self.get_batch_proof_code_commitments();
 
-        let runner_config = rollup_config.runner.expect("Runner config is missing");
         citrea_fullnode::build_services(
             runner_config,
             init_params,
@@ -324,26 +309,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         BatchProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
     )> {
-        let mut native_stf = StfBlueprint::new();
+        let runner_config = rollup_config.runner.expect("Runner config is missing");
 
-        let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
-        let state_version = next_version.checked_sub(2).unwrap_or(0);
+        let native_stf = StfBlueprint::new();
 
-        let mut fork_manager = ForkManager::new(get_forks(), state_version);
-        fork_manager.register_handler(Box::new(ledger_db.clone()));
-        
-        self.sync_ledger_and_state_db(
-            state_version,
-            &ledger_db,
-            &storage_manager,
-            &rollup_config,
-            da_service.clone(),
-            &mut fork_manager,
-            &mut native_stf
-        ).await?;
-
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager).await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
+
+        let current_l2_height = ledger_db
+            .get_head_l2_block_height()
+            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .unwrap_or(0);
+
+        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let prover_service = Arc::new(
             self.create_prover_service(
@@ -358,7 +338,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let code_commitments = self.get_batch_proof_code_commitments();
         let elfs = self.get_batch_proof_elfs();
 
-        let runner_config = rollup_config.runner.expect("Runner config is missing");
         citrea_batch_prover::build_services(
             prover_config,
             runner_config,
