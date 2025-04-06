@@ -3,12 +3,8 @@ use alloy_rpc_types_trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingCallOptions,
     GethDebugTracingOptions, GethTrace, NoopFrame,
 };
-use reth_primitives::revm_primitives::TxEnv;
-use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
-use revm::precompile::{PrecompileSpecId, Precompiles};
-use revm::primitives::db::Database;
-use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, TxEnv};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
@@ -18,9 +14,7 @@ use revm_inspectors::tracing::{
 use crate::db::DBError;
 use crate::evm::db::immutable::EvmDbRef;
 use crate::evm::db::EvmDb;
-use crate::handler::{
-    citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
-};
+use crate::handler::{citrea_handle_register, CitreaExternalExt, TracingCitreaExternal, TxInfo};
 use crate::rpc_helpers::*;
 
 pub(crate) fn trace_call<C: sov_modules_api::Context>(
@@ -166,7 +160,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: TxHash,
+    tx_hash: &TxHash,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
 ) -> EthResult<(GethTrace, revm::primitives::state::EvmState)> {
@@ -236,7 +230,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 let config = tracer_config.into_json();
                 let transaction_context = TransactionContext {
                     block_hash: None,
-                    tx_hash: Some(tx_hash),
+                    tx_hash: Some(*tx_hash),
                     tx_index: None,
                 };
                 let inspector =
@@ -301,7 +295,7 @@ fn trace_citrea<'a, 'b, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: Option<TxHash>,
+    tx_hash: Option<&TxHash>,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -331,7 +325,7 @@ fn js_trace_citrea<'a, 'b, 'c, C, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    tx_hash: Option<TxHash>,
+    tx_hash: Option<&TxHash>,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DBError>>
 where
@@ -356,80 +350,39 @@ where
     evm.transact()
 }
 
-/// Executes the [Env] against the given [Database] without committing state changes.
-pub(crate) fn inspect_no_citrea_handle<DB, I>(
-    db: DB,
+pub(crate) fn inspect_with_citrea_handle<'a, C, I>(
+    db: EvmDb<'a, C>,
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    inspector: I,
-) -> Result<ResultAndState, EVMError<DB::Error>>
+    ext: &mut I,
+) -> Result<(ResultAndState, TxInfo), EVMError<DBError>>
 where
-    DB: Database,
-    <DB as Database>::Error: Into<EthApiError>,
-    I: Inspector<DB>,
+    C: sov_modules_api::Context,
+    I: Inspector<EvmDb<'a, C>>,
+    I: CitreaExternalExt,
 {
-    let mut evm = revm::Evm::builder()
-        .with_db(db)
-        .with_external_context(inspector)
-        .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
-        .with_tx_env(tx_env)
-        .append_handler_register(inspector_handle_register)
-        .build();
-
-    evm.transact()
-}
-
-pub(crate) fn inspect_with_citrea_handle_no_inspectors<C: sov_modules_api::Context>(
-    db: EvmDb<'_, C>,
-    config_env: CfgEnvWithHandlerCfg,
-    block_env: BlockEnv,
-    tx_env: TxEnv,
-    l1_fee_rate: u128,
-) -> Result<(ResultAndState, TxInfo), EVMError<DBError>> {
     let tmp_hash: TxHash = b"hash_of_an_ephemeral_transaction".into();
-    let mut ext = CitreaExternal::new(l1_fee_rate);
-    ext.set_current_tx_hash(tmp_hash);
+
+    ext.set_current_tx_hash(&tmp_hash);
 
     let mut evm = revm::Evm::builder()
         .with_db(db)
-        .with_external_context(&mut ext)
+        .with_external_context(ext)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register_box(citrea_handle_register())
+        .append_handler_register(inspector_handle_register)
         .build();
 
     let result_and_state = evm.transact()?;
     let tx_info = evm
         .context
         .external
-        .get_tx_info(tmp_hash)
+        .get_tx_info(&tmp_hash)
         .unwrap_or_default(); // default 0 in case tx was unsuccessful
     Ok((result_and_state, tx_info))
-}
-
-/// Taken from reth
-/// https://github.com/paradigmxyz/reth/blob/606640285e763b64519213bad34c76fe4d24652f/crates/rpc/rpc/src/eth/revm_utils.rs#L69
-/// Helper type to work with different transaction types when configuring the EVM env.
-///
-/// This makes it easier to handle errors.
-pub(crate) trait FillableTransaction {
-    /// Returns the hash of the transaction.
-    fn hash(&self) -> TxHash;
-}
-
-impl FillableTransaction for TransactionSignedEcRecovered {
-    fn hash(&self) -> TxHash {
-        self.hash
-    }
-}
-
-impl FillableTransaction for TransactionSigned {
-    fn hash(&self) -> TxHash {
-        self.hash
-    }
 }
 
 /// https://github.com/paradigmxyz/reth/blob/332e412a0f8d34ff2bbb7e07921f8cacdcf69d64/crates/rpc/rpc/src/eth/revm_utils.rs#L403
@@ -452,11 +405,4 @@ pub(crate) fn caller_gas_allowance(balance: U256, value: U256, gas_price: U256) 
         .checked_div(gas_price)
         // This will be 0 if gas price is 0. It is fine, because we check it before.
         .unwrap_or_default())
-}
-
-/// Returns the addresses of the precompiles corresponding to the SpecId.
-#[inline]
-pub(crate) fn get_precompiles(spec_id: SpecId) -> impl IntoIterator<Item = Address> {
-    let spec = PrecompileSpecId::from_spec_id(spec_id);
-    Precompiles::new(spec).addresses().copied()
 }

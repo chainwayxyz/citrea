@@ -4,9 +4,9 @@ use std::str::FromStr;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::Address;
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 use tokio::task::JoinHandle;
 
 use crate::common::client::{TestClient, MAX_FEE_PER_GAS};
@@ -290,7 +290,7 @@ async fn test_tx_with_low_base_fee() {
             poor_addr,
             Some(1),
             // normally base fee is 875 000 000
-            Some(1_000_001),
+            Some(10_000_000),
             None,
             5_000_000_000_000_000_000u128,
         )
@@ -306,7 +306,19 @@ async fn test_tx_with_low_base_fee() {
     let block_transactions: Vec<_> = block.transactions.hashes().clone().collect();
     assert!(!block_transactions.contains(tx_hash_low_fee.tx_hash()));
 
-    // TODO: also check if tx is in the mempool after https://github.com/chainwayxyz/citrea/issues/83
+    let err = test_client
+        .send_eth(
+            poor_addr,
+            Some(1),
+            // normally base fee is 875 000 000
+            Some(1_000_000), // if lower than min allowed, mempool should reject it
+            None,
+            5_000_000_000_000_000_000u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err.to_string().contains("transaction underpriced"));
 
     seq_task.abort();
 }
@@ -387,11 +399,11 @@ async fn test_same_nonce_tx_replacement() {
         .to_string()
         .contains("replacement transaction underpriced"));
 
-    // Replacement success with 10% fee bump - does not work
+    // Replacement success with 9% fee bump - does not work
     let err = test_client
         .send_eth(
             addr,
-            Some(110), // 10% increase
+            Some(109), // 9% increase
             Some(MAX_FEE_PER_GAS + 1000000000),
             Some(0),
             0u128,
@@ -406,8 +418,8 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(111),                         // 11% increase
-            Some(MAX_FEE_PER_GAS + 100000000), // Not increasing more than 10 percent - should fail.
+            Some(111),                        // 11% increase
+            Some(MAX_FEE_PER_GAS + 99999999), // Not increasing more than 10 percent - should fail.
             Some(0),
             0u128,
         )
@@ -422,8 +434,8 @@ async fn test_same_nonce_tx_replacement() {
     let tx_hash_11_bump = test_client
         .send_eth(
             addr,
-            Some(111),                          // 11% increase
-            Some(MAX_FEE_PER_GAS + 1000000000), // More than 10 percent - should succeed.
+            Some(110),                          // 10% increase
+            Some(MAX_FEE_PER_GAS + 1000000000), // 10 percent - should succeed.
             Some(0),
             0u128,
         )

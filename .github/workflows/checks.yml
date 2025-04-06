@@ -64,6 +64,8 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:28.0"
+  CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+  CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -108,6 +110,7 @@ jobs:
           name: citrea-test-build
           path: |
             target/debug/citrea
+            target/debug/citrea-cli
             target/debug/**/methods.rs
           retention-days: 1
 
@@ -229,13 +232,14 @@ jobs:
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
+      - name: Make citrea-cli executable
+        run: chmod +x target/debug/citrea-cli
       - name: Run coverage
         run: make coverage-ci
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
-          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
       - name: Upload e2e test dir
@@ -400,13 +404,14 @@ jobs:
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
+      - name: Make citrea-cli executable
+        run: chmod +x target/debug/citrea-cli
       - name: Run nextest
         run: make test-ci
         env:
           RUST_BACKTRACE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
-          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test
       - name: Upload e2e test dir

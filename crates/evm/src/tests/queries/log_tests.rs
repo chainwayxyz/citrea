@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
+use alloy_eips::BlockNumberOrTag;
 use alloy_network::BlockResponse;
-use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::BlockNumberOrTag;
+use alloy_rpc_types::{Filter, FilterBlockOption, FilterSet};
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -18,7 +19,6 @@ use crate::tests::queries::init_evm;
 use crate::tests::utils::{
     create_contract_message, get_evm, get_evm_config, publish_event_message,
 };
-use crate::{Filter, FilterBlockOption, FilterSet};
 
 type C = DefaultContext;
 
@@ -145,7 +145,7 @@ fn log_filter_test_at_block_hash() {
     */
 
     let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
-    let mut address = FilterSet::default();
+    let address = FilterSet::default();
     // Test without address and topics
     let mut topics: [FilterSet<B256>; 4] = [
         FilterSet::default(),
@@ -155,7 +155,7 @@ fn log_filter_test_at_block_hash() {
     ];
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
+        block_option: FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -165,10 +165,8 @@ fn log_filter_test_at_block_hash() {
     assert_eq!(rpc_logs.len(), 4);
 
     // with address and without topics
-    address.0.insert(contract_addr);
-
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
+        block_option: FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -178,8 +176,7 @@ fn log_filter_test_at_block_hash() {
 
     let empty_topic: FilterSet<B256> = FilterSet::default();
 
-    let mut sig_topic = FilterSet::default();
-    sig_topic.0.insert(B256::from_slice(
+    let sig_topic = FilterSet::from(B256::from_slice(
         hex::decode("a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7")
             .unwrap()
             .as_slice(),
@@ -188,7 +185,7 @@ fn log_filter_test_at_block_hash() {
     topics[0] = sig_topic.clone();
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
+        block_option: FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -198,8 +195,7 @@ fn log_filter_test_at_block_hash() {
     // 2) should get the logs with the signature
     assert_eq!(rpc_logs.len(), 2);
 
-    let mut last_topic = FilterSet::default();
-    last_topic.0.insert(B256::from_slice(
+    let last_topic = FilterSet::from(B256::from_slice(
         hex::decode("1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8")
             .unwrap()
             .as_slice(),
@@ -208,7 +204,7 @@ fn log_filter_test_at_block_hash() {
     topics[3] = last_topic.clone();
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
+        block_option: FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -218,19 +214,22 @@ fn log_filter_test_at_block_hash() {
     // 3) should get only the first log with hello as message
     assert_eq!(rpc_logs.len(), 1);
     assert_eq!(
-        hex::encode(rpc_logs[0].topics[3]).to_string(),
+        hex::encode(rpc_logs[0].topics()[3]).to_string(),
         "1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8"
     );
 
-    last_topic.0.insert(B256::from_slice(
+    let mut existing: Vec<_> = last_topic.clone().into_iter().collect();
+
+    existing.push(B256::from_slice(
         hex::decode("7624778dedc75f8b322b9fa1632a610d40b85e106c7d9bf0e743a9ce291b9c6f")
             .unwrap()
             .as_slice(),
     ));
-    topics[3] = last_topic.clone();
+
+    topics[3] = FilterSet::from_iter(existing);
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
+        block_option: FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -241,14 +240,10 @@ fn log_filter_test_at_block_hash() {
     assert_eq!(rpc_logs.len(), 2);
 
     topics[0] = sig_topic.clone();
-    topics[3].0.remove(&B256::from_slice(
-        hex::decode("7624778dedc75f8b322b9fa1632a610d40b85e106c7d9bf0e743a9ce291b9c6f")
-            .unwrap()
-            .as_slice(),
-    ));
+    topics[3] = last_topic.clone();
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
+        block_option: FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -259,20 +254,31 @@ fn log_filter_test_at_block_hash() {
     assert_eq!(rpc_logs.len(), 1);
 
     // add the signature of anotherlog to the first topic set
-    topics[0].0.insert(B256::from_slice(
+    let topic_0 = topics[0].clone();
+
+    let mut existing: Vec<_> = topic_0.into_iter().collect();
+
+    existing.push(B256::from_slice(
         hex::decode("f16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9")
             .unwrap()
             .as_slice(),
     ));
+
+    topics[0] = FilterSet::from_iter(existing);
+
     // add the hi topic to the last topic set
-    topics[3].0.insert(B256::from_slice(
+    let mut existing: Vec<_> = topics[3].clone().into_iter().collect();
+
+    existing.push(B256::from_slice(
         hex::decode("7624778dedc75f8b322b9fa1632a610d40b85e106c7d9bf0e743a9ce291b9c6f")
             .unwrap()
             .as_slice(),
     ));
 
+    topics[3] = FilterSet::from_iter(existing);
+
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
+        block_option: FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -340,7 +346,7 @@ fn log_filter_test_with_range() {
         FilterSet::default(),
     ];
     let filter = Filter {
-        block_option: crate::FilterBlockOption::Range {
+        block_option: FilterBlockOption::Range {
             from_block: Some(BlockNumberOrTag::Earliest),
             to_block: Some(BlockNumberOrTag::Latest),
         },
@@ -383,7 +389,7 @@ fn log_filter_test_with_range() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[100u8; 32], &mut working_set.accessory_state());
     let filter = Filter {
-        block_option: crate::FilterBlockOption::Range {
+        block_option: FilterBlockOption::Range {
             from_block: Some(BlockNumberOrTag::Latest),
             to_block: Some(BlockNumberOrTag::Latest),
         },
@@ -403,7 +409,7 @@ fn test_log_limits() {
     // bigger block is needed to be able to include all the transactions
     let (config, dev_signer, contract_addr) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
-        Some(20 * ETHEREUM_BLOCK_GAS_LIMIT),
+        Some(20 * ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
 
     let (mut evm, mut working_set, _spec_id) = get_evm(&config);
@@ -481,7 +487,7 @@ fn test_log_limits() {
         FilterSet::default(),
     ];
     let filter = Filter {
-        block_option: crate::FilterBlockOption::Range {
+        block_option: FilterBlockOption::Range {
             from_block: Some(BlockNumberOrTag::Earliest),
             to_block: Some(BlockNumberOrTag::Latest),
         },
@@ -495,7 +501,7 @@ fn test_log_limits() {
     if let Err(rpc_err) = rpc_logs {
         assert_eq!(
             rpc_err.message(),
-            "query exceeds max results 5000".to_string()
+            "query exceeds max results 5000, retry with the range 0-1".to_string()
         );
     }
 
@@ -525,7 +531,7 @@ fn test_log_limits() {
     }
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::Range {
+        block_option: FilterBlockOption::Range {
             from_block: Some(BlockNumberOrTag::Number(1)),
             to_block: Some(BlockNumberOrTag::Number(1_001)),
         },

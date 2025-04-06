@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use alloy_eips::eip2718::Encodable2718;
-use alloy_network::AnyNetwork;
 use alloy_primitives::{Bytes, B256};
+use alloy_rpc_types::Transaction;
 use citrea_evm::Evm;
 use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
@@ -11,9 +11,8 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
 use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
-use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::error::EthApiError;
-use reth_rpc_types_compat::transaction::from_recovered;
+use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_api::{Spec, WorkingSet};
@@ -77,7 +76,7 @@ pub trait SequencerRpc {
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>>;
+    ) -> RpcResult<Option<Transaction>>;
 
     #[method(name = "citrea_sendRawDepositTransaction")]
     #[blocking]
@@ -109,19 +108,14 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         let recovered = recover_raw_transaction(data.clone())?;
         let pool_transaction = EthPooledTransaction::from_pooled(recovered);
 
+        let rlp_encoded_tx = pool_transaction.transaction().tx().encoded_2718();
+
         let hash = self
             .context
             .mempool
-            .add_external_transaction(pool_transaction.clone())
+            .add_external_transaction(pool_transaction)
             .await
             .map_err(EthApiError::from)?;
-
-        let mut rlp_encoded_tx = Vec::new();
-        pool_transaction
-            .transaction()
-            .clone()
-            .into_signed()
-            .encode_2718(&mut rlp_encoded_tx);
 
         // Do not return error here just log
         if let Err(e) = self
@@ -141,7 +135,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>> {
+    ) -> RpcResult<Option<Transaction>> {
         debug!(
             "Sequencer: eth_getTransactionByHash({}, {:?})",
             hash, mempool_only
@@ -149,19 +143,20 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
 
         match self.context.mempool.get(&hash) {
             Some(tx) => {
-                let tx_signed_ec_recovered = tx.to_recovered_transaction(); // tx signed ec recovered
-                let tx: RpcTransaction<AnyNetwork> =
-                    from_recovered::<EthTxBuilder>(tx_signed_ec_recovered);
-                Ok::<Option<RpcTransaction<AnyNetwork>>, ErrorObjectOwned>(Some(tx))
+                let tx_signed_ec_recovered = tx.to_consensus(); // tx signed ec recovered
+                let tx = EthTxBuilder::default()
+                    .fill_pending(tx_signed_ec_recovered)
+                    .expect("EthTxBuilder fill can't fail");
+                Ok(Some(tx))
             }
             None => match mempool_only {
-                Some(true) => Ok::<Option<RpcTransaction<AnyNetwork>>, ErrorObjectOwned>(None),
+                Some(true) => Ok(None),
                 _ => {
                     let evm = Evm::<DefaultContext>::default();
                     let mut working_set = WorkingSet::new(self.context.storage.clone());
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
-                        Ok(tx) => Ok::<Option<RpcTransaction<AnyNetwork>>, ErrorObjectOwned>(tx),
+                        Ok(tx) => Ok(tx),
                         Err(e) => Err(e),
                     }
                 }

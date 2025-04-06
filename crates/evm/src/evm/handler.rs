@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use reth_primitives::KECCAK_EMPTY;
 use revm::handler::register::{EvmHandler, HandleRegisterBox, HandleRegisters};
 #[cfg(feature = "native")]
 use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
@@ -12,7 +11,7 @@ use revm::precompile::u64_to_address;
 use revm::primitives::Log;
 use revm::primitives::{
     spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
-    SpecId, B256, U256,
+    SpecId, B256, KECCAK_EMPTY, U256,
 };
 use revm::{Context, ContextPrecompiles, Database, FrameResult, InnerEvmContext, JournalEntry};
 #[cfg(feature = "native")]
@@ -22,6 +21,7 @@ use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
+use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
@@ -87,11 +87,11 @@ pub(crate) trait CitreaExternalExt {
     /// Get current l1 fee rate.
     fn l1_fee_rate(&self) -> u128;
     /// Set tx hash for the current execution context.
-    fn set_current_tx_hash(&mut self, hash: B256);
+    fn set_current_tx_hash(&mut self, hash: &B256);
     /// Set tx info for the current tx hash.
     fn set_tx_info(&mut self, info: TxInfo);
     /// Get tx info for the given tx by its hash.
-    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo>;
+    fn get_tx_info(&self, tx_hash: &B256) -> Option<TxInfo>;
 }
 
 // Blanked impl for &mut T: CitreaExternalExt
@@ -99,13 +99,13 @@ impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
     fn l1_fee_rate(&self) -> u128 {
         (**self).l1_fee_rate()
     }
-    fn set_current_tx_hash(&mut self, hash: B256) {
+    fn set_current_tx_hash(&mut self, hash: &B256) {
         (**self).set_current_tx_hash(hash);
     }
     fn set_tx_info(&mut self, info: TxInfo) {
         (**self).set_tx_info(info)
     }
-    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
+    fn get_tx_info(&self, tx_hash: &B256) -> Option<TxInfo> {
         (**self).get_tx_info(tx_hash)
     }
 }
@@ -133,8 +133,8 @@ impl CitreaExternalExt for CitreaExternal {
         self.l1_fee_rate
     }
     #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
-    fn set_current_tx_hash(&mut self, hash: B256) {
-        self.current_tx_hash.replace(hash);
+    fn set_current_tx_hash(&mut self, hash: &B256) {
+        self.current_tx_hash.replace(hash.to_owned());
     }
     #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
     fn set_tx_info(&mut self, info: TxInfo) {
@@ -145,8 +145,8 @@ impl CitreaExternalExt for CitreaExternal {
             native_error!("No hash set for the current tx in Citrea handler");
         }
     }
-    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
-        self.tx_infos.get(&tx_hash).copied()
+    fn get_tx_info(&self, tx_hash: &B256) -> Option<TxInfo> {
+        self.tx_infos.get(tx_hash).copied()
     }
 }
 
@@ -179,13 +179,13 @@ impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
     fn l1_fee_rate(&self) -> u128 {
         self.ext.l1_fee_rate()
     }
-    fn set_current_tx_hash(&mut self, hash: B256) {
+    fn set_current_tx_hash(&mut self, hash: &B256) {
         self.ext.set_current_tx_hash(hash);
     }
     fn set_tx_info(&mut self, info: TxInfo) {
         self.ext.set_tx_info(info);
     }
-    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
+    fn get_tx_info(&self, tx_hash: &B256) -> Option<TxInfo> {
         self.ext.get_tx_info(tx_hash)
     }
 }
@@ -240,7 +240,7 @@ where
         self.inspector.create_end(context, inputs, outcome)
     }
     fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
-        (&mut self.inspector as &mut dyn Inspector<DB>).selfdestruct(contract, target, value)
+        self.inspector.selfdestruct(contract, target, value)
     }
 }
 
@@ -309,14 +309,15 @@ where
     Box::new(f)
 }
 
-struct CitreaHandler<SPEC, EXT, DB> {
+pub(crate) struct CitreaHandler<SPEC, EXT, DB> {
     _phantom: std::marker::PhantomData<(SPEC, EXT, DB)>,
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    fn load_precompiles() -> ContextPrecompiles<DB> {
+    pub(crate) fn load_precompiles() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
+            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
 
             let p = precompiles.to_mut();
             p.remove(&u64_to_address(0x0A))
@@ -335,8 +336,6 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             // remvoe these as EIP now defined 0xb to 0x11
             p.remove(&u64_to_address(0x12));
             p.remove(&u64_to_address(0x13));
-
-            precompiles.extend([P256VERIFY]);
 
             precompiles
         }

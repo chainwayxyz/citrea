@@ -1,6 +1,7 @@
 use core::panic;
 
-use reth_primitives::TransactionSignedEcRecovered;
+use alloy_consensus::TxReceipt;
+use reth_primitives::{Recovered, TransactionSigned};
 use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, L2BlockModuleCallError, WorkingSet};
@@ -9,7 +10,7 @@ use crate::conversions::ConversionError;
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
-use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{CitreaReceiptWithBloom, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::{citrea_spec_id_to_evm_spec_id, Evm, PendingTransaction};
 
@@ -39,7 +40,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<CallResponse, L2BlockModuleCallError> {
         // use of `self.block_env` is allowed here
 
-        let users_txs: Vec<TransactionSignedEcRecovered> = txs
+        let users_txs: Vec<Recovered<TransactionSigned>> = txs
             .into_iter()
             .map(|tx| tx.try_into())
             .collect::<Result<Vec<_>, ConversionError>>()
@@ -57,8 +58,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut log_index_start = 0;
 
         if let Some(tx) = self.pending_transactions.last() {
-            cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
-            log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
+            cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used();
+            log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs().len() as u64;
         }
 
         // since self is going to be borrowed in get_db
@@ -102,24 +103,27 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let logs = result.into_logs();
             let logs_len = logs.len() as u64;
 
-            let receipt = Receipt {
+            let receipt = CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: evm_tx_recovered.tx_type(),
                     success,
                     cumulative_gas_used,
                     logs,
-                },
-                gas_used: gas_used as u128,
+                }
+                .into(),
+                gas_used,
                 log_index_start,
                 l1_diff_size: tx_info.l1_diff_size,
             };
 
             log_index_start += logs_len;
 
+            let (signed_transaction, signer) = evm_tx_recovered.into_parts();
+
             let pending_transaction = PendingTransaction {
                 transaction: TransactionSignedAndRecovered {
-                    signer: evm_tx_recovered.signer(),
-                    signed_transaction: evm_tx_recovered.into(),
+                    signer,
+                    signed_transaction,
                     block_number: block_number.saturating_to(),
                 },
                 receipt,

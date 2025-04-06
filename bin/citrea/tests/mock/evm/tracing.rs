@@ -3,7 +3,7 @@ use std::str::FromStr;
 use alloy_primitives::ruint::aliases::U256;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes};
-use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use alloy_rpc_types::{BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
@@ -12,7 +12,6 @@ use alloy_rpc_types_trace::geth::{
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 use serde_json::{self, json};
 
 use crate::common::client::MAX_FEE_PER_GAS;
