@@ -4,7 +4,7 @@ use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{Bytes as RethBytes, PrimitiveSignature, U256};
 use reth_primitives::{Recovered, TransactionSigned};
 use reth_primitives_traits::SignedTransaction;
-use revm::context::{TransactTo, TransactionType, TxEnv};
+use revm::context::{TransactTo, TxEnv};
 use revm::state::AccountInfo as ReVmAccountInfo;
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
