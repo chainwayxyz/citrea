@@ -8669,6 +8669,7 @@ dependencies = [
  "ripemd",
  "secp256k1 0.30.0",
  "sha2 0.10.8",
+ "substrate-bn",
 ]
 
 [[package]]
@@ -10173,6 +10174,19 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.98",
+]
+
+[[package]]
+name = "substrate-bn"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b5bbfa79abbae15dd642ea8176a21a635ff3c00059961d1ea27ad04e5b441c"
+dependencies = [
+ "byteorder",
+ "crunchy",
+ "lazy_static",
+ "rand 0.8.5",
+ "rustc-hex",
 ]
 
 [[package]]

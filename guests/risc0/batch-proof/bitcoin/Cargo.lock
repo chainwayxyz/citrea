@@ -143,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-evm"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5a215c77c40db56f5639185fb3534fbc35c8567c5f54de6c25fc5c395fc4547"
+checksum = "e158fd08c4be4fafe8c9fb7cb661f3b9585038446df0cd20b3d99e71f4166748"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -2756,8 +2756,8 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "reth-codecs"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -2774,8 +2774,8 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs-derive"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "convert_case",
  "proc-macro2",
@@ -2785,8 +2785,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-forks"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "alloy-eip2124",
  "alloy-hardforks",
@@ -2797,8 +2797,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-primitives"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -2817,8 +2817,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "alloy-consensus",
  "once_cell",
@@ -2830,8 +2830,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives-traits"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -2856,8 +2856,8 @@ dependencies = [
 
 [[package]]
 name = "reth-static-file-types"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "alloy-primitives",
  "derive_more 2.0.1",
@@ -2867,8 +2867,8 @@ dependencies = [
 
 [[package]]
 name = "reth-zstd-compressors"
-version = "1.3.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=57dda5e#57dda5e9581b188b32f4d7823615c80657014c6b"
+version = "1.3.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87da4de340a437bf46f39a7e1397ac82065"
 dependencies = [
  "zstd",
 ]
@@ -3028,6 +3028,7 @@ dependencies = [
  "revm-primitives",
  "ripemd",
  "sha2",
+ "substrate-bn",
 ]
 
 [[package]]
@@ -3860,6 +3861,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "substrate-bn"
+version = "0.6.0"
+source = "git+https://github.com/risc0/paritytech-bn?tag=v0.6.0-risczero.0#22108fe8c6ea1ebc1358fc4fd6854a6bf46e3509"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "crunchy",
+ "crypto-bigint",
+ "lazy_static",
+ "rand",
+ "risc0-bigint2",
+ "rustc-hex",
+]
+
+[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4457,8 +4473,3 @@ dependencies = [
 name = "secp256k1"
 version = "0.29.0"
 source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-29-0#3769ab9b2227d430ca2c58546daf3680017cfefb"
-
-[[patch.unused]]
-name = "substrate-bn"
-version = "0.6.0"
-source = "git+https://github.com/risc0/paritytech-bn?tag=v0.6.0-risczero.0#22108fe8c6ea1ebc1358fc4fd6854a6bf46e3509"
