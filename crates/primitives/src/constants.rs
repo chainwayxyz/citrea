@@ -7,7 +7,7 @@ pub const REVEAL_TX_PREFIX: &[u8] = &[2, 2];
 pub const TEST_PRIVATE_KEY: &str =
     "1212121212121212121212121212121212121212121212121212121212121212";
 
-pub const MIN_BASE_FEE_PER_GAS: u128 = 10_000_000; // 0.01 gwei
+pub const MIN_BASE_FEE_PER_GAS: u64 = 10_000_000; // 0.01 gwei
 
 /// Maximum size of a bitcoin transaction body in bytes
 #[cfg(feature = "testing")]

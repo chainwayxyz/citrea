@@ -9,7 +9,7 @@ pub fn calculate_next_block_base_fee(
     base_fee_params: BaseFeeParams,
 ) -> u64 {
     std::cmp::max(
-        MIN_BASE_FEE_PER_GAS as u64,
+        MIN_BASE_FEE_PER_GAS,
         calc_next_block_base_fee(gas_used, gas_limit, base_fee, base_fee_params),
     )
 }
