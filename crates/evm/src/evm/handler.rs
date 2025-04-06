@@ -431,7 +431,7 @@ where
 
 impl Default for CitreaPrecompiles {
     fn default() -> Self {
-        Self::new_with_spec(SpecId::CANCUN)
+        Self::new_with_spec(SpecId::PRAGUE)
     }
 }
 
