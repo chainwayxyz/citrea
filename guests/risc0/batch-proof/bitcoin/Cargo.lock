@@ -3020,6 +3020,7 @@ dependencies = [
  "ark-ff 0.5.0",
  "ark-serialize 0.5.0",
  "aurora-engine-modexp",
+ "blst",
  "cfg-if",
  "k256",
  "once_cell",

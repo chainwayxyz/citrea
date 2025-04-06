@@ -145,7 +145,7 @@ reth-stages = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", de
 
 revm = { version = "21.0.0", features = ["serde"], default-features = false }
 # TODO: figure out how to use substrate-bn instead of arkbn254
-revm-precompile = { version = "18.0.0", default-features = false, features = ['secp256r1'] }
+revm-precompile = { version = "18.0.0", default-features = false, features = ['secp256r1', 'blst'] }
 revm-primitives = { version = "17.0.0", default-features = false }
 revm-bytecode = { version = "2.0.0", default-features = false }
 alloy-genesis = { version = "0.13", default-features = false }
