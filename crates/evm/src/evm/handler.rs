@@ -613,8 +613,9 @@ where
     let tx_caller = context.tx().caller();
     let journaled_state = context.journal_ref();
 
-    // Get the last journal entry to calculate diff.
-    let journal = journaled_state.journal.last().into_iter().flatten();
+    // For each call there is a journal entry.
+    // We need to iterate over all journal entries to get the size of the diff.
+    let journal = journaled_state.journal.iter().flatten();
     let state = &journaled_state.state;
 
     #[derive(Default)]
