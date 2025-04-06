@@ -6,12 +6,14 @@ use std::time::{Duration, Instant};
 use anyhow::anyhow;
 use citrea_evm::{get_last_l1_height_in_light_client, Evm};
 use citrea_primitives::forks::get_fork2_activation_height_non_zero;
+use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::DefaultContext;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_modules_api::WorkingSet;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_state::ProverStorage;
@@ -62,7 +64,22 @@ where
         }
     }
 
-    pub async fn run(mut self, cancellation_token: CancellationToken) {
+    pub async fn run(
+        mut self,
+        storage_manager: ProverStorageManager,
+        l2_block_hash: L2BlockHash,
+        cancellation_token: CancellationToken,
+    ) {
+        if l2_block_hash != [0; 32] {
+            let prestate = storage_manager.create_final_view_storage();
+            let working_set = WorkingSet::new(prestate.clone());
+
+            // Resubmit if there were pending commitments on restart, skip it on first init
+            if let Err(e) = self.resubmit_pending_commitments(working_set).await {
+                error!("Could not resubmit pending commitments: {:?}", e);
+            }
+        }
+
         let check_new_block_time = Duration::from_secs(2);
         let mut check_new_block_tick = tokio::time::interval(check_new_block_time);
         check_new_block_tick.tick().await;

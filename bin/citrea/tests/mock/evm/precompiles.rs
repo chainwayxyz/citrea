@@ -71,6 +71,11 @@ async fn test_custom_precompiles() -> Result<(), anyhow::Error> {
 
         assert_eq!(res, Bytes::new());
 
+        // use empty bytes
+        // the calls to the precompiles will fail but the gas will be charged
+        // if we don't do this, because of EIP-7623 the gas for both calls will be the same
+        tx_req.set_input(Bytes::new());
+
         // shows eth_estimate_gas uses the custom precompile
         let res = seq_test_client.client.estimate_gas(&tx_req).await.unwrap();
 
@@ -113,6 +118,11 @@ async fn test_custom_precompiles() -> Result<(), anyhow::Error> {
 
         let res = seq_test_client.client.call(&tx_req).await.unwrap();
         assert_eq!(res, Bytes::new());
+
+        // use empty bytes
+        // the calls to the precompiles will fail but the gas will be charged
+        // if we don't do this, because of EIP-7623 the gas for both calls will be the same
+        tx_req.set_input(Bytes::new());
 
         // shows eth_estimateGas uses the custom precompile
         let res = seq_test_client.client.estimate_gas(&tx_req).await.unwrap();

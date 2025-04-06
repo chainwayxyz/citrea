@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::thread::sleep;
 
+use alloy_consensus::TxReceipt;
 use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
 use secp256k1::{Keypair, Message, XOnlyPublicKey, SECP256K1};
@@ -200,7 +201,7 @@ fn test_cancun_transient_storage_activation() {
         .collect();
 
     // Last tx should have failed because cancun is not activated
-    assert!(receipts.last().unwrap().receipt.success);
+    assert!(receipts.last().unwrap().receipt.status());
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
@@ -224,7 +225,7 @@ fn test_cancun_transient_storage_activation() {
         .collect();
 
     // This tx should fail as the contract has already been claimed
-    assert!(!receipts.last().unwrap().receipt.success);
+    assert!(!receipts.last().unwrap().receipt.status());
 }
 
 #[test]
@@ -289,7 +290,7 @@ fn test_cancun_mcopy_activation() {
         .iter(&mut working_set.accessory_state())
         .collect();
 
-    assert!(receipts.last().unwrap().receipt.success);
+    assert!(receipts.last().unwrap().receipt.status());
     let storage_value = evm
         .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
@@ -450,7 +451,7 @@ fn test_blob_base_fee_should_return_1() {
         .iter(&mut working_set.accessory_state())
         .collect();
 
-    assert!(receipts.last().unwrap().receipt.success);
+    assert!(receipts.last().unwrap().receipt.status());
 
     let storage_value = evm
         .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
@@ -564,7 +565,7 @@ fn test_kzg_point_eval_should_revert() {
         )
         .unwrap()
     );
-    assert!(receipts.last().unwrap().receipt.success);
+    assert!(receipts.last().unwrap().receipt.status());
 }
 
 // 1. deploy p256verify contract on fork1 (any fork will work)
@@ -622,7 +623,7 @@ fn test_p256_verify() {
         .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap();
     assert_eq!(storage_value, U256::from(1));
-    assert!(receipts.last().unwrap().receipt.success);
+    assert!(receipts.last().unwrap().receipt.status());
 }
 
 #[test]
@@ -727,7 +728,7 @@ fn test_schnorr_verify() {
             .unwrap_or_default();
         assert_eq!(storage_value, U256::ZERO);
         // will fail on `require(out.length == 32)` as empty bytes was returned
-        assert!(!receipts.last().unwrap().receipt.success);
+        assert!(!receipts.last().unwrap().receipt.status());
     }
 
     // passing call
@@ -752,7 +753,7 @@ fn test_schnorr_verify() {
             .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
             .unwrap();
         assert_eq!(storage_value, U256::from(1));
-        assert!(receipts.last().unwrap().receipt.success);
+        assert!(receipts.last().unwrap().receipt.status());
     }
 }
 

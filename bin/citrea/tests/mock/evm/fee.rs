@@ -1,8 +1,8 @@
 use std::time::Duration;
 
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 
 use super::init_test_rollup;
 use crate::common::helpers::{

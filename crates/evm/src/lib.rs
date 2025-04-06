@@ -6,6 +6,7 @@ mod genesis;
 mod hooks;
 mod provider_functions;
 
+use alloy_consensus::TxReceipt;
 pub use alloy_primitives::{keccak256, U256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
@@ -44,7 +45,7 @@ use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
 use crate::evm::primitive_types::SealedBlock;
-use crate::evm::primitive_types::{Block, Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Block, CitreaReceiptWithBloom, TransactionSignedAndRecovered};
 pub use crate::EvmConfig;
 
 #[derive(
@@ -53,18 +54,18 @@ pub use crate::EvmConfig;
 /// Pending EVM transaction
 pub struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
-    pub(crate) receipt: Receipt,
+    pub(crate) receipt: CitreaReceiptWithBloom,
 }
 
 impl PendingTransaction {
     /// Returns the transaction's hash
-    pub fn hash(&self) -> TxHash {
-        self.transaction.signed_transaction.hash
+    pub fn hash(&self) -> &TxHash {
+        self.transaction.signed_transaction.hash()
     }
 
     /// Returns the cumulative gas used for this transaction
     pub fn cumulative_gas_used(&self) -> u64 {
-        self.receipt.receipt.cumulative_gas_used
+        self.receipt.receipt.cumulative_gas_used()
     }
 }
 
@@ -164,7 +165,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
+    pub(crate) receipts: sov_modules_api::AccessoryStateVec<CitreaReceiptWithBloom, RlpCodec>,
 }
 
 impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {

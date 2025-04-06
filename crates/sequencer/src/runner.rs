@@ -23,7 +23,6 @@ use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
-use reth_primitives::TransactionSignedEcRecovered;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
@@ -75,7 +74,6 @@ where
 {
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool>,
-    // TODO: Use k256 private key here before mainnet
     pub(crate) sov_tx_signer_priv_key: K256PrivateKey,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider,
@@ -202,11 +200,7 @@ where
                     continue;
                 }
 
-                let mut buf = vec![];
-                evm_tx
-                    .to_recovered_transaction()
-                    .into_signed()
-                    .encode_2718(&mut buf);
+                let buf = evm_tx.to_consensus().into_tx().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
                     txs: vec![rlp_tx.clone()],
@@ -606,20 +600,18 @@ where
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
 
-        let mut commitment_service = CommitmentService::new(
+        let commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
             self.da_service.clone(),
             self.sequencer_da_pub_key.clone(),
             self.config.max_l2_blocks_per_commitment,
         );
-        if self.l2_block_hash != [0; 32] {
-            // Resubmit if there were pending commitments on restart, skip it on first init
-            commitment_service
-                .resubmit_pending_commitments(working_set)
-                .await?;
-        }
 
-        tokio::spawn(commitment_service.run(cancellation_token.child_token()));
+        tokio::spawn(commitment_service.run(
+            self.storage_manager.clone(),
+            self.l2_block_hash,
+            cancellation_token.child_token(),
+        ));
 
         tokio::spawn(da_block_monitor(
             self.da_service.clone(),
@@ -817,7 +809,7 @@ where
         for address in addresses {
             let account = self
                 .db_provider
-                .basic_account(address)?
+                .basic_account(&address)?
                 .expect("Account must exist");
             updates.push(ChangedAccount {
                 address,
@@ -986,14 +978,7 @@ where
 
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
         for sys_tx in sys_txs {
-            let sys_tx = sys_tx.into_signed();
-
-            // Cannot do into_ecrecovered here because we don't have a valid signature
-            let sys_tx_ec_recovered =
-                TransactionSignedEcRecovered::from_signed_transaction(sys_tx, SYSTEM_SIGNER);
-
-            let mut buf = vec![];
-            sys_tx_ec_recovered.encode_2718(&mut buf);
+            let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
             let call_txs = CallMessage {

@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
+use alloy_consensus::constants::{
+    EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, EMPTY_WITHDRAWALS, KECCAK_EMPTY,
+};
 use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
-use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-use reth_primitives::KECCAK_EMPTY;
 use revm::primitives::Bytecode;
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
@@ -138,14 +140,15 @@ pub struct EvmConfig {
 #[cfg(all(test, feature = "native"))]
 impl Default for EvmConfig {
     fn default() -> Self {
+        use alloy_eips::eip1559::{ETHEREUM_BLOCK_GAS_LIMIT_30M, INITIAL_BASE_FEE};
         Self {
             data: vec![],
             chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
             // spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::ZERO,
-            starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
-            block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            starting_base_fee: INITIAL_BASE_FEE,
+            block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             base_fee_params: BaseFeeParams::ethereum(),
             timestamp: 0,
             extra_data: Bytes::default(),
@@ -217,14 +220,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
             nonce: config.nonce.into(),
             base_fee_per_gas: Some(config.starting_base_fee),
             extra_data: config.extra_data.clone(),
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             // EIP-4844 related fields
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
             // EIP-4788 related field
             // unrelated for rollups
-            parent_beacon_block_root: None,
-            requests_root: None,
-            withdrawals_root: None,
+            parent_beacon_block_root: Some(B256::ZERO),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
         };
 
         let block = Block {
