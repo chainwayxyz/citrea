@@ -125,23 +125,23 @@ risc0-build = "2.0.0"
 
 # EVM dependencies
 revm-inspectors = { version = "0.18.0", default-features = false }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-errors = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-execution-types = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-node-api = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
-reth-stages = { git = "https://github.com/paradigmxyz/reth", rev = "57dda5e", default-features = false }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
+reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
 
 revm = { version = "21.0.0", features = ["serde"], default-features = false }
 # TODO: figure out how to use substrate-bn instead of arkbn254
