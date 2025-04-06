@@ -1,8 +1,10 @@
+use core::error::Error;
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
-use alloy_primitives::{keccak256, Address, B256};
-use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
+use alloy_primitives::{keccak256, Address, B256, U256};
+use revm::context::DBErrorMarker;
+use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 
@@ -15,6 +17,9 @@ use crate::Evm;
 pub enum DBError {
     CodeHashMismatch,
 }
+
+impl DBErrorMarker for DBError {}
+impl Error for DBError {}
 
 impl std::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -121,7 +126,7 @@ pub mod immutable {
     use std::cell::RefCell;
 
     use alloy_primitives::{Address, B256, U256};
-    use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode};
+    use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
     use revm::{Database, DatabaseRef};
 
     use super::{DBError, EvmDb};
@@ -175,6 +180,13 @@ pub mod immutable {
 
         fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
             self.evm_db.borrow_mut().block_hash(number)
+        }
+    }
+
+    // FIXME: https://github.com/paradigmxyz/revm-inspectors/pull/278
+    impl<C: sov_modules_api::Context> revm::DatabaseCommit for EvmDbRef<'_, '_, C> {
+        fn commit(&mut self, _changes: revm::primitives::HashMap<Address, revm::state::Account>) {
+            // do nothing
         }
     }
 }

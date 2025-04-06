@@ -1,8 +1,8 @@
+use alloy_primitives::{Bytes, B256};
 use k256::schnorr::signature::hazmat::PrehashVerifier;
 use k256::schnorr::{Signature, VerifyingKey};
 use revm_precompile::{
-    u64_to_address, Bytes, Precompile, PrecompileError, PrecompileOutput, PrecompileResult,
-    PrecompileWithAddress, B256,
+    u64_to_address, PrecompileError, PrecompileOutput, PrecompileResult, PrecompileWithAddress,
 };
 
 // Benchmarks show that the zk cycle counts for schorr verification is
@@ -11,7 +11,7 @@ use revm_precompile::{
 const SCHNORRVERIFY_BASE: u64 = 4600;
 /// Precompile for verifying Schnorr signatures.
 pub const SCHNORRVERIFY: PrecompileWithAddress =
-    PrecompileWithAddress(u64_to_address(0x200), Precompile::Standard(schnorr_verify));
+    PrecompileWithAddress(u64_to_address(0x200), schnorr_verify);
 
 /// Schnorr signature verification over secp256k1 curve as described in [BIP340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
 ///
@@ -24,7 +24,7 @@ pub const SCHNORRVERIFY: PrecompileWithAddress =
 /// - 64 bytes: signature
 pub fn schnorr_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if SCHNORRVERIFY_BASE > gas_limit {
-        return Err(PrecompileError::OutOfGas.into());
+        return Err(PrecompileError::OutOfGas);
     }
     let result = verify_sig(input).map_or_else(Bytes::new, |_| B256::with_last_byte(1).into());
 
@@ -45,7 +45,7 @@ fn verify_sig(input: &Bytes) -> Option<()> {
 mod tests {
     use alloy::hex::FromHex;
     use rstest::rstest;
-    use secp256k1::{Keypair, Message, XOnlyPublicKey, SECP256K1};
+    use secp256k1::{Keypair, XOnlyPublicKey, SECP256K1};
 
     use super::*;
 
@@ -54,9 +54,9 @@ mod tests {
         0, 1,
     ];
 
-    fn random_signature() -> (XOnlyPublicKey, Message, secp256k1::schnorr::Signature) {
+    fn random_signature() -> (XOnlyPublicKey, [u8; 32], secp256k1::schnorr::Signature) {
         let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
-        let message = Message::from_digest_slice(&[1; 32]).unwrap();
+        let message = [1; 32];
         let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
         let public_key = XOnlyPublicKey::from_keypair(&keypair).0;
 
@@ -75,7 +75,7 @@ mod tests {
 
         let (public_key, message, signature) = random_signature();
 
-        let mut raw_sig = signature.serialize();
+        let mut raw_sig = signature.to_byte_array();
         raw_sig[0] ^= 1;
 
         let mut input = Vec::with_capacity(128);
@@ -123,7 +123,7 @@ mod tests {
 
         assert_eq!(
             schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE - 1),
-            Err(PrecompileError::OutOfGas.into())
+            Err(PrecompileError::OutOfGas)
         );
     }
 

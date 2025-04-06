@@ -1,22 +1,33 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
 
-use revm::handler::register::{EvmHandler, HandleRegisterBox, HandleRegisters};
-#[cfg(feature = "native")]
-use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
-use revm::interpreter::{Gas, InstructionResult};
-use revm::precompile::u64_to_address;
-#[cfg(feature = "native")]
-use revm::primitives::Log;
-use revm::primitives::{
-    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
-    SpecId, B256, KECCAK_EMPTY, U256,
+use once_cell::race::OnceBox;
+use revm::context::result::{
+    EVMError, FromStringError, HaltReason, InvalidTransaction, ResultAndState,
 };
-use revm::{Context, ContextPrecompiles, Database, FrameResult, InnerEvmContext, JournalEntry};
+use revm::context::{
+    Block, BlockEnv, Cfg, CfgEnv, ContextSetters, ContextTr, Evm, EvmData, JournalTr, Transaction,
+    TxEnv,
+};
+use revm::handler::instructions::{EthInstructions, InstructionProvider};
+// use revm::handler::register::{EvmHandler, HandleRegisterBox, HandleRegisters};
+use revm::handler::{
+    EthFrame, EthPrecompiles, EvmTr, EvmTrError, Frame, FrameResult, Handler, MainnetHandler,
+    PrecompileProvider,
+};
 #[cfg(feature = "native")]
-use revm::{EvmContext, Inspector};
+use revm::inspector::{InspectorEvmTr, InspectorFrame, InspectorHandler};
+use revm::interpreter::interpreter::EthInterpreter;
+use revm::interpreter::{
+    FrameInput, InputsImpl, InstructionResult, Interpreter, InterpreterResult, InterpreterTypes,
+};
+use revm::primitives::hardfork::SpecId;
+use revm::primitives::{Address, B256, KECCAK_EMPTY, U256};
+use revm::{Context, Database, ExecuteEvm, Journal, JournalEntry};
+#[cfg(feature = "native")]
+use revm::{InspectEvm, Inspector};
 use revm_precompile::secp256r1::P256VERIFY;
+use revm_precompile::{bls12_381, Precompiles};
 use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -82,8 +93,8 @@ pub struct TxInfo {
 }
 
 /// An external context appended to the EVM.
-/// In terms of Revm this is the trait for EXT for `Evm<'a, EXT, DB>`.
-pub(crate) trait CitreaExternalExt {
+/// In terms of Revm this is the trait for CHAIN for `ContextTr<Chain = CHAIN>`.
+pub(crate) trait CitreaChainExt {
     /// Get current l1 fee rate.
     fn l1_fee_rate(&self) -> u128;
     /// Set tx hash for the current execution context.
@@ -95,7 +106,7 @@ pub(crate) trait CitreaExternalExt {
 }
 
 // Blanked impl for &mut T: CitreaExternalExt
-impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
+impl<T: CitreaChainExt> CitreaChainExt for &mut T {
     fn l1_fee_rate(&self) -> u128 {
         (**self).l1_fee_rate()
     }
@@ -113,13 +124,13 @@ impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
 /// This is an external context to be passed to the EVM.
 /// In terms of Revm this type replaces EXT in `Evm<'a, EXT, DB>`.
 #[derive(Default)]
-pub(crate) struct CitreaExternal {
+pub(crate) struct CitreaChain {
     l1_fee_rate: u128,
     current_tx_hash: Option<B256>,
     tx_infos: BTreeMap<B256, TxInfo>,
 }
 
-impl CitreaExternal {
+impl CitreaChain {
     pub(crate) fn new(l1_fee_rate: u128) -> Self {
         Self {
             l1_fee_rate,
@@ -128,7 +139,7 @@ impl CitreaExternal {
     }
 }
 
-impl CitreaExternalExt for CitreaExternal {
+impl CitreaChainExt for CitreaChain {
     fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
@@ -150,328 +161,457 @@ impl CitreaExternalExt for CitreaExternal {
     }
 }
 
-#[cfg(feature = "native")]
-/// This is both a `CitreaExternal` and an `Inspector`.
-pub(crate) struct TracingCitreaExternal<I, DB> {
-    ext: CitreaExternal,
-    pub(crate) inspector: I,
-    _ph: core::marker::PhantomData<DB>,
-}
-
-#[cfg(feature = "native")]
-impl<I, DB> TracingCitreaExternal<I, DB>
-where
-    DB: Database,
-    I: Inspector<DB>,
-{
-    pub(crate) fn new(inspector: I, l1_fee_rate: u128) -> Self {
-        Self {
-            ext: CitreaExternal::new(l1_fee_rate),
-            inspector,
-            _ph: Default::default(),
-        }
-    }
-}
-
-#[cfg(feature = "native")]
-// Pass all methods to self.ext
-impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
-    fn l1_fee_rate(&self) -> u128 {
-        self.ext.l1_fee_rate()
-    }
-    fn set_current_tx_hash(&mut self, hash: &B256) {
-        self.ext.set_current_tx_hash(hash);
-    }
-    fn set_tx_info(&mut self, info: TxInfo) {
-        self.ext.set_tx_info(info);
-    }
-    fn get_tx_info(&self, tx_hash: &B256) -> Option<TxInfo> {
-        self.ext.get_tx_info(tx_hash)
-    }
-}
-
-#[cfg(feature = "native")]
-// Pass all methods to self.inspector
-impl<I, DB> Inspector<DB> for TracingCitreaExternal<I, DB>
-where
-    DB: Database,
-    I: Inspector<DB>,
-{
-    fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-        self.inspector.initialize_interp(interp, context)
-    }
-    fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-        self.inspector.step(interp, context)
-    }
-    fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-        self.inspector.step_end(interp, context)
-    }
-    fn log(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, log: &Log) {
-        self.inspector.log(interp, context, log)
-    }
-    fn call(
-        &mut self,
-        context: &mut EvmContext<DB>,
-        inputs: &mut CallInputs,
-    ) -> Option<CallOutcome> {
-        self.inspector.call(context, inputs)
-    }
-    fn call_end(
-        &mut self,
-        context: &mut EvmContext<DB>,
-        inputs: &CallInputs,
-        outcome: CallOutcome,
-    ) -> CallOutcome {
-        self.inspector.call_end(context, inputs, outcome)
-    }
-    fn create(
-        &mut self,
-        context: &mut EvmContext<DB>,
-        inputs: &mut CreateInputs,
-    ) -> Option<CreateOutcome> {
-        self.inspector.create(context, inputs)
-    }
-    fn create_end(
-        &mut self,
-        context: &mut EvmContext<DB>,
-        inputs: &CreateInputs,
-        outcome: CreateOutcome,
-    ) -> CreateOutcome {
-        self.inspector.create_end(context, inputs, outcome)
-    }
-    fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
-        self.inspector.selfdestruct(contract, target, value)
-    }
-}
-
 /// Additional methods applied to the EVM environment.
-trait CitreaEnv {
+trait CitreaCallExt {
     /// Whether the call is made by `SYSTEM_SIGNER`.
     fn is_system_caller(&self) -> bool;
 }
 
-impl CitreaEnv for &'_ Env {
+impl<EVM: EvmTr> CitreaCallExt for EVM {
     fn is_system_caller(&self) -> bool {
-        SYSTEM_SIGNER == self.tx.caller
+        SYSTEM_SIGNER == self.ctx_ref().tx().caller()
     }
 }
 
-impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
-    fn is_system_caller(&self) -> bool {
-        (&*self.evm.env).is_system_caller()
+pub struct CitreaEvm<CTX, INSP>(
+    pub Evm<CTX, INSP, EthInstructions<EthInterpreter, CTX>, CitreaPrecompiles>,
+);
+
+impl<CTX: CitreaContextTr, INSP> CitreaEvm<CTX, INSP> {
+    pub fn new(ctx: CTX, inspector: INSP) -> Self {
+        Self(Evm {
+            data: EvmData { ctx, inspector },
+            instruction: EthInstructions::new_mainnet(),
+            precompiles: CitreaPrecompiles::default(),
+        })
     }
 }
 
-pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
+impl<CTX, INSP> EvmTr for CitreaEvm<CTX, INSP>
 where
-    DB: Database,
-    EXT: CitreaExternalExt,
+    CTX: CitreaContextTr,
 {
-    let mut handler = EvmHandler::mainnet_with_spec(cfg.spec_id);
-    handler.append_handler_register(HandleRegisters::Box(citrea_handle_register()));
-    handler
+    type Context = CTX;
+    type Instructions = EthInstructions<EthInterpreter, CTX>;
+    type Precompiles = CitreaPrecompiles;
+
+    fn run_interpreter(
+        &mut self,
+        interpreter: &mut Interpreter<
+            <Self::Instructions as InstructionProvider>::InterpreterTypes,
+        >,
+    ) -> <<Self::Instructions as InstructionProvider>::InterpreterTypes as InterpreterTypes>::Output
+    {
+        let context = &mut self.0.data.ctx;
+        let instructions = &mut self.0.instruction;
+        interpreter.run_plain(instructions.instruction_table(), context)
+    }
+
+    fn ctx(&mut self) -> &mut Self::Context {
+        &mut self.0.data.ctx
+    }
+
+    fn ctx_ref(&self) -> &Self::Context {
+        &self.0.data.ctx
+    }
+
+    fn ctx_instructions(&mut self) -> (&mut Self::Context, &mut Self::Instructions) {
+        (&mut self.0.data.ctx, &mut self.0.instruction)
+    }
+
+    fn ctx_precompiles(&mut self) -> (&mut Self::Context, &mut Self::Precompiles) {
+        (&mut self.0.data.ctx, &mut self.0.precompiles)
+    }
 }
 
-pub(crate) fn citrea_handle_register<DB, EXT>() -> HandleRegisterBox<'static, EXT, DB>
+#[cfg(feature = "native")]
+impl<CTX, INSP> InspectorEvmTr for CitreaEvm<CTX, INSP>
 where
-    DB: Database,
-    EXT: CitreaExternalExt,
+    CTX: CitreaContextTr + ContextSetters,
+    INSP: Inspector<CTX>,
 {
-    let f = move |handler: &mut EvmHandler<'_, EXT, DB>| {
-        spec_to_generic!(handler.cfg.spec_id, {
-            let validation = &mut handler.validation;
-            let pre_execution = &mut handler.pre_execution;
-            // let execution = &mut handler.execution;
-            let post_execution = &mut handler.post_execution;
-            // validation.initial_tx_gas = can be overloaded too
-            // validation.env =
-            validation.tx_against_state =
-                Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
-            let load_precompiles = CitreaHandler::<SPEC, EXT, DB>::load_precompiles;
-            pre_execution.load_precompiles = Arc::new(load_precompiles);
-            // pre_execution.load_accounts =
-            pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
-            // execution.last_frame_return =
-            // execution.call =
-            // execution.call_return =
-            // execution.insert_call_outcome =
-            // execution.create =
-            // execution.create_return =
-            // execution.insert_create_outcome =
-            post_execution.reimburse_caller =
-                Arc::new(CitreaHandler::<SPEC, EXT, DB>::reimburse_caller);
-            post_execution.reward_beneficiary =
-                Arc::new(CitreaHandler::<SPEC, EXT, DB>::reward_beneficiary);
-            post_execution.output = Arc::new(CitreaHandler::<SPEC, EXT, DB>::post_execution_output);
-            // post_execution.end =
-        });
-    };
-    Box::new(f)
+    type Inspector = INSP;
+
+    fn inspector(&mut self) -> &mut Self::Inspector {
+        &mut self.0.data.inspector
+    }
+
+    fn ctx_inspector(&mut self) -> (&mut Self::Context, &mut Self::Inspector) {
+        (&mut self.0.data.ctx, &mut self.0.data.inspector)
+    }
+
+    fn run_inspect_interpreter(
+        &mut self,
+        interpreter: &mut Interpreter<
+            <Self::Instructions as InstructionProvider>::InterpreterTypes,
+        >,
+    ) -> <<Self::Instructions as InstructionProvider>::InterpreterTypes as InterpreterTypes>::Output
+    {
+        self.0.run_inspect_interpreter(interpreter)
+    }
 }
 
-pub(crate) struct CitreaHandler<SPEC, EXT, DB> {
-    _phantom: std::marker::PhantomData<(SPEC, EXT, DB)>,
+/// Type alias for the error type of the CitreaEvm.
+type CitreaError<CTX> =
+    EVMError<<<CTX as ContextTr>::Db as Database>::Error /*CitreaTransactionError*/>;
+
+impl<CTX, INSP> ExecuteEvm for CitreaEvm<CTX, INSP>
+where
+    CTX: CitreaContextTr + ContextSetters,
+{
+    type Output = Result<ResultAndState<HaltReason /*TODO CitreaHaltReason */>, CitreaError<CTX>>;
+
+    type Tx = <CTX as ContextTr>::Tx;
+
+    type Block = <CTX as ContextTr>::Block;
+
+    fn set_tx(&mut self, tx: Self::Tx) {
+        self.0.data.ctx.set_tx(tx);
+    }
+
+    fn set_block(&mut self, block: Self::Block) {
+        self.0.data.ctx.set_block(block);
+    }
+
+    fn replay(&mut self) -> Self::Output {
+        let mut h = CitreaHandler::<_, _, EthFrame<_, _, _>>::new();
+        h.run(self)
+    }
 }
 
-impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    pub(crate) fn load_precompiles() -> ContextPrecompiles<DB> {
-        fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
-            let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
-            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
+#[cfg(feature = "native")]
+impl<CTX, INSP> InspectEvm for CitreaEvm<CTX, INSP>
+where
+    CTX: CitreaContextTr + ContextSetters,
+    INSP: Inspector<CTX>,
+{
+    type Inspector = INSP;
 
-            let p = precompiles.to_mut();
-            p.remove(&u64_to_address(0x0A))
-                .expect("point eval should be removed");
+    fn set_inspector(&mut self, inspector: Self::Inspector) {
+        self.0.data.inspector = inspector;
+    }
 
-            // remove BLS related precompiles until we fix
-            // revm-precompile blst feature compilation for risc0zkv
-            p.remove(&u64_to_address(0x0b));
-            p.remove(&u64_to_address(0x0c));
-            p.remove(&u64_to_address(0x0d));
-            p.remove(&u64_to_address(0x0e));
-            p.remove(&u64_to_address(0x0f));
-            p.remove(&u64_to_address(0x10));
-            p.remove(&u64_to_address(0x11));
-            // TODO: once revm precompile is updated
-            // remvoe these as EIP now defined 0xb to 0x11
-            p.remove(&u64_to_address(0x12));
-            p.remove(&u64_to_address(0x13));
+    fn inspect_replay(&mut self) -> Self::Output {
+        let mut h = CitreaHandler::<_, _, EthFrame<_, _, _>>::new();
+        h.inspect_run(self)
+    }
+}
 
-            precompiles
+/// Type alias for the default context type of the CitreaEvm.
+pub type CitreaContext<'a, DB> =
+    Context<BlockEnv, TxEnv, CfgEnv, DB, Journal<DB>, &'a mut CitreaChain>;
+
+// Type alias for Citrea context
+pub trait CitreaContextTr:
+    ContextTr<
+    Journal = Journal<<Self as ContextTr>::Db>,
+    Tx: Transaction,
+    Cfg: Cfg,
+    Chain: CitreaChainExt,
+>
+{
+}
+
+impl<T, DB: Database> CitreaContextTr for T where
+    T: ContextTr<Db = DB, Journal = Journal<DB>, Chain: CitreaChainExt>
+{
+}
+
+/// Trait that allows for citrea CitreaEvm to be built.
+pub trait CitreaBuilder {
+    /// Type of the context.
+    type Context;
+
+    /// Build citrea.
+    fn build_citrea(self) -> CitreaEvm<Self::Context, ()>;
+
+    /// Build citrea with an inspector.
+    fn build_citrea_with_inspector<INSP>(self, inspector: INSP) -> CitreaEvm<Self::Context, INSP>;
+}
+
+impl<BLOCK, TX, CFG, DB, CHAIN> CitreaBuilder for Context<BLOCK, TX, CFG, DB, Journal<DB>, CHAIN>
+where
+    BLOCK: Block,
+    TX: Transaction,
+    CFG: Cfg,
+    DB: Database,
+    CHAIN: CitreaChainExt,
+{
+    type Context = Self;
+
+    fn build_citrea(self) -> CitreaEvm<Self::Context, ()> {
+        CitreaEvm::new(self, ())
+    }
+
+    fn build_citrea_with_inspector<INSP>(self, inspector: INSP) -> CitreaEvm<Self::Context, INSP> {
+        CitreaEvm::new(self, inspector)
+    }
+}
+
+// Citrea precompile provider
+#[derive(Debug, Clone)]
+pub struct CitreaPrecompiles {
+    /// Inner precompile provider is same as Ethereums.
+    inner: EthPrecompiles,
+}
+
+/// Returns precompiles.
+pub fn citrea_precompiles() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        // Berlin because POINT_EVALUATION precompile(0x0A) is enabled in Cancun
+        // then we add prague precompiles
+        // and then we add the rest of the precompiles
+        let mut precompiles = Precompiles::berlin().clone();
+
+        // Add prague precompiles
+        // Effectively skipping kzg precompiles in Cancun
+        precompiles.extend(bls12_381::precompiles());
+
+        precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
+
+        Box::new(precompiles)
+    })
+}
+
+impl CitreaPrecompiles {
+    /// Create a new precompile provider with the given Spec.
+    #[inline]
+    pub fn new_with_spec(spec: SpecId) -> Self {
+        let precompiles = citrea_precompiles();
+
+        Self {
+            inner: EthPrecompiles { precompiles, spec },
         }
-
-        our_precompiles::<SPEC, DB>()
     }
-    fn validate_tx_against_state(
-        context: &mut Context<EXT, DB>,
-    ) -> Result<(), EVMError<DB::Error>> {
-        if context.is_system_caller() {
+}
+
+impl<CTX> PrecompileProvider<CTX> for CitreaPrecompiles
+where
+    CTX: ContextTr,
+{
+    type Output = InterpreterResult;
+
+    #[inline]
+    fn set_spec(&mut self, spec: <CTX::Cfg as Cfg>::Spec) -> bool {
+        let spec = spec.into();
+        // generate new precompiles only on new spec
+        if spec == self.inner.spec {
+            return false;
+        }
+        *self = Self::new_with_spec(spec);
+        true
+    }
+
+    #[inline]
+    fn run(
+        &mut self,
+        context: &mut CTX,
+        address: &Address,
+        inputs: &InputsImpl,
+        is_static: bool,
+        gas_limit: u64,
+    ) -> Result<Option<Self::Output>, String> {
+        self.inner
+            .run(context, address, inputs, is_static, gas_limit)
+    }
+
+    #[inline]
+    fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
+        self.inner.warm_addresses()
+    }
+
+    #[inline]
+    fn contains(&self, address: &Address) -> bool {
+        self.inner.contains(address)
+    }
+}
+
+impl Default for CitreaPrecompiles {
+    fn default() -> Self {
+        Self::new_with_spec(SpecId::PRAGUE)
+    }
+}
+
+pub(crate) struct CitreaHandler<EVM, ERROR, FRAME> {
+    pub mainnet: MainnetHandler<EVM, ERROR, FRAME>,
+}
+
+impl<EVM, ERROR, FRAME> CitreaHandler<EVM, ERROR, FRAME> {
+    fn new() -> Self {
+        Self {
+            mainnet: Default::default(),
+        }
+    }
+}
+
+impl<EVM, ERROR, FRAME> Handler for CitreaHandler<EVM, ERROR, FRAME>
+where
+    EVM: EvmTr<Context: CitreaContextTr>,
+    ERROR: EvmTrError<EVM> /*+ From<CitreaTransactionError>*/ + FromStringError, /*+ IsTxError*/
+    FRAME: Frame<Evm = EVM, Error = ERROR, FrameResult = FrameResult, FrameInit = FrameInput>,
+{
+    type Evm = EVM;
+    type Error = ERROR;
+    type Frame = FRAME;
+    type HaltReason = HaltReason; // TODO: CitreaHaltReason ??
+
+    fn validate_tx_against_state(&self, evm: &mut Self::Evm) -> Result<(), Self::Error> {
+        if evm.is_system_caller() {
             // Don't verify balance but nonce only.
-            let tx_caller = context.evm.env.tx.caller;
-            let caller_account = context
-                .evm
-                .inner
-                .journaled_state
-                .load_account(tx_caller, &mut context.evm.inner.db)?;
+            let context = evm.ctx();
+            let tx_caller = context.tx().caller();
+            let tx = context.tx().nonce();
+            let caller_account = context.journal().load_account(tx_caller)?;
             // Check that the transaction's nonce is correct
-            if let Some(tx) = context.evm.inner.env.tx.nonce {
-                let state = caller_account.info.nonce;
-                match tx.cmp(&state) {
-                    Ordering::Greater => {
-                        return Err(InvalidTransaction::NonceTooHigh { tx, state })?;
-                    }
-                    Ordering::Less => {
-                        return Err(InvalidTransaction::NonceTooLow { tx, state })?;
-                    }
-                    _ => {}
+            let state = caller_account.info.nonce;
+            match tx.cmp(&state) {
+                Ordering::Greater => {
+                    return Err(InvalidTransaction::NonceTooHigh { tx, state })?;
                 }
+                Ordering::Less => {
+                    return Err(InvalidTransaction::NonceTooLow { tx, state })?;
+                }
+                _ => {}
             }
             return Ok(());
         }
-        revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)
+        self.mainnet.validate_tx_against_state(evm)
     }
+
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
-    fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
-        if context.is_system_caller() {
+    fn deduct_caller(&self, evm: &mut Self::Evm) -> Result<(), Self::Error> {
+        if evm.is_system_caller() {
             // System caller doesn't spend gas.
-            // bump the nonce for calls.
-            // TODO check: Nonce for CREATE will be bumped in `handle_create`.
-            if context.evm.env.tx.transact_to.is_call() {
+
+            let context = evm.ctx();
+
+            let is_call = context.tx().kind().is_call();
+            let caller = context.tx().caller();
+
+            // Load caller's account.
+            let mut caller_account = context.journal().load_account(caller)?;
+
+            // Bump the nonce for calls. Nonce for CREATE will be bumped in `handle_create`.
+            if is_call {
                 // Nonce is already checked
-                let tx_caller = context.evm.env.tx.caller;
-                let mut caller_account = context
-                    .evm
-                    .inner
-                    .journaled_state
-                    .load_account(tx_caller, &mut context.evm.inner.db)?;
-                // Update nonce and mark account touched
                 caller_account.info.nonce = caller_account.info.nonce.saturating_add(1);
-                caller_account.mark_touch();
             }
+
+            // Touch account so we know it is changed.
+            caller_account.mark_touch();
+
             return Ok(());
         }
-        revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)
+        self.mainnet.deduct_caller(evm)
     }
+
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     fn reimburse_caller(
-        context: &mut Context<EXT, DB>,
-        gas: &Gas,
-    ) -> Result<(), EVMError<DB::Error>> {
-        if context.is_system_caller() {
+        &self,
+        evm: &mut Self::Evm,
+        exec_result: &mut <Self::Frame as Frame>::FrameResult,
+    ) -> Result<(), Self::Error> {
+        if evm.is_system_caller() {
             // System caller doesn't spend gas.
             return Ok(());
         }
-        revm::handler::mainnet::reimburse_caller::<SPEC, EXT, DB>(context, gas)
+        self.mainnet.reimburse_caller(evm, exec_result)
     }
-    #[cfg_attr(feature = "native", instrument(level = "trace", fields(gas), skip_all))]
+
+    #[cfg_attr(
+        feature = "native",
+        instrument(level = "trace", fields(exec_result), skip_all)
+    )]
     fn reward_beneficiary(
-        context: &mut Context<EXT, DB>,
-        gas: &Gas,
-    ) -> Result<(), EVMError<DB::Error>> {
-        if context.is_system_caller() {
+        &self,
+        evm: &mut Self::Evm,
+        exec_result: &mut <Self::Frame as Frame>::FrameResult,
+    ) -> Result<(), Self::Error> {
+        if evm.is_system_caller() {
             // System caller doesn't spend gas.
             return Ok(());
         }
 
+        let gas = exec_result.gas();
         let gas_used = U256::from(gas.spent() - gas.refunded() as u64);
 
+        let context = evm.ctx();
         // Only add base fee if eip-1559 is enabled
-        if SPEC::enabled(SpecId::LONDON) {
+        if context.cfg().spec().into().is_enabled_in(SpecId::LONDON) {
             // add base fee to base fee vault
-            let base_fee_per_gas = context.evm.env.block.basefee;
+            let base_fee_per_gas = context.block().basefee();
+            let base_fee_per_gas = U256::from(base_fee_per_gas);
             let base_fee = base_fee_per_gas * gas_used;
             change_balance(context, base_fee, true, BASE_FEE_VAULT)?;
         }
 
-        // send priority fee to coinbase using revm mainnet behaviour
-        revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)?;
-
-        Ok(())
+        self.mainnet.reward_beneficiary(evm, exec_result)
     }
-    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, fields(caller = %context.evm.env.tx.caller)))]
-    fn post_execution_output(
-        context: &mut Context<EXT, DB>,
-        result: FrameResult,
-    ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
-        let uncompressed_size =
-            calc_diff_size::<EXT, SPEC, DB>(context).map_err(EVMError::Database)?;
+
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, fields(caller = %evm.ctx_ref().tx().caller())))]
+    fn output(
+        &self,
+        evm: &mut Self::Evm,
+        result: <Self::Frame as Frame>::FrameResult,
+    ) -> Result<revm::context::result::ResultAndState<Self::HaltReason>, Self::Error> {
+        let uncompressed_size = calc_diff_size(evm.ctx());
 
         // Estimate the size of the state diff after the brotli compression
         let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64;
 
-        let l1_fee_rate = context.external.l1_fee_rate();
+        let l1_fee_rate = evm.ctx().chain().l1_fee_rate();
         let l1_fee =
             U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
-        context.external.set_tx_info(TxInfo {
+        evm.ctx().chain().set_tx_info(TxInfo {
             l1_diff_size: diff_size,
             l1_fee,
         });
         // System caller doesn't pay L1 fee.
-        if !context.is_system_caller() {
-            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
-                return Err(EVMError::Custom(format!(
+        if !evm.is_system_caller() {
+            if let Some(_out_of_funds) = decrease_caller_balance(evm.ctx(), l1_fee)? {
+                return Err(ERROR::from_string(format!(
                     "Not enough funds for L1 fee: {}",
                     l1_fee
                 )));
             }
             // add l1 fee to l1 fee vault
-            change_balance(context, l1_fee, true, L1_FEE_VAULT)?;
+            change_balance(evm.ctx(), l1_fee, true, L1_FEE_VAULT)?;
         }
 
-        revm::handler::mainnet::output(context, result)
+        self.mainnet.output(evm, result)
     }
+}
+
+#[cfg(feature = "native")]
+impl<EVM, ERROR, FRAME> InspectorHandler for CitreaHandler<EVM, ERROR, FRAME>
+where
+    EVM: InspectorEvmTr<
+        Context: CitreaContextTr,
+        Inspector: Inspector<<<Self as Handler>::Evm as EvmTr>::Context, EthInterpreter>,
+    >,
+    ERROR: EvmTrError<EVM> + FromStringError,
+    // TODO `FrameResult` should be a generic trait.
+    // TODO `FrameInit` should be a generic.
+    FRAME: InspectorFrame<
+        Evm = EVM,
+        Error = ERROR,
+        FrameResult = FrameResult,
+        FrameInit = FrameInput,
+        IT = EthInterpreter,
+    >,
+{
+    type IT = EthInterpreter;
 }
 
 /// Calculates the diff of the modified state.
 #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
-fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
-    context: &mut Context<EXT, DB>,
-) -> Result<usize, <DB as Database>::Error> {
-    let InnerEvmContext {
-        journaled_state,
-        env,
-        ..
-    } = &mut context.evm.inner;
+fn calc_diff_size<CTX>(context: &mut CTX) -> usize
+where
+    CTX: CitreaContextTr,
+{
+    let tx_caller = context.tx().caller();
+    let journaled_state = context.journal_ref();
 
     // Get the last journal entry to calculate diff.
     let journal = journaled_state.journal.last().into_iter().flatten();
@@ -489,7 +629,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
 
     // tx.from always has `account_info_changed` because its nonce is incremented
-    let from = account_changes.entry(&env.tx.caller).or_default();
+    let from = account_changes.entry(&tx_caller).or_default();
     from.account_info_changed = true;
 
     for entry in journal {
@@ -593,23 +733,19 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
         // No checks on code change as it is not part of the state diff
     }
 
-    Ok(diff_size)
+    diff_size
 }
 
-#[cfg_attr(feature = "native", instrument(level = "trace", skip(context)))]
-fn change_balance<EXT, DB: Database>(
-    context: &mut Context<EXT, DB>,
+// #[cfg_attr(feature = "native", instrument(level = "trace", skip(context)))]
+fn change_balance<CTX: ContextTr>(
+    context: &mut CTX,
     amount: U256,
     positive: bool,
     address: Address,
-) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
-    let InnerEvmContext {
-        journaled_state,
-        db,
-        ..
-    } = &mut context.evm.inner;
+) -> Result<Option<InstructionResult>, <<CTX as ContextTr>::Db as Database>::Error> {
+    let journaled_state = context.journal();
 
-    let mut account = journaled_state.load_account(address, db)?;
+    let mut account = journaled_state.load_account(address)?;
     account.mark_touch();
 
     let balance = &mut account.info.balance;
@@ -631,11 +767,11 @@ fn change_balance<EXT, DB: Database>(
 
 /// Decreases the balance of the caller by the given amount.
 /// Returns Ok(Some) if the caller's balance is not enough.
-fn decrease_caller_balance<EXT, DB: Database>(
-    context: &mut Context<EXT, DB>,
+fn decrease_caller_balance<CTX: ContextTr>(
+    context: &mut CTX,
     amount: U256,
-) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
-    let address = context.evm.env.tx.caller;
+) -> Result<Option<InstructionResult>, <<CTX as ContextTr>::Db as Database>::Error> {
+    let address = context.tx().caller();
     change_balance(context, amount, false, address)
 }
 

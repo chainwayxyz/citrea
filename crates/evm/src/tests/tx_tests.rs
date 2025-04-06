@@ -3,13 +3,14 @@ use std::str::FromStr;
 use alloy::consensus::{SignableTransaction, TxEnvelope};
 use alloy::providers::network::TxSignerSync;
 use alloy::signers::local::PrivateKeySigner;
+use alloy_consensus::TxType;
 use alloy_primitives::{Address, Bytes, TxKind, U256};
 use alloy_rlp::{Decodable, Encodable};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use bytes::BytesMut;
-use reth_primitives::transaction::SignedTransactionIntoRecoveredExt;
 use reth_primitives::{Recovered, TransactionSigned};
-use revm::primitives::{BlockEnv, TransactTo, TxEnv};
+use reth_primitives_traits::SignedTransaction;
+use revm::context::{BlockEnv, TransactTo, TxEnv};
 
 use crate::conversions::sealed_block_to_block_env;
 use crate::evm::call::create_txn_env;
@@ -105,31 +106,29 @@ fn prepare_call_env_conversion() {
 
     let block_env = BlockEnv::default();
 
-    let tx_env = create_txn_env(&block_env, request, None).unwrap();
+    let tx_env = create_txn_env(&block_env, request, None, None, 1).unwrap();
     let expected = TxEnv {
+        tx_type: TxType::Eip1559 as u8,
         caller: from,
-        gas_price: U256::from(100u64),
+        gas_price: 100u128,
         gas_limit: 200u64,
         gas_priority_fee: None,
-        transact_to: TransactTo::Call(to),
+        kind: TransactTo::Call(to),
         value: U256::from(300u64),
         data: Default::default(),
         chain_id: Some(1u64),
-        nonce: Some(1u64),
-        access_list: vec![],
+        nonce: 1u64,
+        access_list: Default::default(),
         blob_hashes: vec![],
-        max_fee_per_blob_gas: None,
-        authorization_list: None,
+        max_fee_per_blob_gas: 0,
+        authorization_list: vec![],
     };
 
     assert_eq!(tx_env.caller, expected.caller);
     assert_eq!(tx_env.gas_limit, expected.gas_limit);
     assert_eq!(tx_env.gas_price, expected.gas_price);
     assert_eq!(tx_env.gas_priority_fee, expected.gas_priority_fee);
-    assert_eq!(
-        tx_env.transact_to.is_create(),
-        expected.transact_to.is_create()
-    );
+    assert_eq!(tx_env.kind.is_create(), expected.kind.is_create());
     assert_eq!(tx_env.value, expected.value);
     assert_eq!(tx_env.data, expected.data);
     assert_eq!(tx_env.chain_id, expected.chain_id);
@@ -149,14 +148,14 @@ fn prepare_call_block_env() {
 
     let block_env = sealed_block_to_block_env(&sealed_block.header);
 
-    assert_eq!(block_env.number, U256::from(block.header.number));
-    assert_eq!(block_env.coinbase, block.header.beneficiary);
-    assert_eq!(block_env.timestamp, U256::from(block.header.timestamp));
+    assert_eq!(block_env.number, block.header.number);
+    assert_eq!(block_env.beneficiary, block.header.beneficiary);
+    assert_eq!(block_env.timestamp, block.header.timestamp);
     assert_eq!(
         block_env.basefee,
-        U256::from(block.header.base_fee_per_gas.unwrap_or_default())
+        block.header.base_fee_per_gas.unwrap_or_default()
     );
-    assert_eq!(block_env.gas_limit, U256::from(block.header.gas_limit));
+    assert_eq!(block_env.gas_limit, block.header.gas_limit);
     assert_eq!(
         block_env.prevrandao.unwrap_or_default(),
         block.header.mix_hash
