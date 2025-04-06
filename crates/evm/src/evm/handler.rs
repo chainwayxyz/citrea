@@ -15,18 +15,17 @@ use revm::handler::{
     EthFrame, EthPrecompiles, EvmTr, EvmTrError, Frame, FrameResult, Handler, MainnetHandler,
     PrecompileProvider,
 };
+#[cfg(feature = "native")]
 use revm::inspector::{InspectorEvmTr, InspectorFrame, InspectorHandler};
 use revm::interpreter::interpreter::EthInterpreter;
-#[cfg(feature = "native")]
-use revm::interpreter::Interpreter;
 use revm::interpreter::{
-    FrameInput, InputsImpl, InstructionResult, InterpreterResult, InterpreterTypes,
+    FrameInput, InputsImpl, InstructionResult, Interpreter, InterpreterResult, InterpreterTypes,
 };
 use revm::primitives::hardfork::SpecId;
 use revm::primitives::{Address, B256, KECCAK_EMPTY, U256};
+use revm::{Context, Database, ExecuteEvm, Journal, JournalEntry};
 #[cfg(feature = "native")]
-use revm::Inspector;
-use revm::{Context, Database, ExecuteEvm, InspectEvm, Journal, JournalEntry};
+use revm::{InspectEvm, Inspector};
 use revm_precompile::secp256r1::P256VERIFY;
 use revm_precompile::Precompiles;
 use sov_modules_api::{native_debug, native_error};
@@ -225,6 +224,7 @@ where
     }
 }
 
+#[cfg(feature = "native")]
 impl<CTX, INSP> InspectorEvmTr for CitreaEvm<CTX, INSP>
 where
     CTX: CitreaContextTr + ContextSetters,
@@ -279,6 +279,7 @@ where
     }
 }
 
+#[cfg(feature = "native")]
 impl<CTX, INSP> InspectEvm for CitreaEvm<CTX, INSP>
 where
     CTX: CitreaContextTr + ContextSetters,
@@ -361,6 +362,7 @@ pub fn citrea_precompiles() -> &'static Precompiles {
         // Berlin because:
         // 1. POINT_EVALUATION precompile(0x0A) is enabled in Cancun
         // 2. BLS12_381 precompiles (0x0b..0x11) are enabled in Prague
+        // TODO: add bls_12381 precompiles https://github.com/chainwayxyz/citrea/issues/2174
 
         let mut precompiles = Precompiles::berlin().clone();
         precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
@@ -578,6 +580,7 @@ where
     }
 }
 
+#[cfg(feature = "native")]
 impl<EVM, ERROR, FRAME> InspectorHandler for CitreaHandler<EVM, ERROR, FRAME>
 where
     EVM: InspectorEvmTr<
