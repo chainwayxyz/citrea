@@ -799,7 +799,7 @@ where
 
         let addresses: HashSet<Address> = match head.transactions {
             alloy_rpc_types::BlockTransactions::Full(ref txs) => {
-                txs.iter().map(|tx| tx.from).collect()
+                txs.iter().map(|tx| tx.inner.signer()).collect()
             }
             _ => panic!("Block should have full transactions"),
         };
