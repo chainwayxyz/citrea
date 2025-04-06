@@ -144,9 +144,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         )
     }
 
-    /// In case of an interrupt between l2 block commits of LedgerDB and StateDB,
-    /// this function rollbacks dbs to the StateDB version.
-    /// Returns Err if the LedgerDB version > StateDB version + 1
+    /// In case of an interrupt between l2 block commits of StateDB and LedgerDB,
+    /// this function rollbacks dbs to the LedgerDB version.
     async fn sync_ledger_and_state_db(
         &self,
         ledger_db: &LedgerDB,
@@ -191,7 +190,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                     l1_target,
                     last_sequencer_commitment_index,
                 ).await?;
-        } else if ledger_version == state_version {
+        } else if state_version == ledger_version{
             tracing::debug!("LedgerDB version is equal to StateDB version: {}", ledger_version);
         } else {
             anyhow::bail!(
