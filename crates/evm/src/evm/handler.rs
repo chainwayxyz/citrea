@@ -5,6 +5,7 @@ use once_cell::race::OnceBox;
 use revm::context::result::{
     EVMError, FromStringError, HaltReason, InvalidTransaction, ResultAndState,
 };
+use revm::context::transaction::AuthorizationTr;
 use revm::context::{
     Block, BlockEnv, Cfg, CfgEnv, ContextSetters, ContextTr, Evm, EvmData, JournalTr, Transaction,
     TxEnv,
@@ -23,6 +24,7 @@ use revm::interpreter::{
 };
 use revm::primitives::hardfork::SpecId;
 use revm::primitives::{Address, B256, KECCAK_EMPTY, U256};
+use revm::state::Bytecode;
 use revm::{Context, Database, ExecuteEvm, Journal, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{InspectEvm, Inspector};
@@ -632,6 +634,48 @@ where
     // tx.from always has `account_info_changed` because its nonce is incremented
     let from = account_changes.entry(&tx_caller).or_default();
     from.account_info_changed = true;
+
+    // Special handling for eip7702 transactions
+    // as there is no journal entry for changes on the authority
+
+    // collecting then consuming the iterator
+    // to avoid borrowing issues
+    // also not doing tx type check as authorization_list will return empty list
+    let auths = context
+        .tx()
+        .authorization_list()
+        .map(|auth| (auth.authority(), auth.address()))
+        .collect::<Vec<_>>();
+
+    for signer in auths.iter() {
+        if let (Some(ref authority), delegated_to) = signer {
+            // if returns None, the authorization failed at one of the following checks:
+            // - if the chain id check failed
+            // - if nonce was u64::MAX
+            // - if the signer couldn't be recovered <-- this case is not possible as we checked this on the above
+            //   if let
+            if let Some(authority_in_state) = journaled_state.state.get(authority) {
+                // if the final code of the authority is equal to delegated address
+                // or the delegated address is zero and the account code hash is KECCAK_EMPTY
+                // we know the authorization went through
+                if (*delegated_to == Address::ZERO
+                    && authority_in_state.info.code_hash == KECCAK_EMPTY)
+                    || authority_in_state
+                        .info
+                        .code
+                        .as_ref()
+                        .is_some_and(|code| *code == Bytecode::new_eip7702(*delegated_to))
+                {
+                    // we set account changed for the authority
+                    let account = account_changes.entry(authority).or_default();
+                    account.account_info_changed = true;
+                    // doing this does not matter anymore as account info is already set to changed
+                    // but doing it anyway to be consistent
+                    account.code_changed = true;
+                }
+            }
+        }
+    }
 
     for entry in journal {
         match entry {
