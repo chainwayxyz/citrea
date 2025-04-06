@@ -17,9 +17,9 @@ use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
-use citrea_storage_ops::pruning::types::StorageNodeType;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -171,14 +171,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 state_version
             );
             let rollback = Rollback::new(
-                ledger_db.inner(), 
+                ledger_db.inner(),
                 storage_manager.get_state_db_handle(),
                 storage_manager.get_native_db_handle(),
             );
-            let l1_target = ledger_db.get_last_scanned_l1_height()?
+            let l1_target = ledger_db
+                .get_last_scanned_l1_height()?
                 .map(|height| height.0)
                 .unwrap_or(0);
-            let last_sequencer_commitment_index = ledger_db.get_last_commitment()?
+            let last_sequencer_commitment_index = ledger_db
+                .get_last_commitment()?
                 .map(|commitment| commitment.index)
                 .unwrap_or(0);
 
@@ -189,9 +191,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                     ledger_version, // rollback to ledger version
                     l1_target,
                     last_sequencer_commitment_index,
-                ).await?;
-        } else if state_version == ledger_version{
-            tracing::debug!("LedgerDB version is equal to StateDB version: {}", ledger_version);
+                )
+                .await?;
+        } else if state_version == ledger_version {
+            tracing::debug!(
+                "LedgerDB version is equal to StateDB version: {}",
+                ledger_version
+            );
         } else {
             anyhow::bail!(
                 "Storage is corrupted, LedgerDB version: {}, StateDB version: {}",
@@ -266,7 +272,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::FullNode).await?;
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::FullNode)
+            .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
@@ -318,7 +325,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::BatchProver).await?;
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::BatchProver)
+            .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
