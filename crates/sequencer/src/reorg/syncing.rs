@@ -17,6 +17,7 @@ use citrea_evm::{
     create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
     AccountInfo, CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
 };
+use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use jsonrpsee::core::client::{ClientT, Error as JsonrpseeError};
@@ -48,6 +49,9 @@ use tracing::{debug, info, trace, warn};
 
 use super::types::SoftConfirmationResponse;
 use super::utils::collect_user_txs;
+
+// TODO: Ignore devnet and testnet contract upgrade txs with tx hashes
+// TODO: Break the loop after the sync is complete
 
 /// This block's txs are ignored because this block contains BitcoinLightClient contract upgrade tx which actually downgrades the current contract
 /// There are no other txs other than that in this block
@@ -204,7 +208,8 @@ where
                 let l2_block_info = HookL2BlockInfo {
                     l2_height: soft_confirmation_response.l2_height,
                     pre_state_root: self.state_root,
-                    current_spec: SpecId::Fork2,
+                    current_spec: fork_from_block_number(soft_confirmation_response.l2_height)
+                        .spec_id,
                     sequencer_pub_key: pub_key.clone(),
                     l1_fee_rate: soft_confirmation_response.l1_fee_rate,
                     timestamp: soft_confirmation_response.timestamp,
