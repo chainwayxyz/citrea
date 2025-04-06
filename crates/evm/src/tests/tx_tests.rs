@@ -3,13 +3,14 @@ use std::str::FromStr;
 use alloy::consensus::{SignableTransaction, TxEnvelope};
 use alloy::providers::network::TxSignerSync;
 use alloy::signers::local::PrivateKeySigner;
+use alloy_consensus::TxType;
 use alloy_primitives::{Address, Bytes, TxKind, U256};
 use alloy_rlp::{Decodable, Encodable};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use bytes::BytesMut;
 use reth_primitives::{Recovered, TransactionSigned};
 use reth_primitives_traits::SignedTransaction;
-use revm::context::{BlockEnv, TransactTo, TransactionType, TxEnv};
+use revm::context::{BlockEnv, TransactTo, TxEnv};
 
 use crate::conversions::sealed_block_to_block_env;
 use crate::evm::call::create_txn_env;
@@ -105,9 +106,9 @@ fn prepare_call_env_conversion() {
 
     let block_env = BlockEnv::default();
 
-    let tx_env = create_txn_env(&block_env, request, None).unwrap();
+    let tx_env = create_txn_env(&block_env, request, None, None).unwrap();
     let expected = TxEnv {
-        tx_type: TransactionType::Eip1559 as u8, // TODO: TransactionType::Eip7702
+        tx_type: TxType::Eip1559 as u8,
         caller: from,
         gas_price: 100u128,
         gas_limit: 200u64,

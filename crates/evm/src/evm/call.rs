@@ -2,11 +2,12 @@
 
 use std::cmp::min;
 
+use alloy_consensus::TxType;
 use alloy_primitives::U256;
 use alloy_rpc_types::TransactionRequest;
 use reth_rpc_eth_types::error::{EthResult, RpcInvalidTransactionError};
 use reth_rpc_eth_types::revm_utils::CallFees;
-use revm::context::{BlockEnv, CfgEnv, TransactionType, TxEnv};
+use revm::context::{BlockEnv, CfgEnv, TxEnv};
 
 use crate::caller_gas_allowance;
 
@@ -14,7 +15,20 @@ pub(crate) fn create_txn_env(
     block_env: &BlockEnv,
     request: TransactionRequest,
     cap_to_balance: Option<U256>,
+    nonce_if_req_has_no_nonce: Option<u64>,
 ) -> EthResult<TxEnv> {
+    let tx_type = if request.authorization_list.is_some() {
+        TxType::Eip7702
+    } else if request.sidecar.is_some() || request.max_fee_per_blob_gas.is_some() {
+        return Err(RpcInvalidTransactionError::TxTypeNotSupported.into());
+    } else if request.max_fee_per_gas.is_some() || request.max_priority_fee_per_gas.is_some() {
+        TxType::Eip1559
+    } else if request.access_list.is_some() {
+        TxType::Eip2930
+    } else {
+        TxType::Legacy
+    } as u8;
+
     let TransactionRequest {
         from,
         to,
@@ -29,15 +43,11 @@ pub(crate) fn create_txn_env(
         chain_id,
         authorization_list,
         transaction_type: _transaction_type,
-        max_fee_per_blob_gas,
         blob_versioned_hashes,
-        sidecar,
+        ..
     } = request;
 
-    if blob_versioned_hashes.is_some_and(|v| !v.is_empty())
-        || max_fee_per_blob_gas.is_some()
-        || sidecar.is_some()
-    {
+    if blob_versioned_hashes.is_some_and(|v| !v.is_empty()) {
         return Err(RpcInvalidTransactionError::TxTypeNotSupported.into());
     }
 
@@ -91,17 +101,28 @@ pub(crate) fn create_txn_env(
         None
     };
 
+    let caller = from.unwrap_or_default();
+
+    let nonce = if let Some(nonce) = nonce {
+        if nonce_if_req_has_no_nonce.is_some() {
+            unreachable!("We never pass a nonce to this function if the request has a nonce")
+        }
+        nonce
+    } else {
+        nonce_if_req_has_no_nonce.expect("If req has no nonce, we must pass one")
+    };
+
     let env = TxEnv {
-        tx_type: TransactionType::Eip1559 as u8, // TODO: TransactionType::Eip7702
+        tx_type,
         gas_price: gas_price
             .try_into()
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
-        nonce: nonce.expect("FIXME: load from acc"),
+        nonce,
         chain_id,
         gas_limit: gas_limit
             .try_into()
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
-        caller: from.unwrap_or_default(),
+        caller,
         gas_priority_fee,
         kind: to.unwrap_or_default(),
         value: value.unwrap_or_default(),
@@ -126,6 +147,7 @@ pub(crate) fn prepare_call_env(
     cfg_env: &mut CfgEnv,
     mut request: TransactionRequest,
     cap_to_balance: U256,
+    nonce: u64,
 ) -> EthResult<TxEnv> {
     // we want to disable this in eth_call, since this is common practice used by other node
     // impls and providers <https://github.com/foundry-rs/foundry/issues/4388>
@@ -154,7 +176,12 @@ pub(crate) fn prepare_call_env(
         request.max_priority_fee_per_gas = None;
     }
 
-    create_txn_env(block_env, request.clone(), Some(cap_to_balance))
+    create_txn_env(
+        block_env,
+        request.clone(),
+        Some(cap_to_balance),
+        Some(nonce),
+    )
 }
 
 #[cfg(test)]

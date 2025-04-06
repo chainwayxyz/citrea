@@ -584,13 +584,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if let Some(state_overrides) = state_overrides {
             apply_state_overrides(state_overrides, &mut evm_db)?;
         }
-
-        let cap_to_balance = evm_db
+        let account = evm_db
             .basic(request.from.unwrap_or_default())
             .map_err(EthApiError::from)?
-            .unwrap_or_default()
-            .balance;
-        let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance)?;
+            .unwrap_or_default();
+        let cap_to_balance = account.balance;
+        let nonce = account.nonce;
+
+        let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance, nonce)?;
 
         let result = match inspect_with_citrea_handler(
             evm_db,
@@ -693,7 +694,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map_err(EthApiError::from)?
             .unwrap_or_default();
 
-        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;
+        let nonce = if request.nonce.is_some() {
+            None
+        } else {
+            Some(account.nonce)
+        };
+
+        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance), nonce)?;
 
         // can consume the list since we're not using the request anymore
         let access_list = request.access_list.take().unwrap_or_default();
@@ -910,8 +917,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .account_info(&request.from.unwrap_or_default(), working_set)
             .unwrap_or_default();
 
+        let nonce = if request.nonce.is_some() {
+            None
+        } else {
+            Some(account.nonce)
+        };
         // create tx env
-        let mut tx_env = create_txn_env(&block_env, request, Some(account.balance))?;
+        let mut tx_env = create_txn_env(&block_env, request, Some(account.balance), nonce)?;
 
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
@@ -1361,8 +1373,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut evm_db = self.get_db(working_set);
 
+        let nonce = if request.nonce.is_some() {
+            None
+        } else {
+            Some(account.nonce)
+        };
+
         // create tx env
-        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;
+        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance), nonce)?;
         let trace = trace_call(
             opts.unwrap_or_default(),
             cfg_env,
