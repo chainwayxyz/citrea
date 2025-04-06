@@ -54,7 +54,7 @@ pub(crate) fn create_tx_env(tx: &Recovered<TransactionSigned>) -> TxEnv {
     };
 
     let tx_env = TxEnv {
-        tx_type: TransactionType::Eip1559 as u8, // TODO: TransactionType::Eip7702
+        tx_type: tx.tx_type() as u8,
         caller: tx.signer(),
         gas_limit: tx.gas_limit(),
         gas_price: tx.effective_gas_price(None),
