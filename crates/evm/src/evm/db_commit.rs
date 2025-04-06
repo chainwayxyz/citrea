@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+// TODO: right now this is fold_map both in zk and native
+// we should check if it increases cycle counts
 use alloy_primitives::map::HashMap;
 use alloy_primitives::Address;
 use revm::state::{Account, AccountInfo};
