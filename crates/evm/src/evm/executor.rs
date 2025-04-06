@@ -30,7 +30,7 @@ where
     /// Creates a new Citrea EVM with the given parameters.
     pub fn new(db: DB, block_env: BlockEnv, config_env: CfgEnv, ext: &'a mut CitreaChain) -> Self {
         let mut journal = Journal::<DB>::new(db);
-        journal.set_spec_id(config_env.spec().into());
+        journal.set_spec_id(config_env.spec());
         let evm = Context {
             block: block_env,
             cfg: config_env,

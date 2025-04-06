@@ -24,7 +24,7 @@ pub const SCHNORRVERIFY: PrecompileWithAddress =
 /// - 64 bytes: signature
 pub fn schnorr_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if SCHNORRVERIFY_BASE > gas_limit {
-        return Err(PrecompileError::OutOfGas.into());
+        return Err(PrecompileError::OutOfGas);
     }
     let result = verify_sig(input).map_or_else(Bytes::new, |_| B256::with_last_byte(1).into());
 
@@ -123,7 +123,7 @@ mod tests {
 
         assert_eq!(
             schnorr_verify(&Bytes::from(input), SCHNORRVERIFY_BASE - 1),
-            Err(PrecompileError::OutOfGas.into())
+            Err(PrecompileError::OutOfGas)
         );
     }
 

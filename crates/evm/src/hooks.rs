@@ -77,7 +77,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             beneficiary: cfg.coinbase,
             timestamp: l2_block_info.timestamp(),
             prevrandao: Some(B256::ZERO),
-            basefee: basefee,
+            basefee,
             gas_limit: cfg.block_gas_limit,
             difficulty: U256::ZERO,
             blob_excess_gas_and_price,

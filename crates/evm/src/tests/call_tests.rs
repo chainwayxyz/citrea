@@ -958,7 +958,7 @@ fn test_l1_fee_not_enough_funds() {
     let (mut config, dev_signer, _) = get_evm_config_starting_base_fee(
         U256::from_str("1142350000000").unwrap(), // only covers base fee
         None,
-        MIN_BASE_FEE_PER_GAS as u64,
+        MIN_BASE_FEE_PER_GAS,
     );
     config_push_contracts(&mut config, None);
 

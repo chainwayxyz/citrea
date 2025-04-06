@@ -283,7 +283,7 @@ where
     }
 
     let mut journal = Journal::new(db);
-    journal.set_spec_id(config_env.spec().into());
+    journal.set_spec_id(config_env.spec());
     let mut evm = Context {
         block: block_env,
         cfg: config_env,
@@ -315,7 +315,7 @@ where
     ext.set_current_tx_hash(&tmp_hash);
 
     let mut journal = Journal::new(db);
-    journal.set_spec_id(config_env.spec().into());
+    journal.set_spec_id(config_env.spec());
     let mut evm = Context {
         block: block_env,
         cfg: config_env,
