@@ -27,7 +27,7 @@ use revm::{Context, Database, ExecuteEvm, Journal, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{InspectEvm, Inspector};
 use revm_precompile::secp256r1::P256VERIFY;
-use revm_precompile::Precompiles;
+use revm_precompile::{bls12_381, Precompiles};
 use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -365,6 +365,11 @@ pub fn citrea_precompiles() -> &'static Precompiles {
         // TODO: add bls_12381 precompiles https://github.com/chainwayxyz/citrea/issues/2174
 
         let mut precompiles = Precompiles::berlin().clone();
+
+        // Add prague precompiles
+        // Effectively skipping kzg precompiles in Cancun
+        precompiles.extend(bls12_381::precompiles());
+
         precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
 
         Box::new(precompiles)
