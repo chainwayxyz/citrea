@@ -181,6 +181,9 @@ where
                                 unreachable!("Error irrelevant!")
                             }
                             SyncError::UnknownL1Hash => unreachable!("Error irrelevant!"),
+                            SyncError::SequencerCommitmentMissingForProof(_) => {
+                                unreachable!("Error irrelevant!")
+                            }
                         }
                     }
                 }
@@ -202,6 +205,9 @@ where
                             }
                             SyncError::UnknownL1Hash => {
                                 error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
+                            }
+                            SyncError::SequencerCommitmentMissingForProof(index) => {
+                                error!("Could not process ZK proofs: Commitment index {index} is missing for proof")
                             }
                         }
                     }
@@ -515,10 +521,7 @@ where
                         ).into());
                 }
             } else {
-                return Err(anyhow!(
-                    "Commitment index {index} is missing for proof, discarding proof."
-                )
-                .into());
+                return Err(SyncError::SequencerCommitmentMissingForProof(index));
             }
         }
 
