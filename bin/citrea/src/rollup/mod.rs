@@ -153,16 +153,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         storage_manager: &ProverStorageManager,
         node_type: StorageNodeType,
     ) -> Result<()> {
-        let ledger_version = match ledger_db.get_head_l2_block_height().context("Failed to get head l2 block")?{
-            Some(height) => height,
-            None => { return Ok(()); }
-        };
         let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
-        let state_version = next_version - 2; // next version >= 2 at this point
+        let state_version = if next_version >= 2 {
+            next_version - 2
+        } else {
+            return Ok(()); // no l2 blocks processed
+        };
 
-        if ledger_version == (state_version + 1) {
+        let ledger_version = ledger_db
+            .get_head_l2_block_height()
+            .context("Failed to get head l2 block")?
+            .unwrap_or(0);
+
+        if state_version == (ledger_version + 1) {
             tracing::debug!(
-                "Version mismatch. LedgerDB version: {}, StateDB version: {}. Rolling back to StateDB version.",
+                "Version mismatch. LedgerDB version: {}, StateDB version: {}. Rolling back to LedgerDB version.",
                 ledger_version,
                 state_version
             );
@@ -181,8 +186,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollback
                 .execute(
                     node_type,
-                    state_version,
-                    state_version,
+                    ledger_version,
+                    ledger_version, // rollback to ledger version
                     l1_target,
                     last_sequencer_commitment_index,
                 ).await?;
