@@ -33,7 +33,7 @@ use reth_rpc_eth_types::error::{
 };
 use reth_rpc_eth_types::logs_utils::log_matches_filter;
 use revm::context::result::{EVMError, ExecutionResult, HaltReason, InvalidTransaction};
-use revm::context::{BlockEnv, CfgEnv, TransactTo};
+use revm::context::{BlockEnv, Cfg, CfgEnv, TransactTo};
 use revm::context_interface::block::BlobExcessGasAndPrice;
 use revm::primitives::hardfork::SpecId;
 use revm::{Database, DatabaseCommit};
@@ -590,8 +590,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .unwrap_or_default();
         let cap_to_balance = account.balance;
         let nonce = account.nonce;
+        let chain_id = cfg_env.chain_id();
 
-        let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance, nonce)?;
+        let tx_env = prepare_call_env(
+            &block_env,
+            &mut cfg_env,
+            request,
+            cap_to_balance,
+            nonce,
+            chain_id,
+        )?;
 
         let result = match inspect_with_citrea_handler(
             evm_db,
@@ -699,8 +707,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         } else {
             Some(account.nonce)
         };
+        let chain_id = cfg_env.chain_id();
 
-        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance), nonce)?;
+        let tx_env = create_txn_env(
+            &block_env,
+            request.clone(),
+            Some(account.balance),
+            nonce,
+            chain_id,
+        )?;
 
         // can consume the list since we're not using the request anymore
         let access_list = request.access_list.take().unwrap_or_default();
@@ -922,8 +937,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         } else {
             Some(account.nonce)
         };
+        let chain_id = cfg_env.chain_id();
+
         // create tx env
-        let mut tx_env = create_txn_env(&block_env, request, Some(account.balance), nonce)?;
+        let mut tx_env =
+            create_txn_env(&block_env, request, Some(account.balance), nonce, chain_id)?;
 
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
@@ -1378,9 +1396,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
         } else {
             Some(account.nonce)
         };
+        let chain_id = cfg_env.chain_id();
 
         // create tx env
-        let tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance), nonce)?;
+        let tx_env = create_txn_env(
+            &block_env,
+            request.clone(),
+            Some(account.balance),
+            nonce,
+            chain_id,
+        )?;
         let trace = trace_call(
             opts.unwrap_or_default(),
             cfg_env,

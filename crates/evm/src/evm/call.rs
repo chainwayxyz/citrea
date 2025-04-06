@@ -16,6 +16,7 @@ pub(crate) fn create_txn_env(
     request: TransactionRequest,
     cap_to_balance: Option<U256>,
     nonce_if_req_has_no_nonce: Option<u64>,
+    chain_id_to_set: u64,
 ) -> EthResult<TxEnv> {
     let tx_type = if request.authorization_list.is_some() {
         TxType::Eip7702
@@ -112,6 +113,7 @@ pub(crate) fn create_txn_env(
         nonce_if_req_has_no_nonce.expect("If req has no nonce, we must pass one")
     };
 
+    let chain_id = Some(chain_id.unwrap_or(chain_id_to_set));
     let env = TxEnv {
         tx_type,
         gas_price: gas_price
@@ -148,6 +150,7 @@ pub(crate) fn prepare_call_env(
     mut request: TransactionRequest,
     cap_to_balance: U256,
     nonce: u64,
+    chain_id_to_set: u64,
 ) -> EthResult<TxEnv> {
     // we want to disable this in eth_call, since this is common practice used by other node
     // impls and providers <https://github.com/foundry-rs/foundry/issues/4388>
@@ -181,6 +184,7 @@ pub(crate) fn prepare_call_env(
         request.clone(),
         Some(cap_to_balance),
         Some(nonce),
+        chain_id_to_set,
     )
 }
 
