@@ -629,7 +629,7 @@ where
                 let tx = Recovered::try_from(rlp_tx.clone())
                     .expect("Should deserialize evm transaction");
 
-                writeln!(file, "Error: {:?}, Transaction rlp: {:?}, tx signed ec recovered: {:?}, l2 block info: {:?}\n", e, rlp_tx, tx, l2_block_info)?;
+                writeln!(file, "Error: {:?}, tx hash: {:?} Transaction rlp: {:?}, tx signed ec recovered: {:?}, l2 block info: {:?}\n", e, tx.hash() rlp_tx, tx, l2_block_info)?;
 
                 match e {
                     // Since this is the sequencer, it should never get a soft confirmation error or a hook error
