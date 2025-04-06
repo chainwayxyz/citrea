@@ -8,7 +8,9 @@ use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use rand::thread_rng;
-use revm::primitives::{Eip7702Bytecode, KECCAK_EMPTY, U256};
+use revm::bytecode::eip7702::Eip7702Bytecode;
+use revm::primitives::{KECCAK_EMPTY, U256};
+use revm::state::Bytecode;
 use revm::Database;
 use secp256k1::SecretKey;
 use sov_modules_api::default_context::DefaultContext;
@@ -956,7 +958,7 @@ fn test_l1_fee_not_enough_funds() {
     let (mut config, dev_signer, _) = get_evm_config_starting_base_fee(
         U256::from_str("1142350000000").unwrap(), // only covers base fee
         None,
-        MIN_BASE_FEE_PER_GAS as u64,
+        MIN_BASE_FEE_PER_GAS,
     );
     config_push_contracts(&mut config, None);
 
@@ -1426,7 +1428,7 @@ fn test_eip7702_tx() {
             &signer1_account_info_post_tx.code_hash.unwrap(),
             &mut working_set.offchain_state()
         ),
-        Some(revm::primitives::Bytecode::Eip7702(Eip7702Bytecode {
+        Some(Bytecode::Eip7702(Eip7702Bytecode {
             delegated_address: log_contract_address,
             version: 0,
             raw: [
@@ -1549,7 +1551,7 @@ fn test_eip7702_tx() {
             &signer1_account_info_post_tx.code_hash.unwrap(),
             &mut working_set.offchain_state()
         ),
-        Some(revm::primitives::Bytecode::Eip7702(Eip7702Bytecode {
+        Some(Bytecode::Eip7702(Eip7702Bytecode {
             delegated_address: set_arg_contract_address,
             version: 0,
             raw: [
@@ -1632,7 +1634,7 @@ fn test_eip7702_tx() {
             &signer1_account_info_post_tx.code_hash.unwrap(),
             &mut working_set.offchain_state()
         ),
-        Some(revm::primitives::Bytecode::Eip7702(Eip7702Bytecode {
+        Some(Bytecode::Eip7702(Eip7702Bytecode {
             delegated_address: set_arg_contract_address,
             version: 0,
             raw: [

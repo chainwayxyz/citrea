@@ -4,7 +4,7 @@ use std::thread::sleep;
 use alloy_consensus::TxReceipt;
 use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
-use secp256k1::{Keypair, Message, XOnlyPublicKey, SECP256K1};
+use secp256k1::{Keypair, XOnlyPublicKey, SECP256K1};
 use sha2::Digest;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -705,7 +705,7 @@ fn test_schnorr_verify() {
     // failing call
     {
         let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
-        let message = Message::from_digest_slice(&[1; 32]).unwrap();
+        let message = [1; 32];
         let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
         // wrong pubkey
         let public_key =
@@ -734,7 +734,7 @@ fn test_schnorr_verify() {
     // passing call
     {
         let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
-        let message = Message::from_digest_slice(&[1; 32]).unwrap();
+        let message = [1; 32];
         let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
         let public_key = XOnlyPublicKey::from_keypair(&keypair).0;
         let mut input = Vec::new();

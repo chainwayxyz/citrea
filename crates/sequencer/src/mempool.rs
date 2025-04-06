@@ -55,7 +55,7 @@ impl CitreaMempool {
                 max_size: 0,
             },
             max_account_slots: mempool_conf.max_account_slots as usize,
-            minimal_protocol_basefee: MIN_BASE_FEE_PER_GAS.try_into().unwrap(),
+            minimal_protocol_basefee: MIN_BASE_FEE_PER_GAS,
             ..Default::default()
         };
 

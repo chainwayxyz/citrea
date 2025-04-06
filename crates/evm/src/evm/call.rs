@@ -2,159 +2,34 @@
 
 use std::cmp::min;
 
-use alloy_primitives::{B256, U256};
+use alloy_consensus::TxType;
+use alloy_primitives::U256;
 use alloy_rpc_types::TransactionRequest;
-use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
-use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, TxEnv};
+use reth_rpc_eth_types::error::{EthResult, RpcInvalidTransactionError};
+use reth_rpc_eth_types::revm_utils::CallFees;
+use revm::context::{BlockEnv, CfgEnv, TxEnv};
 
 use crate::caller_gas_allowance;
-
-/// Helper type for representing the fees of a [TransactionRequest]
-pub(crate) struct CallFees {
-    /// EIP-1559 priority fee
-    max_priority_fee_per_gas: Option<U256>,
-    /// Unified gas price setting
-    ///
-    /// Will be the configured `basefee` if unset in the request
-    ///
-    /// `gasPrice` for legacy,
-    /// `maxFeePerGas` for EIP-1559
-    gas_price: U256,
-    /// Max Fee per Blob gas for EIP-4844 transactions
-    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    #[allow(dead_code)]
-    max_fee_per_blob_gas: Option<U256>,
-}
-
-// === impl CallFees ===
-
-impl CallFees {
-    /// Ensures the fields of a [TransactionRequest] are not conflicting.
-    ///
-    /// If no `gasPrice` or `maxFeePerGas` is set, then the `gas_price` in the returned `gas_price`
-    /// will be `0`. See: <https://github.com/ethereum/go-ethereum/blob/2754b197c935ee63101cbbca2752338246384fec/internal/ethapi/transaction_args.go#L242-L255>
-    ///
-    /// # EIP-4844 transactions
-    ///
-    /// Blob transactions have an additional fee parameter `maxFeePerBlobGas`.
-    /// If the `maxFeePerBlobGas` or `blobVersionedHashes` are set we treat it as an EIP-4844
-    /// transaction.
-    ///
-    /// Note: Due to the `Default` impl of [BlockEnv] (Some(0)) this assumes the `block_blob_fee` is
-    /// always `Some`
-    fn ensure_fees(
-        call_gas_price: Option<U256>,
-        call_max_fee: Option<U256>,
-        call_priority_fee: Option<U256>,
-        block_base_fee: U256,
-        blob_versioned_hashes: Option<&[B256]>,
-        max_fee_per_blob_gas: Option<U256>,
-        block_blob_fee: Option<U256>,
-    ) -> EthResult<CallFees> {
-        /// Get the effective gas price of a transaction as specfified in EIP-1559 with relevant
-        /// checks.
-        fn get_effective_gas_price(
-            max_fee_per_gas: Option<U256>,
-            max_priority_fee_per_gas: Option<U256>,
-            block_base_fee: U256,
-        ) -> EthResult<U256> {
-            match max_fee_per_gas {
-                Some(max_fee) => {
-                    if max_fee < block_base_fee {
-                        // `base_fee_per_gas` is greater than the `max_fee_per_gas`
-                        return Err(RpcInvalidTransactionError::FeeCapTooLow.into());
-                    }
-                    if max_fee < max_priority_fee_per_gas.unwrap_or(U256::ZERO) {
-                        return Err(
-                            // `max_priority_fee_per_gas` is greater than the `max_fee_per_gas`
-                            RpcInvalidTransactionError::TipAboveFeeCap.into(),
-                        );
-                    }
-                    Ok(min(
-                        max_fee,
-                        block_base_fee
-                            .checked_add(max_priority_fee_per_gas.unwrap_or(U256::ZERO))
-                            .ok_or_else(|| {
-                                EthApiError::from(RpcInvalidTransactionError::TipVeryHigh)
-                            })?,
-                    ))
-                }
-                None => Ok(block_base_fee
-                    .checked_add(max_priority_fee_per_gas.unwrap_or(U256::ZERO))
-                    .ok_or_else(|| EthApiError::from(RpcInvalidTransactionError::TipVeryHigh))?),
-            }
-        }
-
-        let has_blob_hashes = blob_versioned_hashes
-            .as_ref()
-            .map(|blobs| !blobs.is_empty())
-            .unwrap_or(false);
-
-        match (
-            call_gas_price,
-            call_max_fee,
-            call_priority_fee,
-            max_fee_per_blob_gas,
-        ) {
-            (gas_price, None, None, None) => {
-                // either legacy transaction or no fee fields are specified
-                // when no fields are specified, set gas price to zero
-                let gas_price = gas_price.unwrap_or(U256::ZERO);
-                Ok(CallFees {
-                    gas_price,
-                    max_priority_fee_per_gas: None,
-                    max_fee_per_blob_gas: has_blob_hashes.then_some(block_blob_fee).flatten(),
-                })
-            }
-            (None, max_fee_per_gas, max_priority_fee_per_gas, None) => {
-                // request for eip-1559 transaction
-                let effective_gas_price = get_effective_gas_price(
-                    max_fee_per_gas,
-                    max_priority_fee_per_gas,
-                    block_base_fee,
-                )?;
-
-                let max_fee_per_blob_gas = has_blob_hashes.then_some(block_blob_fee).flatten();
-
-                Ok(CallFees {
-                    gas_price: effective_gas_price,
-                    max_priority_fee_per_gas,
-                    max_fee_per_blob_gas,
-                })
-            }
-            (None, max_fee_per_gas, max_priority_fee_per_gas, Some(max_fee_per_blob_gas)) => {
-                // request for eip-4844 transaction
-                let effective_gas_price = get_effective_gas_price(
-                    max_fee_per_gas,
-                    max_priority_fee_per_gas,
-                    block_base_fee,
-                )?;
-
-                // Ensure blob_hashes are present
-                if !has_blob_hashes {
-                    // Blob transaction but no blob hashes
-                    return Err(RpcInvalidTransactionError::BlobTransactionMissingBlobHashes.into());
-                }
-
-                Ok(CallFees {
-                    gas_price: effective_gas_price,
-                    max_priority_fee_per_gas,
-                    max_fee_per_blob_gas: Some(max_fee_per_blob_gas),
-                })
-            }
-            _ => {
-                // this fallback covers incompatible combinations of fields
-                Err(EthApiError::ConflictingFeeFieldsInRequest)
-            }
-        }
-    }
-}
 
 pub(crate) fn create_txn_env(
     block_env: &BlockEnv,
     request: TransactionRequest,
     cap_to_balance: Option<U256>,
+    nonce_if_req_has_no_nonce: Option<u64>,
+    chain_id_to_set: u64,
 ) -> EthResult<TxEnv> {
+    let tx_type = if request.authorization_list.is_some() {
+        TxType::Eip7702
+    } else if request.sidecar.is_some() || request.max_fee_per_blob_gas.is_some() {
+        return Err(RpcInvalidTransactionError::TxTypeNotSupported.into());
+    } else if request.max_fee_per_gas.is_some() || request.max_priority_fee_per_gas.is_some() {
+        TxType::Eip1559
+    } else if request.access_list.is_some() {
+        TxType::Eip2930
+    } else {
+        TxType::Legacy
+    } as u8;
+
     let TransactionRequest {
         from,
         to,
@@ -169,15 +44,11 @@ pub(crate) fn create_txn_env(
         chain_id,
         authorization_list,
         transaction_type: _transaction_type,
-        max_fee_per_blob_gas,
         blob_versioned_hashes,
-        sidecar,
+        ..
     } = request;
 
-    if blob_versioned_hashes.is_some_and(|v| !v.is_empty())
-        || max_fee_per_blob_gas.is_some()
-        || sidecar.is_some()
-    {
+    if blob_versioned_hashes.is_some_and(|v| !v.is_empty()) {
         return Err(RpcInvalidTransactionError::TxTypeNotSupported.into());
     }
 
@@ -222,26 +93,50 @@ pub(crate) fn create_txn_env(
         gas_limit = min(gas_limit, max_gas_limit);
     }
 
+    let gas_priority_fee: Option<u128> = if let Some(gas_priority) = max_priority_fee_per_gas {
+        let value: u128 = gas_priority
+            .try_into()
+            .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?;
+        Some(value)
+    } else {
+        None
+    };
+
+    let caller = from.unwrap_or_default();
+
+    let nonce = if let Some(nonce) = nonce {
+        if nonce_if_req_has_no_nonce.is_some() {
+            unreachable!("We never pass a nonce to this function if the request has a nonce")
+        }
+        nonce
+    } else {
+        nonce_if_req_has_no_nonce.expect("If req has no nonce, we must pass one")
+    };
+
+    let chain_id = Some(chain_id.unwrap_or(chain_id_to_set));
     let env = TxEnv {
-        gas_price,
+        tx_type,
+        gas_price: gas_price
+            .try_into()
+            .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
         nonce,
         chain_id,
         gas_limit: gas_limit
             .try_into()
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
-        caller: from.unwrap_or_default(),
-        gas_priority_fee: max_priority_fee_per_gas,
-        transact_to: to.unwrap_or_default(),
+        caller,
+        gas_priority_fee,
+        kind: to.unwrap_or_default(),
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
-        access_list: access_list.unwrap_or_default().0,
-        authorization_list: authorization_list.map(revm::primitives::AuthorizationList::Signed),
+        access_list: access_list.unwrap_or_default(),
+        authorization_list: authorization_list.unwrap_or_default().to_vec(),
 
         // EIP-4844 related fields
         // as the `TxEnv` returned from this function is given to plain revm::Evm
         // and as CitreaEvm ignores type3 txs, we can safely ignore these fields
         blob_hashes: vec![],
-        max_fee_per_blob_gas: None,
+        max_fee_per_blob_gas: 0,
     };
 
     Ok(env)
@@ -251,9 +146,11 @@ pub(crate) fn create_txn_env(
 // if from_balance is None, gas capping will not be applied
 pub(crate) fn prepare_call_env(
     block_env: &BlockEnv,
-    cfg_env: &mut CfgEnvWithHandlerCfg,
+    cfg_env: &mut CfgEnv,
     mut request: TransactionRequest,
     cap_to_balance: U256,
+    nonce: u64,
+    chain_id_to_set: u64,
 ) -> EthResult<TxEnv> {
     // we want to disable this in eth_call, since this is common practice used by other node
     // impls and providers <https://github.com/foundry-rs/foundry/issues/4388>
@@ -282,7 +179,13 @@ pub(crate) fn prepare_call_env(
         request.max_priority_fee_per_gas = None;
     }
 
-    create_txn_env(block_env, request.clone(), Some(cap_to_balance))
+    create_txn_env(
+        block_env,
+        request.clone(),
+        Some(cap_to_balance),
+        Some(nonce),
+        chain_id_to_set,
+    )
 }
 
 #[cfg(test)]

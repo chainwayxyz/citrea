@@ -162,7 +162,7 @@ pub(crate) fn create_contract_message_with_fee_and_gas_limit<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
     contract: T,
-    max_fee_per_gas: u128,
+    max_fee_per_gas: u64,
     gas_limit: u64,
 ) -> RlpEvmTransaction {
     dev_signer

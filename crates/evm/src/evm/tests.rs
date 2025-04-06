@@ -1,9 +1,11 @@
 use std::str::FromStr;
 
 use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
-use alloy_primitives::{Address, TxKind};
+use alloy_primitives::{Address, TxKind, U256};
 use reth_primitives::{Recovered, TransactionSigned};
-use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
+use revm::context::result::{ExecutionResult, Output};
+use revm::context::{BlockEnv, CfgEnv};
+use revm::primitives::hardfork::SpecId;
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -11,8 +13,7 @@ use self::executor::CitreaEvm;
 use super::db::EvmDb;
 use super::db_init::InitEvmDb;
 use super::executor;
-use super::handler::CitreaExternalExt;
-use crate::evm::handler::CitreaExternal;
+use crate::evm::handler::CitreaChain;
 use crate::evm::AccountInfo;
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
@@ -47,10 +48,10 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
 
     let contract = SimpleStorageContract::default();
 
-    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(Default::default(), SpecId::CANCUN);
+    let mut cfg_env = CfgEnv::new_with_spec(SpecId::CANCUN);
     cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
-    let mut citrea_ext = CitreaExternal::new(0);
+    let mut citrea_ext = CitreaChain::new(0);
 
     let contract_address: Address = {
         let tx = dev_signer
@@ -59,7 +60,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
 
         let tx = &tx.try_into().unwrap();
         let block_env = BlockEnv {
-            gas_limit: U256::from(ETHEREUM_BLOCK_GAS_LIMIT_30M),
+            gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             ..Default::default()
         };
 
@@ -149,12 +150,12 @@ fn output(result: ExecutionResult) -> alloy_primitives::Bytes {
     }
 }
 
-pub(crate) fn execute_tx<C: sov_modules_api::Context, EXT: CitreaExternalExt>(
+pub(crate) fn execute_tx<C: sov_modules_api::Context>(
     db: &mut EvmDb<C>,
     block_env: BlockEnv,
     tx: &Recovered<TransactionSigned>,
-    config_env: CfgEnvWithHandlerCfg,
-    ext: &mut EXT,
+    config_env: CfgEnv,
+    ext: &mut CitreaChain,
 ) -> ExecutionResult {
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
     let res = evm.transact(tx).unwrap();
