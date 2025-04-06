@@ -223,12 +223,15 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             }
         }
         let last_entry = fee_entries.last().expect("is not empty");
-        base_fee_per_gas.push(calculate_next_block_base_fee(
-            last_entry.gas_used,
-            last_entry.gas_limit,
-            last_entry.base_fee_per_gas,
-            self.provider.get_chain_config(working_set).base_fee_params,
-        ));
+        base_fee_per_gas.push(
+            calculate_next_block_base_fee(
+                last_entry.gas_used,
+                last_entry.gas_limit,
+                last_entry.base_fee_per_gas,
+                self.provider.get_chain_config(working_set).base_fee_params,
+            )
+            .into(),
+        );
 
         Ok(FeeHistory {
             base_fee_per_gas,
@@ -364,7 +367,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
                 }
 
                 // check if coinbase
-                let sender = tx.from;
+                let sender = tx.inner.signer();
                 sender != block.header.beneficiary && sender != SYSTEM_SIGNER
             })
             // map all values to effective_gas_tip because we will be returning those values
