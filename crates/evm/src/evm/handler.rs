@@ -359,11 +359,9 @@ pub struct CitreaPrecompiles {
 pub fn citrea_precompiles() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
-        // Berlin because:
-        // 1. POINT_EVALUATION precompile(0x0A) is enabled in Cancun
-        // 2. BLS12_381 precompiles (0x0b..0x11) are enabled in Prague
-        // TODO: add bls_12381 precompiles https://github.com/chainwayxyz/citrea/issues/2174
-
+        // Berlin because POINT_EVALUATION precompile(0x0A) is enabled in Cancun
+        // then we add prague precompiles
+        // and then we add the rest of the precompiles
         let mut precompiles = Precompiles::berlin().clone();
 
         // Add prague precompiles
