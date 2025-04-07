@@ -896,6 +896,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     let test_client = init_test_rollup(port).await;
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     // in a single block, deploy simple storage contract, make eip7702 tx that delegates to the contract
     // then call the contract to set a value and get it back over eip7702 tx
@@ -927,6 +928,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 2, None).await;
 
     let single_auth_receipt = test_client
         .eth_get_transaction_receipt(*set_code_tx.tx_hash())
@@ -953,6 +955,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         .await;
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 3, None).await;
 
     let receipts = test_client
         .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
@@ -1017,6 +1020,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 4, None).await;
 
         let signed_auth_clear_delegation_tx_receipt = test_client
             .eth_get_transaction_receipt(*wrong_nonce_and_clear_code_tx.tx_hash())
@@ -1081,6 +1085,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 5, None).await;
 
         let last_receipt = test_client
             .eth_get_transaction_receipt(*set_code_tx.tx_hash())
@@ -1135,6 +1140,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 6, None).await;
 
         assert_eq!(
             test_client
@@ -1167,6 +1173,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 7, None).await;
 
         let caller_contract_address = deploy_tx
             .get_receipt()
@@ -1222,6 +1229,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 8, None).await;
 
         let multiple_receipt = test_client
             .eth_get_transaction_receipt(*set_for_multiple_tx.tx_hash())
