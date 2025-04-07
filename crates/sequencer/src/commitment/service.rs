@@ -401,7 +401,9 @@ where
                 .map_err(|e| anyhow!(e))?;
             let iter = self
                 .da_service
-                .extract_relevant_sequencer_commitments(&block, &self.sequencer_da_pub_key);
+                .extract_relevant_sequencer_commitments(&block, &self.sequencer_da_pub_key)
+                .into_iter()
+                .map(|(_, commitment)| commitment);
             mined_commitments.extend(iter);
         }
 

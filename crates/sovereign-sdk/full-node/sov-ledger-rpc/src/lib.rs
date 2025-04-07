@@ -5,7 +5,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
     VerifiedBatchProofResponse,
 };
 
@@ -62,11 +62,6 @@ pub trait LedgerRpc {
     #[method(name = "getL2BlockRange")]
     #[blocking]
     fn get_l2_block_range(&self, start: U64, end: U64) -> RpcResult<Vec<Option<L2BlockResponse>>>;
-
-    /// Gets a single event by number.
-    #[method(name = "getL2BlockStatus")]
-    #[blocking]
-    fn get_l2_block_status(&self, l2_block_receipt: U64) -> RpcResult<L2BlockStatus>;
 
     /// Gets the L2 genesis state root.
     #[method(name = "getL2GenesisStateRoot")]

@@ -15,6 +15,7 @@ use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::mmr::{MMRChunk, MMRNodeHash, Wtxid};
 use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::zk::Proof;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
@@ -24,7 +25,7 @@ use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
     AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L2BlockNumber,
-    L2HeightRange, SlotNumber, StateKey,
+    L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -55,7 +56,6 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2GenesisStateRoot::table_name(),
     StateDiffByBlockNumber::table_name(),
     PendingSequencerCommitment::table_name(),
-    L2BlockStatus::table_name(),
     CommitmentsByNumber::table_name(),
     MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
@@ -70,6 +70,9 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     ShortHeaderProofBySlotHash::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    L2StatusHeights::table_name(),
+    PendingSequencerCommitments::table_name(),
+    PendingProofs::table_name(),
     // ########
     #[cfg(test)]
     TestTableOld::table_name(),
@@ -87,13 +90,15 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     ShortHeaderProofBySlotHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2GenesisStateRoot::table_name(),
-    L2BlockStatus::table_name(),
     ProverLastScannedSlot::table_name(),
     CommitmentsByNumber::table_name(),
     LastPrunedBlock::table_name(),
     VerifiedBatchProofsBySlotNumber::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    L2StatusHeights::table_name(),
+    PendingSequencerCommitments::table_name(),
+    PendingProofs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -153,7 +158,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     LightClientProofBySlotNumber::table_name(),
     PendingSequencerCommitment::table_name(),
     ProverLastScannedSlot::table_name(),
-    L2BlockStatus::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
@@ -172,6 +176,9 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProverPendingCommitments::table_name(),
     PendingL1SubmissionJobs::table_name(),
     PendingBonsaiSessionByJobId::table_name(),
+    L2StatusHeights::table_name(),
+    PendingSequencerCommitments::table_name(),
+    PendingProofs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -431,11 +438,6 @@ define_table_with_seek_key_codec!(
     (ProverLastScannedSlot) () => SlotNumber
 );
 
-define_table_with_default_codec!(
-    /// Check whether a block is finalized
-    (L2BlockStatus) L2BlockNumber => sov_rollup_interface::rpc::L2BlockStatus
-);
-
 define_table_without_codec!(
     /// The source of truth for JMT nodes
     (JmtNodes) NodeKey => Node
@@ -505,6 +507,21 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Stores merkle hash of seuencer commitment => l2 range
     (CommitmentMerkleRoots) [u8; 32] => L2HeightRange
+);
+
+define_table_with_seek_key_codec!(
+    /// Stores L2 height and index per status
+    (L2StatusHeights) (L2HeightStatus, u64) => u32
+);
+
+define_table_with_default_codec!(
+    /// Out of order sequencer commitments
+    (PendingSequencerCommitments) u32 => SequencerCommitment
+);
+
+define_table_with_default_codec!(
+    /// Out of order proofs
+    (PendingProofs) (u32, u32) => Proof
 );
 
 #[cfg(test)]

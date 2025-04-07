@@ -17,6 +17,7 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
+use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
@@ -303,6 +304,27 @@ impl TestCase for LightClientProvingTestMultipleProofs {
                 .final_state_root()
         );
 
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(
+            proven_height.height,
+            light_client_proof
+                .light_client_proof_output
+                .last_l2_height
+                .to::<u64>()
+        );
+        assert_eq!(
+            proven_height.commitment_index,
+            light_client_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>()
+        );
+
         // Generate another da block so we generate another lcp
         da.generate(1).await?;
 
@@ -342,6 +364,27 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             light_client_proof
                 .light_client_proof_output
                 .last_sequencer_commitment_index
+        );
+
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(
+            proven_height.height,
+            light_client_proof2
+                .light_client_proof_output
+                .last_l2_height
+                .to::<u64>()
+        );
+        assert_eq!(
+            proven_height.commitment_index,
+            light_client_proof2
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>()
         );
 
         // Let's generate a new batch proof
@@ -438,6 +481,27 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_ne!(
             light_client_proof3.light_client_proof_output.l2_state_root,
             light_client_proof.light_client_proof_output.l2_state_root
+        );
+
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(
+            proven_height.height,
+            light_client_proof3
+                .light_client_proof_output
+                .last_l2_height
+                .to::<u64>()
+        );
+        assert_eq!(
+            proven_height.commitment_index,
+            light_client_proof3
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>()
         );
 
         Ok(())

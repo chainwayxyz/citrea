@@ -338,19 +338,21 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
-            &mock_demo_rollup,
-            genesis_config,
-            rollup_config.clone(),
-            da_service,
-            ledger_db.clone(),
-            storage_manager,
-            l2_block_tx,
-            backup_manager,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
+        let (rollup, l1_block_handler, pruner, rpc_module) =
+            CitreaRollupBlueprint::create_full_node(
+                &mock_demo_rollup,
+                genesis_config,
+                rollup_config.clone(),
+                da_service,
+                ledger_db.clone(),
+                storage_manager,
+                l2_block_tx,
+                rpc_module,
+                backup_manager,
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
 
         start_rpc_server(
             rollup_config.rpc.clone(),

@@ -46,7 +46,7 @@ with open(sys.argv[2], "w") as file:
 paths = [
     "../../../../../resources/genesis/bitcoin-regtest/evm.json",
     "../../../../../resources/genesis/mock/evm.json",
-    "../../../../../resources/genesis/mock-dockerized/evm.json",
+    "../../../../../resources/genesis/hive/evm.json",
     "../../../../../resources/test-data/demo-tests/bitcoin-regtest/evm.json",
     "../../../../../resources/test-data/demo-tests/mock/evm.json",
     "../../../../../resources/test-data/integration-tests/evm.json",

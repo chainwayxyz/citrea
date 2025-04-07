@@ -10,7 +10,7 @@ use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_rollup_interface::rpc::{L2BlockStatus, LastVerifiedBatchProofResponse};
+use sov_rollup_interface::rpc::LastVerifiedBatchProofResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use tokio::task::JoinHandle;
@@ -27,7 +27,6 @@ use crate::common::{
 
 mod evm;
 mod l2_block_rule_enforcer;
-mod l2_block_status;
 mod mempool;
 mod proving;
 mod pruning;
@@ -246,20 +245,6 @@ async fn test_all_flow() {
 
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
-    full_node_test_client
-        .ledger_get_l2_block_status(5)
-        .await
-        .unwrap();
-
-    for i in 1..=4 {
-        let status = full_node_test_client
-            .ledger_get_l2_block_status(i)
-            .await
-            .unwrap();
-
-        assert_eq!(status, L2BlockStatus::Proven);
-    }
-
     let balance = full_node_test_client
         .eth_get_balance(addr, None)
         .await
@@ -346,16 +331,6 @@ async fn test_all_flow() {
         .await
         .unwrap();
     assert_eq!(balance, U256::from(5e18 as u128));
-
-    for i in 1..=8 {
-        // print statuses
-        let status = full_node_test_client
-            .ledger_get_l2_block_status(i)
-            .await
-            .unwrap();
-
-        assert_eq!(status, L2BlockStatus::Proven);
-    }
 
     // Synced up to the latest block
     wait_for_l2_block(&full_node_test_client, 8, Some(Duration::from_secs(60))).await;

@@ -27,7 +27,7 @@ use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
     VerifiedBatchProofResponse,
 };
 
@@ -575,16 +575,6 @@ impl TestClient {
             .get_l2_block_by_number(U64::from(num))
             .await
             .unwrap()
-    }
-
-    pub(crate) async fn ledger_get_l2_block_status(
-        &self,
-        l2_block_receipt: u64,
-    ) -> Result<L2BlockStatus, Box<dyn std::error::Error>> {
-        Ok(self
-            .http_client
-            .get_l2_block_status(U64::from(l2_block_receipt))
-            .await?)
     }
 
     pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {

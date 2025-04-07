@@ -6,6 +6,8 @@ pub enum SyncError {
     // Should not retry in this case
     SequencerCommitmentNotFound([u8; 32]),
     SequencerCommitmentWithIndexNotFound(u32),
+    SequencerCommitmentMissingForProof(u32),
+    UnknownL1Hash,
     Error(anyhow::Error),
 }
 
