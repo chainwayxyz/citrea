@@ -2,13 +2,13 @@ use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
+use reth_tasks::TaskManager;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
@@ -307,9 +307,8 @@ async fn test_l2_status_heights() -> Result<()> {
         .await
 }
 
-#[derive(Default)]
 struct OutOfOrderCommitmentsTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -333,12 +332,14 @@ impl TestCase for OutOfOrderCommitmentsTest {
         Some(150)
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager.graceful_shutdown();
         Ok(())
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
@@ -346,7 +347,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            task_executor,
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Sequencer,
@@ -462,15 +463,16 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
 #[tokio::test]
 async fn test_out_of_order_commitments() -> Result<()> {
-    TestCaseRunner::new(OutOfOrderCommitmentsTest::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(OutOfOrderCommitmentsTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct ConflictingCommitmentsTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -494,12 +496,14 @@ impl TestCase for ConflictingCommitmentsTest {
         Some(150)
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager.graceful_shutdown();
         Ok(())
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
@@ -507,7 +511,7 @@ impl TestCase for ConflictingCommitmentsTest {
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            task_executor,
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Sequencer,
@@ -653,15 +657,16 @@ impl TestCase for ConflictingCommitmentsTest {
 
 #[tokio::test]
 async fn test_conflicting_commitments() -> Result<()> {
-    TestCaseRunner::new(ConflictingCommitmentsTest::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(ConflictingCommitmentsTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct OutOfRangeProofTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -688,12 +693,14 @@ impl TestCase for OutOfRangeProofTest {
         Some(150)
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager.graceful_shutdown();
         Ok(())
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
@@ -703,7 +710,7 @@ impl TestCase for OutOfRangeProofTest {
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         let prover_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            task_executor.clone(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -711,7 +718,7 @@ impl TestCase for OutOfRangeProofTest {
         .await;
 
         let sequencer_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            task_executor,
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Sequencer,
@@ -1156,16 +1163,17 @@ impl TestCase for OutOfRangeProofTest {
 
 #[tokio::test]
 async fn test_out_of_range_proof() -> Result<()> {
-    TestCaseRunner::new(OutOfRangeProofTest::default())
-        .set_citrea_path(get_citrea_path())
-        .set_citrea_cli_path(get_citrea_cli_path())
-        .run()
-        .await
+    TestCaseRunner::new(OutOfRangeProofTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .set_citrea_cli_path(get_citrea_cli_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct OverlappingProofRangesTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -1191,12 +1199,14 @@ impl TestCase for OverlappingProofRangesTest {
         Some(170)
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager.graceful_shutdown();
         Ok(())
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
@@ -1204,7 +1214,7 @@ impl TestCase for OverlappingProofRangesTest {
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
         let sequencer_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            task_executor.clone(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Sequencer,
@@ -1212,7 +1222,7 @@ impl TestCase for OverlappingProofRangesTest {
         .await;
 
         let prover_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            task_executor,
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -1640,9 +1650,11 @@ impl TestCase for OverlappingProofRangesTest {
 
 #[tokio::test]
 async fn test_overlapping_proof_ranges() -> Result<()> {
-    TestCaseRunner::new(OverlappingProofRangesTest::default())
-        .set_citrea_path(get_citrea_path())
-        .set_citrea_cli_path(get_citrea_cli_path())
-        .run()
-        .await
+    TestCaseRunner::new(OverlappingProofRangesTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .set_citrea_cli_path(get_citrea_cli_path())
+    .run()
+    .await
 }
