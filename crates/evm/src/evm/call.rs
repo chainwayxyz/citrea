@@ -287,7 +287,7 @@ pub(crate) fn prepare_call_env(
 
 #[cfg(test)]
 mod tests {
-    use reth_primitives::constants::GWEI_TO_WEI;
+    use alloy_consensus::constants::GWEI_TO_WEI;
 
     use super::*;
 

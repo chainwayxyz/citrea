@@ -1,8 +1,9 @@
+use alloy_consensus::constants::KECCAK_EMPTY;
+use alloy_consensus::Transaction;
 use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::Bytes as RethBytes;
-use reth_primitives::{
-    TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, KECCAK_EMPTY,
-};
+use alloy_primitives::{Bytes as RethBytes, PrimitiveSignature};
+use reth_primitives::transaction::SignedTransactionIntoRecoveredExt;
+use reth_primitives::{Recovered, TransactionSigned};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, TransactTo, TxEnv, U256};
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
@@ -45,7 +46,7 @@ impl From<AccountInfo> for reth_primitives::Account {
     }
 }
 
-pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
+pub(crate) fn create_tx_env(tx: &Recovered<TransactionSigned>) -> TxEnv {
     let to = match tx.to() {
         Some(addr) => TransactTo::Call(addr),
         None => TransactTo::Create,
@@ -63,7 +64,7 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
         nonce: Some(tx.nonce()),
         access_list: tx.access_list().cloned().unwrap_or_default().0,
         // EIP-4844 related fields
-        blob_hashes: tx.blob_versioned_hashes().unwrap_or_default(),
+        blob_hashes: tx.blob_versioned_hashes().unwrap_or_default().to_vec(),
         max_fee_per_blob_gas: tx.max_fee_per_blob_gas().map(U256::from),
         authorization_list: tx
             .authorization_list()
@@ -77,9 +78,10 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
 pub enum ConversionError {
     EmptyRawTransactionData,
     FailedToDecodeSignedTransaction,
+    InvalidSignature,
 }
 
-impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
+impl TryFrom<RlpEvmTransaction> for TransactionSigned {
     type Error = ConversionError;
 
     fn try_from(data: RlpEvmTransaction) -> Result<Self, Self::Error> {
@@ -90,45 +92,29 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
 
         // According to this pr: https://github.com/paradigmxyz/reth/pull/11218
         // decode_enveloped -> decode_2718
-        let transaction = TransactionSigned::decode_2718(&mut data.as_ref())
-            .map_err(|_| ConversionError::FailedToDecodeSignedTransaction)?;
-
-        Ok(transaction.into())
+        TransactionSigned::decode_2718(&mut data.as_ref())
+            .map_err(|_| ConversionError::FailedToDecodeSignedTransaction)
     }
 }
 
-impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
+impl TryFrom<RlpEvmTransaction> for Recovered<TransactionSigned> {
     type Error = ConversionError;
 
     fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
-        let tx = TransactionSignedNoHash::try_from(evm_tx)?;
-        let tx: TransactionSigned = tx.into();
+        let tx = TransactionSigned::try_from(evm_tx)?;
         // TODO: Use constant sys tx signature once we update reth
-        let sys_tx_signature = reth_primitives::Signature::new(
-            U256::ZERO,
-            U256::ZERO,
-            alloy_primitives::Parity::Parity(false),
-        );
-        if tx.signature == sys_tx_signature {
-            return Ok(TransactionSignedEcRecovered::from_signed_transaction(
-                tx,
-                SYSTEM_SIGNER,
-            ));
+        let sys_tx_signature = PrimitiveSignature::new(U256::ZERO, U256::ZERO, false);
+        if tx.signature() == &sys_tx_signature {
+            return Ok(Self::new_unchecked(tx, SYSTEM_SIGNER));
         }
-        let tx = tx
-            .into_ecrecovered()
-            .ok_or(ConversionError::FailedToDecodeSignedTransaction)?;
-
-        Ok(tx)
+        tx.try_into_recovered()
+            .map_err(|_| ConversionError::InvalidSignature)
     }
 }
 
-impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
+impl From<TransactionSignedAndRecovered> for Recovered<TransactionSigned> {
     fn from(value: TransactionSignedAndRecovered) -> Self {
-        TransactionSignedEcRecovered::from_signed_transaction(
-            value.signed_transaction,
-            value.signer,
-        )
+        Self::new_unchecked(value.signed_transaction, value.signer)
     }
 }
 
@@ -149,6 +135,6 @@ pub(crate) fn sealed_block_to_block_env(
         blob_excess_gas_and_price: sealed_header
             .excess_blob_gas
             .or(Some(0))
-            .map(BlobExcessGasAndPrice::new),
+            .map(|gas| BlobExcessGasAndPrice::new(gas, true)),
     }
 }

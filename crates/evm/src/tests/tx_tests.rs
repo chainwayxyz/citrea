@@ -7,7 +7,8 @@ use alloy_primitives::{Address, Bytes, TxKind, U256};
 use alloy_rlp::{Decodable, Encodable};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use bytes::BytesMut;
-use reth_primitives::{Signature, TransactionSigned, TransactionSignedEcRecovered};
+use reth_primitives::transaction::SignedTransactionIntoRecoveredExt;
+use reth_primitives::{Recovered, TransactionSigned};
 use revm::primitives::{BlockEnv, TransactTo, TxEnv};
 
 use crate::conversions::sealed_block_to_block_env;
@@ -48,7 +49,6 @@ fn tx_rlp_encoding_test() {
         .unwrap();
     assert_eq!(addr, wallet.address());
 
-    let sig = sig.with_parity_bool(); // drop signature.v so the hash of tx is calculated correctly
     let signed = tx.into_signed(sig);
     let envelope: TxEnvelope = signed.into();
 
@@ -57,7 +57,7 @@ fn tx_rlp_encoding_test() {
 
     let decoded = TransactionSigned::decode(&mut bytes.as_ref()).unwrap();
 
-    let decoded_signed = decoded.try_ecrecovered().unwrap();
+    let decoded_signed = decoded.try_into_recovered().unwrap();
     let decoded_signer = decoded_signed.signer();
     assert_eq!(decoded_signer, wallet.address());
 
@@ -70,15 +70,11 @@ fn tx_conversion() {
     let signer = Address::random();
     let tx = TransactionSignedAndRecovered {
         signer,
-        signed_transaction: reth_primitives::TransactionSigned {
-            hash: Default::default(),
-            signature: Signature::new(Default::default(), Default::default(), Default::default()),
-            transaction: Default::default(),
-        },
+        signed_transaction: Default::default(),
         block_number: 5u64,
     };
 
-    let reth_tx: TransactionSignedEcRecovered = tx.into();
+    let reth_tx: Recovered<TransactionSigned> = tx.into();
 
     assert_eq!(signer, reth_tx.signer());
 }

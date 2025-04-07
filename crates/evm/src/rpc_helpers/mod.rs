@@ -5,13 +5,11 @@ use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::BlockOverrides;
 pub use filter::*;
 pub use log_utils::*;
-pub use responses::*;
 use reth_rpc_eth_types::{EthApiError, EthResult};
 use revm::Database;
 
 mod filter;
 mod log_utils;
-mod responses;
 mod tracing_utils;
 
 #[cfg(feature = "native")]

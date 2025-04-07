@@ -1831,7 +1831,7 @@ impl TestCase for ChainProofByCommitmentIndex {
             .unwrap();
 
         let bp = create_serialized_fake_receipt_batch_proof(
-            genesis_state_root,
+            fake_sequencer_commitment.merkle_root, // using the roots as state roots in this test
             300,
             method_ids[0].method_id.into(),
             None,

@@ -5,9 +5,9 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy_primitives::Address;
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;

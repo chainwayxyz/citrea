@@ -2,10 +2,10 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy_primitives::{Address, Bytes, B256, U256};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag};
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use tokio::time::sleep;
 
 use super::init_test_rollup;
@@ -69,7 +69,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert!(invalid_block_balance
         .to_string()
-        .contains("block not found: number 0x2d2"));
+        .contains("block not found: 0x2d2"));
 
     let invalid_block_balance = seq_test_client
         .eth_get_balance(addr, Some(BlockId::Hash(invalid_block_hash.into())))

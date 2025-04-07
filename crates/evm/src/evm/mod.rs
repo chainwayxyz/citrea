@@ -119,11 +119,12 @@ pub struct EvmChainConfig {
 #[cfg(all(test, feature = "native"))]
 impl Default for EvmChainConfig {
     fn default() -> EvmChainConfig {
+        use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
         EvmChainConfig {
             chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
             coinbase: Address::ZERO,
-            block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             base_fee_params: BaseFeeParams::ethereum(),
         }
     }

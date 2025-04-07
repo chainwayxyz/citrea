@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
 use alloy::hex::FromHex;
-use alloy_eips::BlockId;
+use alloy_consensus::TxReceipt;
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
+use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use rand::thread_rng;
-use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::BlockNumberOrTag;
 use revm::primitives::{Eip7702Bytecode, KECCAK_EMPTY, U256};
 use revm::Database;
 use secp256k1::SecretKey;
@@ -20,7 +20,7 @@ use sov_modules_api::{
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
-use crate::evm::primitive_types::Receipt;
+use crate::evm::primitive_types::CitreaReceiptWithBloom;
 use crate::handler::{BROTLI_COMPRESSION_PERCENTAGE, L1_FEE_OVERHEAD};
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
@@ -122,46 +122,50 @@ fn call_multiple_test() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 132943,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 132943,
                 log_index_start: 0,
                 l1_diff_size: 36
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 176673,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 43730,
                 log_index_start: 0,
                 l1_diff_size: 28
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 203303,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 26630,
                 log_index_start: 0,
                 l1_diff_size: 28
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 229933,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 26630,
                 log_index_start: 0,
                 l1_diff_size: 28
@@ -230,24 +234,26 @@ fn call_test() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 132943,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 132943,
                 log_index_start: 0,
                 l1_diff_size: 36
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 176673,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 43730,
                 log_index_start: 0,
                 l1_diff_size: 28
@@ -439,7 +445,7 @@ fn self_destruct_test() {
         .collect::<Vec<_>>();
 
     // the tx should be a success
-    assert!(receipts[0].receipt.success);
+    assert!(receipts[0].receipt.status());
 
     // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
     let contract_info = evm
@@ -629,7 +635,7 @@ fn test_block_hash_in_evm() {
 fn test_block_gas_limit() {
     let (config, dev_signer, contract_addr) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
-        Some(ETHEREUM_BLOCK_GAS_LIMIT),
+        Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
 
     let (mut evm, working_set, _spec_id) = get_evm(&config);
@@ -748,7 +754,7 @@ fn test_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT);
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT_30M);
     assert_eq!(block.header.gas_used, 29997634);
     assert_eq!(block.transactions.hashes().len(), 1130);
 }
@@ -910,13 +916,14 @@ fn test_l1_fee_success() {
             evm.receipts
                 .iter(&mut working_set.accessory_state())
                 .collect::<Vec<_>>(),
-            [Receipt {
+            [CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 114235,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 114235,
                 log_index_start: 0,
                 l1_diff_size: 36
@@ -1083,24 +1090,26 @@ fn test_l1_fee_halt() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 106947,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 106947,
                 log_index_start: 0,
                 l1_diff_size: 36
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: false,
                     cumulative_gas_used: 1106947,
                     logs: vec![]
-                },
+                }
+                .into(),
                 gas_used: 1000000,
                 log_index_start: 0,
                 l1_diff_size: 7
@@ -1396,7 +1405,7 @@ fn test_eip7702_tx() {
             .last()
             .unwrap()
             .receipt
-            .logs
+            .logs()
             .len(),
         2
     );
@@ -1465,7 +1474,7 @@ fn test_eip7702_tx() {
             .last()
             .unwrap()
             .receipt
-            .logs
+            .logs()
             .len(),
         2
     );

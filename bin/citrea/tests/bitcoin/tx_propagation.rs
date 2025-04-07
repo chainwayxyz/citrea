@@ -1,14 +1,15 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use alloy::network::TransactionResponse;
 use alloy_primitives::{Address, TxHash};
+use alloy_rpc_types::BlockNumberOrTag;
 use async_trait::async_trait;
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
-use reth_primitives::BlockNumberOrTag;
 
 use super::get_citrea_path;
 use crate::common::make_test_client;
@@ -143,8 +144,8 @@ impl TestCase for GetTransactionByHashTest {
         let tx2 = tx2.unwrap();
         assert!(tx1.block_hash.is_none());
         assert!(tx2.block_hash.is_none());
-        assert_eq!(tx1.hash, *pending_tx1.tx_hash());
-        assert_eq!(tx2.hash, *pending_tx2.tx_hash());
+        assert_eq!(tx1.tx_hash(), *pending_tx1.tx_hash());
+        assert_eq!(tx2.tx_hash(), *pending_tx2.tx_hash());
 
         // Sequencer should also be able to get them
         // Should get just by checking the pool
@@ -161,8 +162,8 @@ impl TestCase for GetTransactionByHashTest {
         let tx2 = tx2.unwrap();
         assert!(tx1.block_hash.is_none());
         assert!(tx2.block_hash.is_none());
-        assert_eq!(tx1.hash, *pending_tx1.tx_hash());
-        assert_eq!(tx2.hash, *pending_tx2.tx_hash());
+        assert_eq!(tx1.tx_hash(), *pending_tx1.tx_hash());
+        assert_eq!(tx2.tx_hash(), *pending_tx2.tx_hash());
 
         // Include transactions in a block
         sequencer.client.send_publish_batch_request().await?;
