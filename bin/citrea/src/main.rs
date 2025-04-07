@@ -410,20 +410,18 @@ pub async fn wait_shutdown(task_manager: TaskManager) {
         signal(SignalKind::interrupt()).expect("Failed to create interrupt signal");
 
     let wait_duration = Duration::from_secs(5);
-    loop {
-        tokio::select! {
-            _ = signal::ctrl_c() => {
-                task_manager.graceful_shutdown_with_timeout(wait_duration);
-                return;
-            }
-            _ = term_signal.recv() => {
-                task_manager.graceful_shutdown_with_timeout(wait_duration);
-                return;
-            },
-            _ = interrupt_signal.recv() => {
-                task_manager.graceful_shutdown_with_timeout(wait_duration);
-                return;
-            }
+    tokio::select! {
+        _ = signal::ctrl_c() => {
+            task_manager.graceful_shutdown_with_timeout(wait_duration);
+            return;
+        }
+        _ = term_signal.recv() => {
+            task_manager.graceful_shutdown_with_timeout(wait_duration);
+            return;
+        },
+        _ = interrupt_signal.recv() => {
+            task_manager.graceful_shutdown_with_timeout(wait_duration);
+            return;
         }
     }
 }
