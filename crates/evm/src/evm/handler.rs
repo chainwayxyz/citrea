@@ -34,7 +34,7 @@ use tracing::instrument;
 
 use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
-use crate::{citrea_spec_id_to_evm_spec_id, BASE_FEE_VAULT, L1_FEE_VAULT};
+use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 /// 4 bytes of prefix ("E/i/") + 20 bytes of address = 24 bytes
 const ACCOUNT_IDX_KEY_SIZE: usize = 24;
