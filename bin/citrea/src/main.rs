@@ -19,6 +19,7 @@ use citrea_storage_ops::pruning::types::StorageNodeType;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
+use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
@@ -33,6 +34,8 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
+use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
 use tracing::{debug, error, info, instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
@@ -394,7 +397,32 @@ where
         }
     }
 
-    task_manager.await;
+    wait_shutdown(task_manager).await;
 
     Ok(())
+}
+
+/// Wait for a termination signal and cancel all running tasks
+pub async fn wait_shutdown(task_manager: TaskManager) {
+    let mut term_signal =
+        signal(SignalKind::terminate()).expect("Failed to create termination signal");
+    let mut interrupt_signal =
+        signal(SignalKind::interrupt()).expect("Failed to create interrupt signal");
+
+    loop {
+        tokio::select! {
+            _ = signal::ctrl_c() => {
+                task_manager.graceful_shutdown();
+                return;
+            }
+            _ = term_signal.recv() => {
+                task_manager.graceful_shutdown();
+                return;
+            },
+            _ = interrupt_signal.recv() => {
+                task_manager.graceful_shutdown();
+                return;
+            }
+        }
+    }
 }
