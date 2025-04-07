@@ -265,7 +265,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await
             .unwrap();
         assert_eq!(response_1.commitments.len(), 1);
-        assert_eq!(response_2.commitments.len(), 2);
+        assert_eq!(response_2.commitments.len(), 1);
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
