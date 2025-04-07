@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use l2_blocks::rollback_l2_blocks;
 use slots::{rollback_light_client_slots, rollback_slots};
+use sov_db::schema::tables::ProverLastScannedSlot;
+use sov_db::schema::types::SlotNumber;
 use tracing::debug;
 
 use crate::log_result_or_error;
@@ -43,6 +45,7 @@ pub(crate) fn rollback_ledger_db(
             log_result_or_error!("slots", rollback_slots(node_type, &ledger_db, target_l1,));
         }
     }
+    let _ = ledger_db.put::<ProverLastScannedSlot>(&(), &SlotNumber(target_l1));
 
     let _ = ledger_db.flush();
 }

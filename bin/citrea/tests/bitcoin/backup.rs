@@ -26,7 +26,7 @@ impl TestCase for BackupRestoreTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
 
-        let min_l2_blocks = sequencer.min_l2_blocks_per_commitment();
+        let min_l2_blocks = sequencer.max_l2_blocks_per_commitment();
         let sequencer_base_dir = &sequencer.config.base.dir;
 
         for _ in 0..min_l2_blocks {

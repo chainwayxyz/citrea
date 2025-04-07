@@ -1,7 +1,8 @@
 use alloy_primitives::U256;
 #[cfg(test)]
-use revm::db::{CacheDB, EmptyDB};
-use revm::primitives::{Address, Bytecode, B256};
+use revm::database::{CacheDB, EmptyDB};
+use revm::primitives::{Address, B256};
+use revm::state::Bytecode;
 use sov_modules_api::StateMapAccessor;
 
 use super::db::EvmDb;
@@ -14,7 +15,7 @@ pub(crate) trait InitEvmDb {
     fn insert_storage(&mut self, address: Address, index: U256, value: U256);
 }
 
-impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
+impl<C: sov_modules_api::Context> InitEvmDb for EvmDb<'_, C> {
     fn insert_account_info(&mut self, sender: Address, info: AccountInfo) {
         self.evm.account_set(&sender, &info, self.working_set);
     }
@@ -42,7 +43,7 @@ impl InitEvmDb for CacheDB<EmptyDB> {
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytecode) {
-        self.contracts.insert(code_hash, code);
+        self.cache.contracts.insert(code_hash, code);
     }
 
     fn insert_storage(&mut self, address: Address, index: U256, value: U256) {

@@ -1,14 +1,17 @@
 use std::collections::BTreeMap;
 
+// TODO: right now this is fold_map both in zk and native
+// we should check if it increases cycle counts
+use alloy_primitives::map::HashMap;
 use alloy_primitives::Address;
-use revm::primitives::{Account, AccountInfo, HashMap};
+use revm::state::{Account, AccountInfo};
 use revm::DatabaseCommit;
 use sov_modules_api::StateMapAccessor;
 
 use super::db::EvmDb;
 use super::AccountInfo as DbAccountInfo;
 
-impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
+impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
     fn commit(&mut self, changes: HashMap<Address, Account>) {
         // DO NOT REMOVE THIS LINE UNTIL REVM HAS BTREEMAP VERSION. WE MUST ENFORCE THE SAME ORDER.
         let changes = changes.into_iter().collect::<BTreeMap<_, _>>();

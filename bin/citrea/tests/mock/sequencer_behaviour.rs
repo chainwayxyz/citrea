@@ -7,12 +7,12 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::Address;
 use alloy_rlp::{BytesMut, Encodable};
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::{SequencerConfig, SequencerMempoolConfig};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
@@ -48,7 +48,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 1000,
+        max_l2_blocks_per_commitment: 1000,
         da_update_interval_ms: 500,
         block_production_interval_ms: 500,
         ..Default::default()
@@ -185,10 +185,10 @@ async fn test_sequencer_commitment_threshold() {
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     // Put a large number for commitment threshold
-    let min_l2_blocks_per_commitment = 1_000_000;
+    let max_l2_blocks_per_commitment = 1_000_000;
 
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment,
+        max_l2_blocks_per_commitment,
         mempool_conf: SequencerMempoolConfig {
             max_account_slots: 4000,
             ..Default::default()
@@ -405,7 +405,7 @@ async fn test_gas_limit_too_high() {
 
     // Increase max account slots to not stuck as spammer
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 1000,
+        max_l2_blocks_per_commitment: 1000,
         deposit_mempool_fetch_limit: 100,
         mempool_conf: SequencerMempoolConfig {
             max_account_slots: tx_count * 2,
@@ -547,7 +547,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 1000,
+        max_l2_blocks_per_commitment: 1000,
         mempool_conf: SequencerMempoolConfig {
             max_account_slots: 100,
             ..Default::default()

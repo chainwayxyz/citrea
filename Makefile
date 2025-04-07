@@ -1,5 +1,5 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
-EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
+EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
@@ -82,9 +82,11 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	$(MAKE) install-sp1
 
 install-risc0:
-	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall --no-confirm cargo-risczero@1.2.5
-	cargo risczero install --version r0.1.81.0
+	curl -L https://risczero.com/install | bash && \
+	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
+	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
+	rzup install && \
+	rzup install rust 1.85.0
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash

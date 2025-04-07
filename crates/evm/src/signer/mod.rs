@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
+use alloy_consensus::SignableTransaction;
+use alloy_eips::eip7702::SignedAuthorization;
 use alloy_primitives::{Address, B256};
+use alloy_rpc_types::Authorization;
 use reth_primitives::{sign_message, Transaction, TransactionSigned};
 use reth_rpc_eth_types::SignError;
 use secp256k1::{PublicKey, SecretKey};
@@ -38,9 +41,24 @@ impl DevSigner {
         let signature = sign_message(B256::from_slice(signer.as_ref()), tx_signature_hash)
             .map_err(|_| SignError::CouldNotSign)?;
 
-        Ok(TransactionSigned::from_transaction_and_signature(
-            transaction,
-            signature,
-        ))
+        Ok(TransactionSigned::new_unhashed(transaction, signature))
+    }
+
+    pub fn sign_authorization(
+        &self,
+        authorization: Authorization,
+        address: Address,
+    ) -> Result<SignedAuthorization, SignError> {
+        let signer = self.signers.get(&address).ok_or(SignError::NoAccount)?;
+
+        let signature = sign_message(
+            B256::from_slice(signer.as_ref()),
+            authorization.signature_hash(),
+        )
+        .map_err(|_| SignError::CouldNotSign)?;
+
+        let signed = authorization.into_signed(signature);
+
+        Ok(signed)
     }
 }

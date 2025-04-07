@@ -7,8 +7,8 @@ use sov_rollup_interface::rpc::{
 };
 
 use crate::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2BlockStatus, SlotByHash,
-    VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2BlockStatus, SequencerCommitmentByIndex,
+    SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use crate::schema::types::{L2BlockNumber, SlotNumber};
 
@@ -143,7 +143,7 @@ impl LedgerRpcProvider for LedgerDB {
             Some(commitments) => Ok(Some(
                 commitments
                     .into_iter()
-                    .map(|commitment| sequencer_commitment_to_response(commitment, height))
+                    .map(sequencer_commitment_to_response)
                     .collect(),
             )),
             None => Ok(None),
@@ -223,6 +223,16 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_head_l2_block_height(&self) -> Result<u64, anyhow::Error> {
         let head_l2_height = Self::last_version_written(&self.db, L2BlockByNumber)?.unwrap_or(0);
         Ok(head_l2_height)
+    }
+
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: u32,
+    ) -> Result<Option<SequencerCommitmentResponse>, anyhow::Error> {
+        self.db
+            .get::<SequencerCommitmentByIndex>(&index)?
+            .map(|commitment| Ok(sequencer_commitment_to_response(commitment)))
+            .transpose()
     }
 }
 

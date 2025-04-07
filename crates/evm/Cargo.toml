@@ -22,6 +22,7 @@ citrea-primitives = { path = "../primitives" }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+once_cell = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true }
@@ -34,13 +35,14 @@ alloy-network = { workspace = true, optional = true }
 alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }
 alloy-rpc-types = { workspace = true, optional = true }
-alloy-rpc-types-eth = { version = "0.4.2", optional = true }
+alloy-rpc-types-eth = { workspace = true, optional = true }
 alloy-rpc-types-trace = { workspace = true, optional = true }
 alloy-serde = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true }
 itertools = { workspace = true, optional = true }
-reth-primitives = { workspace = true, default-features = false, features = ["serde-bincode-compat"] }
-reth-primitives-traits = { workspace = true, default-features = false, features = ["serde-bincode-compat"] }
+k256 = { workspace = true, features = ["schnorr"] }
+reth-primitives = { workspace = true, default-features = false }
+reth-primitives-traits = { workspace = true, default-features = false }
 reth-provider = { workspace = true, optional = true }
 reth-rpc = { workspace = true, optional = true }
 reth-rpc-eth-api = { workspace = true, optional = true }
@@ -66,7 +68,7 @@ reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
 reth-errors = { workspace = true }
 reth-rpc-eth-types = { workspace = true }
-revm = { workspace = true, default-features = false, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
+rstest = "0.22.0"
 secp256k1 = { workspace = true }
 sha2 = { workspace = true }
 sov-keys = { path = "../sovereign-sdk/module-system/sov-keys" }

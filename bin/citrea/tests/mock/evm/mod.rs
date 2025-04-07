@@ -3,16 +3,23 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
+use alloy::hex::FromHex;
+use alloy::network::TransactionResponse;
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_rpc_types::EIP1186AccountProofResponse;
+use alloy_rpc_types::{
+    Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
+};
 use citrea_common::SequencerConfig;
-use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
+use citrea_evm::smart_contracts::{
+    CallerContract, LogsContract, SimpleStorageContract, TestContract,
+};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use sha2::Digest;
-use sov_rollup_interface::{Network, CITREA_VERSION};
+use sov_rollup_interface::CITREA_VERSION;
 use sov_state::KeyHash;
 use tokio::time::sleep;
 
@@ -22,12 +29,13 @@ use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
 use crate::common::{
-    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
 };
 
 mod archival_state;
 mod fee;
 mod gas_price;
+mod precompiles;
 mod subscription;
 mod tracing;
 
@@ -108,7 +116,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
     let rollup_task = tokio::spawn(async {
@@ -195,7 +203,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 123456,
+        max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
     let seq_task = tokio::spawn(async {
@@ -332,9 +340,15 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
 
     for storage_proof in &acc_proof.storage_proof {
         let kaddr = {
+            // See `Evm::get_storage_address` for how the storage adress is calculated
             let mut hasher: sha2::Sha256 =
                 sha2::Digest::new_with_prefix(account_address.as_slice());
-            hasher.update(storage_proof.key.0.as_slice());
+            #[allow(clippy::unnecessary_fallible_conversions)]
+            hasher.update(
+                U256::try_from(storage_proof.key.as_b256())
+                    .unwrap()
+                    .as_le_slice(),
+            );
             let arr = hasher.finalize();
             U256::from_le_slice(&arr)
         };
@@ -361,7 +375,8 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
     }
 }
 
-async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     // citrea::initialize_logging(::tracing::Level::INFO);
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -377,7 +392,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 123456,
+        max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
     let seq_task = tokio::spawn(async move {
@@ -388,7 +403,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
             None,
             rollup_config,
             Some(sequencer_config),
-            Some(network),
+            None,
             false,
         )
         .await;
@@ -451,7 +466,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_latest, contract_address);
         for storage_proof in &acc_proof_latest.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -486,7 +501,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_1, contract_address);
         for storage_proof in &acc_proof_1.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -500,7 +515,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         assert_ne!(acc_proof_1, acc_proof_2);
         check_proof(&acc_proof_2, contract_address);
         for storage_proof in &acc_proof_2.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -515,11 +530,6 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
 
     seq_task.abort();
     Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_eth_get_proof_devnet() -> Result<(), Box<dyn std::error::Error>> {
-    test_eth_get_proof_on(Network::Devnet).await
 }
 
 #[allow(clippy::borrowed_box)]
@@ -565,13 +575,16 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 
     assert_eq!(logs.len(), 1);
     assert_eq!(
-        hex::encode(logs[0].topics[0]).to_string(),
+        hex::encode(logs[0].topics()[0]).to_string(),
         "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
     );
 
     let sepolia_log_data = "\"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\"".to_string();
     let len = sepolia_log_data.len();
-    assert_eq!(sepolia_log_data[1..len - 1], logs[0].data.to_string());
+    assert_eq!(
+        sepolia_log_data[1..len - 1],
+        logs[0].data().data.to_string()
+    );
 
     // Deploy another contract
     let contract_address2 = {
@@ -619,8 +632,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let logs = client.eth_get_logs(address_and_range_filter).await;
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
-    assert_eq!(logs[0].address, contract_address);
-    assert_eq!(logs[1].address, contract_address);
+    assert_eq!(logs[0].address(), contract_address);
+    assert_eq!(logs[1].address(), contract_address);
 
     Ok(())
 }
@@ -697,7 +710,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_hash = client
         .eth_get_tx_by_block_hash_and_index(second_block.header.hash, U256::from(0))
         .await;
-    assert_eq!(tx_by_hash.hash, tx_hash);
+    assert_eq!(tx_by_hash.tx_hash(), tx_hash);
 
     // Assert getTransactionByBlockNumberAndIndex
     let tx_by_number = client
@@ -706,8 +719,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_number_tag = client
         .eth_get_tx_by_block_number_and_index(BlockNumberOrTag::Latest, U256::from(0))
         .await;
-    assert_eq!(tx_by_number.hash, tx_hash);
-    assert_eq!(tx_by_number_tag.hash, tx_hash);
+    assert_eq!(tx_by_number.tx_hash(), tx_hash);
+    assert_eq!(tx_by_number_tag.tx_hash(), tx_hash);
 
     let get_arg: U256 = client
         .contract_call(contract_address, contract.get_call_data(), None)
@@ -841,4 +854,271 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
     assert_eq!(latest_block, earliest_block);
     assert_eq!(latest_block.header.number, 0);
     test_client
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(::tracing::Level::INFO);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
+        ..Default::default()
+    };
+    let rollup_task = tokio::spawn(async {
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            None,
+            rollup_config,
+            Some(sequencer_config),
+            None,
+            false,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+    let test_client = init_test_rollup(port).await;
+
+    test_client.send_publish_batch_request().await;
+
+    // in a single block, deploy simple storage contract, make eip7702 tx that delegates to the contract
+    // then call the contract to set a value and get it back over eip7702 tx
+
+    let contract = SimpleStorageContract::default();
+
+    let _deploy_tx = test_client
+        .deploy_contract(contract.byte_code(), None)
+        .await
+        .unwrap();
+
+    let contract_address = test_client.from_addr.create(0);
+
+    // random signer for authorization list
+    let delegating_signer = PrivateKeySigner::random();
+
+    let authorization = Authorization {
+        chain_id: U256::from(test_client.chain_id),
+        address: contract_address,
+        nonce: 0,
+    };
+
+    let signature = delegating_signer.sign_hash_sync(&authorization.signature_hash())?;
+    let signed_authorization = authorization.into_signed(signature);
+
+    let _set_code_tx = test_client
+        .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_authorization])
+        .await
+        .unwrap();
+
+    test_client.send_publish_batch_request().await;
+
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(receipts.len(), 2);
+
+    // all successful
+    assert!(receipts.iter().all(|r| r.status()));
+
+    // if we don't do this in a seperate block, gas estimation is off since the delegation is not done yet
+    // this also shows estimate gas works
+    let _set_storage_tx = test_client
+        .contract_transaction(
+            delegating_signer.address(),
+            contract.set_call_data(11),
+            None,
+        )
+        .await;
+
+    test_client.send_publish_batch_request().await;
+
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(receipts.len(), 1);
+
+    // all successful
+    assert!(receipts.iter().all(|r| r.status()));
+
+    assert_eq!(
+        test_client
+            .eth_get_code(delegating_signer.address(), None)
+            .await
+            .unwrap(),
+        Into::<Bytes>::into(
+            [
+                Bytes::from_hex("0xef0100").unwrap(),
+                Bytes::from(contract_address.to_vec())
+            ]
+            .concat()
+        )
+    );
+
+    // this also shows eth_call works
+    let get_storage_tx: U256 = test_client
+        .contract_call(delegating_signer.address(), contract.get_call_data(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(get_storage_tx, U256::from(11));
+
+    // now let's try a failing auth
+    // followed by a clear delegation tx
+    {
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: contract_address,
+            nonce: 0, // wrong nonce
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth_wrong_nonce = auth.into_signed(signature);
+
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: Address::ZERO,
+            nonce: 1,
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth_clear_delegation = auth.into_signed(signature);
+
+        let _ = test_client
+            .send_eip7702_transaction(
+                Address::ZERO,
+                vec![],
+                None,
+                vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        assert_eq!(
+            test_client
+                .eth_get_transaction_count(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            2
+        );
+
+        assert_eq!(
+            test_client
+                .eth_get_code(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            Bytes::new()
+        );
+    }
+
+    // combine access list with eip7702 tx
+    {
+        // random signer for authorization list
+        let new_signer = PrivateKeySigner::random();
+
+        let authorization = Authorization {
+            chain_id: U256::ZERO, // let's also show chain id 0 works
+            address: contract_address,
+            nonce: 0,
+        };
+
+        let signature = new_signer.sign_hash_sync(&authorization.signature_hash())?;
+        let signed_authorization = authorization.into_signed(signature);
+
+        let _set_code_tx = test_client
+            .send_eip7702_transaction(
+                new_signer.address(),
+                SimpleStorageContract::default().set_call_data(100),
+                None,
+                vec![signed_authorization],
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        assert_eq!(
+            test_client
+                .contract_call::<U256>(new_signer.address(), contract.get_call_data(), None)
+                .await
+                .unwrap(),
+            U256::from(100)
+        );
+
+        assert_eq!(
+            test_client
+                .eth_get_code(new_signer.address(), None)
+                .await
+                .unwrap(),
+            Into::<Bytes>::into(
+                [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(contract_address.to_vec())
+                ]
+                .concat()
+            )
+        );
+
+        // deploy caller contract
+        let caller_contract = CallerContract::default();
+
+        let deploy_tx = test_client
+            .deploy_contract(caller_contract.byte_code(), None)
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        let caller_contract_address = deploy_tx
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        let tx_req = TransactionRequest::default()
+            .from(test_client.from_addr)
+            .to(caller_contract_address)
+            .input(
+                caller_contract
+                    .call_set_call_data(new_signer.address(), 500)
+                    .into(),
+            );
+
+        let gas = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        let access_list = test_client
+            .eth_create_access_list(tx_req.clone())
+            .await
+            .unwrap()
+            .access_list;
+
+        let tx_req = tx_req.access_list(access_list);
+
+        let gas_with_access_list = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        assert!(gas > gas_with_access_list);
+    }
+
+    rollup_task.abort();
+    Ok(())
 }

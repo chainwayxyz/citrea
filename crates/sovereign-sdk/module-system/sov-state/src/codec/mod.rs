@@ -38,6 +38,7 @@ mod tests {
     proptest::proptest! {
         #[test]
         fn test_borsh_slice_encode_alike(vec in arb_vec_i32()) {
+            #[allow(non_local_definitions)]
             impl EncodeKeyLike<[i32], Vec<i32>> for BorshCodec
             {
                 fn encode_key_like(&self, borrowed: &[i32]) -> Vec<u8> {
