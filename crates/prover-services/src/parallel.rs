@@ -130,7 +130,7 @@ where
         tokio::spawn(async move {
             let proof = proof_rx.await;
 
-            *ongoing_proof_count.blocking_lock() -= 1;
+            *ongoing_proof_count.lock().await -= 1;
 
             match proof {
                 Ok(proof) => {
