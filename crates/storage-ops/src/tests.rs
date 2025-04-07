@@ -33,7 +33,7 @@ async fn test_pruning_simple_run() {
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
     {
         let (sender, receiver) = broadcast::channel(1);
-        let cancellation_token = CancellationToken::new();
+        let mcancellation_token = CancellationToken::new();
 
         let native_db = NativeDB::setup_schema_db(&rocksdb_config).unwrap();
         let state_db = StateDB::setup_schema_db(&rocksdb_config).unwrap();

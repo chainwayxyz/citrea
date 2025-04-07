@@ -1535,6 +1535,7 @@ dependencies = [
  "pin-project",
  "rand 0.8.5",
  "reqwest",
+ "reth-tasks",
  "secp256k1",
  "serde",
  "serde_json",
@@ -1542,7 +1543,6 @@ dependencies = [
  "sov-rollup-interface",
  "thiserror 2.0.12",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -2216,6 +2216,7 @@ dependencies = [
  "regex",
  "reqwest",
  "reth-primitives",
+ "reth-tasks",
  "reth-transaction-pool",
  "revm",
  "risc0-binfmt",
@@ -2240,7 +2241,6 @@ dependencies = [
  "sp1-helper",
  "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
  "tracing-subscriber 0.3.19",
 ]
@@ -2269,6 +2269,7 @@ dependencies = [
  "prover-services",
  "rand 0.8.5",
  "rayon",
+ "reth-tasks",
  "rs_merkle",
  "serde",
  "short-header-proof-provider",
@@ -2282,7 +2283,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
- "tokio-util",
  "tower 0.4.13",
  "tracing",
  "tracing-subscriber 0.3.19",
@@ -2324,6 +2324,7 @@ dependencies = [
  "lru 0.13.0",
  "metrics 0.23.0",
  "reth-primitives",
+ "reth-tasks",
  "rocksdb",
  "rs_merkle",
  "serde",
@@ -2340,7 +2341,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tokio",
- "tokio-util",
  "toml",
  "tower 0.4.13",
  "tower-http",
@@ -2448,6 +2448,7 @@ dependencies = [
  "metrics 0.23.0",
  "metrics-derive",
  "once_cell",
+ "reth-tasks",
  "rs_merkle",
  "sov-db",
  "sov-keys",
@@ -2458,7 +2459,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -2483,6 +2483,7 @@ dependencies = [
  "once_cell",
  "prover-services",
  "rand 0.8.5",
+ "reth-tasks",
  "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -2493,7 +2494,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -2590,7 +2590,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
- "tokio-util",
  "tracing",
  "tracing-subscriber 0.3.19",
 ]
@@ -2623,6 +2622,7 @@ dependencies = [
  "futures",
  "hex",
  "jmt",
+ "reth-tasks",
  "serde",
  "sov-db",
  "sov-prover-storage-manager",
@@ -2631,7 +2631,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -9715,6 +9714,7 @@ dependencies = [
  "derive_more 1.0.0",
  "jsonrpsee",
  "prover-services",
+ "reth-tasks",
  "sov-db",
  "sov-ledger-rpc",
  "sov-modules-api",
@@ -10269,8 +10269,6 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
- "futures-util",
- "hashbrown 0.14.5",
  "pin-project-lite",
  "slab",
  "tokio",

@@ -23,6 +23,7 @@ use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use metrics::histogram;
+use reth_tasks::shutdown::Shutdown;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
@@ -30,7 +31,6 @@ use sov_rollup_interface::zk::Proof;
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::fee::{BumpFeeMethod, FeeService};
@@ -205,14 +205,14 @@ impl BitcoinService {
     pub async fn run_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
-        token: CancellationToken,
+        mut shutdown: Shutdown,
     ) {
         trace!("BitcoinDA queue is initialized. Waiting for the first request...");
 
         loop {
             select! {
                 biased;
-                _ = token.cancelled() => {
+                _ = &mut shutdown => {
                     debug!("DA queue service received shutdown signal");
                     break;
                 }

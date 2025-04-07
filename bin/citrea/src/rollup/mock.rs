@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_common::FullNodeConfig;
 use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
@@ -13,6 +12,7 @@ use citrea_risc0_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier};
 use sov_modules_api::default_context::DefaultContext;
@@ -81,7 +81,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         _require_wallet_check: bool,
-        _task_manager: &mut TaskManager<()>,
+        _task_manager: TaskExecutor,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         Ok(Arc::new(MockDaService::new(
             rollup_config.da.sender_address.clone(),

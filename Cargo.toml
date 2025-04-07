@@ -111,7 +111,6 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "fm
 toml = "0.8.0"
 tempfile = "3.15"
 tokio = { version = "1.43", features = ["full"] }
-tokio-util = { version = "0.7.13", features = ["rt"] }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 

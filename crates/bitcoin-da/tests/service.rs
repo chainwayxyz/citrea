@@ -39,7 +39,7 @@ impl TestCase for BitcoinServiceTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let mut task_manager = TaskManager::default();
+        let mut task_manager = TaskManager::current();
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
         let service = get_default_service(&mut task_manager, &da_node.config).await;
