@@ -413,15 +413,12 @@ pub async fn wait_shutdown(task_manager: TaskManager) {
     tokio::select! {
         _ = signal::ctrl_c() => {
             task_manager.graceful_shutdown_with_timeout(wait_duration);
-            return;
         }
         _ = term_signal.recv() => {
             task_manager.graceful_shutdown_with_timeout(wait_duration);
-            return;
         },
         _ = interrupt_signal.recv() => {
             task_manager.graceful_shutdown_with_timeout(wait_duration);
-            return;
         }
     }
 }
