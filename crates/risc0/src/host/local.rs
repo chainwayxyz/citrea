@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-use anyhow::Context;
+use anyhow::anyhow;
 use metrics::histogram;
 use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
@@ -117,7 +117,7 @@ impl LocalProver {
         let prover = ExternalProver::new("ipc", self.r0vm_path.as_path());
         let ProveInfo { receipt, stats, .. } = prover
             .prove_with_opts(env, &elf, &prover_opts)
-            .context("Local risc0 proving failed")?;
+            .map_err(|e| anyhow!("Local risc0 proving failed: {}", e))?;
 
         tracing::info!("Execution Stats: {:?}", stats);
         histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
