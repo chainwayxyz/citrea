@@ -2,9 +2,9 @@
 use std::str::FromStr;
 
 use alloy_primitives::Address;
+use alloy_rpc_types::{BlockNumberOrTag, TransactionTrait};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::SYSTEM_SIGNER;
-use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::services::da::DaService;
 
@@ -74,10 +74,10 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
             let init_tx = &block_transactions[0];
             let set_tx = &block_transactions[1];
 
-            assert_eq!(init_tx.from, system_signer_address);
-            assert_eq!(init_tx.to.unwrap(), system_contract_address);
+            assert_eq!(init_tx.inner.signer(), system_signer_address);
+            assert_eq!(init_tx.to().unwrap(), system_contract_address);
             assert_eq!(
-                init_tx.input[..],
+                init_tx.input()[..],
                 *hex::decode(
                     "1f5783330000000000000000000000000000000000000000000000000000000000000003"
                 )
@@ -85,10 +85,10 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
                 .as_slice()
             );
 
-            assert_eq!(set_tx.from, system_signer_address);
-            assert_eq!(set_tx.to.unwrap(), system_contract_address);
+            assert_eq!(set_tx.inner.signer(), system_signer_address);
+            assert_eq!(set_tx.to().unwrap(), system_contract_address);
             assert_eq!(
-                set_tx.input[0..4],
+                set_tx.input()[0..4],
                 *hex::decode("d5ba11fa").unwrap().as_slice()
             );
         } else {
@@ -97,9 +97,12 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
 
             let tx = &block_transactions[0];
 
-            assert_eq!(tx.from, system_signer_address);
-            assert_eq!(tx.to.unwrap(), system_contract_address);
-            assert_eq!(tx.input[0..4], *hex::decode("d5ba11fa").unwrap().as_slice());
+            assert_eq!(tx.inner.signer(), system_signer_address);
+            assert_eq!(tx.to().unwrap(), system_contract_address);
+            assert_eq!(
+                tx.input()[0..4],
+                *hex::decode("d5ba11fa").unwrap().as_slice()
+            );
         }
     }
 

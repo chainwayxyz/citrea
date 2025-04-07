@@ -3,12 +3,12 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
-use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::{L2BlockStatus, LastVerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;

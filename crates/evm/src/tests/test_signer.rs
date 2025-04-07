@@ -89,7 +89,7 @@ impl TestSigner {
         data: Vec<u8>,
         nonce: u64,
         value: u128,
-        max_fee_per_gas: u128,
+        max_fee_per_gas: u64,
         gas_limit: u64,
     ) -> Result<RlpEvmTransaction, SignError> {
         let reth_tx = RethTxEip1559 {
@@ -99,7 +99,7 @@ impl TestSigner {
             value: U256::from(value),
             chain_id: DEFAULT_CHAIN_ID,
             gas_limit,
-            max_fee_per_gas,
+            max_fee_per_gas: max_fee_per_gas as u128,
             ..Default::default()
         };
 

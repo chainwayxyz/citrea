@@ -4,20 +4,22 @@ use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
 use alloy::hex::FromHex;
+use alloy::network::TransactionResponse;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_rpc_types::{Authorization, EIP1186AccountProofResponse, TransactionRequest};
+use alloy_rpc_types::{
+    Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
+};
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{
     CallerContract, LogsContract, SimpleStorageContract, TestContract,
 };
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use sha2::Digest;
-use sov_rollup_interface::{Network, CITREA_VERSION};
+use sov_rollup_interface::CITREA_VERSION;
 use sov_state::KeyHash;
 use tokio::time::sleep;
 
@@ -338,9 +340,15 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
 
     for storage_proof in &acc_proof.storage_proof {
         let kaddr = {
+            // See `Evm::get_storage_address` for how the storage adress is calculated
             let mut hasher: sha2::Sha256 =
                 sha2::Digest::new_with_prefix(account_address.as_slice());
-            hasher.update(storage_proof.key.0.as_slice());
+            #[allow(clippy::unnecessary_fallible_conversions)]
+            hasher.update(
+                U256::try_from(storage_proof.key.as_b256())
+                    .unwrap()
+                    .as_le_slice(),
+            );
             let arr = hasher.finalize();
             U256::from_le_slice(&arr)
         };
@@ -367,7 +375,8 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
     }
 }
 
-async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     // citrea::initialize_logging(::tracing::Level::INFO);
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -394,7 +403,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
             None,
             rollup_config,
             Some(sequencer_config),
-            Some(network),
+            None,
             false,
         )
         .await;
@@ -457,7 +466,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_latest, contract_address);
         for storage_proof in &acc_proof_latest.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -492,7 +501,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_1, contract_address);
         for storage_proof in &acc_proof_1.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -506,7 +515,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         assert_ne!(acc_proof_1, acc_proof_2);
         check_proof(&acc_proof_2, contract_address);
         for storage_proof in &acc_proof_2.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -521,11 +530,6 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
 
     seq_task.abort();
     Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_eth_get_proof_devnet() -> Result<(), Box<dyn std::error::Error>> {
-    test_eth_get_proof_on(Network::Devnet).await
 }
 
 #[allow(clippy::borrowed_box)]
@@ -571,13 +575,16 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 
     assert_eq!(logs.len(), 1);
     assert_eq!(
-        hex::encode(logs[0].topics[0]).to_string(),
+        hex::encode(logs[0].topics()[0]).to_string(),
         "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
     );
 
     let sepolia_log_data = "\"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\"".to_string();
     let len = sepolia_log_data.len();
-    assert_eq!(sepolia_log_data[1..len - 1], logs[0].data.to_string());
+    assert_eq!(
+        sepolia_log_data[1..len - 1],
+        logs[0].data().data.to_string()
+    );
 
     // Deploy another contract
     let contract_address2 = {
@@ -625,8 +632,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let logs = client.eth_get_logs(address_and_range_filter).await;
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
-    assert_eq!(logs[0].address, contract_address);
-    assert_eq!(logs[1].address, contract_address);
+    assert_eq!(logs[0].address(), contract_address);
+    assert_eq!(logs[1].address(), contract_address);
 
     Ok(())
 }
@@ -703,7 +710,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_hash = client
         .eth_get_tx_by_block_hash_and_index(second_block.header.hash, U256::from(0))
         .await;
-    assert_eq!(tx_by_hash.hash, tx_hash);
+    assert_eq!(tx_by_hash.tx_hash(), tx_hash);
 
     // Assert getTransactionByBlockNumberAndIndex
     let tx_by_number = client
@@ -712,8 +719,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_number_tag = client
         .eth_get_tx_by_block_number_and_index(BlockNumberOrTag::Latest, U256::from(0))
         .await;
-    assert_eq!(tx_by_number.hash, tx_hash);
-    assert_eq!(tx_by_number_tag.hash, tx_hash);
+    assert_eq!(tx_by_number.tx_hash(), tx_hash);
+    assert_eq!(tx_by_number_tag.tx_hash(), tx_hash);
 
     let get_arg: U256 = client
         .contract_call(contract_address, contract.get_call_data(), None)
@@ -851,7 +858,7 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    // citrea::initialize_logging(::tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -975,8 +982,6 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
     // now let's try a failing auth
     // followed by a clear delegation tx
-    // TODO: for now we send multiple wrong nonce auths in a single tx
-    // as current version of revm does not support clearing delegation
     {
         let auth = Authorization {
             chain_id: U256::from(test_client.chain_id),
@@ -990,22 +995,18 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         let auth = Authorization {
             chain_id: U256::from(test_client.chain_id),
             address: Address::ZERO,
-            nonce: 1, // wrong nonce
+            nonce: 1,
         };
 
         let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
-        let _signed_auth_clear_delegation = auth.into_signed(signature);
+        let signed_auth_clear_delegation = auth.into_signed(signature);
 
         let _ = test_client
             .send_eip7702_transaction(
                 Address::ZERO,
                 vec![],
                 None,
-                // TODO: our version of revm does not support clearing delegation yet
-                // once we update revm, we can uncomment the following line
-                // and the assert's below can be fixed
-                vec![signed_auth_wrong_nonce.clone(), signed_auth_wrong_nonce],
-                // vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
+                vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
             )
             .await
             .unwrap();
@@ -1017,17 +1018,16 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                 .eth_get_transaction_count(delegating_signer.address(), None)
                 .await
                 .unwrap(),
-            1 // TODO: this would be 2 if the clear delegation worked
+            2
         );
 
-        // TODO: this should work when the clear delegation work
-        // assert_eq!(
-        //     test_client
-        //         .eth_get_code(delegating_signer.address(), None)
-        //         .await
-        //         .unwrap(),
-        //     Bytes::new()
-        // );
+        assert_eq!(
+            test_client
+                .eth_get_code(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            Bytes::new()
+        );
     }
 
     // combine access list with eip7702 tx

@@ -22,6 +22,7 @@ citrea-primitives = { path = "../primitives" }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+once_cell = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true }
@@ -34,7 +35,7 @@ alloy-network = { workspace = true, optional = true }
 alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }
 alloy-rpc-types = { workspace = true, optional = true }
-alloy-rpc-types-eth = { version = "0.4.2", optional = true }
+alloy-rpc-types-eth = { workspace = true, optional = true }
 alloy-rpc-types-trace = { workspace = true, optional = true }
 alloy-serde = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true }
