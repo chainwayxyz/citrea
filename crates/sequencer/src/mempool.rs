@@ -6,7 +6,7 @@ use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_execution_types::ChangedAccount;
-use reth_tasks::TokioTaskExecutor;
+use reth_tasks::TaskManager;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::{PoolError, PoolErrorKind};
 use reth_transaction_pool::{
@@ -59,6 +59,9 @@ impl CitreaMempool {
             ..Default::default()
         };
 
+        let task_manager = TaskManager::current();
+        let executor = task_manager.executor();
+
         let validator = TransactionValidationTaskExecutor::eth_builder(client)
             .no_eip4844()
             .set_shanghai(true)
@@ -68,12 +71,7 @@ impl CitreaMempool {
             // somewhere else
             .set_block_gas_limit(evm_config.block_gas_limit)
             // .with_additional_tasks(0)
-            .build_with_tasks::<EthPooledTransaction, _, _>(
-                // TODO: can we use our task manager here?
-                // or even better can we use reth's task manager in the repo?
-                TokioTaskExecutor::default(),
-                blob_store,
-            );
+            .build_with_tasks::<EthPooledTransaction, _, _>(executor, blob_store);
 
         Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
     }
