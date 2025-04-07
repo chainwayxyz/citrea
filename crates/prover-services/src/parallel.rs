@@ -6,7 +6,7 @@ use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{ProofData, ProofGenMode};
@@ -122,7 +122,7 @@ where
         // Start proof immediately
         let proof_rx = make_proof(vm, id, elf, self.proof_mode, receipt_type)
             .context("Failed to start proving")?;
-        info!("Started proving job {}", id);
+        debug!("Started proving job {}", id);
 
         let ongoing_proof_count = self.ongoing_proof_count.clone();
         let notifier = self.proof_done_notifier.clone();
@@ -142,7 +142,7 @@ where
                 }
             }
 
-            info!("Finished proving job {}", id);
+            debug!("Finished proving job {}", id);
             notifier.notify_one();
         });
 
