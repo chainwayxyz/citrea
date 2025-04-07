@@ -109,6 +109,7 @@ where
                 l1_signal = self.l1_signal_rx.recv() => {
                     l1_signal.expect("L1 signal sender channel closed abruptly");
 
+                    info!("Got L1 signal to try proving");
                     if let Err(e) = self.try_proving(true).await {
                         error!("Failed to start proving: {}", e);
                     }
@@ -125,6 +126,7 @@ where
                         continue;
                     }
 
+                    info!("Got L2 signal to try proving");
                     if let Err(e) = self.try_proving(true).await {
                         error!("Failed to start proving: {}", e);
                     }
@@ -139,8 +141,10 @@ where
                     match request {
                         ProverRequest::Pause => {
                             self.proving_paused = true;
+                            warn!("Paused proving");
                         }
                         ProverRequest::Prove(result_tx) => {
+                            info!("Got rpc request to try proving");
                             match self.try_proving(false).await {
                                 Ok(job_ids) => {
                                     let _ = result_tx.send(job_ids);
