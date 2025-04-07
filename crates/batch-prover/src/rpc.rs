@@ -97,17 +97,9 @@ where
 
 #[rpc(client, server, namespace = "batchProver")]
 pub trait BatchProverRpc {
-    /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
-    #[method(name = "generateInput")]
-    async fn generate_input(
-        &self,
-        l1_height: u64,
-        partition_mode: Option<PartitionMode>,
-    ) -> RpcResult<Vec<ProverInputResponse>>;
-
-    /// Manually invoke proving.
+    /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
-    async fn prove(&self, l1_height: u64, partition_mode: Option<PartitionMode>) -> RpcResult<()>;
+    async fn prove(&self) -> RpcResult<()>;
 }
 
 pub struct BatchProverRpcServerImpl<Da, Vm, DB>
@@ -139,74 +131,7 @@ where
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
 {
-    async fn generate_input(
-        &self,
-        l1_height: u64,
-        partition_mode: Option<PartitionMode>,
-    ) -> RpcResult<Vec<ProverInputResponse>> {
-        // let l1_block: <Da as DaService>::FilteredBlock = self
-        //     .context
-        //     .da_service
-        //     .get_block_at(l1_height)
-        //     .await
-        //     .map_err(|e| {
-        //         ErrorObjectOwned::owned(
-        //             INTERNAL_ERROR_CODE,
-        //             INTERNAL_ERROR_MSG,
-        //             Some(format!("{e}",)),
-        //         )
-        //     })?;
-
-        // let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
-        //     self.context.da_service.clone(),
-        //     self.context.ledger.clone(),
-        //     &self.context.storage_manager,
-        //     self.context.sequencer_pub_key.clone(),
-        //     self.context.sequencer_da_pub_key.clone(),
-        //     &l1_block,
-        //     group_commitments,
-        // )
-        // .await
-        // .map_err(|e| {
-        //     ErrorObjectOwned::owned(
-        //         INTERNAL_ERROR_CODE,
-        //         INTERNAL_ERROR_MSG,
-        //         Some(format!("{e}",)),
-        //     )
-        // })?;
-
-        // let mut batch_proof_circuit_input_responses = vec![];
-
-        // for (input, sequencer_commitment_range) in inputs {
-        //     let range_start = sequencer_commitment_range.0;
-        //     let range_end = sequencer_commitment_range.1;
-
-        //     let last_seq_com = sequencer_commitments
-        //         .get(range_end as usize)
-        //         .expect("Commitment does not exist");
-        //     let last_l2_height = last_seq_com.l2_end_block_number;
-        //     let _current_spec = fork_from_block_number(last_l2_height).spec_id;
-
-        //     let serialized_circuit_input = borsh::to_vec(&input.into_v3_parts())
-        //         .expect("Risc0 hint serialization is infallible");
-
-        //     let response = ProverInputResponse {
-        //         commitment_range: (U32::from(range_start), U32::from(range_end)),
-        //         l1_block_height: U64::from(l1_height),
-        //         encoded_serialized_batch_proof_input: format!(
-        //             "0x{}",
-        //             faster_hex::hex_string(&serialized_circuit_input)
-        //         ),
-        //     };
-
-        //     batch_proof_circuit_input_responses.push(response);
-        // }
-
-        // Ok(batch_proof_circuit_input_responses)
-        todo!()
-    }
-
-    async fn prove(&self, l1_height: u64, partition_mode: Option<PartitionMode>) -> RpcResult<()> {
+    async fn prove(&self) -> RpcResult<()> {
         // let l1_block: <Da as DaService>::FilteredBlock = self
         //     .context
         //     .da_service

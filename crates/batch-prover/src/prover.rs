@@ -35,6 +35,11 @@ use uuid::Uuid;
 
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
+pub struct ProveRequest {
+    result_tx: oneshot::Sender<Vec<Uuid>>,
+    commitments: Option<Vec<SequencerCommitment>>,
+}
+
 pub struct Prover<Da, DB, Vm>
 where
     Da: DaService,
@@ -50,6 +55,7 @@ where
     code_commitments_by_spec: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     l1_signal_rx: mpsc::Receiver<()>,
     l2_block_rx: broadcast::Receiver<u64>,
+    request_rx: mpsc::Receiver<ProveRequest>,
     sync_target_l2_height: Option<u64>,
 }
 
@@ -69,6 +75,7 @@ where
         code_commitments_by_spec: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
         l1_signal_rx: mpsc::Receiver<()>,
         l2_block_rx: broadcast::Receiver<u64>,
+        request_rx: mpsc::Receiver<ProveRequest>,
     ) -> Self {
         Self {
             prover_config,
@@ -81,6 +88,7 @@ where
             code_commitments_by_spec,
             l1_signal_rx,
             l2_block_rx,
+            request_rx,
             sync_target_l2_height: None,
         }
     }
@@ -97,8 +105,8 @@ where
                 l1_signal = self.l1_signal_rx.recv() => {
                     l1_signal.expect("L1 signal sender channel closed abruptly");
 
-                    if let Err(e) = self.try_proving().await {
-                        error!("Failed to start proving: {:?}", e);
+                    if let Err(e) = self.try_proving(true).await {
+                        error!("Failed to start proving: {}", e);
                     }
                 },
                 l2_signal = self.l2_block_rx.recv() => {
@@ -113,33 +121,58 @@ where
                         continue;
                     }
 
-                    if let Err(e) = self.try_proving().await {
-                        error!("Failed to start proving: {:?}", e);
+                    if let Err(e) = self.try_proving(true).await {
+                        error!("Failed to start proving: {}", e);
+                    }
+                }
+                request = self.request_rx.recv() => {
+                    let Some(request) = request else {
+                        // no need to panic if for some reason request channel is closed
+                        error!("Prove request sender channel closed abruptly");
+                        return;
+                    };
+                    let job_ids = match request.commitments {
+                        Some(commitments) => self.try_proving_commitments(commitments).await,
+                        None => self.try_proving(false).await,
+                    };
+
+                    match job_ids {
+                        Ok(job_ids) => {
+                            let _ = request.result_tx.send(job_ids);
+                        }
+                        Err(e) => error!("Failed to handle prove request: {}", e),
                     }
                 }
             }
         }
     }
 
-    async fn try_proving(&mut self) -> anyhow::Result<()> {
-        if !self.should_prove() {
+    async fn try_proving(&mut self, with_sampling: bool) -> anyhow::Result<Vec<Uuid>> {
+        if with_sampling && !self.should_prove() {
             info!("Skipping proving due to sampling");
-            return Ok(());
+            return Ok(Vec::new());
         }
 
         let commitments = self.ledger_db.get_prover_pending_commitments()?;
         if commitments.is_empty() {
             info!("No pending commitments found");
-            return Ok(());
+            return Ok(Vec::new());
         }
         info!("Got {} pending commitment(s)", commitments.len());
 
+        self.try_proving_commitments(commitments).await
+    }
+
+    async fn try_proving_commitments(
+        &mut self,
+        commitments: Vec<SequencerCommitment>,
+    ) -> anyhow::Result<Vec<Uuid>> {
         let commitments = self.filter_unsynced_commitments(commitments)?;
         if commitments.is_empty() {
             warn!("L2 blocks not synced up to any of the pending commitments yet");
-            return Ok(());
+            return Ok(Vec::new());
         }
-        info!("Got {} synced pending commitment(s)", commitments.len());
+        info!("Got {} synced commitment(s)", commitments.len());
 
         // verify state roots of commitments
         for commitment in commitments.iter() {
@@ -157,7 +190,7 @@ where
         let commitments = self.filter_prev_missing_commitments(commitments)?;
         if commitments.is_empty() {
             warn!("None of the pending commitments have a known previous commitment");
-            return Ok(());
+            return Ok(Vec::new());
         }
         info!("Processing {} commitment(s)", commitments.len());
 
@@ -188,9 +221,11 @@ where
                 .context("Failed to delete pending commitments")?;
         }
 
+        let job_ids = proving_jobs.iter().map(|job| job.0).collect();
+
         self.watch_proving_jobs(proving_jobs);
 
-        Ok(())
+        Ok(job_ids)
     }
 
     /// Filters out the commitments that prover l2 blocks not synced to yet
