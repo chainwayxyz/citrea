@@ -164,18 +164,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
-            withdrawals_root: if let SpecId::PRAGUE = evm_spec {
-                Some(EMPTY_WITHDRAWALS)
-            } else {
-                None
-            },
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             // EIP-4788 related field
             // unrelated for rollups
-            parent_beacon_block_root: if let SpecId::PRAGUE = evm_spec {
-                Some(B256::ZERO)
-            } else {
-                None
-            },
+            parent_beacon_block_root: Some(B256::ZERO),
             requests_hash: if let SpecId::PRAGUE = evm_spec {
                 Some(EMPTY_REQUESTS_HASH)
             } else {
