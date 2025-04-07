@@ -3,7 +3,10 @@ use std::time::Duration;
 
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
+use sov_mock_da::{MockAddress, MockDaService};
+use sov_rollup_interface::rpc::SequencerCommitmentRpcParam;
 use sov_rollup_interface::services::da::DaService;
 
 use crate::common::helpers::{
@@ -182,7 +185,7 @@ async fn full_node_verify_proof_and_store() {
 
     let proof_height = full_node_proof[0].proof_output.last_l2_height;
     let l2_block = full_node_client
-        .ledger_get_l2_block_by_number::<MockDaSpec>(proof_height.to())
+        .ledger_get_l2_block_by_number(proof_height.to())
         .await
         .expect("should get l2 block");
 
@@ -198,7 +201,7 @@ async fn full_node_verify_proof_and_store() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_batch_prover_prove_rpcs() {
-    citrea::initialize_logging(tracing::Level::INFO);
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -322,48 +325,62 @@ async fn test_batch_prover_prove_rpcs() {
     let response = wait_for_prover_job(&prover_client, job_id, None).await.unwrap();
     assert_eq!(response.id, job_id);
     assert_eq!(response.commitments.len(), 1);
-    assert_eq!(response.commitments[0].l2_end_block_number.to::<u64>(), 4);
     assert!(response.proof.is_some());
 
-    // let commitment = response.commitments[0];
-    // assert_eq!(commitment.l2_end_block_number.to::<u64>(), 4);
+    let commitment = &response.commitments[0];
+    assert_eq!(commitment.l2_end_block_number.to::<u64>(), 4);
 
-    // let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
+    // produces 2 blocks due to 1 missing L1 block
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 6, None).await;
 
-    // let commitments_hash = prover_client
-    //     .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
-    //     .await
-    //     .unwrap()
-    //     .unwrap();
-    // assert_eq!(commitments_hash, commitments);
+    // create a new commitment to manually override the previous one
+    let mut l2_block_hashes = Vec::with_capacity(6);
+    for block_num in 1..=6 {
+        let l2_block = test_client.ledger_get_l2_block_by_number(block_num).await.unwrap();
+        l2_block_hashes.push(l2_block.header.hash);
+    }
 
-    // let prover_proof = prover_client
-    //     .ledger_get_batch_proofs_by_slot_height(3)
-    //     .await
-    //     .unwrap()[0]
-    //     .clone();
+    let merkle_root = MerkleTree::<Sha256>::from_leaves(&l2_block_hashes).root().unwrap();
+    let new_commitment = SequencerCommitmentRpcParam {
+        merkle_root,
+        index: commitment.index.to::<u32>(),
+        l2_end_block_number: 6,
+        l1_height: da_service.get_height().await + 1,
+    };
 
-    // // The proof will be in l1 block #4 because prover publishes it after the commitment and
-    // // in mock da submitting proof and commitments creates a new block.
-    // // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
-    // wait_for_l1_block(&da_service, 4, None).await;
+    // ensure that prover also syncs up to l2 block 6
+    wait_for_l2_block(&prover_client, 6, None).await;
+    // override prev commitment
+    prover_client.batch_prover_set_commitments(vec![new_commitment]).await;
 
-    // // Up until this moment, Full node has only seen 2 DA blocks.
-    // // We need to force it to sync up to 4th DA block.
-    // for i in 6..=7 {
-    //     test_client.send_publish_batch_request().await;
-    //     wait_for_l2_block(&full_node_client, i, None).await;
-    // }
+    // invoke proving from RPC
+    let job_ids = prover_client.batch_prover_prove().await;
+    assert_eq!(job_ids.len(), 1);
+    let job_id = job_ids[0];
 
-    // // So the full node should see the proof in block 4
-    // wait_for_proof(&full_node_client, 4, Some(Duration::from_secs(60))).await;
-    // let full_node_proof = full_node_client
-    //     .ledger_get_verified_batch_proofs_by_slot_height(4)
-    //     .await
-    //     .unwrap();
-    // assert_eq!(prover_proof.proof, full_node_proof[0].proof);
+    let response = wait_for_prover_job(&prover_client, job_id, None).await.unwrap();
+    assert_eq!(response.id, job_id);
+    assert_eq!(response.commitments.len(), 1);
+    assert!(response.proof.is_some());
 
-    // assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
+    let commitment = &response.commitments[0];
+    assert_eq!(commitment.l2_end_block_number.to::<u64>(), 6);
+
+    // pause proving
+    prover_client.batch_prover_pause_proving().await;
+
+    // generate another commitment. keep in mind that this commitment is for the block range 5-8,
+    // while prover proved 1-6, so there will be a merkle root mismatch if it tried to prove.
+    // but it is irrelevant for the purposes of this test since proving is paused.
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 8, None).await;
+    wait_for_commitment(&da_service, 6, None).await;
+
+    // invoke proving from RPC, since paused, should not start any job
+    let job_ids = prover_client.batch_prover_prove().await;
+    assert_eq!(job_ids.len(), 0);
 
     seq_task.abort();
     prover_node_task.abort();

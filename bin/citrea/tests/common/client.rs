@@ -567,8 +567,7 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    #[allow(clippy::extra_unused_type_parameters)]
-    pub(crate) async fn ledger_get_l2_block_by_number<DaSpec: sov_rollup_interface::da::DaSpec>(
+    pub(crate) async fn ledger_get_l2_block_by_number(
         &self,
         num: u64,
     ) -> Option<L2BlockResponse> {
