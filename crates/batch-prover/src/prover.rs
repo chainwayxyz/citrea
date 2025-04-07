@@ -12,6 +12,8 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData};
 use rand::Rng;
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
 use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
@@ -176,19 +178,6 @@ where
             return Ok(Vec::new());
         }
         info!("Got {} synced commitment(s)", commitments.len());
-
-        // verify state roots of commitments
-        for commitment in commitments.iter() {
-            let state_root = self
-                .ledger_db
-                .get_l2_state_root(commitment.l2_end_block_number)?
-                .expect("State root must exist");
-            assert_eq!(
-                commitment.merkle_root, state_root,
-                "Invalid state root in commitment {}",
-                commitment.index
-            );
-        }
 
         let commitments = self.filter_prev_missing_commitments(commitments)?;
         if commitments.is_empty() {
@@ -632,6 +621,20 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 .height,
             end_l2,
             "Should not try to create circuit input without ensuring the prover is synced"
+        );
+
+        let merkle_root = MerkleTree::<Sha256>::from_leaves(
+            l2_blocks_in_commitment
+                .iter()
+                .map(|block| block.hash)
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+        .root()
+        .unwrap();
+        assert_eq!(
+            merkle_root, sequencer_commitment.merkle_root,
+            "Commitment merkle root mismatch"
         );
 
         let mut l2_blocks = Vec::with_capacity(l2_blocks_in_commitment.len());
