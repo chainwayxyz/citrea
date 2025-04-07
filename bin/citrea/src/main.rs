@@ -294,7 +294,7 @@ where
                 }
             };
 
-            task_executor.spawn_with_signal(|shutdown_signal| async move {
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                 l1_block_handler.run(l1_start_height, shutdown_signal).await
             });
 
@@ -339,7 +339,7 @@ where
                 },
             );
 
-            task_executor.spawn_with_signal(|shutdown_signal| async move {
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                 if let Err(e) = prover.run(shutdown_signal).await {
                     error!("Error: {}", e);
                 }
@@ -375,13 +375,13 @@ where
                 }
             };
 
-            task_executor.spawn_with_signal(|shutdown_signal| async move {
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                 l1_block_handler.run(l1_start_height, shutdown_signal).await
             });
 
             // Spawn pruner if configs are set
             if let Some(pruner_service) = pruner_service {
-                task_executor.spawn_with_signal(|shutdown_signal| async move {
+                task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                     pruner_service
                         .run(StorageNodeType::FullNode, shutdown_signal)
                         .await

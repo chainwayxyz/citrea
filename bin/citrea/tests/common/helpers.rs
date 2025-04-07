@@ -273,7 +273,7 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_executor.spawn_with_signal(|shutdown_signal| async move {
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             let start_l1_height = rollup_config
                 .runner
                 .map_or(1, |runner| runner.scan_l1_start_height);
@@ -336,7 +336,7 @@ pub async fn start_rollup(
             },
         );
 
-        task_executor.spawn_with_signal(|shutdown_signal| async move {
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             rollup.run(shutdown_signal).instrument(span).await.unwrap();
         });
     } else {
@@ -366,7 +366,7 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_executor.spawn_with_signal(|shutdown_signal| async move {
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             let start_l1_height = rollup_config
                 .runner
                 .map_or(1, |runner| runner.scan_l1_start_height);
@@ -378,7 +378,7 @@ pub async fn start_rollup(
 
         // Spawn pruner if configs are set
         if let Some(pruner) = pruner {
-            task_executor.spawn_with_signal(|shutdown_signal| async move {
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                 pruner.run(StorageNodeType::FullNode, shutdown_signal).await
             });
         }

@@ -48,8 +48,9 @@ async fn test_pruning_simple_run() {
         );
         let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-        task_executor
-            .spawn_with_signal(|shutdown| pruner_service.run(StorageNodeType::Sequencer, shutdown));
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown| {
+            pruner_service.run(StorageNodeType::Sequencer, shutdown)
+        });
 
         sleep(Duration::from_secs(1));
 

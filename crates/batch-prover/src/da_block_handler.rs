@@ -14,7 +14,7 @@ use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_heig
 use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::ParallelProverService;
 use rand::Rng;
-use reth_tasks::shutdown::Shutdown;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_keys::default_signature::K256PublicKey;
@@ -92,7 +92,7 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: Shutdown) {
+    pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
         if self.prover_config.enable_recovery {
             if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
                 error!("Failed to recover ongoing proving sessions: {:?}", e);
