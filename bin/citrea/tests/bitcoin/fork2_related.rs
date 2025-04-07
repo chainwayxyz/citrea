@@ -277,7 +277,7 @@ impl TestCase for PrecompilesAndEip7702 {
         // wait for proving to finish
         let finalized_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
 
-        let proofs = wait_for_proving_finish(&batch_prover, finalized_height, None).await?;
+        let proofs = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
 
         // assert state roots match
         assert_eq!(proofs.len(), 1);
