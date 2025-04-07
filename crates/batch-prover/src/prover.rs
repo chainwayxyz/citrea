@@ -401,7 +401,7 @@ where
         let first_commitment = &partition.commitments[0];
         let previous_sequencer_commitment = (first_commitment.index != 1).then(|| {
             self.ledger_db
-                .get_commitment_by_index(first_commitment.index)
+                .get_commitment_by_index(first_commitment.index - 1)
                 .expect("Should get commitment")
                 .expect("Commitment should exist")
         });
