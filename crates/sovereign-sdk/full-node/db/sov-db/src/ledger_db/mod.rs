@@ -1,13 +1,13 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use rocksdb::WriteBatch;
+use rocksdb::{ReadOptions, WriteBatch};
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
+use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -624,6 +624,28 @@ impl BatchProverLedgerOps for LedgerDB {
         }
 
         Ok(jobs)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_latest_job_ids(&self, count: usize) -> anyhow::Result<Vec<Uuid>> {
+        let mut read_opts = ReadOptions::default();
+        // Do not fill the cache with garbage data just to read ids
+        read_opts.fill_cache(false);
+
+        let mut iter = self
+            .db
+            .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
+        iter.seek_to_last();
+
+        let mut job_ids = Vec::with_capacity(count);
+        for el in iter {
+            if job_ids.len() == count {
+                break;
+            }
+            job_ids.push(el?.key);
+        }
+
+        Ok(job_ids)
     }
 }
 

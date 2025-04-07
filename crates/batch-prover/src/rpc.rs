@@ -84,9 +84,9 @@ pub trait BatchProverRpc {
     #[method(name = "getProvingJob")]
     async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<JobRpcResponse>;
 
-    /// Gets list of all job ids.
-    #[method(name = "getAllJobs")]
-    async fn get_all_jobs(&self) -> RpcResult<Vec<Uuid>>;
+    /// Gets latest job ids.
+    #[method(name = "getJobs")]
+    async fn get_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -205,8 +205,12 @@ where
         })
     }
 
-    async fn get_all_jobs(&self) -> RpcResult<Vec<Uuid>> {
-        todo!()
+    async fn get_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>> {
+        Ok(self
+            .context
+            .ledger_db
+            .get_latest_job_ids(count)
+            .map_err(|e| internal_rpc_error(e.to_string()))?)
     }
 }
 

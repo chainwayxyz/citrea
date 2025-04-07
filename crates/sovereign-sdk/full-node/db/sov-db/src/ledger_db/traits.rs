@@ -197,6 +197,9 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
+
+    /// Get latest job ids with max count.
+    fn get_latest_job_ids(&self, count: usize) -> Result<Vec<Uuid>>;
 }
 
 /// Light client prover ledger operations
