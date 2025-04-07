@@ -34,7 +34,7 @@ use tracing::instrument;
 
 use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
-use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
+use crate::{citrea_spec_id_to_evm_spec_id, BASE_FEE_VAULT, L1_FEE_VAULT};
 
 /// 4 bytes of prefix ("E/i/") + 20 bytes of address = 24 bytes
 const ACCOUNT_IDX_KEY_SIZE: usize = 24;
@@ -179,10 +179,11 @@ pub struct CitreaEvm<CTX, INSP>(
 
 impl<CTX: CitreaContextTr, INSP> CitreaEvm<CTX, INSP> {
     pub fn new(ctx: CTX, inspector: INSP) -> Self {
+        let spec = ctx.cfg().spec().into();
         Self(Evm {
             data: EvmData { ctx, inspector },
             instruction: EthInstructions::new_mainnet(),
-            precompiles: CitreaPrecompiles::default(),
+            precompiles: CitreaPrecompiles::new_with_spec(spec),
         })
     }
 }
@@ -356,7 +357,7 @@ pub struct CitreaPrecompiles {
 }
 
 /// Returns precompiles.
-pub fn citrea_precompiles() -> &'static Precompiles {
+pub fn citrea_precompiles(spec: SpecId) -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         // Berlin because POINT_EVALUATION precompile(0x0A) is enabled in Cancun
@@ -364,11 +365,13 @@ pub fn citrea_precompiles() -> &'static Precompiles {
         // and then we add the rest of the precompiles
         let mut precompiles = Precompiles::berlin().clone();
 
-        // Add prague precompiles
-        // Effectively skipping kzg precompiles in Cancun
-        precompiles.extend(bls12_381::precompiles());
+        if let SpecId::PRAGUE = spec {
+            // Add prague precompiles
+            // Effectively skipping kzg precompiles in Cancun
+            precompiles.extend(bls12_381::precompiles());
 
-        precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
+            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
+        }
 
         Box::new(precompiles)
     })
@@ -378,8 +381,7 @@ impl CitreaPrecompiles {
     /// Create a new precompile provider with the given Spec.
     #[inline]
     pub fn new_with_spec(spec: SpecId) -> Self {
-        let precompiles = citrea_precompiles();
-
+        let precompiles = citrea_precompiles(spec);
         Self {
             inner: EthPrecompiles { precompiles, spec },
         }
