@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
-use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
@@ -14,7 +13,6 @@ use prover::Prover;
 use prover_services::ParallelProverService;
 pub use runner::*;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{SpecId, Zkvm};
@@ -66,19 +64,11 @@ where
     Vm: ZkvmHost + Zkvm + 'static,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
+    // request result will be awaited anyways, so 1 buffer size is ok
+    let (request_tx, request_rx) = mpsc::channel(1);
 
-    let rpc_context = rpc::create_rpc_context::<DA, Vm, DB>(
-        da_service.clone(),
-        prover_service.clone(),
-        ledger_db.clone(),
-        storage_manager.clone(),
-        public_keys.sequencer_da_pub_key.clone(),
-        K256PublicKey::try_from_slice(&public_keys.sequencer_public_key.clone())?,
-        l1_block_cache.clone(),
-        code_commitments.clone(),
-        elfs.clone(),
-    );
-    let rpc_module = rpc::register_rpc_methods::<DA, Vm, DB>(rpc_context, rpc_module)?;
+    let rpc_context = rpc::create_rpc_context(ledger_db.clone(), request_tx);
+    let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
     let l2_syncer = L2Syncer::new(
         runner_config.clone(),
@@ -120,6 +110,7 @@ where
         code_commitments,
         l1_signal_rx,
         l2_block_rx,
+        request_rx,
     );
 
     Ok((runner, l1_syncer, prover, rpc_module))
