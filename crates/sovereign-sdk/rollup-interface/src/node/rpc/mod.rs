@@ -8,6 +8,7 @@ use block::L2BlockResponse;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
@@ -172,6 +173,8 @@ pub struct LightClientProofResponse {
 /// The response to JSON-RPC request for querying proving job
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobRpcResponse {
+    /// Job id
+    pub id: Uuid,
     /// Commitments being proven in the job
     pub commitments: Vec<SequencerCommitmentResponse>,
     /// Proof result of the job. If proof is None, job still continues,

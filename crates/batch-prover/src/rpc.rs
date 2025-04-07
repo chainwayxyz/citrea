@@ -199,6 +199,7 @@ where
             .map_err(|e| internal_rpc_error(e.to_string()))?;
 
         Ok(JobRpcResponse {
+            id: job_id,
             commitments,
             proof: stored_proof.map(Into::into),
         })
