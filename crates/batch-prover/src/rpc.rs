@@ -6,9 +6,12 @@ use std::sync::Arc;
 use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
+use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
+use uuid::Uuid;
 
 use crate::prover::ProveRequest;
 
@@ -60,7 +63,7 @@ where
 pub trait BatchProverRpc {
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
-    async fn prove(&self) -> RpcResult<()>;
+    async fn prove(&self) -> RpcResult<Vec<Uuid>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -86,58 +89,30 @@ impl<DB> BatchProverRpcServer for BatchProverRpcServerImpl<DB>
 where
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
-    async fn prove(&self) -> RpcResult<()> {
-        // let l1_block: <Da as DaService>::FilteredBlock = self
-        //     .context
-        //     .da_service
-        //     .get_block_at(l1_height)
-        //     .await
-        //     .map_err(|e| {
-        //         ErrorObjectOwned::owned(
-        //             INTERNAL_ERROR_CODE,
-        //             INTERNAL_ERROR_MSG,
-        //             Some(format!("{e}",)),
-        //         )
-        //     })?;
+    async fn prove(&self) -> RpcResult<Vec<Uuid>> {
+        let (result_tx, result_rx) = oneshot::channel();
+        let request = ProveRequest {
+            result_tx,
+            commitments: None,
+        };
 
-        // let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
-        //     self.context.da_service.clone(),
-        //     self.context.ledger.clone(),
-        //     &self.context.storage_manager,
-        //     self.context.sequencer_pub_key.clone(),
-        //     self.context.sequencer_da_pub_key.clone(),
-        //     &l1_block,
-        //     group_commitments,
-        // )
-        // .await
-        // .map_err(|e| {
-        //     ErrorObjectOwned::owned(
-        //         INTERNAL_ERROR_CODE,
-        //         INTERNAL_ERROR_MSG,
-        //         Some(format!("{e}",)),
-        //     )
-        // })?;
+        if let Err(_) = self.context.request_tx.send(request).await {
+            return Err(ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some("Proving request channel is closed"),
+            ));
+        }
 
-        // prove_l1::<Da, Vm, DB>(
-        //     self.context.prover_service.clone(),
-        //     self.context.ledger.clone(),
-        //     self.context.code_commitments_by_spec.clone(),
-        //     self.context.elfs_by_spec.clone(),
-        //     &l1_block,
-        //     sequencer_commitments,
-        //     inputs,
-        // )
-        // .await
-        // .map_err(|e| {
-        //     ErrorObjectOwned::owned(
-        //         INTERNAL_ERROR_CODE,
-        //         INTERNAL_ERROR_MSG,
-        //         Some(format!("{e}",)),
-        //     )
-        // })?;
+        let Ok(job_ids) = result_rx.await else {
+            return Err(ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some("Proving request failed for some reason, check logs for details"),
+            ));
+        }; 
 
-        // Ok(())
-        todo!()
+        Ok(job_ids)
     }
 }
 

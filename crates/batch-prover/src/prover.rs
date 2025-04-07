@@ -36,8 +36,8 @@ use uuid::Uuid;
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
 pub struct ProveRequest {
-    result_tx: oneshot::Sender<Vec<Uuid>>,
-    commitments: Option<Vec<SequencerCommitment>>,
+    pub result_tx: oneshot::Sender<Vec<Uuid>>,
+    pub commitments: Option<Vec<SequencerCommitment>>,
 }
 
 pub struct Prover<Da, DB, Vm>

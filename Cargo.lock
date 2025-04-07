@@ -9662,6 +9662,7 @@ dependencies = [
  "borsh",
  "borsh-derive",
  "getrandom",
+ "serde",
 ]
 
 [[package]]
