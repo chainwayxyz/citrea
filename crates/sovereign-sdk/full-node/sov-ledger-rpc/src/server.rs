@@ -7,7 +7,7 @@ use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, LedgerRpcProvider,
+    BatchProofResponse, LastVerifiedBatchProofResponse, LedgerRpcProvider,
     SequencerCommitmentResponse, VerifiedBatchProofResponse,
 };
 
@@ -47,12 +47,6 @@ where
     fn get_l2_block_range(&self, start: U64, end: U64) -> RpcResult<Vec<Option<L2BlockResponse>>> {
         self.ledger
             .get_l2_blocks_range(start.to(), end.to())
-            .map_err(to_ledger_rpc_error)
-    }
-
-    fn get_l2_block_status(&self, l2_block_receipt: U64) -> RpcResult<L2BlockStatus> {
-        self.ledger
-            .get_l2_block_status(l2_block_receipt.to())
             .map_err(to_ledger_rpc_error)
     }
 

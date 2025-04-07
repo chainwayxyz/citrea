@@ -5,7 +5,6 @@ use citrea_batch_prover::GroupCommitments;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
-use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::DaService;
 
 use crate::common::helpers::{
@@ -188,20 +187,6 @@ async fn full_node_verify_proof_and_store() {
         l2_block.header.state_root
     );
 
-    full_node_test_client
-        .ledger_get_l2_block_status(5)
-        .await
-        .unwrap();
-
-    for i in 1..=4 {
-        let status = full_node_test_client
-            .ledger_get_l2_block_status(i)
-            .await
-            .unwrap();
-
-        assert_eq!(status, L2BlockStatus::Proven);
-    }
-
     seq_task.graceful_shutdown();
     prover_node_task.graceful_shutdown();
     full_node_task.graceful_shutdown();
@@ -372,20 +357,6 @@ async fn test_batch_prover_prove_rpc() {
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
-
-    full_node_test_client
-        .ledger_get_l2_block_status(5)
-        .await
-        .unwrap();
-
-    for i in 1..=4 {
-        let status = full_node_test_client
-            .ledger_get_l2_block_status(i)
-            .await
-            .unwrap();
-
-        assert_eq!(status, L2BlockStatus::Proven);
-    }
 
     seq_task.graceful_shutdown();
     prover_node_task.graceful_shutdown();

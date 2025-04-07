@@ -202,7 +202,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     };
     let seq_task = start_rollup(
         seq_port_tx,
-        GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
         None,
         None,
         rollup_config,
@@ -389,7 +389,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     };
     let seq_task = start_rollup(
         seq_port_tx,
-        GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
         None,
         None,
         rollup_config,

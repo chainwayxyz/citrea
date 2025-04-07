@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 
 use alloy_primitives::{U32, U64};
 use block::L2BlockResponse;
-use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
 
@@ -363,18 +362,6 @@ pub enum ItemOrHash<T> {
     Full(T),
 }
 
-/// Statuses for l2 block
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum L2BlockStatus {
-    /// No confirmation yet, rely on the sequencer
-    Trusted,
-    /// The l2 block has been finalized with a sequencer commitment
-    Finalized,
-    /// The l2 block has been ZK-proven
-    Proven,
-}
-
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
@@ -406,9 +393,6 @@ pub trait LedgerRpcProvider {
         start: u64,
         end: u64,
     ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error>;
-
-    /// Takes an L2 Height and and returns the l2 block status of the l2 block
-    fn get_l2_block_status(&self, l2_block_receipt: u64) -> Result<L2BlockStatus, anyhow::Error>;
 
     /// Returns the L2 genesis state root
     fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error>;
