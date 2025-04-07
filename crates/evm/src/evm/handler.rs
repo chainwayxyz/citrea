@@ -701,8 +701,6 @@ where
             JournalEntry::AccountCreated { address } => {
                 let account = account_changes.entry(address).or_default();
                 account.created = true;
-                // When account is created, there is a transfer to init its balance.
-                // So we need to only force the nonce change.
                 account.account_info_changed = true;
             }
             JournalEntry::AccountDestroyed {

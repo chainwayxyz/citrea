@@ -8,7 +8,7 @@ use alloy::network::TransactionResponse;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
-use alloy_primitives::{Address, Bytes, U256};
+use alloy_primitives::{Address, Bytes, U256, U64};
 use alloy_rpc_types::{
     Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
 };
@@ -921,12 +921,17 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     let signature = delegating_signer.sign_hash_sync(&authorization.signature_hash())?;
     let signed_authorization = authorization.into_signed(signature);
 
-    let _set_code_tx = test_client
+    let set_code_tx = test_client
         .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_authorization])
         .await
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+
+    let single_auth_receipt = test_client
+        .eth_get_transaction_receipt(*set_code_tx.tx_hash())
+        .await
+        .unwrap();
 
     let receipts = test_client
         .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
@@ -935,7 +940,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     assert_eq!(receipts.len(), 2);
 
     // all successful
-    assert!(receipts.iter().all(|r| r.status()));
+    assert!(receipts.iter().all(|r| r.inner.inner.status()));
 
     // if we don't do this in a seperate block, gas estimation is off since the delegation is not done yet
     // this also shows estimate gas works
@@ -956,7 +961,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     assert_eq!(receipts.len(), 1);
 
     // all successful
-    assert!(receipts.iter().all(|r| r.status()));
+    assert!(receipts.iter().all(|r| r.inner.inner.status()));
 
     assert_eq!(
         test_client
@@ -1001,7 +1006,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
         let signed_auth_clear_delegation = auth.into_signed(signature);
 
-        let _ = test_client
+        let wrong_nonce_and_clear_code_tx = test_client
             .send_eip7702_transaction(
                 Address::ZERO,
                 vec![],
@@ -1012,6 +1017,11 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+
+        let signed_auth_clear_delegation_tx_receipt = test_client
+            .eth_get_transaction_receipt(*wrong_nonce_and_clear_code_tx.tx_hash())
+            .await
+            .unwrap();
 
         assert_eq!(
             test_client
@@ -1028,6 +1038,33 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                 .unwrap(),
             Bytes::new()
         );
+
+        // we expect the second eip7702 tx to have
+        // smaller diff size than the first one
+        // since the first auth in second set code tx
+        // is discarded due to nonce check, there is only one
+        // state change on the authority and as code_hash is cleared and set to None
+        // the state diff is smaller
+        assert!(
+            U64::from_str(
+                signed_auth_clear_delegation_tx_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+                < U64::from_str(
+                    single_auth_receipt
+                        .other
+                        .get("l1DiffSize")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                )
+                .unwrap()
+        )
     }
 
     // combine access list with eip7702 tx

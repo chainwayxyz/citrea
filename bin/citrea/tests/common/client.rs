@@ -5,10 +5,10 @@ use std::time::Duration;
 
 use alloy::eips::eip2930::AccessListWithGasUsed;
 use alloy::eips::eip7702::SignedAuthorization;
-use alloy::network::TransactionBuilder7702;
+use alloy::network::{AnyTransactionReceipt, TransactionBuilder7702};
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
-use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
+use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
 use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
@@ -464,7 +464,7 @@ impl TestClient {
     pub(crate) async fn eth_get_block_receipts(
         &self,
         block_number_or_hash: BlockId,
-    ) -> Vec<TransactionReceipt> {
+    ) -> Vec<AnyTransactionReceipt> {
         self.http_client
             .request("eth_getBlockReceipts", rpc_params![block_number_or_hash])
             .await
@@ -474,7 +474,7 @@ impl TestClient {
     pub(crate) async fn eth_get_transaction_receipt(
         &self,
         tx_hash: TxHash,
-    ) -> Option<TransactionReceipt> {
+    ) -> Option<AnyTransactionReceipt> {
         self.http_client
             .request("eth_getTransactionReceipt", rpc_params![tx_hash])
             .await
