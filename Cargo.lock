@@ -2422,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=rakanalh%2Fcleanup-method#60e5a2bb319629bb5457d687d2f569d773d7c2c2"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=5ba2866#5ba2866934c54c0730529400e041c7be27a3f6d6"
 dependencies = [
  "alloy-primitives",
  "anyhow",
