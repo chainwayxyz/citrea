@@ -82,7 +82,7 @@ pub trait BatchProverRpc {
     /// Get job details by job id. If proof is null, it means job is still being proven,
     /// if proof exists but l1_tx_id is 0, it means job is being submitted to L1.
     #[method(name = "getProvingJob")]
-    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<JobRpcResponse>;
+    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>>;
 
     /// Gets latest job ids.
     #[method(name = "getProvingJobs")]
@@ -172,14 +172,14 @@ where
             .map_err(|_| internal_rpc_error("Proving request channel is closed"))
     }
 
-    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<JobRpcResponse> {
+    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>> {
         let ledger_db = &self.context.ledger_db;
 
         let Some(commitment_indices) = ledger_db
             .get_commitment_indices_by_job_id(job_id)
             .map_err(|e| internal_rpc_error(e.to_string()))?
         else {
-            return Err(internal_rpc_error("Job id not found"));
+            return Ok(None);
         };
 
         let mut commitments = Vec::with_capacity(commitment_indices.len());
@@ -199,11 +199,11 @@ where
             .get_proof_by_job_id(job_id)
             .map_err(|e| internal_rpc_error(e.to_string()))?;
 
-        Ok(JobRpcResponse {
+        Ok(Some(JobRpcResponse {
             id: job_id,
             commitments,
             proof: stored_proof.map(Into::into),
-        })
+        }))
     }
 
     async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>> {
