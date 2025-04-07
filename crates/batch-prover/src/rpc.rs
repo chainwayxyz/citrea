@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::SlotNumber;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::rpc::{BatchProofResponse, SequencerCommitmentResponse};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
@@ -76,19 +77,14 @@ pub trait BatchProverRpc {
     #[method(name = "pauseProving")]
     async fn pause_proving(&self) -> RpcResult<()>;
 
-    /// Get commitments by l1 height
-    #[method(name = "getCommitmentsByL1")]
-    async fn get_commitments_by_l1(
-        &self,
-        l1_height: u64,
-    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>>;
+    /// Get job details by job id. If proof is null, it means job is still being proven,
+    /// if proof exists but l1_tx_id is 0, it means job is being submitted to L1.
+    #[method(name = "getProvingJob")]
+    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<JobRpcResponse>;
 
-    /// Get commitments by job id
-    #[method(name = "getCommitmentsByJob")]
-    async fn get_commitments_by_job(
-        &self,
-        job_id: Uuid,
-    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>>;
+    /// Gets list of all job ids.
+    #[method(name = "getAllJobs")]
+    async fn get_all_jobs(&self) -> RpcResult<Vec<Uuid>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -173,17 +169,40 @@ where
             .map_err(|_| internal_rpc_error("Proving request channel is closed"))
     }
 
-    async fn get_commitments_by_l1(
-        &self,
-        l1_height: u64,
-    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>> {
-        todo!()
+    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<JobRpcResponse> {
+        let ledger_db = &self.context.ledger_db;
+
+        let Some(commitment_indices) = ledger_db
+            .get_commitment_indices_by_job_id(job_id)
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+        else {
+            return Err(internal_rpc_error("Job id not found"));
+        };
+
+        let mut commitments = Vec::with_capacity(commitment_indices.len());
+        for index in commitment_indices {
+            let commitment = ledger_db
+                .get_commitment_by_index(index)
+                .map_err(|e| internal_rpc_error(e.to_string()))?
+                .expect("Commitment must exist");
+            commitments.push(SequencerCommitmentResponse {
+                merkle_root: commitment.merkle_root,
+                index: commitment.index.try_into().unwrap(),
+                l2_end_block_number: commitment.l2_end_block_number.try_into().unwrap(),
+            });
+        }
+
+        let stored_proof = ledger_db
+            .get_proof_by_job_id(job_id)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+
+        Ok(JobRpcResponse {
+            commitments,
+            proof: stored_proof.map(Into::into),
+        })
     }
 
-    async fn get_commitments_by_job(
-        &self,
-        job_id: Uuid,
-    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>> {
+    async fn get_all_jobs(&self) -> RpcResult<Vec<Uuid>> {
         todo!()
     }
 }
@@ -200,20 +219,18 @@ where
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobRpcResponse {
+    commitments: Vec<SequencerCommitmentResponse>,
+    proof: Option<BatchProofResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SequencerCommitmentRpcParam {
     #[serde(with = "hex::serde")]
     pub merkle_root: [u8; 32],
     pub index: u32,
     pub l2_end_block_number: u64,
     pub l1_height: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SequencerCommitmentRpcResult {
-    #[serde(with = "hex::serde")]
-    pub merkle_root: [u8; 32],
-    pub index: u32,
-    pub l2_end_block_number: u64,
 }
 
 fn internal_rpc_error(msg: impl AsRef<str>) -> ErrorObjectOwned {

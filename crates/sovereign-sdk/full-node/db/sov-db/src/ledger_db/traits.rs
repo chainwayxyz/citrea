@@ -178,6 +178,9 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Inserts a new prover job with its corresponding commitment indices, marking job as running
     fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
 
+    /// Get commitment indices of job id
+    fn get_commitment_indices_by_job_id(&self, id: Uuid) -> Result<Option<Vec<u32>>>;
+
     /// Save proof by its job id
     fn put_proof_by_job_id(
         &self,
