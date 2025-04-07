@@ -17,7 +17,7 @@ use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Fi
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
-use citrea_batch_prover::GroupCommitments;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
@@ -27,9 +27,10 @@ use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
-    VerifiedBatchProofResponse,
+    BatchProofResponse, JobRpcResponse, LastVerifiedBatchProofResponse,
+    SequencerCommitmentResponse, SequencerCommitmentRpcParam, VerifiedBatchProofResponse,
 };
+use uuid::Uuid;
 
 pub const SEND_ETH_GAS: u64 = 21001;
 pub const MAX_FEE_PER_GAS: u128 = 1000000001;
@@ -799,18 +800,27 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn batch_prover_prove(
+    pub(crate) async fn batch_prover_set_commitments(
         &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
+        commitments: Vec<SequencerCommitmentRpcParam>,
     ) {
-        self.http_client
-            .request(
-                "batchProver_prove",
-                rpc_params![l1_height, group_commitments],
-            )
-            .await
-            .unwrap()
+        self.http_client.set_commitments(commitments).await.unwrap()
+    }
+
+    pub(crate) async fn batch_prover_prove(&self) -> Vec<Uuid> {
+        self.http_client.prove().await.unwrap()
+    }
+
+    pub(crate) async fn batch_prover_pause_proving(&self) {
+        self.http_client.pause_proving().await.unwrap()
+    }
+
+    pub(crate) async fn get_proving_job(&self, id: Uuid) -> JobRpcResponse {
+        self.http_client.get_proving_job(id).await.unwrap()
+    }
+
+    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<Uuid> {
+        self.http_client.get_proving_jobs(count).await.unwrap()
     }
 }
 

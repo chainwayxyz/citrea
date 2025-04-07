@@ -85,8 +85,8 @@ pub trait BatchProverRpc {
     async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<JobRpcResponse>;
 
     /// Gets latest job ids.
-    #[method(name = "getJobs")]
-    async fn get_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
+    #[method(name = "getProvingJobs")]
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -145,11 +145,12 @@ where
     async fn prove(&self) -> RpcResult<Vec<Uuid>> {
         let (result_tx, result_rx) = oneshot::channel();
 
-        if let Err(_) = self
+        if self
             .context
             .request_tx
             .send(ProverRequest::Prove(result_tx))
             .await
+            .is_err()
         {
             return Err(internal_rpc_error("Proving request channel is closed"));
         }
@@ -205,7 +206,7 @@ where
         })
     }
 
-    async fn get_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>> {
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>> {
         Ok(self
             .context
             .ledger_db

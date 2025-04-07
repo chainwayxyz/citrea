@@ -243,7 +243,7 @@ pub async fn start_rollup(
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
-        let (prover, l1_block_handler, rpc_module) = CitreaRollupBlueprint::create_batch_prover(
+        let (runner, l1_syncer, prover, rpc_module) = CitreaRollupBlueprint::create_batch_prover(
             &mock_demo_rollup,
             rollup_prover_config,
             genesis_config,
@@ -268,17 +268,22 @@ pub async fn start_rollup(
 
         let handler_span = span.clone();
         task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-            let start_l1_height = rollup_config
-                .runner
-                .map_or(1, |runner| runner.scan_l1_start_height);
-            l1_block_handler
-                .run(start_l1_height, cancellation_token)
-                .instrument(handler_span.clone())
+            l1_syncer
+                .run(cancellation_token)
+                .instrument(handler_span)
+                .await
+        });
+
+        let handler_span = span.clone();
+        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+            prover
+                .run(cancellation_token)
+                .instrument(handler_span)
                 .await
         });
 
         task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            prover
+            runner
                 .run(cancellation_token)
                 .instrument(span)
                 .await

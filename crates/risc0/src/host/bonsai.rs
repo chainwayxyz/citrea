@@ -24,7 +24,7 @@ pub struct BonsaiProver {
 impl BonsaiProver {
     pub fn new(ledger_db: LedgerDB) -> Self {
         assert!(
-            env::var("RISC0_PROVER").map_or(false, |prover| prover == "bonsai"),
+            env::var("RISC0_PROVER").is_ok_and(|prover| prover == "bonsai"),
             "RISC0_PROVER must be explicitly set to bonsai"
         );
         assert!(env::var("BONSAI_API_URL").is_ok(), "BONSAI_API_URL missing");
@@ -184,7 +184,7 @@ impl BonsaiProver {
             .verify_integrity_with_context(&VerifierContext::default())
             .context("Failed to verify bonsai groth16 proof integrity")?;
 
-        return Ok(groth16_receipt);
+        Ok(groth16_receipt)
     }
 
     async fn wait_stark_receipt(
@@ -345,10 +345,8 @@ fn get_inner_assumption_receipt(
             };
             Ok(receipt)
         }
-        AssumptionReceipt::Unresolved(_) => {
-            return Err(anyhow!(
-                "only proven assumptions can be uploaded to Bonsai."
-            ));
-        }
+        AssumptionReceipt::Unresolved(_) => Err(anyhow!(
+            "only proven assumptions can be uploaded to Bonsai."
+        )),
     }
 }

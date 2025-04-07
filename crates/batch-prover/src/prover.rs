@@ -201,7 +201,7 @@ where
 
             let commitment_indices = partition
                 .commitments
-                .into_iter()
+                .iter()
                 .map(|comm| comm.index)
                 .collect::<Vec<_>>();
 

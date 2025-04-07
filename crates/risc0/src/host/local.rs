@@ -51,12 +51,10 @@ impl LocalProver {
                 !with_prove,
                 "Prove should not be called with prove in dev mode"
             );
+        } else if with_prove {
+            env::remove_var("RISC0_DEV_MODE");
         } else {
-            if with_prove {
-                env::remove_var("RISC0_DEV_MODE");
-            } else {
-                env::set_var("RISC0_DEV_MODE", "1");
-            }
+            env::set_var("RISC0_DEV_MODE", "1");
         }
 
         // std::fs::write("kumquat-input.bin", &input).unwrap();
