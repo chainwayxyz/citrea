@@ -1561,6 +1561,26 @@ impl TestCase for OverlappingProofRangesTest {
             .wait_for_l1_height(proof_a_l1_height, None)
             .await?;
 
+        let proof_output_a = wait_for_zkproofs(full_node, proof_a_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof_output;
+        assert_eq!(
+            proof_output_a
+                .sequencer_commitment_index_range
+                .0
+                .to::<u32>(),
+            1
+        );
+        assert_eq!(
+            proof_output_a
+                .sequencer_commitment_index_range
+                .1
+                .to::<u32>(),
+            3
+        );
+
         // Assert that proof was processed
         let proven_height_a = full_node
             .client
@@ -1583,6 +1603,26 @@ impl TestCase for OverlappingProofRangesTest {
         full_node
             .wait_for_l1_height(proof_b_l1_height, None)
             .await?;
+
+        let proof_output_b = wait_for_zkproofs(full_node, proof_b_l1_height, None, 1)
+            .await
+            .unwrap()[0]
+            .clone()
+            .proof_output;
+        assert_eq!(
+            proof_output_b
+                .sequencer_commitment_index_range
+                .0
+                .to::<u32>(),
+            2
+        );
+        assert_eq!(
+            proof_output_b
+                .sequencer_commitment_index_range
+                .1
+                .to::<u32>(),
+            4
+        );
 
         // Verify second proof was processed and proven height is now at index 4
         let proven_height_b = full_node
