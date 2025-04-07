@@ -1064,7 +1064,50 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                         .unwrap()
                 )
                 .unwrap()
-        )
+        );
+
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: contract_address,
+            nonce: 2,
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth = auth.into_signed(signature);
+
+        let set_code_tx = test_client
+            .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_auth])
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        let last_receipt = test_client
+            .eth_get_transaction_receipt(*set_code_tx.tx_hash())
+            .await
+            .unwrap();
+
+        // setting back should yield same diff
+        assert_eq!(
+            U64::from_str(
+                last_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap(),
+            U64::from_str(
+                single_auth_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+        );
     }
 
     // combine access list with eip7702 tx
@@ -1154,6 +1197,59 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         let gas_with_access_list = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
 
         assert!(gas > gas_with_access_list);
+    }
+
+    // show multiple authorizations in a single tx have bigger diff size
+    {
+        let mut signed_auths = vec![];
+
+        for _ in 0..5 {
+            let signer = PrivateKeySigner::random();
+
+            let auth = Authorization {
+                chain_id: U256::from(test_client.chain_id),
+                address: contract_address,
+                nonce: 0,
+            };
+
+            let signature = signer.sign_hash_sync(&auth.signature_hash())?;
+            signed_auths.push(auth.into_signed(signature));
+        }
+
+        let set_for_multiple_tx = test_client
+            .send_eip7702_transaction(Address::ZERO, vec![], None, signed_auths)
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+
+        let multiple_receipt = test_client
+            .eth_get_transaction_receipt(*set_for_multiple_tx.tx_hash())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            U64::from_str(
+                multiple_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap(),
+            U64::from_str(
+                single_auth_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+                // 4 accs * (85 acc diff * 32 / 100 acc discount) * 48 / 100 brotli discount
+                + U64::from(52) // 5 - 1 account diffs
+        )
     }
 
     rollup_task.abort();
