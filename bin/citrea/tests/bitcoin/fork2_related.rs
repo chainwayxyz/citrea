@@ -234,11 +234,34 @@ impl TestCase for PrecompilesAndEip7702 {
             U256::from(1)
         );
 
+        let set_storage_tx = seq_test_client
+            .contract_transaction(
+                authority_signer.address(),
+                SimpleStorageContract::default().set_call_data(11),
+                None,
+            )
+            .await;
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        sequencer.client.send_publish_batch_request().await?;
+
+        assert!(set_storage_tx.get_receipt().await.unwrap().status());
+
+        assert_eq!(
+            seq_test_client
+                .eth_get_storage_at(authority_signer.address(), U256::ZERO, None)
+                .await
+                .unwrap(),
+            U256::from(11)
+        );
+
         // force a sequencer commitment
         let cur_block_number = seq_test_client
             .ledger_get_head_l2_block_height()
             .await
             .unwrap();
+
+        assert!(cur_block_number < max_l2_blocks_per_commitment);
 
         let needed = max_l2_blocks_per_commitment - cur_block_number + 1;
 
