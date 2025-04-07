@@ -332,18 +332,18 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            task_executor.spawn_with_signal(|shutdown_signal| async move {
-                l1_block_handler.run(starting_block, shutdown_signal).await
-            });
-
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "LightClient",
                 |shutdown_signal| async move {
-                    if let Err(e) = prover.run(shutdown_signal).await {
-                        error!("Error: {}", e);
-                    }
+                    l1_block_handler.run(starting_block, shutdown_signal).await
                 },
             );
+
+            task_executor.spawn_with_signal(|shutdown_signal| async move {
+                if let Err(e) = prover.run(shutdown_signal).await {
+                    error!("Error: {}", e);
+                }
+            });
         }
         _ => {
             let (full_node, l1_block_handler, pruner_service) =

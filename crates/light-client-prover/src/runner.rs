@@ -1,5 +1,5 @@
 use citrea_common::RunnerConfig;
-use reth_tasks::shutdown::GracefulShutdown;
+use reth_tasks::shutdown::Shutdown;
 use tracing::instrument;
 
 pub struct CitreaLightClientProver {
@@ -16,7 +16,7 @@ impl CitreaLightClientProver {
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self, shutdown_signal: GracefulShutdown) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self, shutdown_signal: Shutdown) -> Result<(), anyhow::Error> {
         let _ = shutdown_signal.await;
 
         Ok(())

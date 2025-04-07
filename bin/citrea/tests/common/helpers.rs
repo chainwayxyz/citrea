@@ -326,19 +326,19 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_executor.spawn_with_signal(|shutdown_signal| async move {
-            l1_block_handler
-                .run(starting_block, shutdown_signal)
-                .instrument(handler_span.clone())
-                .await
-        });
-
         task_executor.spawn_critical_with_graceful_shutdown_signal(
             "LightClient",
             |shutdown_signal| async move {
-                rollup.run(shutdown_signal).instrument(span).await.unwrap();
+                l1_block_handler
+                    .run(starting_block, shutdown_signal)
+                    .instrument(handler_span.clone())
+                    .await
             },
         );
+
+        task_executor.spawn_with_signal(|shutdown_signal| async move {
+            rollup.run(shutdown_signal).instrument(span).await.unwrap();
+        });
     } else {
         let span = info_span!("FullNode");
 

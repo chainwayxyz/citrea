@@ -7,7 +7,7 @@ use citrea_common::da::sync_l1;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData};
-use reth_tasks::shutdown::Shutdown;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
@@ -93,7 +93,7 @@ where
     pub async fn run(
         mut self,
         last_l1_height_scanned: StartVariant,
-        mut shutdown_signal: Shutdown,
+        mut shutdown_signal: GracefulShutdown,
     ) {
         // if self.prover_config.enable_recovery {
         //     if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
