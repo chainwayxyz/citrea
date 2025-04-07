@@ -100,6 +100,8 @@ where
 
     async fn process_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
+        // don't ping if no new l1 blocks
+        let should_ping = pending_l1_blocks.len() > 0;
 
         while !pending_l1_blocks.is_empty() {
             let l1_block = pending_l1_blocks
@@ -171,11 +173,13 @@ where
             pending_l1_blocks.pop_front();
         }
 
-        // signal that new l1 blocks are processed
-        if let Err(e) = self.l1_signal_tx.try_send(()) {
-            match e {
-                TrySendError::Closed(_) => error!("L1 signal receiver channel closed"),
-                TrySendError::Full(_) => warn!("L1 signal receiver channel full"),
+        if should_ping {
+            // signal that new l1 blocks are processed
+            if let Err(e) = self.l1_signal_tx.try_send(()) {
+                match e {
+                    TrySendError::Closed(_) => error!("L1 signal receiver channel closed"),
+                    TrySendError::Full(_) => warn!("L1 signal receiver channel full"),
+                }
             }
         }
 
