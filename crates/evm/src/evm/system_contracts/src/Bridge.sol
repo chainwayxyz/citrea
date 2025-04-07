@@ -198,7 +198,7 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
-    /// @notice Anyone can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
+    /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
     /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
     /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
     function replaceDeposit(TransactionParams calldata replaceTp, uint256 index) external onlyOperator {
