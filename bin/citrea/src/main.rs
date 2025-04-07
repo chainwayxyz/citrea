@@ -248,6 +248,7 @@ where
                     l2_block_tx,
                     rpc_module,
                     backup_manager,
+                    task_executor.clone(),
                 )
                 .expect("Could not start sequencer");
 
