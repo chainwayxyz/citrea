@@ -262,11 +262,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
         l2_block_tx: broadcast::Sender<u64>,
+        rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
         CitreaFullnode<Self::DaService, LedgerDB>,
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
+        RpcModule<()>,
     )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
@@ -298,6 +300,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             l2_block_tx,
             fork_manager,
             code_commitments,
+            rpc_module,
             backup_manager,
         )
     }

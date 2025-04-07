@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, sync_l1};
+use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
 use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height_non_zero};
@@ -13,10 +13,9 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::l2_block::StoredL2Block;
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_db::schema::types::{L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber};
 use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
-use sov_rollup_interface::rpc::L2BlockStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -25,9 +24,15 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
+
+enum ProcessingResult {
+    Success,
+    Discarded,
+    Pending,
+}
 
 pub struct L1BlockHandler<Vm, Da, DB>
 where
@@ -125,66 +130,97 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
-        let sequencer_commitments = extract_sequencer_commitments(
+        let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
             self.da_service.clone(),
             l1_block,
+            &self.prover_da_pub_key,
             &self.sequencer_da_pub_key,
-        );
+        )
+        .await;
 
-        let zk_proofs =
-            extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key).await;
+        let l2_end_block_number = commitments_and_proofs
+            .iter()
+            .filter_map(|item| match item {
+                ProofOrCommitment::Commitment(commitment) => Some(commitment.l2_end_block_number),
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0);
 
-        if !sequencer_commitments.is_empty() {
+        if l2_end_block_number > 0 {
             // If the L2 range does not exist, we break off the current process call
             // We retry the L1 block at a later tick.
-            if !check_l2_block_exists(
-                &self.ledger_db,
-                sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
-            ) {
+            if !check_l2_block_exists(&self.ledger_db, l2_end_block_number) {
                 warn!("L1 commitment received, but L2 range is not synced yet...");
                 return;
             }
         }
 
-        for zk_proof in zk_proofs.clone().iter() {
-            if let Err(e) = self.process_zk_proof(l1_block, zk_proof.clone()).await {
-                match e {
-                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                        warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
-                        return;
+        for commitment_or_proof in commitments_and_proofs {
+            match commitment_or_proof {
+                ProofOrCommitment::Commitment(commitment) => {
+                    if let Err(e) = self
+                        .process_sequencer_commitment(l1_block, &commitment)
+                        .await
+                    {
+                        match e {
+                            SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                                warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
+                                return;
+                            }
+                            SyncError::Error(e) => {
+                                error!(
+                                    "Could not process sequencer commitments: {}... skipping",
+                                    e
+                                );
+                            }
+                            SyncError::SequencerCommitmentNotFound(_) => {
+                                unreachable!("Error irrelevant!")
+                            }
+                            SyncError::SequencerCommitmentWithIndexNotFound(_) => {
+                                unreachable!("Error irrelevant!")
+                            }
+                            SyncError::UnknownL1Hash => unreachable!("Error irrelevant!"),
+                            SyncError::SequencerCommitmentMissingForProof(_) => {
+                                unreachable!("Error irrelevant!")
+                            }
+                        }
                     }
-                    SyncError::Error(e) => {
-                        error!("Could not process ZK proofs: {}... skipping...", e);
-                    }
-                    SyncError::SequencerCommitmentNotFound(merkle_root) => {
-                        error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
-                    }
-                    SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
-                        error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
+                }
+                ProofOrCommitment::Proof(proof) => {
+                    if let Err(e) = self.process_zk_proof(l1_block, proof).await {
+                        match e {
+                            SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                                warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
+                                return;
+                            }
+                            SyncError::Error(e) => {
+                                error!("Could not process ZK proofs: {}... skipping...", e);
+                            }
+                            SyncError::SequencerCommitmentNotFound(merkle_root) => {
+                                error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
+                            }
+                            SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
+                                error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
+                            }
+                            SyncError::UnknownL1Hash => {
+                                error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
+                            }
+                            SyncError::SequencerCommitmentMissingForProof(index) => {
+                                error!("Could not process ZK proofs: Commitment index {index} is missing for proof")
+                            }
+                        }
                     }
                 }
             }
         }
 
-        for sequencer_commitment in sequencer_commitments.clone().iter() {
-            if let Err(e) = self
-                .process_sequencer_commitment(l1_block, sequencer_commitment)
-                .await
-            {
-                match e {
-                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                        warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
-                        return;
-                    }
-                    SyncError::Error(e) => {
-                        error!("Could not process sequencer commitments: {}... skipping", e);
-                    }
-                    SyncError::SequencerCommitmentNotFound(_) => unreachable!("Error irrelevant!"),
-                    SyncError::SequencerCommitmentWithIndexNotFound(_) => {
-                        unreachable!("Error irrelevant!")
-                    }
-                }
-            }
+        if let Err(e) = self.process_pending_commitments(l1_block).await {
+            error!("Error processing pending commitments: {e:?}");
+        }
+
+        if let Err(e) = self.process_pending_proofs(l1_block).await {
+            error!("Error processing pending proofs: {e:?}");
         }
 
         // We do not care about the result of writing this height to the ledger db
@@ -206,19 +242,77 @@ where
         &self,
         l1_block: &Da::FilteredBlock,
         sequencer_commitment: &SequencerCommitment,
-    ) -> Result<(), SyncError> {
+    ) -> Result<ProcessingResult, SyncError> {
+        // Skip if we already processed commitment with same index
+        if let Some(existing_commitment) = self
+            .ledger_db
+            .get_commitment_by_index(sequencer_commitment.index)?
+        {
+            // Check if the new commitment has a different merkle root but keep the first processed one as canonical
+            if existing_commitment.merkle_root != sequencer_commitment.merkle_root {
+                warn!(
+                    "Conflicting sequencer commitments with different merkle roots at index: {}.
+                    Already processed merkle root: 0x{}, conflicting merkle root: 0x{}",
+                    sequencer_commitment.index,
+                    hex::encode(existing_commitment.merkle_root),
+                    hex::encode(sequencer_commitment.merkle_root)
+                );
+            } else {
+                warn!(
+                    "Duplicate sequencer commitments with same merkle root {} at index: {}.",
+                    hex::encode(existing_commitment.merkle_root),
+                    sequencer_commitment.index,
+                );
+            }
+            return Ok(ProcessingResult::Discarded);
+        }
+
+        let end_l2_height = sequencer_commitment.l2_end_block_number;
+        if let Some(committed_height) = self
+            .ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
+        {
+            // Only proceed if the commitment height and index are higher than the stored one
+            if end_l2_height <= committed_height.height {
+                info!(
+                    "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
+                    committed_height.height,
+                );
+                return Ok(ProcessingResult::Discarded);
+            }
+
+            if sequencer_commitment.index <= committed_height.commitment_index {
+                info!(
+                    "Skipping sequencer commitment with index {} as it is not strictly superior to the existing commited one",
+                    sequencer_commitment.index,
+                );
+                return Ok(ProcessingResult::Discarded);
+            }
+        }
+
         let start_l2_height = if sequencer_commitment.index == 1 {
             get_fork2_activation_height_non_zero()
         } else {
-            self.ledger_db
+            match self
+                .ledger_db
                 .get_commitment_by_index(sequencer_commitment.index - 1)?
-                .expect("Commitment must exist")
-                .l2_end_block_number
-                + 1
+            {
+                Some(previous_commitment) => previous_commitment.l2_end_block_number + 1,
+                None => {
+                    // Store the out of order commitment as pending
+                    info!(
+                            "Commitment with index {} is missing its predecessor (index {}). Storing as pending.",
+                            sequencer_commitment.index,
+                            sequencer_commitment.index - 1
+                        );
+                    self.ledger_db
+                        .store_pending_commitment(sequencer_commitment.clone())?;
+                    return Ok(ProcessingResult::Pending);
+                }
+            }
         };
-        let end_l2_height = sequencer_commitment.l2_end_block_number;
 
-        tracing::info!(
+        info!(
             "Processing sequencer commitment for L2 Range = {}-{} at L1 height {}.",
             start_l2_height,
             end_l2_height,
@@ -268,11 +362,6 @@ where
             sequencer_commitment.clone(),
         )?;
 
-        for i in start_l2_height..=end_l2_height {
-            self.ledger_db
-                .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Finalized)?;
-        }
-
         self.ledger_db.set_l2_range_by_commitment_merkle_root(
             sequencer_commitment.merkle_root,
             (L2BlockNumber(start_l2_height), L2BlockNumber(end_l2_height)),
@@ -281,14 +370,22 @@ where
         self.ledger_db
             .put_commitment_by_index(sequencer_commitment)?;
 
-        Ok(())
+        self.ledger_db.set_l2_height_status(
+            L2HeightStatus::Committed,
+            L2HeightAndIndex {
+                height: end_l2_height,
+                commitment_index: sequencer_commitment.index,
+            },
+        )?;
+
+        Ok(ProcessingResult::Success)
     }
 
     async fn process_zk_proof(
         &self,
         l1_block: &Da::FilteredBlock,
         proof: Proof,
-    ) -> Result<(), SyncError> {
+    ) -> Result<ProcessingResult, SyncError> {
         tracing::info!(
             "Processing zk proof at height: {}",
             l1_block.header().height()
@@ -319,9 +416,49 @@ where
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
-    ) -> Result<(), SyncError> {
+    ) -> Result<ProcessingResult, SyncError> {
+        let last_l1_hash_on_bitcoin_light_client_contract =
+            batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
+        if self
+            .ledger_db
+            .get_l1_height_of_l1_hash(last_l1_hash_on_bitcoin_light_client_contract)?
+            .is_none()
+        {
+            return Err(SyncError::UnknownL1Hash);
+        }
+
         let sequencer_commitment_index_range =
             batch_proof_output.sequencer_commitment_index_range();
+
+        let proven_height = self
+            .ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)?
+            .unwrap_or_default();
+
+        let end_l2_height = batch_proof_output.last_l2_height();
+
+        if end_l2_height <= proven_height.height
+            || sequencer_commitment_index_range.1 <= proven_height.commitment_index
+        {
+            tracing::info!(
+                "Skipping proof with height {} and index {} as we already have proof with height {} and index {}",
+                end_l2_height,
+                sequencer_commitment_index_range.1,
+                proven_height.height,
+                proven_height.commitment_index
+            );
+            return Ok(ProcessingResult::Discarded);
+        }
+
+        let committed_height = self
+            .ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
+            .unwrap_or_default();
+
+        if proven_height > committed_height {
+            panic!("Proven height {proven_height:?} above committed height {committed_height:?}");
+        }
+
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
         let previous_l2_end_block_number = match batch_proof_output.previous_commitment_index() {
             Some(idx) => {
@@ -369,30 +506,39 @@ where
             ).into());
         }
 
-        let mut l2_start_height = previous_l2_end_block_number + 1;
+        let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
-            .zip(batch_proof_output.sequencer_commitment_hashes())
+            .zip(commitments_hashes)
         {
             // Check if hash matches
-            let sequencer_commitment = self
-                .ledger_db
-                .get_commitment_by_index(index)?
-                .ok_or(SyncError::SequencerCommitmentWithIndexNotFound(index))?;
-
-            if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
-                return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
-                    hex::encode(expected_hash)
-                ).into());
+            if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(index)? {
+                if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
+                    return Err(anyhow!(
+                            "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                            hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
+                            hex::encode(expected_hash)
+                        ).into());
+                }
+            } else {
+                return Err(SyncError::SequencerCommitmentMissingForProof(index));
             }
+        }
 
-            for i in l2_start_height..=sequencer_commitment.l2_end_block_number {
-                self.ledger_db
-                    .put_l2_block_status(L2BlockNumber(i), L2BlockStatus::Proven)?;
-            }
-            l2_start_height = sequencer_commitment.l2_end_block_number + 1;
+        if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
+            info!(
+                    "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof as pending for commitment range {}-{}",
+                    proven_height.commitment_index + 1,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1
+                );
+            self.ledger_db.store_pending_proof(
+                sequencer_commitment_index_range.0,
+                sequencer_commitment_index_range.1,
+                raw_proof,
+            )?;
+            return Ok(ProcessingResult::Pending);
         }
 
         // store in ledger db
@@ -401,6 +547,86 @@ where
             raw_proof,
             batch_proof_output.into(),
         )?;
+
+        self.ledger_db.set_l2_height_status(
+            L2HeightStatus::Proven,
+            L2HeightAndIndex {
+                height: end_l2_height,
+                commitment_index: sequencer_commitment_index_range.1,
+            },
+        )?;
+
+        Ok(ProcessingResult::Success)
+    }
+
+    async fn process_pending_commitments(
+        &self,
+        l1_block: &Da::FilteredBlock,
+    ) -> Result<(), SyncError> {
+        let pending_commitments = self.ledger_db.get_pending_commitments()?;
+        if pending_commitments.is_empty() {
+            return Ok(());
+        }
+
+        for (index, commitment) in pending_commitments {
+            // Check if we can process this commitment now
+            if self.ledger_db.get_commitment_by_index(index - 1)?.is_some() {
+                match self
+                    .process_sequencer_commitment(l1_block, &commitment)
+                    .await
+                {
+                    Err(e) => {
+                        warn!("Failed to process pending commitment with index {index}: {e:?}");
+                        break;
+                    }
+                    Ok(ProcessingResult::Success) => {
+                        info!("Succesfully processed pending commitment {index}");
+                        self.ledger_db.remove_pending_commitment(index)?;
+                    }
+                    Ok(ProcessingResult::Discarded) => {
+                        info!("Discarding pending commitment {index}");
+                        self.ledger_db.remove_pending_commitment(index)?;
+                    }
+                    Ok(ProcessingResult::Pending) => {
+                        debug!("Keeping commitment {index} as pending")
+                    }
+                }
+            } else {
+                // Breaking since pending commitments are sorted and we won't be to process anymore from then on
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn process_pending_proofs(&self, l1_block: &Da::FilteredBlock) -> Result<(), SyncError> {
+        let pending_proofs = self.ledger_db.get_pending_proofs()?;
+        if pending_proofs.is_empty() {
+            return Ok(());
+        }
+
+        for ((min_index, max_index), proof) in pending_proofs {
+            match self.process_zk_proof(l1_block, proof).await {
+                Err(e) => {
+                    warn!(
+                        "Failed to process pending proof with index {min_index}-{max_index}: {e:?}"
+                    );
+                    break;
+                }
+                Ok(ProcessingResult::Success) => {
+                    info!("Succesfully processed pending proof for commitment index range {min_index}-{max_index}");
+                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                }
+                Ok(ProcessingResult::Discarded) => {
+                    info!("Discarding pending proof for commitment index range {min_index}-{max_index}");
+                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                }
+                Ok(ProcessingResult::Pending) => {
+                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending")
+                }
+            }
+        }
 
         Ok(())
     }

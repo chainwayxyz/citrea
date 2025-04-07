@@ -95,13 +95,22 @@ impl TestCase for BitcoinServiceTest {
 
         // Extract relevant sequencer commitments
         {
-            let commitments = service.extract_relevant_sequencer_commitments(&block, &pubkey);
+            let commitments: Vec<_> = service
+                .extract_relevant_sequencer_commitments(&block, &pubkey)
+                .into_iter()
+                .map(|(_, commitment)| commitment)
+                .collect();
             assert_eq!(commitments, block_commitments);
         }
 
         // Extract relevant zk proofs
         {
-            let proofs = service.extract_relevant_zk_proofs(&block, &pubkey).await;
+            let proofs: Vec<_> = service
+                .extract_relevant_zk_proofs(&block, &pubkey)
+                .await
+                .into_iter()
+                .map(|(_, proof)| proof)
+                .collect();
             assert_eq!(proofs, block_proofs);
         }
 

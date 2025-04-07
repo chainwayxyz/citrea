@@ -7,7 +7,7 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
+use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
@@ -15,9 +15,10 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock,
-    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions, PendingSequencerCommitment,
-    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
+    L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProofs, PendingProvingSessions,
+    PendingSequencerCommitment, PendingSequencerCommitments, ProofsBySlotNumberV2,
+    ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
     VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -28,7 +29,9 @@ use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{
+    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -271,25 +274,6 @@ impl SharedLedgerOps for LedgerDB {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
     }
 
-    /// Saves a l2 block status for a given L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn put_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-        status: sov_rollup_interface::rpc::L2BlockStatus,
-    ) -> Result<(), anyhow::Error> {
-        self.db.put::<L2BlockStatus>(&height, &status)
-    }
-
-    /// Saves a l2 block status for a given L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-    ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>, anyhow::Error> {
-        self.db.get::<L2BlockStatus>(&height)
-    }
-
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
     #[instrument(level = "trace", skip(self, commitment), err, ret)]
@@ -461,6 +445,15 @@ impl SharedLedgerOps for LedgerDB {
 
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {
         self.db.get::<SequencerCommitmentByIndex>(&index)
+    }
+
+    fn get_commitment_by_range(
+        &self,
+        range: std::ops::RangeInclusive<u32>,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let start = *range.start();
+        let end = range.end() + 1;
+        self.get_data_range::<SequencerCommitmentByIndex, _, _>(&(start..end))
     }
 }
 
@@ -755,6 +748,119 @@ impl NodeLedgerOps for LedgerDB {
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
         self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
+    }
+
+    fn get_highest_l2_height_for_status(
+        &self,
+        status: L2HeightStatus,
+        height: Option<u64>,
+    ) -> anyhow::Result<Option<L2HeightAndIndex>> {
+        let mut iter = self
+            .db
+            .iter_with_direction::<L2StatusHeights>(Default::default(), ScanDirection::Backward)?;
+        iter.seek_for_prev(&(status, height.unwrap_or(u64::MAX)))?;
+
+        match iter.next() {
+            Some(Ok(item)) if item.key.0 == status => {
+                let ((_, height), commitment_index) = item.into_tuple();
+
+                Ok(Some(L2HeightAndIndex {
+                    height,
+                    commitment_index,
+                }))
+            }
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
+
+    fn set_l2_height_status(
+        &self,
+        status: L2HeightStatus,
+        val: L2HeightAndIndex,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2StatusHeights>(&(status, val.height), &val.commitment_index)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn store_pending_commitment(&self, commitment: SequencerCommitment) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<PendingSequencerCommitments>(&commitment.index, &commitment)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment)>> {
+        let mut pending = Vec::new();
+        let mut iter = self.db.iter::<PendingSequencerCommitments>()?;
+        iter.seek_to_first();
+
+        while let Some(Ok(item)) = iter.next() {
+            let (index, commitment) = item.into_tuple();
+            pending.push((index, commitment));
+        }
+
+        // Sort by index to make sure we process pending commitments in order
+        pending.sort_by_key(|(index, _)| *index);
+
+        Ok(pending)
+    }
+
+    fn remove_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<PendingSequencerCommitments>(&index)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn store_pending_proof(
+        &self,
+        min_commitment_index: u32,
+        max_commitment_index: u32,
+        proof: Proof,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<PendingProofs>(&(min_commitment_index, max_commitment_index), &proof)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn get_pending_proofs(&self) -> anyhow::Result<Vec<((u32, u32), Proof)>> {
+        let mut pending = Vec::new();
+        let mut iter = self.db.iter::<PendingProofs>()?;
+        iter.seek_to_first();
+
+        while let Some(Ok(item)) = iter.next() {
+            let (index_range, proof) = item.into_tuple();
+            pending.push((index_range, proof));
+        }
+
+        // Sort by min commitment index to ensure we process in order
+        pending.sort_by_key(|((min_index, _), _)| *min_index);
+
+        Ok(pending)
+    }
+
+    fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<PendingProofs>(&(min_index, max_index))?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn get_l2_status_heights_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)> {
+        let committed_height =
+            self.get_highest_l2_height_for_status(L2HeightStatus::Committed, Some(l1_height))?;
+        let proven_height =
+            self.get_highest_l2_height_for_status(L2HeightStatus::Proven, Some(l1_height))?;
+
+        Ok((committed_height, proven_height))
     }
 }
 

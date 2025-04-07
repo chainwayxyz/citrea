@@ -110,18 +110,18 @@ tracing = { version = "0.1.41", default-features = false, features = ["attribute
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "fmt"] }
 toml = "0.8.0"
 tempfile = "3.15"
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.44.2", features = ["full"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
 risc0-binfmt = "2.0.0"
-risc0-zkvm = { version = "2.0.0", default-features = false }
-risc0-zkvm-platform = "2.0.0"
+risc0-zkvm = { version = "2.0.1", default-features = false }
+risc0-zkvm-platform = "2.0.1"
 risc0-zkp = "2.0.0"
-risc0-circuit-rv32im = "2.0.0"
-risc0-build = "2.0.0"
+risc0-circuit-rv32im = "2.0.1"
+risc0-build = "2.0.1"
 
 # EVM dependencies
 revm-inspectors = { version = "0.18.0", default-features = false }

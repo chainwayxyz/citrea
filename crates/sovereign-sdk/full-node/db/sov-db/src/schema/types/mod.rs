@@ -25,6 +25,45 @@ pub(crate) type StateKeyRef<'a> = &'a [u8];
 /// (start, end) inclusive
 pub type L2HeightRange = (L2BlockNumber, L2BlockNumber);
 
+/// Height and index of a sequencer commitment
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    PartialOrd,
+    ::borsh::BorshDeserialize,
+    ::borsh::BorshSerialize,
+    ::serde::Serialize,
+    ::serde::Deserialize,
+)]
+pub struct L2HeightAndIndex {
+    /// L2 end height
+    pub height: u64,
+    /// Commitment's index
+    pub commitment_index: u32,
+}
+
+/// Status of a sequencer commitment
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    ::borsh::BorshDeserialize,
+    ::borsh::BorshSerialize,
+    ::serde::Serialize,
+    ::serde::Deserialize,
+)]
+#[repr(u8)]
+#[borsh(use_discriminant = true)]
+pub enum L2HeightStatus {
+    /// Commmited sequencer commitment
+    Committed = 0,
+    /// Proven sequencer commitment
+    Proven = 1,
+}
+
 macro_rules! u64_wrapper {
     ($name:ident) => {
         /// A typed wrapper around u64 implementing `Encode` and `Decode`

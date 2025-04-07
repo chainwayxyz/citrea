@@ -12,7 +12,9 @@ use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{
+    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
@@ -42,19 +44,6 @@ pub trait SharedLedgerOps {
 
     /// Gets l1 height of l1 hash
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
-
-    /// Saves a l2 block status for a given L1 height
-    fn put_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-        status: sov_rollup_interface::rpc::L2BlockStatus,
-    ) -> Result<()>;
-
-    /// Returns a l2 block status for a given L1 height
-    fn get_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-    ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>>;
 
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
@@ -138,10 +127,16 @@ pub trait SharedLedgerOps {
 
     /// Get commitment by index
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>>;
+
+    /// Get commitment by index range
+    fn get_commitment_by_range(
+        &self,
+        range: std::ops::RangeInclusive<u32>,
+    ) -> anyhow::Result<Vec<SequencerCommitment>>;
 }
 
 /// Node ledger operations
-pub trait NodeLedgerOps: SharedLedgerOps {
+pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     /// Stores proof related data on disk, accessible via l1 slot height
     fn update_verified_proof_data(
         &self,
@@ -152,6 +147,45 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
+
+    /// Get L2 height by status
+    fn get_highest_l2_height_for_status(
+        &self,
+        status: L2HeightStatus,
+        height: Option<u64>,
+    ) -> Result<Option<L2HeightAndIndex>>;
+
+    /// Set L2 height by status
+    fn set_l2_height_status(&self, status: L2HeightStatus, height: L2HeightAndIndex) -> Result<()>;
+
+    /// Get highest committed and proven L2 heights up to a specific L1 height
+    fn get_l2_status_heights_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)>;
+
+    /// Store an out of order commitment by index for later processing
+    fn store_pending_commitment(&self, commitment: SequencerCommitment) -> Result<()>;
+
+    /// Get all out of order commitment to process, sorted by index
+    fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment)>>;
+
+    /// Remove pending commitment by index
+    fn remove_pending_commitment(&self, index: u32) -> Result<()>;
+
+    /// Store an out of order proof by commitment index range for later processing
+    fn store_pending_proof(
+        &self,
+        min_commitment_index: u32,
+        max_commitment_index: u32,
+        proof: Proof,
+    ) -> Result<()>;
+
+    /// Get all out of order commitment to process sorted by commitment index range
+    fn get_pending_proofs(&self) -> Result<Vec<((u32, u32), Proof)>>;
+
+    /// Remove a pending proof by its commitment index range
+    fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> Result<()>;
 }
 
 /// Prover ledger operations
