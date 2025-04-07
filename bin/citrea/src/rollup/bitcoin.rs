@@ -142,9 +142,7 @@ impl RollupBlueprint for BitcoinRollup {
             // run only for sequencer and prover
             service.monitoring.restore().await?;
 
-            task_executor.spawn_with_graceful_shutdown_signal(|tk| {
-                Arc::clone(&service).run_da_queue(rx, tk)
-            });
+            task_executor.spawn_with_signal(|tk| Arc::clone(&service).run_da_queue(rx, tk));
             task_executor
                 .spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));
         }
