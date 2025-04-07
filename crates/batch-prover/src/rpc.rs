@@ -10,6 +10,7 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_rollup_interface::da::SequencerCommitment;
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
@@ -63,7 +64,10 @@ where
 pub trait BatchProverRpc {
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
-    async fn prove(&self) -> RpcResult<Vec<Uuid>>;
+    async fn prove(
+        &self,
+        commitments: Option<Vec<SequencerCommitmentParam>>,
+    ) -> RpcResult<Vec<Uuid>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -89,11 +93,22 @@ impl<DB> BatchProverRpcServer for BatchProverRpcServerImpl<DB>
 where
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
-    async fn prove(&self) -> RpcResult<Vec<Uuid>> {
+    async fn prove(
+        &self,
+        commitments: Option<Vec<SequencerCommitmentParam>>,
+    ) -> RpcResult<Vec<Uuid>> {
         let (result_tx, result_rx) = oneshot::channel();
         let request = ProveRequest {
             result_tx,
-            commitments: None,
+            commitments: commitments.map(|cs| {
+                cs.into_iter()
+                    .map(|c| SequencerCommitment {
+                        merkle_root: c.merkle_root,
+                        index: c.index,
+                        l2_end_block_number: c.l2_end_block_number,
+                    })
+                    .collect()
+            }),
         };
 
         if let Err(_) = self.context.request_tx.send(request).await {
@@ -125,4 +140,12 @@ where
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
     BatchProverRpcServer::into_rpc(server)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequencerCommitmentParam {
+    #[serde(with = "hex::serde")]
+    pub merkle_root: [u8; 32],
+    pub index: u32,
+    pub l2_end_block_number: u64,
 }
