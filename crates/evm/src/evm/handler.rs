@@ -691,6 +691,10 @@ where
     let mut diff_size = 0usize;
 
     for (addr, account) in account_changes {
+        // as create is only for smart contract creations, we must find another way to understand if the account was used for the first time
+        // if there was a way to access Evm::account_amount we could get the amount of contracts added in a single query
+        // and add it to the diff size
+
         // if account.created {
         //     diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
         // }
