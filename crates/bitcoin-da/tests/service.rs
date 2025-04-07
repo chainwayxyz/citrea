@@ -19,7 +19,9 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::{generate_mock_txs, get_citrea_path, get_default_service, DEFAULT_DA_PRIVATE_KEY};
 
-struct BitcoinServiceTest;
+struct BitcoinServiceTest {
+    task_manager: TaskManager,
+}
 
 #[async_trait]
 impl TestCase for BitcoinServiceTest {
@@ -38,17 +40,21 @@ impl TestCase for BitcoinServiceTest {
         }
     }
 
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager.graceful_shutdown();
+        Ok(())
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_manager = TaskManager::current();
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(task_manager.executor(), &da_node.config).await;
+        let service = get_default_service(self.task_manager.executor(), &da_node.config).await;
         let verifier = BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
         });
 
         let (block, block_commitments, block_proofs, _) =
-            generate_mock_txs(&service, da_node, task_manager.executor()).await;
+            generate_mock_txs(&service, da_node, self.task_manager.executor()).await;
         let block_wtxids = block
             .txdata
             .iter()
@@ -146,7 +152,6 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(tx_count_of_pubkey.get(&wrong_pubkey).unwrap(), &1);
         }
 
-        task_manager.graceful_shutdown();
         Ok(())
     }
 }
@@ -154,8 +159,10 @@ impl TestCase for BitcoinServiceTest {
 #[cfg(feature = "native")]
 #[tokio::test]
 async fn test_bitcoin_service() -> Result<()> {
-    TestCaseRunner::new(BitcoinServiceTest)
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(BitcoinServiceTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
