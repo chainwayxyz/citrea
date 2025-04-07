@@ -65,11 +65,30 @@ where
 pub trait BatchProverRpc {
     /// Manually set commitments. It overrides the commitment already if exists, so use with caution.
     #[method(name = "setCommitments")]
-    async fn set_commitments(&self, commitments: Vec<SequencerCommitmentParam>) -> RpcResult<()>;
+    async fn set_commitments(&self, commitments: Vec<SequencerCommitmentRpcParam>)
+        -> RpcResult<()>;
 
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
     async fn prove(&self) -> RpcResult<Vec<Uuid>>;
+
+    /// Stop further proving jobs to be spawned. Existing jobs will continue.
+    #[method(name = "pauseProving")]
+    async fn pause_proving(&self) -> RpcResult<()>;
+
+    /// Get commitments by l1 height
+    #[method(name = "getCommitmentsByL1")]
+    async fn get_commitments_by_l1(
+        &self,
+        l1_height: u64,
+    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>>;
+
+    /// Get commitments by job id
+    #[method(name = "getCommitmentsByJob")]
+    async fn get_commitments_by_job(
+        &self,
+        job_id: Uuid,
+    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -95,7 +114,10 @@ impl<DB> BatchProverRpcServer for BatchProverRpcServerImpl<DB>
 where
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
-    async fn set_commitments(&self, commitments: Vec<SequencerCommitmentParam>) -> RpcResult<()> {
+    async fn set_commitments(
+        &self,
+        commitments: Vec<SequencerCommitmentRpcParam>,
+    ) -> RpcResult<()> {
         for commitment in commitments {
             let l1_height = commitment.l1_height;
             let commitment = SequencerCommitment {
@@ -124,9 +146,13 @@ where
 
     async fn prove(&self) -> RpcResult<Vec<Uuid>> {
         let (result_tx, result_rx) = oneshot::channel();
-        let request = ProveRequest { result_tx };
 
-        if let Err(_) = self.context.request_tx.send(request).await {
+        if let Err(_) = self
+            .context
+            .request_tx
+            .send(ProveRequest::Prove(result_tx))
+            .await
+        {
             return Err(internal_rpc_error("Proving request channel is closed"));
         }
 
@@ -137,6 +163,28 @@ where
         };
 
         Ok(job_ids)
+    }
+
+    async fn pause_proving(&self) -> RpcResult<()> {
+        self.context
+            .request_tx
+            .send(ProveRequest::Pause)
+            .await
+            .map_err(|_| internal_rpc_error("Proving request channel is closed"))
+    }
+
+    async fn get_commitments_by_l1(
+        &self,
+        l1_height: u64,
+    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>> {
+        todo!()
+    }
+
+    async fn get_commitments_by_job(
+        &self,
+        job_id: Uuid,
+    ) -> RpcResult<Vec<SequencerCommitmentRpcResult>> {
+        todo!()
     }
 }
 
@@ -152,12 +200,20 @@ where
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SequencerCommitmentParam {
+pub struct SequencerCommitmentRpcParam {
     #[serde(with = "hex::serde")]
     pub merkle_root: [u8; 32],
     pub index: u32,
     pub l2_end_block_number: u64,
     pub l1_height: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequencerCommitmentRpcResult {
+    #[serde(with = "hex::serde")]
+    pub merkle_root: [u8; 32],
+    pub index: u32,
+    pub l2_end_block_number: u64,
 }
 
 fn internal_rpc_error(msg: impl AsRef<str>) -> ErrorObjectOwned {

@@ -35,8 +35,9 @@ use uuid::Uuid;
 
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
-pub struct ProveRequest {
-    pub result_tx: oneshot::Sender<Vec<Uuid>>,
+pub enum ProveRequest {
+    Pause,
+    Prove(oneshot::Sender<Vec<Uuid>>),
 }
 
 pub struct Prover<Da, DB, Vm>
@@ -56,6 +57,7 @@ where
     l2_block_rx: broadcast::Receiver<u64>,
     request_rx: mpsc::Receiver<ProveRequest>,
     sync_target_l2_height: Option<u64>,
+    proving_paused: bool,
 }
 
 impl<Da, DB, Vm> Prover<Da, DB, Vm>
@@ -89,6 +91,7 @@ where
             l2_block_rx,
             request_rx,
             sync_target_l2_height: None,
+            proving_paused: false,
         }
     }
 
@@ -131,11 +134,18 @@ where
                         return;
                     };
 
-                    match self.try_proving(false).await {
-                        Ok(job_ids) => {
-                            let _ = request.result_tx.send(job_ids);
+                    match request {
+                        ProveRequest::Pause => {
+                            self.proving_paused = true;
                         }
-                        Err(e) => error!("Failed to handle prove request: {}", e),
+                        ProveRequest::Prove(result_tx) => {
+                            match self.try_proving(false).await {
+                                Ok(job_ids) => {
+                                    let _ = result_tx.send(job_ids);
+                                }
+                                Err(e) => error!("Failed to handle prove request: {}", e),
+                            }
+                        }
                     }
                 }
             }
@@ -143,6 +153,11 @@ where
     }
 
     async fn try_proving(&mut self, with_sampling: bool) -> anyhow::Result<Vec<Uuid>> {
+        if self.proving_paused {
+            info!("Proving is paused");
+            return Ok(Vec::new());
+        }
+
         if with_sampling && !self.should_prove() {
             info!("Skipping proving due to sampling");
             return Ok(Vec::new());
