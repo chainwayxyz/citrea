@@ -227,7 +227,7 @@ fn test_sys_bitcoin_light_client() {
                             ).unwrap(),
                         }
                     ]
-                },
+                }.into(),
                 gas_used: 169134,
                 log_index_start: 1,
                 l1_diff_size: 136,
