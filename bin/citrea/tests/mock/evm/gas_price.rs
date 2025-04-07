@@ -39,7 +39,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
 
-    let rollup_task = tokio::spawn(async {
+    let rollup_task =
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
@@ -52,13 +52,12 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             false,
         )
         .await;
-    });
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
     let test_client = init_test_rollup(port).await;
     execute(&test_client, port).await.unwrap();
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 

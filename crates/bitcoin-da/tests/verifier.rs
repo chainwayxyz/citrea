@@ -7,12 +7,12 @@ use bitcoin_da::helpers::merkle_tree::BitcoinMerkleTree;
 use bitcoin_da::spec::proof::InclusionMultiProof;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
-use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use reth_tasks::TaskManager;
 use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::macros::assert_panic;
@@ -40,11 +40,11 @@ impl TestCase for BitcoinVerifierTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let mut task_manager = TaskManager::current();
+        let task_manager = TaskManager::current();
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(&mut task_manager, &da_node.config).await;
-        let (block, _, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
+        let service = get_default_service(task_manager.executor(), &da_node.config).await;
+        let (block, _, _, _) = generate_mock_txs(&service, da_node, task_manager.executor()).await;
 
         let (mut txs, inclusion_proof, completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block);
@@ -369,7 +369,7 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
-        task_manager.abort().await;
+        task_manager.graceful_shutdown();
         Ok(())
     }
 }

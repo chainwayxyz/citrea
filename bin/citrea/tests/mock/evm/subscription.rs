@@ -39,20 +39,18 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    // Don't provide a prover since the EVM is not currently provable
+    let seq_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -247,7 +245,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 

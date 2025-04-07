@@ -67,8 +67,8 @@ async fn test_l2_blocks_status_one_l1() -> Result<(), anyhow::Error> {
         assert_eq!(L2BlockStatus::Finalized, status_node);
     }
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }
@@ -143,8 +143,8 @@ async fn test_l2_blocks_status_two_l1() -> Result<(), anyhow::Error> {
         format!("{:?}", status_node.err()).contains("L2 block at height 410 not processed yet.")
     );
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }

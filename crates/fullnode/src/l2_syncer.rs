@@ -9,7 +9,7 @@ use citrea_common::l2::{process_l2_block, sync_l2, ProcessL2BlockResult};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use reth_tasks::shutdown::Shutdown;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
@@ -93,7 +93,7 @@ where
     }
 
     /// Runs the L2Syncer in a blocking manner.
-    pub async fn run(&mut self, mut shutdown_signal: Shutdown) {
+    pub async fn run(&mut self, mut shutdown_signal: GracefulShutdown) {
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
             self.start_l2_height,

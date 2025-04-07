@@ -157,8 +157,8 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
 
     assert_eq!(seq_last_block, node_last_block);
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }

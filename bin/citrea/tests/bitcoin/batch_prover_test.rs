@@ -404,7 +404,7 @@ async fn basic_prover_test() -> Result<()> {
 //     }
 
 //     async fn cleanup(&self) -> Result<()> {
-//         self.task_manager.abort().await;
+//         self.task_manager.graceful_shutdown();
 //         Ok(())
 //     }
 // }

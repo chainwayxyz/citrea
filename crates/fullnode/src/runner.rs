@@ -1,4 +1,4 @@
-use reth_tasks::shutdown::Shutdown;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_rollup_interface::services::da::DaService;
 use tokio::select;
@@ -26,7 +26,7 @@ where
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(mut self, mut shutdown_signal: Shutdown) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) -> anyhow::Result<()> {
         let l2_syncer = self.l2_syncer.run(shutdown_signal.clone());
         tokio::pin!(l2_syncer);
 

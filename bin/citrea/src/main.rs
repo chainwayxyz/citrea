@@ -383,7 +383,7 @@ where
                 });
             }
 
-            task_executor.spawn_critical_with_shutdown_signal(
+            task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "FullNode",
                 |shutdown_signal| async move {
                     if let Err(e) = full_node.run(shutdown_signal).await {

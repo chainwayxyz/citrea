@@ -37,19 +37,17 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig::default();
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -63,19 +61,17 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         None,
     );
     // starting full node with db path
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
@@ -115,7 +111,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
     assert_eq!(seq_last_block.header.hash, full_node_last_block.header.hash);
 
     // close full node
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
 
     // create 100 more blocks
     for _ in 0..100 {
@@ -146,19 +142,17 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         None,
     );
     // spin up the full node again with the same data where it left of only with different path to not stuck on lock
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
@@ -185,8 +179,8 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
     );
     assert_eq!(seq_last_block.header.hash, full_node_last_block.header.hash);
 
-    seq_task.abort();
-    rollup_task.abort();
+    seq_task.graceful_shutdown();
+    rollup_task.graceful_shutdown();
 
     Ok(())
 }
@@ -208,19 +202,17 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig::default();
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -232,7 +224,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     assert_eq!(block.header.number, 0);
 
     // close sequencer
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -259,19 +251,17 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            true,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        true,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -299,7 +289,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         2
     );
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 
     Ok(())
 }
@@ -326,19 +316,17 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -399,7 +387,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
-    prover_node_task_manager.abort().await;
+    prover_node_task_manager.graceful_shutdown();
 
     sleep(Duration::from_secs(1)).await;
 
@@ -444,7 +432,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 6);
 
-    prover_node_task_manager.abort().await;
+    prover_node_task_manager.graceful_shutdown();
     sleep(Duration::from_secs(2)).await;
 
     seq_test_client.send_publish_batch_request().await;
@@ -512,7 +500,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // https://github.com/chainwayxyz/citrea/issues/684
     assert!(prover_node_test_client.eth_block_number().await >= 8);
     // TODO: Also test with multiple commitments in single Mock DA Block
-    seq_task.abort();
-    prover_node_task_manager.abort().await;
+    seq_task.graceful_shutdown();
+    prover_node_task_manager.graceful_shutdown();
     Ok(())
 }

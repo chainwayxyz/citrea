@@ -9,11 +9,11 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
+use reth_tasks::TaskManager;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::{L2BlockStatus, LastVerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
-use tokio::task::JoinHandle;
 
 use self::evm::init_test_rollup;
 use crate::common::client::TestClient;
@@ -79,19 +79,17 @@ async fn test_all_flow() {
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await.unwrap();
@@ -106,23 +104,21 @@ async fn test_all_flow() {
         NodeMode::Prover(seq_port),
         None,
     );
-    let prover_node_task = tokio::spawn(async {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(BatchProverConfig {
-                proving_mode: citrea_common::ProverGuestRunConfig::Execute,
-                proof_sampling_number: 0,
-                enable_recovery: true,
-            }),
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let prover_node_task = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
@@ -137,19 +133,17 @@ async fn test_all_flow() {
         NodeMode::FullNode(seq_port),
         Some(PruningConfig { distance: 20 }),
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
@@ -365,9 +359,9 @@ async fn test_all_flow() {
     wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(60))).await;
     assert!(prover_node_test_client.eth_block_number().await == 8);
 
-    seq_task.abort();
-    prover_node_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    prover_node_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 }
 
 /// Test RPC `ledger_getHeadL2Block`
@@ -399,19 +393,17 @@ async fn test_ledger_get_head_l2_block() {
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = init_test_rollup(seq_port).await;
@@ -442,7 +434,7 @@ async fn test_ledger_get_head_l2_block() {
         .unwrap();
     assert_eq!(head_l2_block_height, 2);
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }
 
 async fn initialize_test(
@@ -450,8 +442,8 @@ async fn initialize_test(
 ) -> (
     Box<TestClient>, /* seq_test_client */
     Box<TestClient>, /* full_node_test_client */
-    JoinHandle<()>,  /* seq_task */
-    JoinHandle<()>,  /* full_node_task */
+    TaskManager,     /* seq_task */
+    TaskManager,     /* full_node_task */
     Address,
 ) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -470,19 +462,17 @@ async fn initialize_test(
         NodeMode::SequencerNode,
         config.pruning_config.clone(),
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await.unwrap();
@@ -496,19 +486,17 @@ async fn initialize_test(
         NodeMode::FullNode(seq_port),
         config.pruning_config,
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await.unwrap();
@@ -629,19 +617,17 @@ async fn test_offchain_contract_storage() {
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let sequencer_client = make_test_client(seq_port).await.unwrap();
@@ -747,5 +733,5 @@ async fn test_offchain_contract_storage() {
         sequencer_client.send_publish_batch_request().await;
         set_value_req.watch().await.unwrap();
     }
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }

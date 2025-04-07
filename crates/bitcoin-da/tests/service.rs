@@ -9,12 +9,12 @@ use bitcoin::secp256k1::SecretKey;
 use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use reth_tasks::TaskManager;
 use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::{generate_mock_txs, get_citrea_path, get_default_service, DEFAULT_DA_PRIVATE_KEY};
@@ -39,16 +39,16 @@ impl TestCase for BitcoinServiceTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let mut task_manager = TaskManager::current();
+        let task_manager = TaskManager::current();
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(&mut task_manager, &da_node.config).await;
+        let service = get_default_service(task_manager.executor(), &da_node.config).await;
         let verifier = BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
         });
 
         let (block, block_commitments, block_proofs, _) =
-            generate_mock_txs(&service, da_node, &mut task_manager).await;
+            generate_mock_txs(&service, da_node, task_manager.executor()).await;
         let block_wtxids = block
             .txdata
             .iter()
@@ -137,7 +137,7 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(tx_count_of_pubkey.get(&wrong_pubkey).unwrap(), &1);
         }
 
-        task_manager.abort().await;
+        task_manager.graceful_shutdown();
         Ok(())
     }
 }
