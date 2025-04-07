@@ -557,12 +557,12 @@ where
     ) -> Result<revm::context::result::ResultAndState<Self::HaltReason>, Self::Error> {
         let uncompressed_size = calc_diff_size(evm.ctx());
 
-        // Estimate the size of the state diff after the brotli compression
-        let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64;
+        // Estimate the size of the state diff after the brotli compression and add L1 fee overhead
+        let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64
+            + L1_FEE_OVERHEAD as u64;
 
         let l1_fee_rate = evm.ctx().chain().l1_fee_rate();
-        let l1_fee =
-            U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
+        let l1_fee = U256::from(l1_fee_rate) * U256::from(diff_size);
         evm.ctx().chain().set_tx_info(TxInfo {
             l1_diff_size: diff_size,
             l1_fee,
