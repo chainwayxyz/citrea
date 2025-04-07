@@ -28,11 +28,14 @@ if not isProd:
 else:
     if os.environ.get("CHAIN_ID") is None:
         raise Exception("CHAIN_ID environment variable is not set")
-    evm_json["chain_id"] = os.getenv("CHAIN_ID")
-evm_json["limit_contract_code_size"] = None
+    evm_json["chain_id"] = int(os.getenv("CHAIN_ID"))
+evm_json["limit_contract_code_size"] = 24576
 evm_json["coinbase"] = "0x3100000000000000000000000000000000000005"
 evm_json["starting_base_fee"] = 1000000000
-evm_json["block_gas_limit"] = 30000000
+if isProd:
+    evm_json["block_gas_limit"] = 10000000
+else:
+    evm_json["block_gas_limit"] = 30000000
 evm_json["base_fee_params"] = {"max_change_denominator": 8, "elasticity_multiplier" : 2}
 evm_json["difficulty"] = 0
 evm_json["extra_data"] = "0x"
