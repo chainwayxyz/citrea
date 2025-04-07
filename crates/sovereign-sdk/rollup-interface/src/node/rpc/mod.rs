@@ -169,6 +169,30 @@ pub struct LightClientProofResponse {
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
 }
 
+/// The response to JSON-RPC request for querying proving job
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobRpcResponse {
+    /// Commitments being proven in the job
+    pub commitments: Vec<SequencerCommitmentResponse>,
+    /// Proof result of the job. If proof is None, job still continues,
+    /// and if it is Some but l1_tx_id is 0-value, it is being submitted to L1.
+    pub proof: Option<BatchProofResponse>,
+}
+
+/// Parameter type used in set commitments rpc.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequencerCommitmentRpcParam {
+    /// Merkle root of the commitment
+    #[serde(with = "hex::serde")]
+    pub merkle_root: [u8; 32],
+    /// Index of the commitment
+    pub index: u32,
+    /// L2 end block number of the commitment
+    pub l2_end_block_number: u64,
+    /// L1 height of the commitment
+    pub l1_height: u64,
+}
+
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::SlotNumber;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::rpc::{BatchProofResponse, SequencerCommitmentResponse};
+use sov_rollup_interface::rpc::{
+    JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
+};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
@@ -216,21 +218,6 @@ where
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
     BatchProverRpcServer::into_rpc(server)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobRpcResponse {
-    commitments: Vec<SequencerCommitmentResponse>,
-    proof: Option<BatchProofResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SequencerCommitmentRpcParam {
-    #[serde(with = "hex::serde")]
-    pub merkle_root: [u8; 32],
-    pub index: u32,
-    pub l2_end_block_number: u64,
-    pub l1_height: u64,
 }
 
 fn internal_rpc_error(msg: impl AsRef<str>) -> ErrorObjectOwned {
