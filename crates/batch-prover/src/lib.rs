@@ -64,8 +64,7 @@ where
     Vm: ZkvmHost + Zkvm + 'static,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
-    // request result will be awaited anyways, so 1 buffer size is ok
-    let (request_tx, request_rx) = mpsc::channel(1);
+    let (request_tx, request_rx) = mpsc::channel(4);
 
     let rpc_context = rpc::create_rpc_context(ledger_db.clone(), request_tx);
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
