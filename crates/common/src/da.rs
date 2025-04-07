@@ -46,7 +46,8 @@ pub async fn sync_l1<Da>(
 
         let highest_finalized_l1_height = last_finalized_l1_block_header.height();
 
-        for block_number in start_from..=highest_finalized_l1_height {
+        let start_height = start_from;
+        for block_number in start_height..=highest_finalized_l1_height {
             let l1_block =
                 match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
                     .await
@@ -69,9 +70,6 @@ pub async fn sync_l1<Da>(
                 break;
             }
 
-            // we know this won't change the for loop range
-            // however, for the next time for loop is run in the outer loop,
-            // we will start from where we left off
             start_from = block_number + 1;
 
             // If the send above does not succeed, we don't set new values

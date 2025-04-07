@@ -68,6 +68,7 @@ where
     DB: BatchProverLedgerOps + Clone,
     Vm: ZkvmHost,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: BatchProverConfig,
         ledger_db: DB,
@@ -293,8 +294,9 @@ where
     /// 1. If there is an index gap in between commitments, partition is formed
     /// 2. If ƒork has changed, partition is formed
     /// 3. If max state diff limit is surpassed, partition is formed
-    /// This function expects each commitment to have previous commitment, so, ensure filtering commitments with
-    /// `filter_prev_missing_commitments` before calling this function.
+    ///
+    /// This function expects each commitment to have previous commitment, so, ensure filtering commitments
+    /// with `filter_prev_missing_commitments` before calling this function.
     fn partition_commitments<'a>(
         &self,
         commitments: &'a [SequencerCommitment],
