@@ -533,7 +533,7 @@ where
                     .expect("Should get proof by job id")
                     .expect("Proof of job must exist");
                 assert_eq!(
-                    stored_proof.l1_tx_id, [0; 32],
+                    stored_proof.l1_tx_id, None,
                     "Got pending l1 submission job which contains l1 tx id"
                 );
                 entry.insert(stored_proof.proof);

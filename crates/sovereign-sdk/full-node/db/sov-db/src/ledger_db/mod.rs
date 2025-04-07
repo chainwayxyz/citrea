@@ -572,7 +572,7 @@ impl BatchProverLedgerOps for LedgerDB {
         output: StoredBatchProofOutput,
     ) -> anyhow::Result<()> {
         let stored_proof = StoredBatchProof {
-            l1_tx_id: [0; 32],
+            l1_tx_id: None,
             proof,
             proof_output: output,
         };
@@ -588,11 +588,11 @@ impl BatchProverLedgerOps for LedgerDB {
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
         let mut stored_proof = self.db.get::<ProofByJobId>(&id)?.expect("Proof must exist");
         assert_eq!(
-            stored_proof.l1_tx_id, [0; 32],
+            stored_proof.l1_tx_id, None,
             "Proof l1 tx id must not be set"
         );
 
-        stored_proof.l1_tx_id = l1_tx_id;
+        stored_proof.l1_tx_id = Some(l1_tx_id);
 
         let mut schema_batch = SchemaBatch::new();
         schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;

@@ -200,8 +200,8 @@ pub struct SequencerCommitmentRpcParam {
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofResponse {
     /// l1 tx id of
-    #[serde(with = "hex::serde")] // without 0x prefix
-    pub l1_tx_id: [u8; 32],
+    #[serde(with = "utils::option_hex_array32")]
+    pub l1_tx_id: Option<[u8; 32]>,
     /// Proof
     #[serde(with = "faster_hex")]
     pub proof: ProofRpcResponse,
@@ -534,6 +534,43 @@ pub mod utils {
             }
 
             deserializer.deserialize_str(HexStrVisitor(PhantomData))
+        }
+    }
+
+    /// Serde module for serializing Option wrapped [u8; 32] as hex string
+    pub mod option_hex_array32 {
+        use hex;
+        use serde::{Deserialize, Deserializer, Serializer};
+        
+        /// Serialize Option<[[u8; 32]]> as hex string
+        pub fn serialize<S>(val: &Option<[u8; 32]>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            match val {
+                Some(arr) => serializer.serialize_str(&hex::encode(arr)),
+                None => serializer.serialize_none(),
+            }
+        }
+
+        /// Deserialize Option<[[u8; 32]]> from hex string
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<[u8; 32]>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let opt = Option::<String>::deserialize(deserializer)?;
+            match opt {
+                Some(hex_str) => {
+                    let bytes = hex::decode(&hex_str).map_err(serde::de::Error::custom)?;
+                    if bytes.len() != 32 {
+                        return Err(serde::de::Error::custom("Expected 32-byte hex string"));
+                    }
+                    let mut arr = [0u8; 32];
+                    arr.copy_from_slice(&bytes);
+                    Ok(Some(arr))
+                }
+                None => Ok(None),
+            }
         }
     }
 }

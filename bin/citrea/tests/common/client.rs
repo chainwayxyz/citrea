@@ -815,7 +815,7 @@ impl TestClient {
         self.http_client.pause_proving().await.unwrap()
     }
 
-    pub(crate) async fn get_proving_job(&self, id: Uuid) -> JobRpcResponse {
+    pub(crate) async fn get_proving_job(&self, id: Uuid) -> Option<JobRpcResponse> {
         self.http_client.get_proving_job(id).await.unwrap()
     }
 

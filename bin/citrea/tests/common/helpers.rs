@@ -32,6 +32,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpe
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::rpc::JobRpcResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
@@ -39,6 +40,7 @@ use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, warn, Instrument};
+use uuid::Uuid;
 
 use crate::common::client::TestClient;
 use crate::common::DEFAULT_PROOF_WAIT_DURATION;
@@ -499,6 +501,34 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
     }
 }
 
+/// Wait for prover job to finish.
+pub async fn wait_for_prover_job(
+    prover_client: &TestClient,
+    job_id: Uuid,
+    timeout: Option<Duration>,
+) -> anyhow::Result<JobRpcResponse> {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
+    loop {
+        debug!("Waiting for prover job {}", job_id);
+        let response = prover_client.get_proving_job(job_id).await;
+        if let Some(response) = response {
+            if let Some(proof) = &response.proof {
+                if proof.l1_tx_id.is_some() {
+                    return Ok(response);
+                }
+            }
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            bail!("Timeout. Failed to get prover job {}", job_id);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
 #[instrument(level = "debug", skip(prover_client))]
 pub async fn wait_for_prover_l1_height_proofs(
     prover_client: &TestClient,
@@ -519,6 +549,34 @@ pub async fn wait_for_prover_l1_height_proofs(
         let now = SystemTime::now();
         if start + timeout <= now {
             bail!("Timeout. Failed to get batch proofs on L1 height {}", num);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+    Ok(())
+}
+
+/// Wait for prover to scan up-to l1 height. Useful for ensuring that sequencer commitments are scanned and ready to prove.
+#[instrument(level = "debug", skip(prover_client))]
+pub async fn wait_for_prover_l1_height(
+    prover_client: &TestClient,
+    num: u64,
+    timeout: Option<Duration>,
+) -> anyhow::Result<()> {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
+    loop {
+        debug!("Waiting for prover l1 height {}", num);
+        let last_scanned_num = prover_client
+            .ledger_get_last_scanned_l1_height()
+            .await;
+        if last_scanned_num >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            bail!("Timeout. Failed to wait for batch prover to scan L1 height {}", num);
         }
 
         sleep(Duration::from_secs(1)).await;

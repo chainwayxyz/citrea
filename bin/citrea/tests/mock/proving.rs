@@ -7,8 +7,7 @@ use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_rollup_interface::services::da::DaService;
 
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height_proofs, NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment, wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job, wait_for_prover_l1_height, wait_for_prover_l1_height_proofs, NodeMode
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -85,7 +84,7 @@ async fn full_node_verify_proof_and_store() {
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
-    let prover_node_test_client = make_test_client(prover_node_port).await.unwrap();
+    let prover_client = make_test_client(prover_node_port).await.unwrap();
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -111,7 +110,7 @@ async fn full_node_verify_proof_and_store() {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await.unwrap();
+    let full_node_client = make_test_client(full_node_port).await.unwrap();
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
@@ -121,21 +120,21 @@ async fn full_node_verify_proof_and_store() {
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 4, None).await;
+    wait_for_l2_block(&full_node_client, 4, None).await;
 
     // Commitment submitted
     wait_for_l1_block(&da_service, 3, None).await;
 
     // Full node sync commitment block
     test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 5, None).await;
+    wait_for_l2_block(&full_node_client, 5, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height_proofs(&prover_node_test_client, 3, None)
+    wait_for_prover_l1_height_proofs(&prover_client, 3, None)
         .await
         .unwrap();
 
-    let commitments = prover_node_test_client
+    let commitments = prover_client
         .ledger_get_sequencer_commitments_on_slot_by_number(3)
         .await
         .unwrap()
@@ -146,14 +145,14 @@ async fn full_node_verify_proof_and_store() {
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
-    let commitments_hash = prover_node_test_client
+    let commitments_hash = prover_client
         .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(commitments_hash, commitments);
 
-    let prover_proof = prover_node_test_client
+    let prover_proof = prover_client
         .ledger_get_batch_proofs_by_slot_height(3)
         .await
         .unwrap()[0]
@@ -168,12 +167,12 @@ async fn full_node_verify_proof_and_store() {
     // We need to force it to sync up to 4th DA block.
     for i in 6..=7 {
         test_client.send_publish_batch_request().await;
-        wait_for_l2_block(&full_node_test_client, i, None).await;
+        wait_for_l2_block(&full_node_client, i, None).await;
     }
 
     // So the full node should see the proof in block 4
-    wait_for_proof(&full_node_test_client, 4, Some(Duration::from_secs(60))).await;
-    let full_node_proof = full_node_test_client
+    wait_for_proof(&full_node_client, 4, Some(Duration::from_secs(60))).await;
+    let full_node_proof = full_node_client
         .ledger_get_verified_batch_proofs_by_slot_height(4)
         .await
         .unwrap();
@@ -182,7 +181,7 @@ async fn full_node_verify_proof_and_store() {
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
     let proof_height = full_node_proof[0].proof_output.last_l2_height;
-    let l2_block = full_node_test_client
+    let l2_block = full_node_client
         .ledger_get_l2_block_by_number::<MockDaSpec>(proof_height.to())
         .await
         .expect("should get l2 block");
@@ -199,150 +198,146 @@ async fn full_node_verify_proof_and_store() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_batch_prover_prove_rpcs() {
-    todo!()
-    // // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::INFO);
 
-    // let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
-    // let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
-    // let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
-    // let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
-    // let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
-    // let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    // let rollup_config = create_default_rollup_config(
-    //     true,
-    //     &sequencer_db_dir,
-    //     &da_db_dir,
-    //     NodeMode::SequencerNode,
-    //     None,
-    // );
-    // let sequencer_config = SequencerConfig::default();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig::default();
 
-    // let seq_task = tokio::spawn(async {
-    //     start_rollup(
-    //         seq_port_tx,
-    //         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-    //         None,
-    //         None,
-    //         rollup_config,
-    //         Some(sequencer_config),
-    //         None,
-    //         false,
-    //     )
-    //     .await;
-    // });
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            None,
+            rollup_config,
+            Some(sequencer_config),
+            None,
+            false,
+        )
+        .await;
+    });
 
-    // let seq_port = seq_port_rx.await.unwrap();
-    // let test_client = make_test_client(seq_port).await.unwrap();
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await.unwrap();
 
-    // let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
-    // let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    // let rollup_config = create_default_rollup_config(
-    //     true,
-    //     &prover_db_dir,
-    //     &da_db_dir,
-    //     NodeMode::Prover(seq_port),
-    //     None,
-    // );
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
 
-    // let prover_node_task = tokio::spawn(async {
-    //     start_rollup(
-    //         prover_node_port_tx,
-    //         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-    //         Some(BatchProverConfig {
-    //             proving_mode: citrea_common::ProverGuestRunConfig::Execute,
-    //             // Make it impossible for proving to happen
-    //             proof_sampling_number: 1_000_000,
-    //             enable_recovery: true,
-    //         }),
-    //         None,
-    //         rollup_config,
-    //         None,
-    //         None,
-    //         false,
-    //     )
-    //     .await;
-    // });
+    let prover_node_task = tokio::spawn(async {
+        start_rollup(
+            prover_node_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            Some(BatchProverConfig {
+                proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+                // Make it impossible for proving to happen
+                proof_sampling_number: 1_000_000,
+                enable_recovery: true,
+            }),
+            None,
+            rollup_config,
+            None,
+            None,
+            false,
+        )
+        .await;
+    });
 
-    // let prover_node_port = prover_node_port_rx.await.unwrap();
+    let prover_node_port = prover_node_port_rx.await.unwrap();
 
-    // let prover_node_test_client = make_test_client(prover_node_port).await.unwrap();
+    let prover_client = make_test_client(prover_node_port).await.unwrap();
 
-    // let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    // let rollup_config = create_default_rollup_config(
-    //     true,
-    //     &fullnode_db_dir,
-    //     &da_db_dir,
-    //     NodeMode::FullNode(seq_port),
-    //     None,
-    // );
-    // let full_node_task = tokio::spawn(async {
-    //     start_rollup(
-    //         full_node_port_tx,
-    //         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-    //         None,
-    //         None,
-    //         rollup_config,
-    //         None,
-    //         None,
-    //         false,
-    //     )
-    //     .await;
-    // });
+    let rollup_config = create_default_rollup_config(
+        true,
+        &fullnode_db_dir,
+        &da_db_dir,
+        NodeMode::FullNode(seq_port),
+        None,
+    );
+    let full_node_task = tokio::spawn(async {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            None,
+            rollup_config,
+            None,
+            None,
+            false,
+        )
+        .await;
+    });
 
-    // let full_node_port = full_node_port_rx.await.unwrap();
-    // let full_node_test_client = make_test_client(full_node_port).await.unwrap();
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_client = make_test_client(full_node_port).await.unwrap();
 
-    // test_client.send_publish_batch_request().await;
-    // test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
 
-    // da_service.publish_test_block().await.unwrap();
-    // wait_for_l1_block(&da_service, 2, None).await;
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
-    // test_client.send_publish_batch_request().await;
-    // test_client.send_publish_batch_request().await;
-    // wait_for_l2_block(&full_node_test_client, 4, None).await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&full_node_client, 4, None).await;
 
-    // // Commitment submitted
-    // wait_for_l1_block(&da_service, 3, None).await;
+    // wait for commitment at block 3, mockda produces block when it receives a transaction, hence 3
+    let commitments = wait_for_commitment(&da_service, 3, None).await;
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
-    // // Full node sync commitment block
-    // test_client.send_publish_batch_request().await;
-    // wait_for_l2_block(&full_node_test_client, 5, None).await;
+    // wait for prover to see commitment, since sampling is too high, proving won't be triggered here
+    wait_for_prover_l1_height(&prover_client, 3, None).await.unwrap();
 
-    // // Trigger proving via the RPC endpoint
-    // prover_node_test_client
-    //     .batch_prover_prove(3, Some(GroupCommitments::Normal))
-    //     .await;
+    // Trigger proving via the RPC endpoint
+    let job_ids = prover_client.batch_prover_prove().await;
+    assert_eq!(job_ids.len(), 1);
+    let job_id = job_ids[0];
 
-    // // wait here until we see from prover's rpc that it finished proving
-    // wait_for_prover_l1_height_proofs(&prover_node_test_client, 3, None)
-    //     .await
-    //     .unwrap();
+    // wait here until we see from prover's rpc that it finished proving
+    let response = wait_for_prover_job(&prover_client, job_id, None).await.unwrap();
+    assert_eq!(response.id, job_id);
+    assert_eq!(response.commitments.len(), 1);
+    assert_eq!(response.commitments[0].l2_end_block_number.to::<u64>(), 4);
+    assert!(response.proof.is_some());
 
-    // let commitments = prover_node_test_client
-    //     .ledger_get_sequencer_commitments_on_slot_by_number(3)
-    //     .await
-    //     .unwrap()
-    //     .unwrap();
-    // assert_eq!(commitments.len(), 1);
-
-    // assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
+    // let commitment = response.commitments[0];
+    // assert_eq!(commitment.l2_end_block_number.to::<u64>(), 4);
 
     // let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
-    // let commitments_hash = prover_node_test_client
+    // let commitments_hash = prover_client
     //     .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
     //     .await
     //     .unwrap()
     //     .unwrap();
     // assert_eq!(commitments_hash, commitments);
 
-    // let prover_proof = prover_node_test_client
+    // let prover_proof = prover_client
     //     .ledger_get_batch_proofs_by_slot_height(3)
     //     .await
     //     .unwrap()[0]
@@ -357,12 +352,12 @@ async fn test_batch_prover_prove_rpcs() {
     // // We need to force it to sync up to 4th DA block.
     // for i in 6..=7 {
     //     test_client.send_publish_batch_request().await;
-    //     wait_for_l2_block(&full_node_test_client, i, None).await;
+    //     wait_for_l2_block(&full_node_client, i, None).await;
     // }
 
     // // So the full node should see the proof in block 4
-    // wait_for_proof(&full_node_test_client, 4, Some(Duration::from_secs(60))).await;
-    // let full_node_proof = full_node_test_client
+    // wait_for_proof(&full_node_client, 4, Some(Duration::from_secs(60))).await;
+    // let full_node_proof = full_node_client
     //     .ledger_get_verified_batch_proofs_by_slot_height(4)
     //     .await
     //     .unwrap();
@@ -370,7 +365,7 @@ async fn test_batch_prover_prove_rpcs() {
 
     // assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
-    // seq_task.abort();
-    // prover_node_task.abort();
-    // full_node_task.abort();
+    seq_task.abort();
+    prover_node_task.abort();
+    full_node_task.abort();
 }
