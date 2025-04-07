@@ -654,6 +654,8 @@ where
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.recv(), if self.config.test_mode => {
+                    let _l2_lock = backup_manager.start_l2_processing().await;
+
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
@@ -664,7 +666,6 @@ where
                         }
                         missed_da_blocks_count = 0;
                     }
-                    let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
                         Ok(l2_height) => {
 
@@ -683,6 +684,7 @@ where
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
                     // until we know we caught up with L1.
                     let da_block = last_finalized_block.clone();
+                    let _l2_lock = backup_manager.start_l2_processing().await;
 
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
@@ -695,7 +697,6 @@ where
                         missed_da_blocks_count = 0;
                     }
 
-                    let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
                         Ok(l2_height) => {
                             // Only errors when there are no receivers
