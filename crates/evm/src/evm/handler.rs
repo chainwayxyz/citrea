@@ -620,11 +620,8 @@ where
 
     #[derive(Default)]
     struct AccountChange<'a> {
-        created: bool,
-        destroyed: bool,
         storage_changes: BTreeSet<&'a U256>,
-        code_changed: bool,         // implies code and code hash changed
-        account_info_changed: bool, // implies balance or nonce changed
+        account_info_changed: bool, // implies balance, nonce or code_hash changed
     }
 
     let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
@@ -652,13 +649,11 @@ where
             }
             JournalEntry::CodeChange { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.code_changed = true;
+                account.account_info_changed = true;
             }
+            // Only addded to the journal on smart contract creation
             JournalEntry::AccountCreated { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.created = true;
-                // When account is created, there is a transfer to init its balance.
-                // So we need to only force the nonce change.
                 account.account_info_changed = true;
             }
             JournalEntry::AccountDestroyed {
@@ -678,20 +673,11 @@ where
                     continue;
                 }
 
+                // transferred cbtc causes account diff change on target
                 if address != target && !had_balance.is_zero() {
                     // mark changes to the target account
                     let target = account_changes.entry(target).or_default();
                     target.account_info_changed = true;
-                }
-
-                let account = account_changes.entry(address).or_default();
-                if account.created {
-                    // That's a temporary account.
-                    // Delete it from the account changes to enable cancun support.
-                    // Acc with the same address can be created again in the same tx.
-                    account_changes.remove(address);
-                } else {
-                    account.destroyed = true;
                 }
             }
             _ => {}
@@ -705,12 +691,12 @@ where
     let mut diff_size = 0usize;
 
     for (addr, account) in account_changes {
-        if account.created {
-            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
-        }
+        // if account.created {
+        //     diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
+        // }
 
         // Apply size of account_info
-        if account.account_info_changed || account.code_changed {
+        if account.account_info_changed {
             let db_account_size = {
                 let account = &state[addr];
                 if account.info.code_hash == KECCAK_EMPTY {
