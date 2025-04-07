@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::config::{
     BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
     TestCaseConfig, TestCaseEnv,
@@ -17,8 +18,9 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
+use sov_rollup_interface::rpc::{BatchProofResponse, JobRpcResponse, VerifiedBatchProofResponse};
 use tokio::time::sleep;
+use uuid::Uuid;
 
 use super::get_citrea_path;
 use crate::common::make_test_client;
@@ -50,6 +52,37 @@ pub async fn wait_for_zkproofs(
             }
             None => sleep(Duration::from_millis(500)).await,
         }
+    }
+}
+
+/// Wait for prover job to finish.
+pub async fn wait_for_prover_job(
+    batch_prover: &BatchProver,
+    job_id: Uuid,
+    timeout: Option<Duration>,
+) -> Result<JobRpcResponse> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(300));
+    loop {
+        let response = batch_prover
+            .client
+            .http_client()
+            .get_proving_job(job_id)
+            .await?;
+        if let Some(response) = response {
+            if let Some(proof) = &response.proof {
+                if proof.l1_tx_id.is_some() {
+                    return Ok(response);
+                }
+            }
+        }
+
+        let now = Instant::now();
+        if start + timeout <= now {
+            bail!("Timeout. Failed to get prover job {}", job_id);
+        }
+
+        sleep(Duration::from_secs(1)).await;
     }
 }
 

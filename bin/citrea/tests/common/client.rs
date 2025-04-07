@@ -18,6 +18,7 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
@@ -567,10 +568,7 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_l2_block_by_number(
-        &self,
-        num: u64,
-    ) -> Option<L2BlockResponse> {
+    pub(crate) async fn ledger_get_l2_block_by_number(&self, num: u64) -> Option<L2BlockResponse> {
         self.http_client
             .get_l2_block_by_number(U64::from(num))
             .await
@@ -806,8 +804,11 @@ impl TestClient {
         self.http_client.set_commitments(commitments).await.unwrap()
     }
 
-    pub(crate) async fn batch_prover_prove(&self) -> Vec<Uuid> {
-        self.http_client.prove().await.unwrap()
+    pub(crate) async fn batch_prover_prove(&self, mode: Option<PartitionMode>) -> Vec<Uuid> {
+        self.http_client
+            .prove(mode.unwrap_or(PartitionMode::Normal))
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn batch_prover_pause_proving(&self) {

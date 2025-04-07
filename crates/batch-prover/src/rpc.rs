@@ -18,6 +18,7 @@ use sov_rollup_interface::rpc::{
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
+use crate::partition::PartitionMode;
 use crate::prover::ProverRequest;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -73,7 +74,7 @@ pub trait BatchProverRpc {
 
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
-    async fn prove(&self) -> RpcResult<Vec<Uuid>>;
+    async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>>;
 
     /// Stop further proving jobs to be spawned. Existing jobs will continue.
     #[method(name = "pauseProving")]
@@ -142,13 +143,13 @@ where
         Ok(())
     }
 
-    async fn prove(&self) -> RpcResult<Vec<Uuid>> {
+    async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>> {
         let (result_tx, result_rx) = oneshot::channel();
 
         if self
             .context
             .request_tx
-            .send(ProverRequest::Prove(result_tx))
+            .send(ProverRequest::Prove(mode, result_tx))
             .await
             .is_err()
         {

@@ -9,6 +9,7 @@ use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::RpcModule;
 use l1_syncer::L1Syncer;
 use l2_syncer::L2Syncer;
+pub use partition::PartitionMode;
 use prover::Prover;
 use prover_services::ParallelProverService;
 pub use runner::*;

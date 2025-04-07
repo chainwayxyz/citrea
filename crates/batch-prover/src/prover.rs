@@ -39,7 +39,7 @@ use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState
 
 pub enum ProverRequest {
     Pause,
-    Prove(oneshot::Sender<Vec<Uuid>>),
+    Prove(PartitionMode, oneshot::Sender<Vec<Uuid>>),
 }
 
 pub struct Prover<Da, DB, Vm>
@@ -110,7 +110,7 @@ where
                     l1_signal.expect("L1 signal sender channel closed abruptly");
 
                     debug!("Got L1 signal to try proving");
-                    if let Err(e) = self.try_proving(true).await {
+                    if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
                         error!("Failed to start proving: {}", e);
                     }
                 },
@@ -127,7 +127,7 @@ where
                     }
 
                     debug!("Got L2 signal to try proving");
-                    if let Err(e) = self.try_proving(true).await {
+                    if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
                         error!("Failed to start proving: {}", e);
                     }
                 }
@@ -143,9 +143,9 @@ where
                             self.proving_paused = true;
                             warn!("Paused proving");
                         }
-                        ProverRequest::Prove(result_tx) => {
+                        ProverRequest::Prove(mode, result_tx) => {
                             debug!("Got rpc request to try proving");
-                            match self.try_proving(false).await {
+                            match self.try_proving(mode, false).await {
                                 Ok(job_ids) => {
                                     let _ = result_tx.send(job_ids);
                                 }
@@ -158,7 +158,11 @@ where
         }
     }
 
-    async fn try_proving(&mut self, with_sampling: bool) -> anyhow::Result<Vec<Uuid>> {
+    async fn try_proving(
+        &mut self,
+        mode: PartitionMode,
+        with_sampling: bool,
+    ) -> anyhow::Result<Vec<Uuid>> {
         if self.proving_paused {
             info!("Proving is paused");
             return Ok(Vec::new());
@@ -190,7 +194,7 @@ where
         }
         info!("Processing {} commitment(s)", commitments.len());
 
-        let partitions = self.partition_commitments(&commitments, PartitionMode::Normal)?;
+        let partitions = self.partition_commitments(&commitments, mode)?;
         info!("Partitioned commitments into {} parts", partitions.len());
 
         let mut proving_jobs = Vec::with_capacity(partitions.len());

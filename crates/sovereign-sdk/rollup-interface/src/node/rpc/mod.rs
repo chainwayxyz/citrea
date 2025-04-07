@@ -541,7 +541,7 @@ pub mod utils {
     pub mod option_hex_array32 {
         use hex;
         use serde::{Deserialize, Deserializer, Serializer};
-        
+
         /// Serialize Option<[[u8; 32]]> as hex string
         pub fn serialize<S>(val: &Option<[u8; 32]>, serializer: S) -> Result<S::Ok, S::Error>
         where

@@ -10,7 +10,9 @@ use sov_rollup_interface::rpc::SequencerCommitmentRpcParam;
 use sov_rollup_interface::services::da::DaService;
 
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment, wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job, wait_for_prover_l1_height, wait_for_prover_l1_height_proofs, NodeMode
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job,
+    wait_for_prover_l1_height, wait_for_prover_l1_height_proofs, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -314,15 +316,19 @@ async fn test_batch_prover_prove_rpcs() {
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
     // wait for prover to see commitment, since sampling is too high, proving won't be triggered here
-    wait_for_prover_l1_height(&prover_client, 3, None).await.unwrap();
+    wait_for_prover_l1_height(&prover_client, 3, None)
+        .await
+        .unwrap();
 
     // Trigger proving via the RPC endpoint
-    let job_ids = prover_client.batch_prover_prove().await;
+    let job_ids = prover_client.batch_prover_prove(None).await;
     assert_eq!(job_ids.len(), 1);
     let job_id = job_ids[0];
 
     // wait here until we see from prover's rpc that it finished proving
-    let response = wait_for_prover_job(&prover_client, job_id, None).await.unwrap();
+    let response = wait_for_prover_job(&prover_client, job_id, None)
+        .await
+        .unwrap();
     assert_eq!(response.id, job_id);
     assert_eq!(response.commitments.len(), 1);
     assert!(response.proof.is_some());
@@ -337,11 +343,16 @@ async fn test_batch_prover_prove_rpcs() {
     // create a new commitment to manually override the previous one
     let mut l2_block_hashes = Vec::with_capacity(6);
     for block_num in 1..=6 {
-        let l2_block = test_client.ledger_get_l2_block_by_number(block_num).await.unwrap();
+        let l2_block = test_client
+            .ledger_get_l2_block_by_number(block_num)
+            .await
+            .unwrap();
         l2_block_hashes.push(l2_block.header.hash);
     }
 
-    let merkle_root = MerkleTree::<Sha256>::from_leaves(&l2_block_hashes).root().unwrap();
+    let merkle_root = MerkleTree::<Sha256>::from_leaves(&l2_block_hashes)
+        .root()
+        .unwrap();
     let new_commitment = SequencerCommitmentRpcParam {
         merkle_root,
         index: commitment.index.to::<u32>(),
@@ -352,14 +363,18 @@ async fn test_batch_prover_prove_rpcs() {
     // ensure that prover also syncs up to l2 block 6
     wait_for_l2_block(&prover_client, 6, None).await;
     // override prev commitment
-    prover_client.batch_prover_set_commitments(vec![new_commitment]).await;
+    prover_client
+        .batch_prover_set_commitments(vec![new_commitment])
+        .await;
 
     // invoke proving from RPC
-    let job_ids = prover_client.batch_prover_prove().await;
+    let job_ids = prover_client.batch_prover_prove(None).await;
     assert_eq!(job_ids.len(), 1);
     let job_id = job_ids[0];
 
-    let response = wait_for_prover_job(&prover_client, job_id, None).await.unwrap();
+    let response = wait_for_prover_job(&prover_client, job_id, None)
+        .await
+        .unwrap();
     assert_eq!(response.id, job_id);
     assert_eq!(response.commitments.len(), 1);
     assert!(response.proof.is_some());
@@ -379,7 +394,7 @@ async fn test_batch_prover_prove_rpcs() {
     wait_for_commitment(&da_service, 6, None).await;
 
     // invoke proving from RPC, since paused, should not start any job
-    let job_ids = prover_client.batch_prover_prove().await;
+    let job_ids = prover_client.batch_prover_prove(None).await;
     assert_eq!(job_ids.len(), 0);
 
     seq_task.abort();

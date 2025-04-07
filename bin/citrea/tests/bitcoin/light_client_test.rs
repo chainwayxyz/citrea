@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_batch_prover::PartitionMode;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
@@ -15,6 +17,7 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
+use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
@@ -26,10 +29,10 @@ use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, Cum
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
+use crate::bitcoin::batch_prover_test::wait_for_prover_job;
 use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
-const TWENTY_MINS: Duration = Duration::from_secs(20 * 60);
 
 struct LightClientProvingTest;
 
@@ -212,297 +215,286 @@ impl TestCase for LightClientProvingTestMultipleProofs {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        todo!()
-        // let da = f.bitcoin_nodes.get(0).unwrap();
-        // let sequencer = f.sequencer.as_ref().unwrap();
-        // let batch_prover = f.batch_prover.as_ref().unwrap();
-        // let light_client_prover = f.light_client_prover.as_ref().unwrap();
-        // let full_node = f.full_node.as_ref().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
 
-        // let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        // let n_commitments = 2;
+        let n_commitments = 2;
 
-        // // publish max_l2_blocks_per_commitment confirmations
-        // for _ in 0..n_commitments * max_l2_blocks_per_commitment {
-        //     sequencer.client.send_publish_batch_request().await?;
-        // }
-        // sequencer
-        //     .wait_for_l2_height(n_commitments * max_l2_blocks_per_commitment, None)
-        //     .await?;
+        // publish max_l2_blocks_per_commitment confirmations
+        for _ in 0..n_commitments * max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(n_commitments * max_l2_blocks_per_commitment, None)
+            .await?;
 
-        // // Wait for commitment txs to be submitted to DA
-        // da.wait_mempool_len((n_commitments * 2) as usize, Some(TEN_MINS))
-        //     .await?;
+        // Wait for commitment txs to be submitted to DA
+        da.wait_mempool_len((n_commitments * 2) as usize, Some(TEN_MINS))
+            .await?;
 
-        // // Finalize the DA block which contains the commitment txs
-        // da.generate(FINALITY_DEPTH).await?;
+        // Finalize the DA block which contains the commitment txs
+        da.generate(FINALITY_DEPTH).await?;
 
-        // let commitment_l1_height = da.get_finalized_height(None).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
 
-        // // Wait for batch prover to generate proofs for commitments
-        // batch_prover
-        //     .wait_for_l1_height(commitment_l1_height, Some(Duration::from_secs(1200)))
-        //     .await
-        //     .unwrap();
+        // Wait for batch prover to see commitments
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, None)
+            .await
+            .unwrap();
 
-        // // There are two commitments, for each commitment generate a proof
-        // batch_prover
-        //     .client
-        //     .http_client()
-        //     .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
-        //     .await
-        //     .unwrap();
+        // There are two commitments, for each commitment generate a proof
+        let job_ids = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::OneByOne)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 2);
 
-        // // Ensure that batch proofs are submitted to DA (2x reveal & 2x commit txs)
-        // da.wait_mempool_len(4, Some(TWENTY_MINS)).await?;
+        // Wait for both prover jobs to finish
+        let response_1 = wait_for_prover_job(batch_prover, job_ids[0], None)
+            .await
+            .unwrap();
+        let response_2 = wait_for_prover_job(batch_prover, job_ids[1], None)
+            .await
+            .unwrap();
+        assert_eq!(response_1.commitments.len(), 1);
+        assert_eq!(response_2.commitments.len(), 2);
 
-        // // Assert that commitments are queryable this also means that the batch proofs are submitted to DA
-        // let commitments = batch_prover
-        //     .client
-        //     .http_client()
-        //     .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
-        //     .await
-        //     .unwrap()
-        //     .unwrap();
-        // assert_eq!(commitments.len(), n_commitments as usize);
+        // Finalize the DA block which contains the batch proof tx
+        da.generate(FINALITY_DEPTH).await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+        // Wait for the full node to see all process verify and store all batch proofs
+        full_node
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 2).await?;
+        assert_eq!(batch_proofs.len(), 2);
 
-        // // Finalize the DA block which contains the batch proof tx
-        // da.generate(FINALITY_DEPTH).await?;
-        // let batch_proof_l1_height = da.get_finalized_height(None).await?;
-        // // Wait for the full node to see all process verify and store all batch proofs
-        // full_node
-        //     .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-        //     .await?;
-        // let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 2).await?;
-        // assert_eq!(batch_proofs.len(), 2);
+        // Wait for light client prover to process batch proofs.
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
 
-        // // Wait for light client prover to process batch proofs.
-        // light_client_prover
-        //     .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-        //     .await?;
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await
+            .unwrap();
+        assert!(lcp.is_some());
 
-        // // Expect light client prover to have generated light client proof
-        // let lcp = light_client_prover
-        //     .client
-        //     .http_client()
-        //     .get_light_client_proof_by_l1_height(batch_proof_l1_height)
-        //     .await
-        //     .unwrap();
-        // assert!(lcp.is_some());
+        let light_client_proof = lcp.unwrap();
+        assert_eq!(
+            light_client_proof
+                .light_client_proof_output
+                .l2_state_root
+                .to_vec(),
+            batch_proofs[(n_commitments - 1) as usize]
+                .proof_output
+                .final_state_root()
+        );
 
-        // let light_client_proof = lcp.unwrap();
-        // assert_eq!(
-        //     light_client_proof
-        //         .light_client_proof_output
-        //         .l2_state_root
-        //         .to_vec(),
-        //     batch_proofs[(n_commitments - 1) as usize]
-        //         .proof_output
-        //         .final_state_root()
-        // );
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(
+            proven_height.height,
+            light_client_proof
+                .light_client_proof_output
+                .last_l2_height
+                .to::<u64>()
+        );
+        assert_eq!(
+            proven_height.commitment_index,
+            light_client_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>()
+        );
 
-        // let proven_height = full_node
-        //     .client
-        //     .http_client()
-        //     .get_last_proven_l2_height()
-        //     .await?
-        //     .unwrap();
-        // assert_eq!(
-        //     proven_height.height,
-        //     light_client_proof
-        //         .light_client_proof_output
-        //         .last_l2_height
-        //         .to::<u64>()
-        // );
-        // assert_eq!(
-        //     proven_height.commitment_index,
-        //     light_client_proof
-        //         .light_client_proof_output
-        //         .last_sequencer_commitment_index
-        //         .to::<u32>()
-        // );
+        // Generate another da block so we generate another lcp
+        da.generate(1).await?;
 
-        // // Generate another da block so we generate another lcp
-        // da.generate(1).await?;
+        let last_finalized_height = da.get_finalized_height(None).await?;
 
-        // let last_finalized_height = da.get_finalized_height(None).await?;
+        // Wait for light client prover to process batch proofs.
+        light_client_prover
+            .wait_for_l1_height(last_finalized_height, Some(TEN_MINS))
+            .await?;
 
-        // // Wait for light client prover to process batch proofs.
-        // light_client_prover
-        //     .wait_for_l1_height(last_finalized_height, Some(TEN_MINS))
-        //     .await?;
+        // Expect light client prover to have generated light client proof
+        let lcp2 = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(last_finalized_height)
+            .await
+            .unwrap();
+        assert!(lcp2.is_some());
 
-        // // Expect light client prover to have generated light client proof
-        // let lcp2 = light_client_prover
-        //     .client
-        //     .http_client()
-        //     .get_light_client_proof_by_l1_height(last_finalized_height)
-        //     .await
-        //     .unwrap();
-        // assert!(lcp2.is_some());
+        // Since there are no batch proofs the state root should be the same as the last one
+        let light_client_proof2 = lcp2.unwrap();
+        assert_eq!(
+            light_client_proof2.light_client_proof_output.l2_state_root,
+            light_client_proof.light_client_proof_output.l2_state_root
+        );
 
-        // // Since there are no batch proofs the state root should be the same as the last one
-        // let light_client_proof2 = lcp2.unwrap();
-        // assert_eq!(
-        //     light_client_proof2.light_client_proof_output.l2_state_root,
-        //     light_client_proof.light_client_proof_output.l2_state_root
-        // );
+        // The last processed l2 height should also be the same because there are no new batch proofs
+        assert_eq!(
+            light_client_proof2.light_client_proof_output.last_l2_height,
+            light_client_proof.light_client_proof_output.last_l2_height
+        );
+        // The last processed l2 height should also be the same because there are no new batch proofs
+        assert_eq!(
+            light_client_proof2
+                .light_client_proof_output
+                .last_sequencer_commitment_index,
+            light_client_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+        );
 
-        // // The last processed l2 height should also be the same because there are no new batch proofs
-        // assert_eq!(
-        //     light_client_proof2.light_client_proof_output.last_l2_height,
-        //     light_client_proof.light_client_proof_output.last_l2_height
-        // );
-        // // The last processed l2 height should also be the same because there are no new batch proofs
-        // assert_eq!(
-        //     light_client_proof2
-        //         .light_client_proof_output
-        //         .last_sequencer_commitment_index,
-        //     light_client_proof
-        //         .light_client_proof_output
-        //         .last_sequencer_commitment_index
-        // );
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(
+            proven_height.height,
+            light_client_proof2
+                .light_client_proof_output
+                .last_l2_height
+                .to::<u64>()
+        );
+        assert_eq!(
+            proven_height.commitment_index,
+            light_client_proof2
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>()
+        );
 
-        // let proven_height = full_node
-        //     .client
-        //     .http_client()
-        //     .get_last_proven_l2_height()
-        //     .await?
-        //     .unwrap();
-        // assert_eq!(
-        //     proven_height.height,
-        //     light_client_proof2
-        //         .light_client_proof_output
-        //         .last_l2_height
-        //         .to::<u64>()
-        // );
-        // assert_eq!(
-        //     proven_height.commitment_index,
-        //     light_client_proof2
-        //         .light_client_proof_output
-        //         .last_sequencer_commitment_index
-        //         .to::<u32>()
-        // );
+        // Let's generate a new batch proof
+        // publish max_l2_blocks_per_commitment confirmations
+        let l2_height = sequencer.client.ledger_get_head_l2_block_height().await?;
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
 
-        // // Let's generate a new batch proof
-        // // publish max_l2_blocks_per_commitment confirmations
-        // let l2_height = sequencer.client.ledger_get_head_l2_block_height().await?;
-        // for _ in 0..max_l2_blocks_per_commitment {
-        //     sequencer.client.send_publish_batch_request().await?;
-        // }
+        sequencer
+            .wait_for_l2_height(l2_height + max_l2_blocks_per_commitment, None)
+            .await?;
 
-        // sequencer
-        //     .wait_for_l2_height(l2_height + max_l2_blocks_per_commitment, None)
-        //     .await?;
+        // Wait for commitment tx to be submitted to DA
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
-        // // Wait for commitment tx to be submitted to DA
-        // da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        // Finalize the DA block which contains the commitment txs
+        da.generate(FINALITY_DEPTH).await?;
 
-        // // Finalize the DA block which contains the commitment txs
-        // da.generate(FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
 
-        // let commitment_l1_height = da.get_finalized_height(None).await?;
+        // Wait for batch prover to generate proofs for commitments
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await?;
 
-        // // Wait for batch prover to generate proofs for commitments
-        // batch_prover
-        //     .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
-        //     .await?;
+        // There is one commitment, generate a single proof
+        let job_ids = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::OneByOne)
+            .await
+            .unwrap();
 
-        // // There is one commitment, generate a single proof
-        // batch_prover
-        //     .client
-        //     .http_client()
-        //     .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
-        //     .await
-        //     .unwrap();
+        let response = wait_for_prover_job(batch_prover, job_ids[0], None)
+            .await
+            .unwrap();
+        assert_eq!(response.commitments.len(), 1);
 
-        // // Ensure that batch proofs is submitted to DA (1x reveal & 1x commit txs)
-        // da.wait_mempool_len(2, Some(TWENTY_MINS)).await?;
+        // Finalize the DA block which contains the batch proof tx
+        da.generate(FINALITY_DEPTH).await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+        // Wait for the full node to see all process verify and store all batch proofs
+        full_node
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 1).await?;
+        assert_eq!(batch_proofs.len(), 1);
 
-        // // Assert that commitments are queryable this also means the batch proofs are submitted to DA with the prove rpc
-        // let commitments = batch_prover
-        //     .client
-        //     .http_client()
-        //     .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
-        //     .await
-        //     .unwrap()
-        //     .unwrap();
-        // assert_eq!(commitments.len(), 1);
+        // Wait for light client prover to process batch proofs.
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
 
-        // // Finalize the DA block which contains the batch proof tx
-        // da.generate(FINALITY_DEPTH).await?;
-        // let batch_proof_l1_height = da.get_finalized_height(None).await?;
-        // // Wait for the full node to see all process verify and store all batch proofs
-        // full_node
-        //     .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-        //     .await?;
-        // let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 1).await?;
-        // assert_eq!(batch_proofs.len(), 1);
+        // Expect light client prover to have generated light client proof
+        let lcp3 = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await
+            .unwrap();
+        assert!(lcp3.is_some());
 
-        // // Wait for light client prover to process batch proofs.
-        // light_client_prover
-        //     .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-        //     .await?;
+        let light_client_proof3 = lcp3.unwrap();
+        assert_eq!(
+            light_client_proof3
+                .light_client_proof_output
+                .l2_state_root
+                .to_vec(),
+            batch_proofs[0].proof_output.final_state_root()
+        );
 
-        // // Expect light client prover to have generated light client proof
-        // let lcp3 = light_client_prover
-        //     .client
-        //     .http_client()
-        //     .get_light_client_proof_by_l1_height(batch_proof_l1_height)
-        //     .await
-        //     .unwrap();
-        // assert!(lcp3.is_some());
+        assert_ne!(
+            light_client_proof3.light_client_proof_output.last_l2_height,
+            light_client_proof.light_client_proof_output.last_l2_height
+        );
+        assert_ne!(
+            light_client_proof3
+                .light_client_proof_output
+                .last_sequencer_commitment_index,
+            light_client_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+        );
 
-        // let light_client_proof3 = lcp3.unwrap();
-        // assert_eq!(
-        //     light_client_proof3
-        //         .light_client_proof_output
-        //         .l2_state_root
-        //         .to_vec(),
-        //     batch_proofs[0].proof_output.final_state_root()
-        // );
+        assert_ne!(
+            light_client_proof3.light_client_proof_output.l2_state_root,
+            light_client_proof.light_client_proof_output.l2_state_root
+        );
 
-        // assert_ne!(
-        //     light_client_proof3.light_client_proof_output.last_l2_height,
-        //     light_client_proof.light_client_proof_output.last_l2_height
-        // );
-        // assert_ne!(
-        //     light_client_proof3
-        //         .light_client_proof_output
-        //         .last_sequencer_commitment_index,
-        //     light_client_proof
-        //         .light_client_proof_output
-        //         .last_sequencer_commitment_index
-        // );
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(
+            proven_height.height,
+            light_client_proof3
+                .light_client_proof_output
+                .last_l2_height
+                .to::<u64>()
+        );
+        assert_eq!(
+            proven_height.commitment_index,
+            light_client_proof3
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>()
+        );
 
-        // assert_ne!(
-        //     light_client_proof3.light_client_proof_output.l2_state_root,
-        //     light_client_proof.light_client_proof_output.l2_state_root
-        // );
-
-        // let proven_height = full_node
-        //     .client
-        //     .http_client()
-        //     .get_last_proven_l2_height()
-        //     .await?
-        //     .unwrap();
-        // assert_eq!(
-        //     proven_height.height,
-        //     light_client_proof3
-        //         .light_client_proof_output
-        //         .last_l2_height
-        //         .to::<u64>()
-        // );
-        // assert_eq!(
-        //     proven_height.commitment_index,
-        //     light_client_proof3
-        //         .light_client_proof_output
-        //         .last_sequencer_commitment_index
-        //         .to::<u32>()
-        // );
-
-        // Ok(())
+        Ok(())
     }
 }
 

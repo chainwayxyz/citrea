@@ -567,16 +567,17 @@ pub async fn wait_for_prover_l1_height(
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover l1 height {}", num);
-        let last_scanned_num = prover_client
-            .ledger_get_last_scanned_l1_height()
-            .await;
+        let last_scanned_num = prover_client.ledger_get_last_scanned_l1_height().await;
         if last_scanned_num >= num {
             break;
         }
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!("Timeout. Failed to wait for batch prover to scan L1 height {}", num);
+            bail!(
+                "Timeout. Failed to wait for batch prover to scan L1 height {}",
+                num
+            );
         }
 
         sleep(Duration::from_secs(1)).await;
