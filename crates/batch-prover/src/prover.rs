@@ -55,7 +55,7 @@ where
     code_commitments_by_spec: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     l1_signal_rx: mpsc::Receiver<()>,
     l2_block_rx: broadcast::Receiver<u64>,
-    request_rx: mpsc::Receiver<ProveRequest>,
+    request_rx: mpsc::Receiver<ProverRequest>,
     sync_target_l2_height: Option<u64>,
     proving_paused: bool,
 }
@@ -76,7 +76,7 @@ where
         code_commitments_by_spec: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
         l1_signal_rx: mpsc::Receiver<()>,
         l2_block_rx: broadcast::Receiver<u64>,
-        request_rx: mpsc::Receiver<ProveRequest>,
+        request_rx: mpsc::Receiver<ProverRequest>,
     ) -> Self {
         Self {
             prover_config,
