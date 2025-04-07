@@ -210,6 +210,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> Result<()>;
 
     /// Inserts a new prover job with its corresponding commitment indices, marking job as running
+    #[allow(clippy::ptr_arg)]
     fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
 
     /// Get commitment indices of job id
