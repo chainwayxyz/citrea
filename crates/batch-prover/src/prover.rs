@@ -631,7 +631,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 .as_slice(),
         )
         .root()
-        .unwrap();
+        .expect("Must have at least one l2 block");
         assert_eq!(
             merkle_root, sequencer_commitment.merkle_root,
             "Commitment merkle root mismatch"
