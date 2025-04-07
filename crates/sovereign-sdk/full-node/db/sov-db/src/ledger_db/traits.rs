@@ -173,8 +173,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
 
     /// Put commitment indices found in the L1 height
-    fn put_commitment_indices_by_l1(&self, l1_height: SlotNumber, indices: &Vec<u32>)
-        -> Result<()>;
+    fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> Result<()>;
 
     /// Inserts a new prover job with its corresponding commitment indices, marking job as running
     fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;

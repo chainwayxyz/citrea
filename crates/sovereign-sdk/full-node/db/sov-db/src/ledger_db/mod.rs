@@ -542,12 +542,13 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn put_commitment_indices_by_l1(
-        &self,
-        l1_height: SlotNumber,
-        indices: &Vec<u32>,
-    ) -> anyhow::Result<()> {
-        self.db.put::<CommitmentIndicesByL1>(&l1_height, indices)
+    fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> anyhow::Result<()> {
+        let mut indices = self
+            .db
+            .get::<CommitmentIndicesByL1>(&l1_height)?
+            .unwrap_or_default();
+        indices.push(index);
+        self.db.put::<CommitmentIndicesByL1>(&l1_height, &indices)
     }
 
     #[instrument(level = "trace", skip(self), err)]

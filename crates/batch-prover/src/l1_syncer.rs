@@ -131,7 +131,6 @@ where
                 &self.sequencer_da_pub_key,
             );
 
-            let mut commitment_indices = Vec::with_capacity(l1_commitments.len());
             // Store commitments by index
             for commitment in l1_commitments.iter() {
                 let index = commitment.index;
@@ -153,17 +152,15 @@ where
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
                         self.ledger_db
+                            .put_commitment_index_by_l1(SlotNumber(l1_height), index)
+                            .expect("Should put commitment index by l1");
+                        self.ledger_db
                             .put_prover_pending_commitment(index)
                             .expect("Should set commitment status to pending");
-
-                        commitment_indices.push(index);
                     }
                 }
             }
 
-            self.ledger_db
-                .put_commitment_indices_by_l1(SlotNumber(l1_height), &commitment_indices)
-                .expect("Should put commitment indices by l1");
             // Set last scanned l1 height
             self.ledger_db
                 .set_last_scanned_l1_height(SlotNumber(l1_height))

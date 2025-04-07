@@ -10,6 +10,7 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_db::schema::types::SlotNumber;
 use sov_rollup_interface::da::SequencerCommitment;
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
@@ -62,12 +63,13 @@ where
 
 #[rpc(client, server, namespace = "batchProver")]
 pub trait BatchProverRpc {
+    /// Manually set commitments. It overrides the commitment already if exists, so use with caution.
+    #[method(name = "setCommitments")]
+    async fn set_commitments(&self, commitments: Vec<SequencerCommitmentParam>) -> RpcResult<()>;
+
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
-    async fn prove(
-        &self,
-        commitments: Option<Vec<SequencerCommitmentParam>>,
-    ) -> RpcResult<Vec<Uuid>>;
+    async fn prove(&self) -> RpcResult<Vec<Uuid>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -93,37 +95,44 @@ impl<DB> BatchProverRpcServer for BatchProverRpcServerImpl<DB>
 where
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
-    async fn prove(
-        &self,
-        commitments: Option<Vec<SequencerCommitmentParam>>,
-    ) -> RpcResult<Vec<Uuid>> {
+    async fn set_commitments(&self, commitments: Vec<SequencerCommitmentParam>) -> RpcResult<()> {
+        for commitment in commitments {
+            let l1_height = commitment.l1_height;
+            let commitment = SequencerCommitment {
+                merkle_root: commitment.merkle_root,
+                index: commitment.index,
+                l2_end_block_number: commitment.l2_end_block_number,
+            };
+
+            self.context
+                .ledger_db
+                .put_commitment_by_index(&commitment)
+                .map_err(|e| internal_rpc_error(e.to_string()))?;
+            // This might cause some duplicate commitment indices appear in l1 -> index table which is ok
+            self.context
+                .ledger_db
+                .put_commitment_index_by_l1(SlotNumber(l1_height), commitment.index)
+                .map_err(|e| internal_rpc_error(e.to_string()))?;
+            self.context
+                .ledger_db
+                .put_prover_pending_commitment(commitment.index)
+                .map_err(|e| internal_rpc_error(e.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    async fn prove(&self) -> RpcResult<Vec<Uuid>> {
         let (result_tx, result_rx) = oneshot::channel();
-        let request = ProveRequest {
-            result_tx,
-            commitments: commitments.map(|cs| {
-                cs.into_iter()
-                    .map(|c| SequencerCommitment {
-                        merkle_root: c.merkle_root,
-                        index: c.index,
-                        l2_end_block_number: c.l2_end_block_number,
-                    })
-                    .collect()
-            }),
-        };
+        let request = ProveRequest { result_tx };
 
         if let Err(_) = self.context.request_tx.send(request).await {
-            return Err(ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some("Proving request channel is closed"),
-            ));
+            return Err(internal_rpc_error("Proving request channel is closed"));
         }
 
         let Ok(job_ids) = result_rx.await else {
-            return Err(ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some("Proving request failed for some reason, check logs for details"),
+            return Err(internal_rpc_error(
+                "Proving request failed for some reason, check logs for details",
             ));
         };
 
@@ -148,4 +157,9 @@ pub struct SequencerCommitmentParam {
     pub merkle_root: [u8; 32],
     pub index: u32,
     pub l2_end_block_number: u64,
+    pub l1_height: u64,
+}
+
+fn internal_rpc_error(msg: impl AsRef<str>) -> ErrorObjectOwned {
+    ErrorObjectOwned::owned(INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG, Some(msg.as_ref()))
 }

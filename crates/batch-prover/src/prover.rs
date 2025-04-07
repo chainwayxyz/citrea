@@ -37,7 +37,6 @@ use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState
 
 pub struct ProveRequest {
     pub result_tx: oneshot::Sender<Vec<Uuid>>,
-    pub commitments: Option<Vec<SequencerCommitment>>,
 }
 
 pub struct Prover<Da, DB, Vm>
@@ -131,12 +130,8 @@ where
                         error!("Prove request sender channel closed abruptly");
                         return;
                     };
-                    let job_ids = match request.commitments {
-                        Some(commitments) => self.try_proving_commitments(commitments).await,
-                        None => self.try_proving(false).await,
-                    };
 
-                    match job_ids {
+                    match self.try_proving(false).await {
                         Ok(job_ids) => {
                             let _ = request.result_tx.send(job_ids);
                         }
@@ -160,13 +155,6 @@ where
         }
         info!("Got {} pending commitment(s)", commitments.len());
 
-        self.try_proving_commitments(commitments).await
-    }
-
-    async fn try_proving_commitments(
-        &mut self,
-        commitments: Vec<SequencerCommitment>,
-    ) -> anyhow::Result<Vec<Uuid>> {
         let commitments = self.filter_unsynced_commitments(commitments)?;
         if commitments.is_empty() {
             warn!("L2 blocks not synced up to any of the pending commitments yet");
