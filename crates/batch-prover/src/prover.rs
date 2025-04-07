@@ -35,7 +35,7 @@ use uuid::Uuid;
 
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
-pub enum ProveRequest {
+pub enum ProverRequest {
     Pause,
     Prove(oneshot::Sender<Vec<Uuid>>),
 }
@@ -135,10 +135,10 @@ where
                     };
 
                     match request {
-                        ProveRequest::Pause => {
+                        ProverRequest::Pause => {
                             self.proving_paused = true;
                         }
-                        ProveRequest::Prove(result_tx) => {
+                        ProverRequest::Prove(result_tx) => {
                             match self.try_proving(false).await {
                                 Ok(job_ids) => {
                                     let _ = result_tx.send(job_ids);

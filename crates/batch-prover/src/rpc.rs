@@ -18,7 +18,7 @@ use sov_rollup_interface::rpc::{
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
-use crate::prover::ProveRequest;
+use crate::prover::ProverRequest;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,14 +33,14 @@ where
     DB: BatchProverLedgerOps + Clone,
 {
     pub ledger_db: DB,
-    pub request_tx: mpsc::Sender<ProveRequest>,
+    pub request_tx: mpsc::Sender<ProverRequest>,
 }
 
 /// Creates a shared RpcContext with all required data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn create_rpc_context<DB>(
     ledger_db: DB,
-    request_tx: mpsc::Sender<ProveRequest>,
+    request_tx: mpsc::Sender<ProverRequest>,
 ) -> RpcContext<DB>
 where
     DB: BatchProverLedgerOps + Clone,
@@ -148,7 +148,7 @@ where
         if let Err(_) = self
             .context
             .request_tx
-            .send(ProveRequest::Prove(result_tx))
+            .send(ProverRequest::Prove(result_tx))
             .await
         {
             return Err(internal_rpc_error("Proving request channel is closed"));
@@ -166,7 +166,7 @@ where
     async fn pause_proving(&self) -> RpcResult<()> {
         self.context
             .request_tx
-            .send(ProveRequest::Pause)
+            .send(ProverRequest::Pause)
             .await
             .map_err(|_| internal_rpc_error("Proving request channel is closed"))
     }
