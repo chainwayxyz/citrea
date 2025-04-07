@@ -110,7 +110,7 @@ where
                 INTERNAL_ERROR_MSG,
                 Some("Proving request failed for some reason, check logs for details"),
             ));
-        }; 
+        };
 
         Ok(job_ids)
     }

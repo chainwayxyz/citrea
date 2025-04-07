@@ -18,7 +18,7 @@ bonsai-sdk = { workspace = true, optional = true }
 borsh = { workspace = true }
 metrics = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
-uuid = { workspace = true }
+uuid = { workspace = true, optional = true }
 risc0-zkp = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rzup = { workspace = true, optional = true }
@@ -40,6 +40,7 @@ native = [
   "dep:hex",
   "dep:tokio",
   "dep:rzup",
+  "dep:uuid",
   "risc0-zkvm/bonsai",
   "risc0-zkvm/client",
   "sov-rollup-interface/native",

@@ -1111,7 +1111,6 @@ dependencies = [
  "sov-rollup-interface",
  "thiserror",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -3440,7 +3439,6 @@ dependencies = [
  "serde",
  "sha2",
  "sov-keys",
- "uuid",
 ]
 
 [[package]]
@@ -3825,17 +3823,6 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
-
-[[package]]
-name = "uuid"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3758f5e68192bb96cc8f9b7e2c2cfdabb435499a28499a42f8f984092adad4b"
-dependencies = [
- "borsh",
- "borsh-derive",
- "getrandom",
-]
 
 [[package]]
 name = "valuable"
