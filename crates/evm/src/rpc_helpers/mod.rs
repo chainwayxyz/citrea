@@ -13,7 +13,7 @@ mod log_utils;
 mod tracing_utils;
 
 #[cfg(feature = "native")]
-use revm::primitives::BlockEnv;
+use revm::context::BlockEnv;
 pub(crate) use tracing_utils::*;
 
 use crate::db::EvmDb;
@@ -80,8 +80,6 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
     block_overrides: &mut BlockOverrides,
     db: &mut EvmDb<C>,
 ) {
-    use alloy_primitives::U256;
-
     if let Some(block_hashes) = block_overrides.block_hash.take() {
         // override block hashes
         for (num, hash) in block_hashes {
@@ -103,13 +101,13 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         block_env.number = number.saturating_to();
     }
     if let Some(time) = time {
-        block_env.timestamp = U256::from(time);
+        block_env.timestamp = time;
     }
     if let Some(gas_limit) = gas_limit {
-        block_env.gas_limit = U256::from(gas_limit);
+        block_env.gas_limit = gas_limit;
     }
     if let Some(coinbase) = coinbase {
-        block_env.coinbase = coinbase;
+        block_env.beneficiary = coinbase;
     }
     if let Some(random) = random {
         block_env.prevrandao = Some(random);

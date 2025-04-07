@@ -108,7 +108,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         let recovered = recover_raw_transaction(data.clone())?;
         let pool_transaction = EthPooledTransaction::from_pooled(recovered);
 
-        let rlp_encoded_tx = pool_transaction.transaction().tx().encoded_2718();
+        let rlp_encoded_tx = pool_transaction.transaction().inner().encoded_2718();
 
         let hash = self
             .context

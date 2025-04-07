@@ -1,8 +1,8 @@
 use core::ops::RangeInclusive;
+use std::fmt::Debug;
 
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_genesis::Genesis;
-use alloy_primitives::map::B256Map;
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
 };
@@ -19,17 +19,23 @@ use reth_provider::{
     BlockReader, BlockReaderIdExt, ChainSpecProvider, HashedPostStateProvider, HeaderProvider,
     OmmersProvider, ProviderError, ProviderResult, ReceiptProvider, ReceiptProviderIdExt,
     StateProofProvider, StateProvider, StateProviderFactory, StateRootProvider,
-    StorageRootProvider, TransactionsProvider, WithdrawalsProvider,
+    StorageRootProvider, TransactionVariant, TransactionsProvider, WithdrawalsProvider,
 };
 use reth_trie::updates::TrieUpdates;
 use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof};
-use revm::db::states::BundleState;
+use revm::database::BundleState;
 use sov_modules_api::{Spec, WorkingSet};
 
 #[derive(Clone)]
 pub struct DbProvider {
     pub evm: Evm<DefaultContext>,
     pub storage: <DefaultContext as Spec>::Storage,
+}
+
+impl Debug for DbProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DbProvider").finish()
+    }
 }
 
 impl DbProvider {
@@ -291,13 +297,6 @@ impl BlockReader for DbProvider {
     fn block(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<Self::Block>> {
         unimplemented!("block")
     }
-    fn block_with_senders(
-        &self,
-        _id: BlockHashOrNumber,
-        _transaction_kind: reth_provider::TransactionVariant,
-    ) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
-        unimplemented!("block_with_senders")
-    }
     fn find_block_by_hash(
         &self,
         _hash: B256,
@@ -312,6 +311,13 @@ impl BlockReader for DbProvider {
         &self,
     ) -> ProviderResult<Option<(reth_primitives::SealedBlock, Vec<reth_primitives::Receipt>)>> {
         unimplemented!("pending_block_and_receipts")
+    }
+    fn recovered_block(
+        &self,
+        _id: BlockHashOrNumber,
+        _transaction_kind: TransactionVariant,
+    ) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
+        unimplemented!("recovered_block")
     }
     fn block_range(
         &self,
@@ -337,11 +343,11 @@ impl BlockReader for DbProvider {
         unimplemented!("sealed_block_with_senders")
     }
 
-    fn sealed_block_with_senders_range(
+    fn recovered_block_range(
         &self,
         _range: RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<RecoveredBlock<Self::Block>>> {
-        unimplemented!("sealed_block_with_senders_range")
+        unimplemented!("recovered_block_range")
     }
 }
 
@@ -557,7 +563,7 @@ impl StateProofProvider for DbProvider {
         &self,
         _overlay: reth_trie::TrieInput,
         _target: reth_trie::HashedPostState,
-    ) -> ProviderResult<B256Map<Bytes>> {
+    ) -> ProviderResult<Vec<Bytes>> {
         unimplemented!("hashed_proof")
     }
 }

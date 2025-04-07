@@ -7,7 +7,7 @@ use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
-use revm::primitives::Bytecode;
+use revm::state::Bytecode;
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;

@@ -16,6 +16,8 @@ pub use genesis::*;
 pub use hooks::{
     create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
 };
+use revm::context::BlockEnv;
+use revm::primitives::hardfork::SpecId as EvmSpecId;
 use sov_state::codec::BorshCodec;
 pub use system_events::SYSTEM_SIGNER;
 
@@ -39,7 +41,6 @@ mod tests;
 use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
-use revm::primitives::{BlockEnv, SpecId as EvmSpecId};
 use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
 use sov_state::codec::{BcsCodec, RlpCodec};
 
@@ -100,7 +101,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
     pub(crate) offchain_code:
-        sov_modules_api::OffchainStateMap<B256, revm::primitives::Bytecode, BcsCodec>,
+        sov_modules_api::OffchainStateMap<B256, revm::state::Bytecode, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state(rename = "S")]

@@ -74,7 +74,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
             let init_tx = &block_transactions[0];
             let set_tx = &block_transactions[1];
 
-            assert_eq!(init_tx.from, system_signer_address);
+            assert_eq!(init_tx.inner.signer(), system_signer_address);
             assert_eq!(init_tx.to().unwrap(), system_contract_address);
             assert_eq!(
                 init_tx.input()[..],
@@ -85,7 +85,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
                 .as_slice()
             );
 
-            assert_eq!(set_tx.from, system_signer_address);
+            assert_eq!(set_tx.inner.signer(), system_signer_address);
             assert_eq!(set_tx.to().unwrap(), system_contract_address);
             assert_eq!(
                 set_tx.input()[0..4],
@@ -97,7 +97,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
 
             let tx = &block_transactions[0];
 
-            assert_eq!(tx.from, system_signer_address);
+            assert_eq!(tx.inner.signer(), system_signer_address);
             assert_eq!(tx.to().unwrap(), system_contract_address);
             assert_eq!(
                 tx.input()[0..4],

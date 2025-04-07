@@ -200,7 +200,7 @@ where
                     continue;
                 }
 
-                let buf = evm_tx.to_consensus().into_tx().encoded_2718();
+                let buf = evm_tx.to_consensus().into_inner().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
                     txs: vec![rlp_tx.clone()],
@@ -799,7 +799,7 @@ where
 
         let addresses: HashSet<Address> = match head.transactions {
             alloy_rpc_types::BlockTransactions::Full(ref txs) => {
-                txs.iter().map(|tx| tx.from).collect()
+                txs.iter().map(|tx| tx.inner.signer()).collect()
             }
             _ => panic!("Block should have full transactions"),
         };
