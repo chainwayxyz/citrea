@@ -181,10 +181,11 @@ pub struct CitreaEvm<CTX, INSP>(
 
 impl<CTX: CitreaContextTr, INSP> CitreaEvm<CTX, INSP> {
     pub fn new(ctx: CTX, inspector: INSP) -> Self {
+        let spec = ctx.cfg().spec().into();
         Self(Evm {
             data: EvmData { ctx, inspector },
             instruction: EthInstructions::new_mainnet(),
-            precompiles: CitreaPrecompiles::default(),
+            precompiles: CitreaPrecompiles::new_with_spec(spec),
         })
     }
 }
@@ -357,21 +358,25 @@ pub struct CitreaPrecompiles {
     inner: EthPrecompiles,
 }
 
-/// Returns precompiles.
-pub fn citrea_precompiles() -> &'static Precompiles {
+// Returns precompiles for Citrea's Cancun spec.
+pub fn cancun() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         // Berlin because POINT_EVALUATION precompile(0x0A) is enabled in Cancun
-        // then we add prague precompiles
-        // and then we add the rest of the precompiles
-        let mut precompiles = Precompiles::berlin().clone();
+        Box::new(Precompiles::berlin().clone())
+    })
+}
 
+// Returns precompiles for Citrea's Prague spec.
+pub fn prague() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = cancun().clone();
         // Add prague precompiles
         // Effectively skipping kzg precompiles in Cancun
         precompiles.extend(bls12_381::precompiles());
 
         precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
-
         Box::new(precompiles)
     })
 }
@@ -380,8 +385,11 @@ impl CitreaPrecompiles {
     /// Create a new precompile provider with the given Spec.
     #[inline]
     pub fn new_with_spec(spec: SpecId) -> Self {
-        let precompiles = citrea_precompiles();
-
+        let precompiles = match spec {
+            SpecId::CANCUN => cancun(),
+            SpecId::PRAGUE => prague(),
+            _ => panic!("Citrea precompiles are not supported for this spec"),
+        };
         Self {
             inner: EthPrecompiles { precompiles, spec },
         }

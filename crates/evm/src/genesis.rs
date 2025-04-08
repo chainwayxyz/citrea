@@ -7,6 +7,8 @@ use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
+use citrea_primitives::forks::fork_from_block_number;
+use revm::primitives::hardfork::SpecId;
 use revm::state::Bytecode;
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
@@ -17,7 +19,7 @@ use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
 #[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
-use crate::Evm;
+use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
 /// Evm account.
 #[derive(Clone, Debug, serde::Serialize, Eq, PartialEq)]
@@ -202,6 +204,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.cfg.set(&chain_cfg, working_set);
 
+        let citrea_spec = fork_from_block_number(0);
+
+        let evm_spec = citrea_spec_id_to_evm_spec_id(citrea_spec.spec_id);
+
         let header = Header {
             parent_hash: B256::default(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -220,14 +226,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
             nonce: config.nonce.into(),
             base_fee_per_gas: Some(config.starting_base_fee),
             extra_data: config.extra_data.clone(),
-            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             // EIP-4844 related fields
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: Some(B256::ZERO),
-            requests_hash: Some(EMPTY_REQUESTS_HASH),
+            requests_hash: if let SpecId::PRAGUE = evm_spec {
+                Some(EMPTY_REQUESTS_HASH)
+            } else {
+                None
+            },
         };
 
         let block = Block {

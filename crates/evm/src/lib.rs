@@ -199,6 +199,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 }
 
-const fn citrea_spec_id_to_evm_spec_id(_spec_id: CitreaSpecId) -> EvmSpecId {
-    EvmSpecId::PRAGUE
+const fn citrea_spec_id_to_evm_spec_id(spec_id: CitreaSpecId) -> EvmSpecId {
+    match spec_id {
+        CitreaSpecId::Kumquat | CitreaSpecId::Genesis => EvmSpecId::CANCUN,
+        // Any other citrea spec id mapped to Prague
+        _ => EvmSpecId::PRAGUE,
+    }
 }

@@ -3,13 +3,13 @@ use std::time::Duration;
 use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin::Txid;
+use bitcoin::{Amount, Txid};
 use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
 use bitcoin_da::service::FINALITY_DEPTH;
-use bitcoincore_rpc::RpcApi;
+use bitcoincore_rpc::{Client, RpcApi};
 use citrea_e2e::bitcoin::BitcoinNode;
-use citrea_e2e::config::TestCaseConfig;
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
@@ -471,6 +471,93 @@ impl CpfpFeeBumpingTest {
 #[tokio::test]
 async fn test_cpfp_fee_bump() -> Result<()> {
     TestCaseRunner::new(CpfpFeeBumpingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct MinRelayFeeTest;
+
+impl MinRelayFeeTest {
+    async fn drain_wallet(
+        &self,
+        da: &BitcoinNode,
+        client: &Client,
+        amount_to_keep: Amount,
+    ) -> Result<()> {
+        let balance = da.get_balance(None, None).await?;
+
+        let amount_to_send = balance - amount_to_keep;
+
+        if amount_to_send <= Amount::ZERO {
+            return Ok(());
+        }
+
+        let drain_address = da.get_new_address(None, None).await?.assume_checked();
+
+        client
+            .send_to_address(
+                &drain_address,
+                amount_to_send,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        da.generate(1).await?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TestCase for MinRelayFeeTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: false,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-fallbackfee=0.00001", "-minrelaytxfee=0.00002"],
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+
+        self.drain_wallet(da, &sequencer.da, Amount::from_sat(8000))
+            .await?;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        // Generate seqcommitments
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+
+        // Assert that we hit MinRelayFeeNotMet error but recover and end up sending the tx by increasing fee_rate_multiplier
+        let sequencer_stdout =
+            std::fs::read_to_string(sequencer.config.base.dir.join("stdout.log"))?;
+        assert!(sequencer_stdout.contains("MinRelayFeeNotMet"));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_min_relay_fee_handling() -> Result<()> {
+    TestCaseRunner::new(MinRelayFeeTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
