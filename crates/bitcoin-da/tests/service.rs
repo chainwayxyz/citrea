@@ -2,6 +2,7 @@ mod test_utils;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
@@ -41,20 +42,23 @@ impl TestCase for BitcoinServiceTest {
     }
 
     async fn cleanup(self) -> Result<()> {
-        self.task_manager.graceful_shutdown();
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(self.task_manager.executor(), &da_node.config).await;
+        let service = get_default_service(&task_executor, &da_node.config).await;
         let verifier = BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
         });
 
         let (block, block_commitments, block_proofs, _) =
-            generate_mock_txs(&service, da_node, self.task_manager.executor()).await;
+            generate_mock_txs(&service, da_node, &task_executor).await;
         let block_wtxids = block
             .txdata
             .iter()

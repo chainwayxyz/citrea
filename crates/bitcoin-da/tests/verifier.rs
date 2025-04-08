@@ -1,5 +1,7 @@
 mod test_utils;
 
+use std::time::Duration;
+
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::{ScriptBuf, Witness};
@@ -20,7 +22,9 @@ use test_utils::{
     generate_mock_txs, get_citrea_path, get_default_service, get_mock_nonsegwit_block,
 };
 
-struct BitcoinVerifierTest;
+struct BitcoinVerifierTest {
+    task_manager: TaskManager,
+}
 
 #[async_trait]
 impl TestCase for BitcoinVerifierTest {
@@ -39,12 +43,19 @@ impl TestCase for BitcoinVerifierTest {
         }
     }
 
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_manager = TaskManager::current();
+        let task_executor = self.task_manager.executor();
+
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(task_manager.executor(), &da_node.config).await;
-        let (block, _, _, _) = generate_mock_txs(&service, da_node, task_manager.executor()).await;
+        let service = get_default_service(&task_executor, &da_node.config).await;
+        let (block, _, _, _) = generate_mock_txs(&service, da_node, &task_executor).await;
 
         let (mut txs, inclusion_proof, completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block);
@@ -369,7 +380,6 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
-        task_manager.graceful_shutdown();
         Ok(())
     }
 }
@@ -377,8 +387,10 @@ impl TestCase for BitcoinVerifierTest {
 #[cfg(feature = "native")]
 #[tokio::test]
 async fn test_bitcoin_verifier() -> Result<()> {
-    TestCaseRunner::new(BitcoinVerifierTest)
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(BitcoinVerifierTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }

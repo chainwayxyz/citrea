@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
@@ -333,7 +335,8 @@ impl TestCase for OutOfOrderCommitmentsTest {
     }
 
     async fn cleanup(self) -> Result<()> {
-        self.task_manager.graceful_shutdown();
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -497,7 +500,8 @@ impl TestCase for ConflictingCommitmentsTest {
     }
 
     async fn cleanup(self) -> Result<()> {
-        self.task_manager.graceful_shutdown();
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -694,7 +698,8 @@ impl TestCase for OutOfRangeProofTest {
     }
 
     async fn cleanup(self) -> Result<()> {
-        self.task_manager.graceful_shutdown();
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -1200,7 +1205,8 @@ impl TestCase for OverlappingProofRangesTest {
     }
 
     async fn cleanup(self) -> Result<()> {
-        self.task_manager.graceful_shutdown();
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
