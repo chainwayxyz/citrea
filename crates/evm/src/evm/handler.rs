@@ -32,6 +32,7 @@ use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
+use super::db::IsAccountNewlyCreatedProvider;
 use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
@@ -308,11 +309,12 @@ pub trait CitreaContextTr:
     Tx: Transaction,
     Cfg: Cfg,
     Chain: CitreaChainExt,
+    Db: Database + IsAccountNewlyCreatedProvider,
 >
 {
 }
 
-impl<T, DB: Database> CitreaContextTr for T where
+impl<T, DB: Database + IsAccountNewlyCreatedProvider> CitreaContextTr for T where
     T: ContextTr<Db = DB, Journal = Journal<DB>, Chain: CitreaChainExt>
 {
 }
@@ -334,7 +336,7 @@ where
     BLOCK: Block,
     TX: Transaction,
     CFG: Cfg,
-    DB: Database,
+    DB: Database + IsAccountNewlyCreatedProvider,
     CHAIN: CitreaChainExt,
 {
     type Context = Self;
