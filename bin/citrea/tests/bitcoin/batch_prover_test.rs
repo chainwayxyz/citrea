@@ -403,8 +403,8 @@ async fn basic_prover_test() -> Result<()> {
 //         Ok(())
 //     }
 
-//     async fn cleanup(&self) -> Result<()> {
-//         self.task_manager.graceful_shutdown();
+//     async fn cleanup(self) -> Result<()> {
+//         self.task_manager.abort().await;
 //         Ok(())
 //     }
 // }

@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"bytes","name":"input","type":"bytes"}],"name":"g1Add","outputs":[{"internalType":"bool","name":"success","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"g1AddResult","outputs":[{"internalType":"bytes","name":"","type":"bytes"}],"stateMutability":"view","type":"function"}]

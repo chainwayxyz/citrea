@@ -105,8 +105,10 @@ where
                 return;
             }
         };
-        let mut from_l2_height =
-            L2BlockNumber(cmp::max(last_finalized_l2_height, last_pending_l2_height).0 + 1);
+        let mut from_l2_height = L2BlockNumber(cmp::max(
+            cmp::max(last_finalized_l2_height, last_pending_l2_height).0 + 1,
+            get_fork2_activation_height_non_zero(),
+        ));
 
         let commitment_controller = Arc::new(
             self.commitment_controller
