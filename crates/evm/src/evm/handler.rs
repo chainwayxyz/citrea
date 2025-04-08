@@ -741,14 +741,11 @@ where
 
     let mut diff_size = 0usize;
 
-    for (addr, account) in account_changes {
-        // as create is only for smart contract creations, we must find another way to understand if the account was used for the first time
-        // if there was a way to access Evm::account_amount we could get the amount of contracts added in a single query
-        // and add it to the diff size
+    let mut addresses_to_check = Vec::with_capacity(account_changes.len());
 
-        // if account.created {
-        //     diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
-        // }
+    for (addr, account) in account_changes {
+        // cloning addresses to avoid borrowing issues
+        addresses_to_check.push(*addr);
 
         // Apply size of account_info
         if account.account_info_changed {
@@ -773,6 +770,12 @@ where
             slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
 
         // No checks on code change as it is not part of the state diff
+    }
+
+    for addr in addresses_to_check {
+        if context.db().is_account_new(&addr) {
+            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
+        }
     }
 
     diff_size
