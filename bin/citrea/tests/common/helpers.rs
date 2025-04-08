@@ -251,21 +251,22 @@ pub async fn start_rollup(
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
-        let (runner, l1_syncer, prover, rpc_module) = CitreaRollupBlueprint::create_batch_prover(
-            &mock_demo_rollup,
-            rollup_prover_config,
-            genesis_config,
-            rollup_config.clone(),
-            da_service,
-            ledger_db.clone(),
-            storage_manager,
-            l2_block_tx,
-            rpc_module,
-            backup_manager,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
+        let (l2_syncer, l1_syncer, prover, rpc_module) =
+            CitreaRollupBlueprint::create_batch_prover(
+                &mock_demo_rollup,
+                rollup_prover_config,
+                genesis_config,
+                rollup_config.clone(),
+                da_service,
+                ledger_db.clone(),
+                storage_manager,
+                l2_block_tx,
+                rpc_module,
+                backup_manager,
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
 
         start_rpc_server(
             rollup_config.rpc.clone(),
@@ -283,14 +284,17 @@ pub async fn start_rollup(
         });
 
         let handler_span = span.clone();
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            l2_syncer
+                .run(shutdown_signal)
+                .instrument(handler_span)
+                .await;
+        });
+
         task_executor
             .spawn_critical_with_graceful_shutdown_signal("Prover", |shutdown_signal| async move {
-                prover.run(shutdown_signal).instrument(handler_span).await
+                prover.run(shutdown_signal).instrument(span).await
             });
-
-        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-            runner.run(shutdown_signal).instrument(span).await.unwrap();
-        });
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
 

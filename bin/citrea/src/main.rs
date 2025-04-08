@@ -264,7 +264,7 @@ where
             );
         }
         NodeType::BatchProver(batch_prover_config) => {
-            let (runner, l1_syncer, prover, rpc_module) =
+            let (l2_syncer, l1_syncer, prover, rpc_module) =
                 CitreaRollupBlueprint::create_batch_prover(
                     &rollup_blueprint,
                     batch_prover_config,
@@ -286,16 +286,14 @@ where
                 l1_syncer.run(shutdown_signal).await
             });
 
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                l2_syncer.run(shutdown_signal).await
+            });
+
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "Prover",
                 |shutdown_signal| async move { prover.run(shutdown_signal).await },
             );
-
-            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-                if let Err(e) = runner.run(shutdown_signal).await {
-                    error!("Error: {}", e);
-                }
-            });
         }
         NodeType::LightClientProver(light_client_prover_config) => {
             let starting_block = match ledger_db.get_last_scanned_l1_height()? {

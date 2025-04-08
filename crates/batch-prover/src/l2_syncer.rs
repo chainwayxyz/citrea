@@ -94,7 +94,7 @@ where
     }
 
     /// Runs the L2Syncer in a blocking manner.
-    pub async fn run(&mut self, mut shutdown_signal: GracefulShutdown) {
+    pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
             self.start_l2_height,

@@ -7,12 +7,11 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::RpcModule;
-use l1_syncer::L1Syncer;
-use l2_syncer::L2Syncer;
+pub use l1_syncer::L1Syncer;
+pub use l2_syncer::L2Syncer;
 pub use partition::PartitionMode;
 use prover::Prover;
 use prover_services::ParallelProverService;
-pub use runner::*;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
@@ -30,7 +29,6 @@ mod metrics;
 mod partition;
 pub mod prover;
 pub mod rpc;
-mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub async fn build_services<DA, DB, Vm>(
@@ -54,7 +52,7 @@ pub async fn build_services<DA, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    CitreaBatchProver<DA, DB>,
+    L2Syncer<DA, DB>,
     L1Syncer<DA, DB>,
     Prover<DA, DB, Vm>,
     RpcModule<()>,
@@ -84,8 +82,6 @@ where
         true,
     )?;
 
-    let runner = CitreaBatchProver::new(l2_syncer)?;
-
     let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);
 
     let l1_syncer = L1Syncer::new(
@@ -113,5 +109,5 @@ where
         request_rx,
     );
 
-    Ok((runner, l1_syncer, prover, rpc_module))
+    Ok((l2_syncer, l1_syncer, prover, rpc_module))
 }

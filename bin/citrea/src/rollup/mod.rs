@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use citrea_batch_prover::l1_syncer::L1Syncer as BatchProverL1Syncer;
 use citrea_batch_prover::prover::Prover;
-use citrea_batch_prover::CitreaBatchProver;
+use citrea_batch_prover::L2Syncer as BatchProverL2Syncer;
 use citrea_common::backup::BackupManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, SequencerConfig,
@@ -323,7 +323,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        CitreaBatchProver<Self::DaService, LedgerDB>,
+        BatchProverL2Syncer<Self::DaService, LedgerDB>,
         BatchProverL1Syncer<Self::DaService, LedgerDB>,
         Prover<Self::DaService, LedgerDB, Self::Vm>,
         RpcModule<()>,
