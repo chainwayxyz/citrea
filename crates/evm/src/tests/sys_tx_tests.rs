@@ -185,7 +185,7 @@ fn test_sys_bitcoin_light_client() {
                 }.into(),
                 gas_used: 50714,
                 log_index_start: 0,
-                l1_diff_size: 28,
+                l1_diff_size: 46,
             },
             CitreaReceiptWithBloom { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
@@ -204,7 +204,7 @@ fn test_sys_bitcoin_light_client() {
                 }.into(),
                 gas_used: 83322,
                 log_index_start: 0,
-                l1_diff_size: 72,
+                l1_diff_size: 74,
             },
             CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
@@ -230,7 +230,7 @@ fn test_sys_bitcoin_light_client() {
                 }.into(),
                 gas_used: 169134,
                 log_index_start: 1,
-                l1_diff_size: 136,
+                l1_diff_size: 138,
             }
         ]
     );
@@ -356,7 +356,7 @@ fn test_sys_bitcoin_light_client() {
                 }.into(),
                 gas_used: 83322,
                 log_index_start: 0,
-                l1_diff_size: 72,
+                l1_diff_size: 74,
             },
             CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
@@ -367,7 +367,7 @@ fn test_sys_bitcoin_light_client() {
                 }.into(),
                 gas_used: 114235,
                 log_index_start: 1,
-                l1_diff_size: 36,
+                l1_diff_size: 38,
             },
         ]
     );
