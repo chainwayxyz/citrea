@@ -367,22 +367,19 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     }
     wait_for_l2_block(&seq_test_client, 3, None).await;
 
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 2, None).await;
-
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 4, None).await;
 
     // sequencer commitment should be sent
     // Block that contains the commitment
-    wait_for_l1_block(&da_service, 3, None).await;
+    wait_for_l1_block(&da_service, 2, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    // seq comm is in block 3
-    wait_for_prover_l1_height_proofs(&prover_node_test_client, 3, None).await?;
+    // seq comm is in block 2
+    wait_for_prover_l1_height_proofs(&prover_node_test_client, 2, None).await?;
 
     // Contains the proof
-    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
@@ -470,9 +467,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await?;
     sleep(Duration::from_secs(2)).await;
-    // Publish a DA to force prover to process new blocks
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 5, None).await;
 
     // We have 8 blocks in total, make sure the prover syncs
     // and starts proving the second commitment.
@@ -483,15 +477,14 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 9, None).await;
 
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 6, None).await;
+    wait_for_l1_block(&da_service, 4, None).await;
     sleep(Duration::from_secs(1)).await;
 
     // Commitment is sent
-    wait_for_l1_block(&da_service, 7, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
     // wait here until we see from prover's rpc that it finished proving
     // seq comm is in block 6
-    wait_for_prover_l1_height_proofs(&prover_node_test_client, 6, None).await?;
+    wait_for_prover_l1_height_proofs(&prover_node_test_client, 5, None).await?;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra l2 block due to the prover publishing a proof. This causes
