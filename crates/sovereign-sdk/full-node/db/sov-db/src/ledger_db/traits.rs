@@ -238,6 +238,12 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Get latest job ids with max count.
     fn get_latest_job_ids(&self, count: usize) -> Result<Vec<Uuid>>;
+
+    /// Get commitment indices by l1 height
+    fn get_prover_commitment_indices_by_l1(
+        &self,
+        l1_height: SlotNumber,
+    ) -> Result<Option<Vec<u32>>>;
 }
 
 /// Light client prover ledger operations

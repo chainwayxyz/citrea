@@ -645,6 +645,14 @@ impl BatchProverLedgerOps for LedgerDB {
 
         Ok(job_ids)
     }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_prover_commitment_indices_by_l1(
+        &self,
+        l1_height: SlotNumber,
+    ) -> anyhow::Result<Option<Vec<u32>>> {
+        self.db.get::<CommitmentIndicesByL1>(&l1_height)
+    }
 }
 
 impl BonsaiLedgerOps for LedgerDB {

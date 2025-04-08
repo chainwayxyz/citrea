@@ -85,13 +85,17 @@ pub trait BatchProverRpc {
     #[method(name = "getProvingJob")]
     async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>>;
 
-    /// Gets latest job ids.
+    /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     #[method(name = "getProvingJobs")]
     async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
 
-    /// Gets latest job ids.
+    /// Gets proving job details of the commitment index.
     #[method(name = "getProvingJobOfCommitment")]
     async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>>;
+
+    /// Gets commitment indices seen in the L1 block
+    #[method(name = "getCommitmentIndicesByL1")]
+    async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -229,6 +233,13 @@ where
             Some(job_id) => self.get_proving_job(job_id).await,
             None => Ok(None),
         }
+    }
+
+    async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>> {
+        self.context
+            .ledger_db
+            .get_prover_commitment_indices_by_l1(SlotNumber(l1_height))
+            .map_err(|e| internal_rpc_error(e.to_string()))
     }
 }
 
