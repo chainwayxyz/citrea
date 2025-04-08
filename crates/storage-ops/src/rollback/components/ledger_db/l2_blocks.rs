@@ -29,10 +29,7 @@ pub(crate) fn rollback_l2_blocks(
         deleted += 1;
     }
 
-    if !matches!(
-        node_type,
-        StorageNodeType::Sequencer | StorageNodeType::FullNode
-    ) {
+    if matches!(node_type, StorageNodeType::LightClient) {
         return Ok(deleted);
     }
 
