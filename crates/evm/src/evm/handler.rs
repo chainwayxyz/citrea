@@ -356,23 +356,25 @@ pub struct CitreaPrecompiles {
     inner: EthPrecompiles,
 }
 
-/// Returns precompiles.
-pub fn citrea_precompiles(spec: SpecId) -> &'static Precompiles {
+// Returns precompiles for Citrea's Cancun spec.
+pub fn cancun() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         // Berlin because POINT_EVALUATION precompile(0x0A) is enabled in Cancun
-        // then we add prague precompiles
-        // and then we add the rest of the precompiles
-        let mut precompiles = Precompiles::berlin().clone();
+        Box::new(Precompiles::berlin().clone())
+    })
+}
 
-        if let SpecId::PRAGUE = spec {
-            // Add prague precompiles
-            // Effectively skipping kzg precompiles in Cancun
-            precompiles.extend(bls12_381::precompiles());
+// Returns precompiles for Citrea's Prague spec.
+pub fn prague() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = cancun().clone();
+        // Add prague precompiles
+        // Effectively skipping kzg precompiles in Cancun
+        precompiles.extend(bls12_381::precompiles());
 
-            precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
-        }
-
+        precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
         Box::new(precompiles)
     })
 }
@@ -381,7 +383,11 @@ impl CitreaPrecompiles {
     /// Create a new precompile provider with the given Spec.
     #[inline]
     pub fn new_with_spec(spec: SpecId) -> Self {
-        let precompiles = citrea_precompiles(spec);
+        let precompiles = match spec {
+            SpecId::CANCUN => cancun(),
+            SpecId::PRAGUE => prague(),
+            _ => panic!("Citrea precompiles are not supported for this spec"),
+        };
         Self {
             inner: EthPrecompiles { precompiles, spec },
         }
