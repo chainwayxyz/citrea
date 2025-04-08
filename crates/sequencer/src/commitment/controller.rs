@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 use anyhow::ensure;
 use citrea_common::utils::merge_state_diffs;
 use citrea_primitives::compression::compress_blob;
+use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use parking_lot::Mutex;
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -50,9 +51,29 @@ where
 
     pub fn should_commit(
         &self,
-        from_l2_height: L2BlockNumber,
+        mut from_l2_height: L2BlockNumber,
         to_l2_height: L2BlockNumber,
     ) -> anyhow::Result<Option<CommitmentRange>> {
+        // If to_l2_height is less than fork2 activation height, should not commit
+        if to_l2_height < get_fork2_activation_height_non_zero() {
+            return Ok(None);
+        }
+        // If to_l2_height is bigger than fork2 activation height,
+        // and the first indexed commitment is not sent yet, set the from_l2_height to the fork2 activation height
+        // Prepare to send the first indexed commitment starting from the fork2 activation height
+        if to_l2_height > get_fork2_activation_height_non_zero()
+            && self.ledger_db.get_commitment_by_index(1)?.is_none()
+        {
+            // Reset state diff
+            self.reset();
+
+            from_l2_height = get_fork2_activation_height_non_zero();
+
+            // Set the start height of state diff to the fork2 activation height
+            // -1 because we add 1 to the last committed height
+            self.state_diff.lock().height = from_l2_height.0 - 1;
+        }
+
         // Check if state diff threshold is reached
         if let Some(info) = self.check_state_diff_threshold(to_l2_height)? {
             // New state diff is current L2 block's state diff, because the current block is not
