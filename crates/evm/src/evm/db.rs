@@ -126,11 +126,11 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
 pub trait AccountExistsProvider {
     /// Check if an account is newly created
     /// By querying `Evm::account_exists`
-    fn is_account_new(&mut self, address: &Address) -> bool;
+    fn is_first_time_committing_address(&mut self, address: &Address) -> bool;
 }
 
 impl<C: sov_modules_api::Context> AccountExistsProvider for EvmDb<'_, C> {
-    fn is_account_new(&mut self, address: &Address) -> bool {
+    fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
         // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
         // We wouldn't have them in the account indices map
         // So this can tell us if the account is newly created
@@ -139,7 +139,7 @@ impl<C: sov_modules_api::Context> AccountExistsProvider for EvmDb<'_, C> {
 }
 
 impl<C: sov_modules_api::Context> AccountExistsProvider for &mut EvmDb<'_, C> {
-    fn is_account_new(&mut self, address: &Address) -> bool {
+    fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
         // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
         // We wouldn't have them in the account indices map
         // So this can tell us if the account is newly created
@@ -217,8 +217,10 @@ pub mod immutable {
     }
 
     impl<C: sov_modules_api::Context> AccountExistsProvider for &mut EvmDbRef<'_, '_, C> {
-        fn is_account_new(&mut self, address: &Address) -> bool {
-            self.evm_db.borrow_mut().is_account_new(address)
+        fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
+            self.evm_db
+                .borrow_mut()
+                .is_first_time_committing_address(address)
         }
     }
 }

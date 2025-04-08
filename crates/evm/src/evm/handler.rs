@@ -774,7 +774,7 @@ where
     }
 
     for addr in addresses_to_check {
-        if context.db().is_account_new(&addr) {
+        if context.db().is_first_time_committing_address(&addr) {
             diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
         }
     }
