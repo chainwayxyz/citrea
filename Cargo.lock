@@ -2422,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=1e3b1b501aa2a5b7b8f89a014ec4871d2edca6a9#1e3b1b501aa2a5b7b8f89a014ec4871d2edca6a9"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=055e7b2f3a4f8112016368c430666c1c16800f4b#055e7b2f3a4f8112016368c430666c1c16800f4b"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2433,6 +2433,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
+ "nix",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -5948,6 +5949,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77a5d83df9f36fe23f0c3648c6bbb8b0298bb5f1939c8f2704431371f4b84d43"
 dependencies = [
  "smallvec",
+]
+
+[[package]]
+name = "nix"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
+dependencies = [
+ "bitflags 2.8.0",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
 ]
 
 [[package]]
