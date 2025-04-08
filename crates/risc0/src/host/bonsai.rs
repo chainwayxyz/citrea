@@ -10,9 +10,9 @@ use risc0_zkvm::{
 };
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
-use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType};
+use sov_rollup_interface::zk::{ProofWithJob, ReceiptType};
 use tokio::sync::oneshot;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -261,10 +261,13 @@ impl BonsaiProver {
             return Ok(vec![]);
         }
 
-        debug!("Recovering {} bonsai proving sessions", sessions.len());
-
         let mut rxs = vec![];
         for (job_id, session) in sessions {
+            info!(
+                "Recovering bonsai session, job_id={} session={:?}",
+                job_id, session
+            );
+
             let rx = match session.kind {
                 BonsaiSessionKind::StarkSession(id) => self.spawn_handler(
                     job_id,
@@ -287,47 +290,6 @@ impl BonsaiProver {
         }
 
         Ok(rxs)
-    }
-
-    /// Recovers all pending bonsai sessions, waiting for them to complete if not, and returns job id and their associated proofs.
-    pub async fn recover_proving_sessions(&self) -> anyhow::Result<Vec<(Uuid, Proof)>> {
-        let sessions = self.ledger_db.get_pending_bonsai_sessions()?;
-        if sessions.is_empty() {
-            return Ok(vec![]);
-        }
-
-        info!("Recovering {} bonsai proving sessions", sessions.len());
-
-        let mut proofs = vec![];
-        for (job_id, session) in sessions {
-            let receipt = match session.kind {
-                BonsaiSessionKind::StarkSession(id) => {
-                    self.handle_session(
-                        job_id,
-                        SessionId::new(id),
-                        session.image_id.into(),
-                        session.receipt_type,
-                    )
-                    .await?
-                }
-                BonsaiSessionKind::SnarkSession(_, id) => {
-                    let groth16_receipt = self.wait_snark_receipt(&SnarkId::new(id)).await?;
-                    groth16_receipt
-                        .verify_integrity_with_context(&VerifierContext::default())
-                        .context("Failed to verify bonsai groth16 proof integrity")?;
-                    groth16_receipt
-                }
-            };
-
-            let serialized_receipt =
-                bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail");
-
-            self.ledger_db.remove_pending_bonsai_session(job_id)?;
-
-            proofs.push((job_id, serialized_receipt));
-        }
-
-        Ok(proofs)
     }
 }
 
