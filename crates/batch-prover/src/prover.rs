@@ -134,11 +134,7 @@ where
                     }
                 }
                 request = self.request_rx.recv() => {
-                    let Some(request) = request else {
-                        // no need to panic if for some reason request channel is closed
-                        error!("Prove request sender channel closed abruptly");
-                        return;
-                    };
+                    let request = request.expect("Rpc request channel closed abruptly");
 
                     match request {
                         ProverRequest::Pause => {
