@@ -55,19 +55,19 @@ where
         to_l2_height: L2BlockNumber,
     ) -> anyhow::Result<Option<CommitmentRange>> {
         // If to_l2_height is less than fork2 activation height, should not commit
-        if to_l2_height < get_fork2_activation_height_non_zero() {
+        if to_l2_height.0 < get_fork2_activation_height_non_zero() {
             return Ok(None);
         }
         // If to_l2_height is bigger than fork2 activation height,
         // and the first indexed commitment is not sent yet, set the from_l2_height to the fork2 activation height
         // Prepare to send the first indexed commitment starting from the fork2 activation height
-        if to_l2_height > get_fork2_activation_height_non_zero()
+        if to_l2_height.0 > get_fork2_activation_height_non_zero()
             && self.ledger_db.get_commitment_by_index(1)?.is_none()
         {
             // Reset state diff
             self.reset();
 
-            from_l2_height = get_fork2_activation_height_non_zero();
+            from_l2_height = L2BlockNumber(get_fork2_activation_height_non_zero)();
 
             // Set the start height of state diff to the fork2 activation height
             // -1 because we add 1 to the last committed height
