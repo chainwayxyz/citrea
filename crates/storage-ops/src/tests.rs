@@ -2,13 +2,14 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
+use reth_tasks::TaskManager;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2BlockStatus, L2RangeByL1Height,
-    L2Witness, LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2,
-    ProverStateDiffs, SlotByHash, VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2Witness,
+    LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs,
+    SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::l2_block::StoredL2Block;
 use sov_db::schema::types::light_client_proof::{
@@ -19,7 +20,6 @@ use sov_db::state_db::StateDB;
 use sov_schema_db::DB;
 use sov_state::Storage;
 use tokio::sync::broadcast;
-use tokio_util::sync::CancellationToken;
 
 use crate::pruning::components::prune_ledger;
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
@@ -28,12 +28,14 @@ use crate::pruning::{Pruner, PrunerService, PruningConfig};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruning_simple_run() {
+    let task_manager = TaskManager::current();
+    let task_executor = task_manager.executor();
+
     let tmpdir = tempfile::tempdir().unwrap();
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
     {
         let (sender, receiver) = broadcast::channel(1);
-        let cancellation_token = CancellationToken::new();
 
         let native_db = NativeDB::setup_schema_db(&rocksdb_config).unwrap();
         let state_db = StateDB::setup_schema_db(&rocksdb_config).unwrap();
@@ -46,7 +48,9 @@ async fn test_pruning_simple_run() {
         );
         let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-        tokio::spawn(pruner_service.run(StorageNodeType::Sequencer, cancellation_token.clone()));
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown| {
+            pruner_service.run(StorageNodeType::Sequencer, shutdown)
+        });
 
         sleep(Duration::from_secs(1));
 
@@ -56,7 +60,7 @@ async fn test_pruning_simple_run() {
 
         sleep(Duration::from_secs(1));
 
-        cancellation_token.cancel();
+        task_manager.graceful_shutdown();
     }
     tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -121,12 +125,6 @@ pub fn test_pruning_ledger_db_l2_blocks() {
             .put::<L2BlockByHash>(&[i as u8; 32], &L2BlockNumber(i))
             .unwrap();
         ledger_db
-            .put::<L2BlockStatus>(
-                &L2BlockNumber(i),
-                &sov_rollup_interface::rpc::L2BlockStatus::Finalized,
-            )
-            .unwrap();
-        ledger_db
             .put::<L2Witness>(&L2BlockNumber(i), &(vec![5; 32], vec![6; 32]))
             .unwrap();
         ledger_db
@@ -150,19 +148,6 @@ pub fn test_pruning_ledger_db_l2_blocks() {
     assert!(ledger_db.get::<L2BlockByHash>(&[1; 32]).unwrap().is_some());
     assert!(ledger_db.get::<L2BlockByHash>(&[10; 32]).unwrap().is_some());
     assert!(ledger_db.get::<L2BlockByHash>(&[20; 32]).unwrap().is_some());
-
-    assert!(ledger_db
-        .get::<L2BlockStatus>(&L2BlockNumber(1))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<L2BlockStatus>(&L2BlockNumber(10))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<L2BlockStatus>(&L2BlockNumber(20))
-        .unwrap()
-        .is_some());
 
     prune_ledger(StorageNodeType::Sequencer, ledger_db.clone(), 10);
 
@@ -188,19 +173,6 @@ pub fn test_pruning_ledger_db_l2_blocks() {
     assert!(ledger_db.get::<L2BlockByHash>(&[10; 32]).unwrap().is_none());
     // NOT Pruned
     assert!(ledger_db.get::<L2BlockByHash>(&[20; 32]).unwrap().is_some());
-
-    assert!(ledger_db
-        .get::<L2BlockStatus>(&L2BlockNumber(1))
-        .unwrap()
-        .is_none());
-    assert!(ledger_db
-        .get::<L2BlockStatus>(&L2BlockNumber(10))
-        .unwrap()
-        .is_none());
-    assert!(ledger_db
-        .get::<L2BlockStatus>(&L2BlockNumber(20))
-        .unwrap()
-        .is_some());
 }
 
 #[test]

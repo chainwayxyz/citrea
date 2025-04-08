@@ -31,19 +31,17 @@ async fn test_custom_precompiles() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -158,6 +156,6 @@ async fn test_custom_precompiles() -> Result<(), anyhow::Error> {
         assert_eq!(res_access_list.gas_used, U256::from(res));
     }
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }

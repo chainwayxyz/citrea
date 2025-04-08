@@ -15,14 +15,13 @@ citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
-tokio = { workspace = true, features = ["full"], optional = true }
-tokio-util = { workspace = true, optional = true }
-
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
 backoff = { workspace = true, optional = true }
+bitcoin = { workspace = true }
 borsh = { workspace = true }
 crypto-bigint = { workspace = true }
+futures = { workspace = true, optional = true }
 hex = { workspace = true, features = ["serde"] }
 itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
@@ -30,15 +29,14 @@ k256 = { workspace = true }
 metrics = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
 reqwest = { workspace = true, optional = true }
+reth-tasks = { workspace = true, optional = true }
 secp256k1 = { version = "0.29", optional = true, features = ["rand-std", "std", "global-context"] }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true, features = ["raw_value"] }
-thiserror = { workspace = true }
-tracing = { workspace = true, optional = true }
-
-bitcoin = { workspace = true }
-futures = { workspace = true, optional = true }
 sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"], optional = true }
+tracing = { workspace = true, optional = true }
 
 bitcoincore-rpc = { workspace = true, optional = true }
 
@@ -54,9 +52,9 @@ native = [
   "dep:backoff",
   "dep:futures",
   "dep:tokio",
-  "dep:tokio-util",
   "dep:metrics",
   "dep:pin-project",
+  "dep:reth-tasks",
   "dep:tracing",
   "dep:serde_json",
   "sov-rollup-interface/native",

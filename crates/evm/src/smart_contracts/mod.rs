@@ -4,6 +4,7 @@ mod blob_base_fee_contract;
 mod blockhash_contract;
 mod caller_contract;
 mod coinbase_contract;
+mod g1_add_contract;
 mod hive_contract;
 mod infinite_loop_contract;
 mod kzg_point_evaluation_caller;
@@ -15,12 +16,14 @@ mod schnorr_verify_contract;
 mod self_destructor_contract;
 mod selfdestructing_constructor;
 mod simple_storage_contract;
+mod simple_storage_duplicator_contract;
 mod transient_storage_contract;
 
 pub use blob_base_fee_contract::BlobBaseFeeContract;
 pub use blockhash_contract::BlockHashContract;
 pub use caller_contract::CallerContract;
 pub use coinbase_contract::CoinbaseContract;
+pub use g1_add_contract::G1AddCallerContract;
 pub use hive_contract::HiveContract;
 pub use infinite_loop_contract::InfiniteLoopContract;
 pub use kzg_point_evaluation_caller::KZGPointEvaluationCallerContract;
@@ -32,6 +35,7 @@ pub use schnorr_verify_contract::SchnorrVerifyCallerContract;
 pub use self_destructor_contract::SelfDestructorContract;
 pub use selfdestructing_constructor::SelfdestructingConstructorContract;
 pub use simple_storage_contract::SimpleStorageContract;
+pub use simple_storage_duplicator_contract::SimpleStorageDuplicatorContract;
 pub use transient_storage_contract::TransientStorageContract;
 
 /// Trait for testing smart contracts.

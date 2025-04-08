@@ -14,6 +14,7 @@ use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_heig
 use citrea_primitives::MAX_TXBODY_SIZE;
 use prover_services::ParallelProverService;
 use rand::Rng;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_keys::default_signature::K256PublicKey;
@@ -26,7 +27,6 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::errors::L1ProcessingError;
@@ -92,7 +92,7 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
         if self.prover_config.enable_recovery {
             if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
                 error!("Failed to recover ongoing proving sessions: {:?}", e);
@@ -119,7 +119,7 @@ where
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 }
                 _ = &mut l1_sync_worker => {},

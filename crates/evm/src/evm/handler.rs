@@ -5,6 +5,7 @@ use once_cell::race::OnceBox;
 use revm::context::result::{
     EVMError, FromStringError, HaltReason, InvalidTransaction, ResultAndState,
 };
+use revm::context::transaction::AuthorizationTr;
 use revm::context::{
     Block, BlockEnv, Cfg, CfgEnv, ContextSetters, ContextTr, Evm, EvmData, JournalTr, Transaction,
     TxEnv,
@@ -23,6 +24,7 @@ use revm::interpreter::{
 };
 use revm::primitives::hardfork::SpecId;
 use revm::primitives::{Address, B256, KECCAK_EMPTY, U256};
+use revm::state::Bytecode;
 use revm::{Context, Database, ExecuteEvm, Journal, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{InspectEvm, Inspector};
@@ -32,6 +34,7 @@ use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
+use super::db::AccountExistsProvider;
 use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
@@ -179,10 +182,11 @@ pub struct CitreaEvm<CTX, INSP>(
 
 impl<CTX: CitreaContextTr, INSP> CitreaEvm<CTX, INSP> {
     pub fn new(ctx: CTX, inspector: INSP) -> Self {
+        let spec = ctx.cfg().spec().into();
         Self(Evm {
             data: EvmData { ctx, inspector },
             instruction: EthInstructions::new_mainnet(),
-            precompiles: CitreaPrecompiles::default(),
+            precompiles: CitreaPrecompiles::new_with_spec(spec),
         })
     }
 }
@@ -308,11 +312,12 @@ pub trait CitreaContextTr:
     Tx: Transaction,
     Cfg: Cfg,
     Chain: CitreaChainExt,
+    Db: Database + AccountExistsProvider,
 >
 {
 }
 
-impl<T, DB: Database> CitreaContextTr for T where
+impl<T, DB: Database + AccountExistsProvider> CitreaContextTr for T where
     T: ContextTr<Db = DB, Journal = Journal<DB>, Chain: CitreaChainExt>
 {
 }
@@ -334,7 +339,7 @@ where
     BLOCK: Block,
     TX: Transaction,
     CFG: Cfg,
-    DB: Database,
+    DB: Database + AccountExistsProvider,
     CHAIN: CitreaChainExt,
 {
     type Context = Self;
@@ -355,21 +360,25 @@ pub struct CitreaPrecompiles {
     inner: EthPrecompiles,
 }
 
-/// Returns precompiles.
-pub fn citrea_precompiles() -> &'static Precompiles {
+// Returns precompiles for Citrea's Cancun spec.
+pub fn cancun() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         // Berlin because POINT_EVALUATION precompile(0x0A) is enabled in Cancun
-        // then we add prague precompiles
-        // and then we add the rest of the precompiles
-        let mut precompiles = Precompiles::berlin().clone();
+        Box::new(Precompiles::berlin().clone())
+    })
+}
 
+// Returns precompiles for Citrea's Prague spec.
+pub fn prague() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = cancun().clone();
         // Add prague precompiles
         // Effectively skipping kzg precompiles in Cancun
         precompiles.extend(bls12_381::precompiles());
 
         precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
-
         Box::new(precompiles)
     })
 }
@@ -378,8 +387,11 @@ impl CitreaPrecompiles {
     /// Create a new precompile provider with the given Spec.
     #[inline]
     pub fn new_with_spec(spec: SpecId) -> Self {
-        let precompiles = citrea_precompiles();
-
+        let precompiles = match spec {
+            SpecId::CANCUN => cancun(),
+            SpecId::PRAGUE => prague(),
+            _ => panic!("Citrea precompiles are not supported for this spec"),
+        };
         Self {
             inner: EthPrecompiles { precompiles, spec },
         }
@@ -557,12 +569,12 @@ where
     ) -> Result<revm::context::result::ResultAndState<Self::HaltReason>, Self::Error> {
         let uncompressed_size = calc_diff_size(evm.ctx());
 
-        // Estimate the size of the state diff after the brotli compression
-        let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64;
+        // Estimate the size of the state diff after the brotli compression and add L1 fee overhead
+        let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64
+            + L1_FEE_OVERHEAD as u64;
 
         let l1_fee_rate = evm.ctx().chain().l1_fee_rate();
-        let l1_fee =
-            U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
+        let l1_fee = U256::from(l1_fee_rate) * U256::from(diff_size);
         evm.ctx().chain().set_tx_info(TxInfo {
             l1_diff_size: diff_size,
             l1_fee,
@@ -610,8 +622,7 @@ fn calc_diff_size<CTX>(context: &mut CTX) -> usize
 where
     CTX: CitreaContextTr,
 {
-    let tx_caller = context.tx().caller();
-    let journaled_state = context.journal_ref();
+    let (journaled_state, tx) = (context.journal_ref(), context.tx());
 
     // For each call there is a journal entry.
     // We need to iterate over all journal entries to get the size of the diff.
@@ -620,18 +631,55 @@ where
 
     #[derive(Default)]
     struct AccountChange<'a> {
-        created: bool,
-        destroyed: bool,
         storage_changes: BTreeSet<&'a U256>,
-        code_changed: bool,         // implies code and code hash changed
-        account_info_changed: bool, // implies balance or nonce changed
+        account_info_changed: bool, // implies balance, nonce or code_hash changed
     }
 
     let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
 
     // tx.from always has `account_info_changed` because its nonce is incremented
+    let tx_caller = tx.caller();
     let from = account_changes.entry(&tx_caller).or_default();
     from.account_info_changed = true;
+
+    // Special handling for eip7702 transactions
+    // as there is no journal entry for changes on the authority
+
+    // collecting then consuming the iterator
+    // to avoid borrowing issues
+    // also not doing tx type check as authorization_list will return empty list
+    let auths = tx
+        .authorization_list()
+        .filter_map(|auth| {
+            let delegated_to = auth.address();
+            let authority = auth.authority();
+            authority.map(|authority| (authority, delegated_to))
+        })
+        .collect::<Vec<_>>();
+
+    for (authority, delegated_to) in &auths {
+        // if returns None, the authorization failed at one of the following checks:
+        // - if the chain id check failed
+        // - if nonce was u64::MAX
+        // - if the signer couldn't be recovered <-- this case is not possible as we checked this on the above
+        //   if let
+        if let Some(authority_in_state) = journaled_state.state.get(authority) {
+            // if the final code of the authority is equal to delegated address
+            // or the delegated address is zero and the account code hash is KECCAK_EMPTY
+            // we know the authorization went through
+            if (delegated_to == &Address::ZERO && authority_in_state.info.code_hash == KECCAK_EMPTY)
+                || authority_in_state
+                    .info
+                    .code
+                    .as_ref()
+                    .is_some_and(|code| *code == Bytecode::new_eip7702(*delegated_to))
+            {
+                // we set account changed for the authority
+                let account = account_changes.entry(authority).or_default();
+                account.account_info_changed = true;
+            }
+        }
+    }
 
     for entry in journal {
         match entry {
@@ -652,13 +700,11 @@ where
             }
             JournalEntry::CodeChange { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.code_changed = true;
+                account.account_info_changed = true;
             }
+            // Only added to the journal on smart contract creation
             JournalEntry::AccountCreated { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.created = true;
-                // When account is created, there is a transfer to init its balance.
-                // So we need to only force the nonce change.
                 account.account_info_changed = true;
             }
             JournalEntry::AccountDestroyed {
@@ -678,20 +724,11 @@ where
                     continue;
                 }
 
+                // transferred balance causes account diff change on target
                 if address != target && !had_balance.is_zero() {
                     // mark changes to the target account
                     let target = account_changes.entry(target).or_default();
                     target.account_info_changed = true;
-                }
-
-                let account = account_changes.entry(address).or_default();
-                if account.created {
-                    // That's a temporary account.
-                    // Delete it from the account changes to enable cancun support.
-                    // Acc with the same address can be created again in the same tx.
-                    account_changes.remove(address);
-                } else {
-                    account.destroyed = true;
                 }
             }
             _ => {}
@@ -702,15 +739,18 @@ where
         "Total accounts for diff size"
     );
 
-    let mut diff_size = 0usize;
+    // Check if it's a new address to charge for new index
+    let mut addresses_to_check = Vec::with_capacity(account_changes.len());
+
+    let mut account_based_diff = 0usize;
+    let mut storage_based_diff = 0usize;
 
     for (addr, account) in account_changes {
-        if account.created {
-            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
-        }
+        // cloning addresses to avoid borrowing issues
+        addresses_to_check.push(*addr);
 
         // Apply size of account_info
-        if account.account_info_changed || account.code_changed {
+        if account.account_info_changed {
             let db_account_size = {
                 let account = &state[addr];
                 if account.info.code_hash == KECCAK_EMPTY {
@@ -721,20 +761,27 @@ where
             };
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
+            account_based_diff += db_account_size + DB_ACCOUNT_KEY_SIZE;
         }
 
         // Apply size of changed slots
         let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
 
-        diff_size +=
-            slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
+        storage_based_diff += slot_size * account.storage_changes.len();
 
         // No checks on code change as it is not part of the state diff
     }
+    let mut new_account_based_diff = 0usize;
+    for addr in addresses_to_check {
+        if context.db().is_first_time_committing_address(&addr) {
+            new_account_based_diff += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
+        }
+    }
 
-    diff_size
+    // final diff size
+    (account_based_diff * ACCOUNT_DISCOUNTED_PERCENTAGE / 100)
+        + (storage_based_diff * STORAGE_DISCOUNTED_PERCENTAGE / 100)
+        + new_account_based_diff
 }
 
 // #[cfg_attr(feature = "native", instrument(level = "trace", skip(context)))]

@@ -134,7 +134,7 @@ fn call_multiple_test() {
                 .into(),
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 36
+                l1_diff_size: 38
             },
             CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
@@ -146,7 +146,7 @@ fn call_multiple_test() {
                 .into(),
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 28
+                l1_diff_size: 30
             },
             CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
@@ -158,7 +158,7 @@ fn call_multiple_test() {
                 .into(),
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 28
+                l1_diff_size: 30
             },
             CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
@@ -170,7 +170,7 @@ fn call_multiple_test() {
                 .into(),
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 28
+                l1_diff_size: 30
             }
         ]
     );
@@ -246,7 +246,7 @@ fn call_test() {
                 .into(),
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 36
+                l1_diff_size: 38
             },
             CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
@@ -258,7 +258,7 @@ fn call_test() {
                 .into(),
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 28
+                l1_diff_size: 30
             }
         ]
     );
@@ -928,7 +928,7 @@ fn test_l1_fee_success() {
                 .into(),
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 36
+                l1_diff_size: 36 + L1_FEE_OVERHEAD as u64
             }]
         );
     }
@@ -1102,7 +1102,7 @@ fn test_l1_fee_halt() {
                 .into(),
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 36
+                l1_diff_size: 36 + L1_FEE_OVERHEAD as u64
             },
             CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
@@ -1114,7 +1114,7 @@ fn test_l1_fee_halt() {
                 .into(),
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 7
+                l1_diff_size: 7 + L1_FEE_OVERHEAD as u64
             }
         ]
     );
@@ -1199,12 +1199,12 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
 
     // gas fee remains the same
-    let tx2_diff_size = 15;
+    let tx2_diff_size = 31;
 
     let tx_gas = 21000;
 
     let expected_db_balance = U256::from(
-        100000000000000u64 - 1000 - tx_gas * 10000001 - L1_FEE_OVERHEAD as u64 - tx2_diff_size,
+        100000000000000u64 - 1000 - tx_gas * 10000001 - tx2_diff_size - L1_FEE_OVERHEAD as u64,
     );
     let expected_base_fee_vault_balance = U256::from(tx_gas * 10000000);
     let expected_coinbase_balance = U256::from(tx_gas);
@@ -1216,15 +1216,16 @@ fn test_l1_fee_compression_discount() {
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
     assert_eq!(
+        // diff size in receipt is the compressed diff size + L1 fee overhead
         evm.receipts
             .iter(&mut working_set.accessory_state())
             .map(|r| r.l1_diff_size)
             .collect::<Vec<_>>(),
-        [tx2_diff_size]
+        [tx2_diff_size + L1_FEE_OVERHEAD as u64]
     );
 
     assert_eq!(
-        32 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
+        65 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
         tx2_diff_size
     );
 }

@@ -8,6 +8,7 @@ use citrea_evm::{get_last_l1_height_in_light_client, Evm};
 use citrea_primitives::forks::get_fork2_activation_height_non_zero;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::DefaultContext;
+use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -19,7 +20,6 @@ use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_state::ProverStorage;
 use tokio::select;
 use tokio::sync::oneshot;
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use super::controller::CommitmentController;
@@ -68,7 +68,7 @@ where
         mut self,
         storage_manager: ProverStorageManager,
         l2_block_hash: L2BlockHash,
-        cancellation_token: CancellationToken,
+        mut shutdown_signal: GracefulShutdown,
     ) {
         if l2_block_hash != [0; 32] {
             let prestate = storage_manager.create_final_view_storage();
@@ -105,8 +105,10 @@ where
                 return;
             }
         };
-        let mut from_l2_height =
-            L2BlockNumber(cmp::max(last_finalized_l2_height, last_pending_l2_height).0 + 1);
+        let mut from_l2_height = L2BlockNumber(cmp::max(
+            cmp::max(last_finalized_l2_height, last_pending_l2_height).0 + 1,
+            get_fork2_activation_height_non_zero(),
+        ));
 
         let commitment_controller = Arc::new(
             self.commitment_controller
@@ -117,7 +119,7 @@ where
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 },
                 _ = check_new_block_tick.tick() => {
@@ -401,7 +403,9 @@ where
                 .map_err(|e| anyhow!(e))?;
             let iter = self
                 .da_service
-                .extract_relevant_sequencer_commitments(&block, &self.sequencer_da_pub_key);
+                .extract_relevant_sequencer_commitments(&block, &self.sequencer_da_pub_key)
+                .into_iter()
+                .map(|(_, commitment)| commitment);
             mined_commitments.extend(iter);
         }
 

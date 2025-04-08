@@ -7,8 +7,8 @@ use sov_rollup_interface::rpc::{
 };
 
 use crate::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2BlockStatus, SequencerCommitmentByIndex,
-    SlotByHash, VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, SequencerCommitmentByIndex, SlotByHash,
+    VerifiedBatchProofsBySlotNumber,
 };
 use crate::schema::types::{L2BlockNumber, SlotNumber};
 
@@ -98,33 +98,6 @@ impl LedgerRpcProvider for LedgerDB {
         );
         let ids: Vec<_> = (start..=end).map(L2BlockIdentifier::Number).collect();
         self.get_l2_blocks(&ids)
-    }
-
-    fn get_l2_block_status(
-        &self,
-        l2_height: u64,
-    ) -> Result<sov_rollup_interface::rpc::L2BlockStatus, anyhow::Error> {
-        check_if_l2_block_pruned(self, l2_height)?;
-
-        if self
-            .db
-            .get::<L2BlockByNumber>(&L2BlockNumber(l2_height))
-            .ok()
-            .flatten()
-            .is_none()
-        {
-            return Err(anyhow::anyhow!(
-                "L2 block at height {} not processed yet.",
-                l2_height
-            ));
-        }
-
-        let status = self.db.get::<L2BlockStatus>(&L2BlockNumber(l2_height))?;
-
-        match status {
-            Some(status) => Ok(status),
-            None => Ok(sov_rollup_interface::rpc::L2BlockStatus::Trusted),
-        }
     }
 
     fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error> {

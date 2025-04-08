@@ -17,6 +17,15 @@ pub enum StoredBatchProofOutput {
     V3(BatchProofCircuitOutputV3),
 }
 
+impl StoredBatchProofOutput {
+    /// Last L2 height
+    pub fn last_l2_height(&self) -> u64 {
+        match self {
+            StoredBatchProofOutput::V3(v) => v.last_l2_height,
+        }
+    }
+}
+
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub struct StoredBatchProof {

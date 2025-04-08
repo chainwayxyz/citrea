@@ -15,6 +15,11 @@ use tracing::{debug, error, info};
 
 use crate::cache::L1BlockCache;
 
+pub enum ProofOrCommitment {
+    Proof(Proof),
+    Commitment(SequencerCommitment),
+}
+
 #[allow(clippy::mut_range_bound)]
 pub async fn sync_l1<Da>(
     mut start_from: u64,
@@ -120,9 +125,12 @@ pub fn extract_sequencer_commitments<Da>(
 where
     Da: DaService,
 {
-    let mut sequencer_commitments = da_service
+    let mut sequencer_commitments: Vec<_> = da_service
         .as_ref()
-        .extract_relevant_sequencer_commitments(l1_block, sequencer_da_pub_key);
+        .extract_relevant_sequencer_commitments(l1_block, sequencer_da_pub_key)
+        .into_iter()
+        .map(|(_, commitment)| commitment)
+        .collect();
 
     // Make sure all sequencer commitments are stored in ascending order.
     // We sort before checking ranges to prevent substraction errors.
@@ -139,4 +147,32 @@ pub async fn extract_zk_proofs<Da: DaService>(
     da_service
         .extract_relevant_zk_proofs(l1_block, prover_da_pub_key)
         .await
+        .into_iter()
+        .map(|(_, proof)| proof)
+        .collect()
+}
+
+// Extract proofs and commitments and return them sorted by tx index
+pub async fn extract_zk_proofs_and_sequencer_commitments<Da: DaService>(
+    da_service: Arc<Da>,
+    l1_block: &Da::FilteredBlock,
+    prover_da_pub_key: &[u8],
+    sequencer_da_pub_key: &[u8],
+) -> Vec<ProofOrCommitment> {
+    let proofs = da_service
+        .extract_relevant_zk_proofs(l1_block, prover_da_pub_key)
+        .await
+        .into_iter()
+        .map(|(idx, proof)| (idx, ProofOrCommitment::Proof(proof)));
+
+    let commitments = da_service
+        .as_ref()
+        .extract_relevant_sequencer_commitments(l1_block, sequencer_da_pub_key)
+        .into_iter()
+        .map(|(idx, commitment)| (idx, ProofOrCommitment::Commitment(commitment)));
+
+    let mut results: Vec<_> = proofs.chain(commitments).collect();
+    results.sort_by_key(|(idx, _)| *idx);
+
+    results.into_iter().map(|(_, v)| v).collect()
 }
