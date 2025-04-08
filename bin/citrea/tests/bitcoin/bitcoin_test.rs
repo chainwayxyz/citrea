@@ -8,6 +8,7 @@ use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::{Client, RpcApi};
+use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
@@ -129,7 +130,7 @@ impl TestCase for BitcoinReorgTest {
         let original_commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
+            .get_commitment_indices_by_l1(finalized_height)
             .await?
             .unwrap_or_default();
 
