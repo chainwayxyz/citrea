@@ -1,13 +1,9 @@
 use std::str::FromStr;
 
-use alloy::network::TransactionBuilder;
-use alloy_primitives::{Address, Bytes, B256, U256, U64};
-use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use alloy_primitives::{Address, U64};
 use citrea_common::SequencerConfig;
-use citrea_evm::precompiles::schnorr::SCHNORRVERIFY;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use revm::precompile::secp256r1::P256VERIFY;
 
 use super::init_test_rollup;
 use crate::common::helpers::{
