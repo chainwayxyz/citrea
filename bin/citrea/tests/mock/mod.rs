@@ -17,7 +17,8 @@ use sov_rollup_interface::spec::SpecId;
 use self::evm::init_test_rollup;
 use crate::common::client::TestClient;
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job, wait_for_prover_job_count, NodeMode
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, wait_for_proof, wait_for_prover_job, wait_for_prover_job_count, NodeMode,
 };
 use crate::common::{
     make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
@@ -179,10 +180,14 @@ async fn test_all_flow() {
     wait_for_l1_block(&da_service, 3, None).await;
 
     // Wait for job to start
-    let job_ids = wait_for_prover_job_count(&prover_client, 1, None).await.unwrap();
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None)
+        .await
+        .unwrap();
     assert_eq!(job_ids.len(), 1);
     // Wait for prover job to finish
-    let response = wait_for_prover_job(&prover_client, job_ids[0], None).await.unwrap();
+    let response = wait_for_prover_job(&prover_client, job_ids[0], None)
+        .await
+        .unwrap();
 
     let commitments = prover_client
         .batch_prover_get_commitments_by_l1(3)
@@ -230,10 +235,7 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(balance, U256::from(3e18 as u128));
 
-    let balance = prover_client
-        .eth_get_balance(addr, None)
-        .await
-        .unwrap();
+    let balance = prover_client.eth_get_balance(addr, None).await.unwrap();
     assert_eq!(balance, U256::from(3e18 as u128));
 
     // send one ether to some address
@@ -256,10 +258,14 @@ async fn test_all_flow() {
     wait_for_l1_block(&da_service, 5, None).await;
 
     // Wait for job to start
-    let job_ids = wait_for_prover_job_count(&prover_client, 1, None).await.unwrap();
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None)
+        .await
+        .unwrap();
     assert_eq!(job_ids.len(), 1);
     // Wait for prover job to finish
-    let response = wait_for_prover_job(&prover_client, job_ids[0], None).await.unwrap();
+    let response = wait_for_prover_job(&prover_client, job_ids[0], None)
+        .await
+        .unwrap();
 
     let commitments = prover_client
         .batch_prover_get_commitments_by_l1(5)
@@ -301,10 +307,7 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(balance, U256::from(5e18 as u128));
 
-    let balance = prover_client
-        .eth_get_balance(addr, None)
-        .await
-        .unwrap();
+    let balance = prover_client.eth_get_balance(addr, None).await.unwrap();
     assert_eq!(balance, U256::from(5e18 as u128));
 
     // Synced up to the latest block

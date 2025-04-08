@@ -1,4 +1,6 @@
-use sov_db::schema::tables::{JobIdOfCommitment, L2BlockByNumber, ProverPendingCommitments, SequencerCommitmentByIndex};
+use sov_db::schema::tables::{
+    JobIdOfCommitment, L2BlockByNumber, ProverPendingCommitments, SequencerCommitmentByIndex,
+};
 use sov_db::schema::types::L2BlockNumber;
 use sov_schema_db::{ScanDirection, DB};
 
