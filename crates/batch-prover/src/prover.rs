@@ -176,7 +176,7 @@ where
 
         let commitments = self.ledger_db.get_prover_pending_commitments()?;
         if commitments.is_empty() {
-            info!("No pending commitments found");
+            debug!("No pending commitments found");
             return Ok(Vec::new());
         }
         info!("Got {} pending commitment(s)", commitments.len());
