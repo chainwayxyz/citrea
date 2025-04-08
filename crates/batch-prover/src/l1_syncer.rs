@@ -142,7 +142,6 @@ where
                     continue;
                 }
 
-
                 match self.ledger_db.get_commitment_by_index(index)? {
                     Some(db_commitment) => {
                         if commitment != &db_commitment {
@@ -152,7 +151,10 @@ where
                         }
                     }
                     None => {
-                        info!("Got commitment with index {} in L1 block {}", index, l1_height);
+                        info!(
+                            "Got commitment with index {} in L1 block {}",
+                            index, l1_height
+                        );
 
                         self.ledger_db
                             .put_commitment_by_index(commitment)

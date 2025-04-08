@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
@@ -583,6 +583,31 @@ pub async fn wait_for_prover_l1_height(
         sleep(Duration::from_secs(1)).await;
     }
     Ok(())
+}
+
+pub async fn wait_for_prover_job_count(
+    prover_client: &TestClient,
+    count: usize,
+    timeout: Option<Duration>,
+) -> anyhow::Result<Vec<Uuid>> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(240));
+
+    loop {
+        if start.elapsed() >= timeout {
+            bail!(
+                "BatchProver failed to reach proving job count {} on time",
+                count
+            );
+        }
+
+        let job_ids = prover_client.get_proving_jobs(count).await;
+        if job_ids.len() >= count {
+            return Ok(job_ids);
+        }
+
+        sleep(Duration::from_millis(500)).await;
+    }
 }
 
 #[instrument(level = "debug", skip(da_service))]

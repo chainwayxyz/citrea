@@ -1,7 +1,6 @@
 use sov_db::schema::tables::{
     CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2StatusHeights,
-    LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2,
-    ProverStateDiffs,
+    LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs,
 };
 use sov_db::schema::types::{DbHash, L2BlockNumber, L2HeightStatus, SlotNumber};
 use sov_schema_db::DB;
