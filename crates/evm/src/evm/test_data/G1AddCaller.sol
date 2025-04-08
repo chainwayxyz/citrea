@@ -3,6 +3,9 @@
 pragma solidity ^0.8.25;
 
 contract G1AddCaller {
+
+    bytes public g1AddResult;
+
     /// @notice Calls the 0x0b precompile to perform signature verification
     /// @param input A 256-byte input
     function g1Add(
@@ -13,9 +16,7 @@ contract G1AddCaller {
         (success, out) = address(0x0b).staticcall(input);
         require(success);
         require(out.length == 128);
-        // Write the 32 bytes of out to first storage slot
-        assembly {
-            sstore(0, mload(add(out, 128)))
-        }
+       
+        g1AddResult = out;
     }
 }

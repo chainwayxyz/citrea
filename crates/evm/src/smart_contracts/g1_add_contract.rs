@@ -39,10 +39,15 @@ impl G1AddCallerContract {
     }
 
     /// Call the precompile
-    pub fn call_p256_verify(
+    pub fn call_g1_add(
         &self,
         input: Bytes, // 160 bytes
     ) -> Vec<u8> {
         G1AddCaller::g1AddCall { input }.abi_encode()
+    }
+
+    /// Gets result saved
+    pub fn get_result(&self) -> Vec<u8> {
+        G1AddCaller::g1AddResultCall {}.abi_encode()
     }
 }
