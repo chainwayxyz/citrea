@@ -67,7 +67,7 @@ where
             // Reset state diff
             self.reset();
 
-            from_l2_height = L2BlockNumber(get_fork2_activation_height_non_zero)();
+            from_l2_height = L2BlockNumber(get_fork2_activation_height_non_zero());
 
             // Set the start height of state diff to the fork2 activation height
             // -1 because we add 1 to the last committed height
