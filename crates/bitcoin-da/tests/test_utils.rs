@@ -29,7 +29,7 @@ pub async fn get_default_service(
     config: &BitcoinConfig,
 ) -> Arc<BitcoinService> {
     get_service(
-        &task_executor,
+        task_executor,
         config,
         NodeKind::Bitcoin.to_string(),
         DEFAULT_DA_PRIVATE_KEY.to_string(),
@@ -102,7 +102,7 @@ pub async fn generate_mock_txs(
     let wrong_prefix_wallet = "wrong_prefix".to_string();
     create_and_fund_wallet(wrong_prefix_wallet.clone(), da_node).await;
     let wrong_prefix_da_service = get_service(
-        &task_executor,
+        task_executor,
         &da_node.config,
         wrong_prefix_wallet,
         DEFAULT_DA_PRIVATE_KEY.to_string(),
@@ -113,7 +113,7 @@ pub async fn generate_mock_txs(
     let wrong_key_wallet = "wrong_key".to_string();
     create_and_fund_wallet(wrong_key_wallet.clone(), da_node).await;
     let wrong_key_da_service = get_service(
-        &task_executor,
+        task_executor,
         &da_node.config,
         wrong_key_wallet,
         "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
