@@ -69,7 +69,7 @@ pub async fn get_service(
     .expect("Error initializing BitcoinService");
 
     let da_service = Arc::new(da_service);
-    task_executor.spawn_with_signal(|tk| da_service.clone().run_da_queue(rx, tk));
+    task_executor.spawn_with_graceful_shutdown_signal(|tk| da_service.clone().run_da_queue(rx, tk));
 
     da_service
 }

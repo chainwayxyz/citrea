@@ -59,7 +59,8 @@ pub(super) async fn spawn_bitcoin_da_service(
         .unwrap(),
     );
 
-    task_executor.spawn_with_signal(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+    task_executor
+        .spawn_with_graceful_shutdown_signal(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
     bitcoin_da_service
 }
