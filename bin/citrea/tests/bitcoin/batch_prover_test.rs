@@ -945,17 +945,13 @@ impl TestCase for L1HashOutputTest {
             .await
             .unwrap();
         assert_eq!(job_ids.len(), 1);
-        println!("JOB IDS {:?}", job_ids);
         let job_id = job_ids[0];
-
-        println!("1st proving job started");
 
         // Wait for proving job to finish
         let response = wait_for_prover_job(batch_prover, job_id, None)
             .await
             .unwrap();
         let proof = response.proof.unwrap();
-        println!("1st proving job finished");
 
         let l1_hash = proof
             .proof_output
@@ -1002,8 +998,6 @@ impl TestCase for L1HashOutputTest {
             .await
             .unwrap();
         assert_eq!(job_ids.len(), 2);
-
-        println!("JOB IDS {:?}", job_ids);
 
         // Wait for job to finish, job ids are descending order, so latest is in the first index
         let response_prev = wait_for_prover_job(batch_prover, job_ids[0], None)
