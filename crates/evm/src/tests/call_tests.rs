@@ -1199,7 +1199,7 @@ fn test_l1_fee_compression_discount() {
         .unwrap();
 
     // gas fee remains the same
-    let tx2_diff_size = 30;
+    let tx2_diff_size = 31;
 
     let tx_gas = 21000;
 
@@ -1225,7 +1225,7 @@ fn test_l1_fee_compression_discount() {
     );
 
     assert_eq!(
-        64 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
+        65 * (BROTLI_COMPRESSION_PERCENTAGE as u64) / 100,
         tx2_diff_size
     );
 }

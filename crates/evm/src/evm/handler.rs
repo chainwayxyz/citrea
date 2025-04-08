@@ -739,10 +739,11 @@ where
         "Total accounts for diff size"
     );
 
-    let mut diff_size = 0usize;
-
     // Check if it's a new address to charge for new index
     let mut addresses_to_check = Vec::with_capacity(account_changes.len());
+
+    let mut account_based_diff = 0usize;
+    let mut storage_based_diff = 0usize;
 
     for (addr, account) in account_changes {
         // cloning addresses to avoid borrowing issues
@@ -760,24 +761,26 @@ where
             };
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
+            account_based_diff += db_account_size + DB_ACCOUNT_KEY_SIZE;
         }
 
         // Apply size of changed slots
         let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
 
-        diff_size +=
-            slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
+        storage_based_diff += slot_size * account.storage_changes.len();
 
         // No checks on code change as it is not part of the state diff
     }
-
+    let mut new_account_based_diff = 0usize;
     for addr in addresses_to_check {
         if context.db().is_first_time_committing_address(&addr) {
-            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
+            new_account_based_diff += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
         }
     }
+
+    let diff_size = (account_based_diff * ACCOUNT_DISCOUNTED_PERCENTAGE / 100)
+        + (storage_based_diff * STORAGE_DISCOUNTED_PERCENTAGE / 100)
+        + new_account_based_diff;
 
     diff_size
 }

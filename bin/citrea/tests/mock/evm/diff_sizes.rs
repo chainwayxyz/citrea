@@ -79,7 +79,7 @@ async fn diff_sizes() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        // (2 * (53 * 32 // 100) + 32) * 48 // 100 + 2
+        // (2 * 53 * 32 // 100 + 32) * 48 // 100 + 2
         assert_eq!(
             U64::from_str(
                 first_send_receipt
@@ -90,9 +90,9 @@ async fn diff_sizes() -> Result<(), anyhow::Error> {
                     .unwrap()
             )
             .unwrap(),
-            U64::from(32)
+            U64::from(33)
         );
-        // (2 * (53 * 32 // 100)) * 48 // 100 + 2
+        // (2 * 53 * 32 // 100) * 48 // 100 + 2
         assert_eq!(
             U64::from_str(
                 second_send_receipt
@@ -152,7 +152,7 @@ async fn diff_sizes() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        // ((53 * 32 // 100) + (85 * 32 // 100) + 32) * 48 // 100 + 2
+        // ((53 * 32 + 85 * 32) // 100 + 32) * 48 // 100 + 2
         assert_eq!(
             U64::from_str(
                 deploy_receipt
@@ -166,7 +166,7 @@ async fn diff_sizes() -> Result<(), anyhow::Error> {
             U64::from(38)
         );
 
-        // ((53 * 32 // 100) + (68 * 1 * 66 // 100)) * 48 // 100 + 2
+        // ((53 * 32 // 100) + (1 * 68 * 66 // 100)) * 48 // 100 + 2
         assert_eq!(
             U64::from_str(
                 set_storage_receipt
