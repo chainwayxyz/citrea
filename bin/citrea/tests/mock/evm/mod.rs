@@ -8,7 +8,7 @@ use alloy::network::TransactionResponse;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
-use alloy_primitives::{Address, Bytes, U256};
+use alloy_primitives::{Address, Bytes, U256, U64};
 use alloy_rpc_types::{
     Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
 };
@@ -896,6 +896,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     let test_client = init_test_rollup(port).await;
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     // in a single block, deploy simple storage contract, make eip7702 tx that delegates to the contract
     // then call the contract to set a value and get it back over eip7702 tx
@@ -921,12 +922,18 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     let signature = delegating_signer.sign_hash_sync(&authorization.signature_hash())?;
     let signed_authorization = authorization.into_signed(signature);
 
-    let _set_code_tx = test_client
+    let set_code_tx = test_client
         .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_authorization])
         .await
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 2, None).await;
+
+    let single_auth_receipt = test_client
+        .eth_get_transaction_receipt(*set_code_tx.tx_hash())
+        .await
+        .unwrap();
 
     let receipts = test_client
         .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
@@ -935,7 +942,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     assert_eq!(receipts.len(), 2);
 
     // all successful
-    assert!(receipts.iter().all(|r| r.status()));
+    assert!(receipts.iter().all(|r| r.inner.inner.status()));
 
     // if we don't do this in a seperate block, gas estimation is off since the delegation is not done yet
     // this also shows estimate gas works
@@ -948,6 +955,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         .await;
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 3, None).await;
 
     let receipts = test_client
         .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
@@ -956,7 +964,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     assert_eq!(receipts.len(), 1);
 
     // all successful
-    assert!(receipts.iter().all(|r| r.status()));
+    assert!(receipts.iter().all(|r| r.inner.inner.status()));
 
     assert_eq!(
         test_client
@@ -1001,7 +1009,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
         let signed_auth_clear_delegation = auth.into_signed(signature);
 
-        let _ = test_client
+        let wrong_nonce_and_clear_code_tx = test_client
             .send_eip7702_transaction(
                 Address::ZERO,
                 vec![],
@@ -1012,6 +1020,12 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 4, None).await;
+
+        let signed_auth_clear_delegation_tx_receipt = test_client
+            .eth_get_transaction_receipt(*wrong_nonce_and_clear_code_tx.tx_hash())
+            .await
+            .unwrap();
 
         assert_eq!(
             test_client
@@ -1027,6 +1041,77 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                 .await
                 .unwrap(),
             Bytes::new()
+        );
+
+        // we expect the second eip7702 tx to have
+        // smaller diff size than the first one
+        // since the first auth in second set code tx
+        // is discarded due to nonce check, there is only one
+        // state change on the authority and as code_hash is cleared and set to None
+        // the state diff is smaller
+        assert!(
+            U64::from_str(
+                signed_auth_clear_delegation_tx_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+                < U64::from_str(
+                    single_auth_receipt
+                        .other
+                        .get("l1DiffSize")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                )
+                .unwrap()
+        );
+
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: contract_address,
+            nonce: 2,
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth = auth.into_signed(signature);
+
+        let set_code_tx = test_client
+            .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_auth])
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 5, None).await;
+
+        let last_receipt = test_client
+            .eth_get_transaction_receipt(*set_code_tx.tx_hash())
+            .await
+            .unwrap();
+
+        // setting back should yield same diff
+        assert_eq!(
+            U64::from_str(
+                last_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap(),
+            U64::from_str(
+                single_auth_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
         );
     }
 
@@ -1055,6 +1140,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 6, None).await;
 
         assert_eq!(
             test_client
@@ -1087,6 +1173,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 7, None).await;
 
         let caller_contract_address = deploy_tx
             .get_receipt()
@@ -1117,6 +1204,60 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         let gas_with_access_list = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
 
         assert!(gas > gas_with_access_list);
+    }
+
+    // show multiple authorizations in a single tx have bigger diff size
+    {
+        let mut signed_auths = vec![];
+
+        for _ in 0..5 {
+            let signer = PrivateKeySigner::random();
+
+            let auth = Authorization {
+                chain_id: U256::from(test_client.chain_id),
+                address: contract_address,
+                nonce: 0,
+            };
+
+            let signature = signer.sign_hash_sync(&auth.signature_hash())?;
+            signed_auths.push(auth.into_signed(signature));
+        }
+
+        let set_for_multiple_tx = test_client
+            .send_eip7702_transaction(Address::ZERO, vec![], None, signed_auths)
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 8, None).await;
+
+        let multiple_receipt = test_client
+            .eth_get_transaction_receipt(*set_for_multiple_tx.tx_hash())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            U64::from_str(
+                multiple_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap(),
+            U64::from_str(
+                single_auth_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+                // 4 accs * (85 acc diff * 32 / 100 acc discount) * 48 / 100 brotli discount
+                + U64::from(52) // 5 - 1 account diffs
+        )
     }
 
     rollup_task.abort();
