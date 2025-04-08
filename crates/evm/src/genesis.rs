@@ -7,6 +7,7 @@ use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
+use citrea_primitives::forks::fork_from_block_number;
 use revm::primitives::hardfork::SpecId;
 use revm::state::Bytecode;
 use serde::{Deserialize, Deserializer};
@@ -203,7 +204,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.cfg.set(&chain_cfg, working_set);
 
-        let evm_spec = citrea_spec_id_to_evm_spec_id(sov_modules_api::SpecId::Genesis);
+        let citrea_spec = fork_from_block_number(0);
+
+        let evm_spec = citrea_spec_id_to_evm_spec_id(citrea_spec.spec_id);
 
         let header = Header {
             parent_hash: B256::default(),
