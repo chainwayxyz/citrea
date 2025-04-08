@@ -19,6 +19,10 @@ use crate::spec::utxo::UTXO;
 const DEFAULT_MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
 const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
 
+const BASE_FEE_RATE_MULTIPLIER: f64 = 1.0;
+const FEE_RATE_MULTIPLIER_FACTOR: f64 = 1.1;
+const MAX_FEE_RATE_MULTIPLIER: f64 = 2.0;
+
 pub type Psbt = String;
 
 pub enum BumpFeeMethod {
@@ -152,6 +156,14 @@ impl FeeService {
         };
 
         Ok(funded_psbt)
+    }
+
+    pub fn base_fee_rate_multiplier(&self) -> f64 {
+        BASE_FEE_RATE_MULTIPLIER
+    }
+
+    pub fn get_next_fee_rate_multiplier(&self, multiplier: f64) -> f64 {
+        (multiplier * FEE_RATE_MULTIPLIER_FACTOR).min(MAX_FEE_RATE_MULTIPLIER)
     }
 }
 
