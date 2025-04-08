@@ -778,11 +778,10 @@ where
         }
     }
 
-    let diff_size = (account_based_diff * ACCOUNT_DISCOUNTED_PERCENTAGE / 100)
+    // final diff size
+    (account_based_diff * ACCOUNT_DISCOUNTED_PERCENTAGE / 100)
         + (storage_based_diff * STORAGE_DISCOUNTED_PERCENTAGE / 100)
-        + new_account_based_diff;
-
-    diff_size
+        + new_account_based_diff
 }
 
 // #[cfg_attr(feature = "native", instrument(level = "trace", skip(context)))]

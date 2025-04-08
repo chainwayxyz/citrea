@@ -134,7 +134,7 @@ impl<C: sov_modules_api::Context> AccountExistsProvider for EvmDb<'_, C> {
         // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
         // We wouldn't have them in the account indices map
         // So this can tell us if the account is newly created
-        !self.evm.account_exists(&address, self.working_set)
+        !self.evm.account_exists(address, self.working_set)
     }
 }
 
@@ -143,7 +143,7 @@ impl<C: sov_modules_api::Context> AccountExistsProvider for &mut EvmDb<'_, C> {
         // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
         // We wouldn't have them in the account indices map
         // So this can tell us if the account is newly created
-        !self.evm.account_exists(&address, self.working_set)
+        !self.evm.account_exists(address, self.working_set)
     }
 }
 
