@@ -39,19 +39,17 @@ async fn full_node_verify_proof_and_store() {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await.unwrap();
@@ -68,23 +66,21 @@ async fn full_node_verify_proof_and_store() {
         None,
     );
 
-    let prover_node_task = tokio::spawn(async {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(BatchProverConfig {
-                proving_mode: citrea_common::ProverGuestRunConfig::Execute,
-                proof_sampling_number: 0,
-                enable_recovery: true,
-            }),
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let prover_node_task = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
@@ -99,19 +95,17 @@ async fn full_node_verify_proof_and_store() {
         NodeMode::FullNode(seq_port),
         None,
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_client = make_test_client(full_node_port).await.unwrap();
@@ -185,9 +179,9 @@ async fn full_node_verify_proof_and_store() {
         l2_block.header.state_root
     );
 
-    seq_task.abort();
-    prover_node_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    prover_node_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -211,19 +205,17 @@ async fn test_batch_prover_prove_rpcs() {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await.unwrap();
@@ -240,24 +232,22 @@ async fn test_batch_prover_prove_rpcs() {
         None,
     );
 
-    let prover_node_task = tokio::spawn(async {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(BatchProverConfig {
-                proving_mode: citrea_common::ProverGuestRunConfig::Execute,
-                // Make it impossible for proving to happen
-                proof_sampling_number: 1_000_000,
-                enable_recovery: true,
-            }),
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let prover_node_task = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            // Make it impossible for proving to happen
+            proof_sampling_number: 1_000_000,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
@@ -272,19 +262,17 @@ async fn test_batch_prover_prove_rpcs() {
         NodeMode::FullNode(seq_port),
         None,
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_client = make_test_client(full_node_port).await.unwrap();
@@ -386,7 +374,7 @@ async fn test_batch_prover_prove_rpcs() {
     let job_ids = prover_client.batch_prover_prove(None).await;
     assert_eq!(job_ids.len(), 0);
 
-    seq_task.abort();
-    prover_node_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    prover_node_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 }

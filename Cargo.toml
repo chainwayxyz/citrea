@@ -113,7 +113,6 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "fm
 toml = "0.8.0"
 tempfile = "3.15"
 tokio = { version = "1.44.2", features = ["full"] }
-tokio-util = { version = "0.7.13", features = ["rt"] }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
@@ -165,7 +164,7 @@ alloy-eips = { version = "0.13", default-features = false }
 alloy-consensus = { version = "0.13", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.13", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "1e3b1b501aa2a5b7b8f89a014ec4871d2edca6a9" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "055e7b2" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "0fe8a8b" }

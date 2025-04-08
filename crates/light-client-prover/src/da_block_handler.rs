@@ -7,6 +7,7 @@ use citrea_common::da::sync_l1;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData};
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
@@ -22,7 +23,6 @@ use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 use crate::circuit::initial_values::InitialValueProvider;
@@ -93,7 +93,7 @@ where
     pub async fn run(
         mut self,
         last_l1_height_scanned: StartVariant,
-        cancellation_token: CancellationToken,
+        mut shutdown_signal: GracefulShutdown,
     ) {
         // if self.prover_config.enable_recovery {
         //     if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
@@ -125,7 +125,7 @@ where
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 }
                 _ = &mut l1_sync_worker => {},

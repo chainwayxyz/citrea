@@ -134,8 +134,8 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
         .unwrap();
     assert_eq!(balance, U256::from(100000000000000000000u128));
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }
@@ -414,8 +414,8 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
         .await;
     assert!(tx.is_some());
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }

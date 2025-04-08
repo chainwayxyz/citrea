@@ -21,9 +21,9 @@ sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 anyhow = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+reth-tasks = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

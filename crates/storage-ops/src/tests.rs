@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
+use reth_tasks::TaskManager;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -19,7 +20,6 @@ use sov_db::state_db::StateDB;
 use sov_schema_db::DB;
 use sov_state::Storage;
 use tokio::sync::broadcast;
-use tokio_util::sync::CancellationToken;
 
 use crate::pruning::components::prune_ledger;
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
@@ -28,12 +28,14 @@ use crate::pruning::{Pruner, PrunerService, PruningConfig};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruning_simple_run() {
+    let task_manager = TaskManager::current();
+    let task_executor = task_manager.executor();
+
     let tmpdir = tempfile::tempdir().unwrap();
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
     {
         let (sender, receiver) = broadcast::channel(1);
-        let cancellation_token = CancellationToken::new();
 
         let native_db = NativeDB::setup_schema_db(&rocksdb_config).unwrap();
         let state_db = StateDB::setup_schema_db(&rocksdb_config).unwrap();
@@ -46,7 +48,9 @@ async fn test_pruning_simple_run() {
         );
         let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-        tokio::spawn(pruner_service.run(StorageNodeType::Sequencer, cancellation_token.clone()));
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown| {
+            pruner_service.run(StorageNodeType::Sequencer, shutdown)
+        });
 
         sleep(Duration::from_secs(1));
 
@@ -56,7 +60,7 @@ async fn test_pruning_simple_run() {
 
         sleep(Duration::from_secs(1));
 
-        cancellation_token.cancel();
+        task_manager.graceful_shutdown();
     }
     tokio::time::sleep(Duration::from_secs(1)).await;
 

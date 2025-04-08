@@ -9,7 +9,6 @@ use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig,
@@ -20,6 +19,7 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use rand::{thread_rng, Rng};
+use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
@@ -33,7 +33,7 @@ use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
-struct LightClientProvingTest;
+struct LightClientProvingTest {}
 
 #[async_trait]
 impl TestCase for LightClientProvingTest {
@@ -159,7 +159,7 @@ impl TestCase for LightClientProvingTest {
 
 #[tokio::test]
 async fn test_light_client_proving() -> Result<()> {
-    TestCaseRunner::new(LightClientProvingTest)
+    TestCaseRunner::new(LightClientProvingTest {})
         .set_citrea_path(get_citrea_path())
         .run()
         .await
@@ -505,9 +505,8 @@ async fn test_light_client_proving_multiple_proofs() -> Result<()> {
         .await
 }
 
-#[derive(Default)]
 struct LightClientBatchProofMethodIdUpdateTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -545,8 +544,9 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -557,7 +557,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Other(
@@ -725,15 +725,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
 #[tokio::test]
 async fn test_light_client_batch_proof_method_id_update() -> Result<()> {
-    TestCaseRunner::new(LightClientBatchProofMethodIdUpdateTest::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(LightClientBatchProofMethodIdUpdateTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct LightClientUnverifiableBatchProofTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -753,8 +754,9 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -763,7 +765,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -973,15 +975,16 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
 #[tokio::test]
 async fn test_light_client_unverifiable_batch_proof() -> Result<()> {
-    TestCaseRunner::new(LightClientUnverifiableBatchProofTest::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(LightClientUnverifiableBatchProofTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct VerifyChunkedTxsInLightClient {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -1008,8 +1011,9 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -1018,7 +1022,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -1336,15 +1340,16 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
 #[tokio::test]
 async fn test_verify_chunked_txs_in_light_client() -> Result<()> {
-    TestCaseRunner::new(VerifyChunkedTxsInLightClient::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(VerifyChunkedTxsInLightClient {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct UnchainedBatchProofsTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -1371,8 +1376,9 @@ impl TestCase for UnchainedBatchProofsTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -1381,7 +1387,7 @@ impl TestCase for UnchainedBatchProofsTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -1597,15 +1603,16 @@ impl TestCase for UnchainedBatchProofsTest {
 
 #[tokio::test]
 async fn test_unchained_batch_proofs_in_light_client() -> Result<()> {
-    TestCaseRunner::new(UnchainedBatchProofsTest::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(UnchainedBatchProofsTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct UnknownL1HashBatchProofTest {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -1632,8 +1639,9 @@ impl TestCase for UnknownL1HashBatchProofTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -1642,7 +1650,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -1734,15 +1742,16 @@ impl TestCase for UnknownL1HashBatchProofTest {
 
 #[tokio::test]
 async fn test_unknown_l1_hash_batch_proof_in_light_client() -> Result<()> {
-    TestCaseRunner::new(UnknownL1HashBatchProofTest::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(UnknownL1HashBatchProofTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct ChainProofByCommitmentIndex {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -1769,8 +1778,9 @@ impl TestCase for ChainProofByCommitmentIndex {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -1779,7 +1789,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -1938,15 +1948,16 @@ impl TestCase for ChainProofByCommitmentIndex {
 
 #[tokio::test]
 async fn test_chain_proof_by_commitment_index() -> Result<()> {
-    TestCaseRunner::new(ChainProofByCommitmentIndex::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(ChainProofByCommitmentIndex {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
-#[derive(Default)]
 struct ProofWithMissingCommitment {
-    task_manager: TaskManager<()>,
+    task_manager: TaskManager,
 }
 
 #[async_trait]
@@ -1973,8 +1984,9 @@ impl TestCase for ProofWithMissingCommitment {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
-        self.task_manager.abort().await;
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
         Ok(())
     }
 
@@ -1983,7 +1995,7 @@ impl TestCase for ProofWithMissingCommitment {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &mut self.task_manager,
+            self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::BatchProver,
@@ -2082,10 +2094,12 @@ impl TestCase for ProofWithMissingCommitment {
 
 #[tokio::test]
 async fn test_proof_with_missing_commitment_is_discarded() -> Result<()> {
-    TestCaseRunner::new(ProofWithMissingCommitment::default())
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(ProofWithMissingCommitment {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
 pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, Option<Arc<[u8]>>> {

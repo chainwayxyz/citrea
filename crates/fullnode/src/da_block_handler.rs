@@ -9,6 +9,7 @@ use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, Pr
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
 use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height_non_zero};
+use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
@@ -23,7 +24,6 @@ use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
@@ -78,7 +78,7 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
@@ -94,7 +94,7 @@ where
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 }
                 _ = &mut l1_sync_worker => {},

@@ -61,7 +61,7 @@ where
         }
     }
 
-    pub async fn run(mut self, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         let l1_start_height = self
             .ledger_db
             .get_last_scanned_l1_height()
@@ -84,7 +84,7 @@ where
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
