@@ -1,4 +1,4 @@
-use sov_db::schema::tables::{L2BlockByNumber, ProverPendingCommitments, SequencerCommitmentByIndex};
+use sov_db::schema::tables::{JobIdOfCommitment, L2BlockByNumber, ProverPendingCommitments, SequencerCommitmentByIndex};
 use sov_db::schema::types::L2BlockNumber;
 use sov_schema_db::{ScanDirection, DB};
 
@@ -48,6 +48,7 @@ pub(crate) fn rollback_l2_blocks(
         ledger_db.delete::<SequencerCommitmentByIndex>(&comm_idx)?;
 
         if matches!(node_type, StorageNodeType::BatchProver) {
+            ledger_db.delete::<JobIdOfCommitment>(&comm_idx)?;
             ledger_db.delete::<ProverPendingCommitments>(&comm_idx)?;
         }
     }
