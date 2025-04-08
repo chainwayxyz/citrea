@@ -724,7 +724,7 @@ where
                     continue;
                 }
 
-                // transferred cbtc causes account diff change on target
+                // transferred balance causes account diff change on target
                 if address != target && !had_balance.is_zero() {
                     // mark changes to the target account
                     let target = account_changes.entry(target).or_default();
@@ -741,6 +741,7 @@ where
 
     let mut diff_size = 0usize;
 
+    // Check if it's a new address to charge for new index
     let mut addresses_to_check = Vec::with_capacity(account_changes.len());
 
     for (addr, account) in account_changes {
