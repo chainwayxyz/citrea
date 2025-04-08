@@ -556,7 +556,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -764,7 +764,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -1019,7 +1019,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -1382,7 +1382,7 @@ impl TestCase for UnchainedBatchProofsTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -1643,7 +1643,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -1780,7 +1780,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -1984,7 +1984,7 @@ impl TestCase for ProofWithMissingCommitment {
         }
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }

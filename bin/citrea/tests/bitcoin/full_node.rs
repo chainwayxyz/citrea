@@ -333,7 +333,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
         Some(150)
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -494,7 +494,7 @@ impl TestCase for ConflictingCommitmentsTest {
         Some(150)
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -688,7 +688,7 @@ impl TestCase for OutOfRangeProofTest {
         Some(150)
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
@@ -1191,7 +1191,7 @@ impl TestCase for OverlappingProofRangesTest {
         Some(170)
     }
 
-    async fn cleanup(&self) -> Result<()> {
+    async fn cleanup(self) -> Result<()> {
         self.task_manager.abort().await;
         Ok(())
     }
