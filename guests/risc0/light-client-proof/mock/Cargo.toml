@@ -8,7 +8,7 @@ resolver = "2"
 
 [dependencies]
 risc0-zkvm = { version = "2.0.1", default-features = false, features = ["unstable"] }
-risc0-zkvm-platform = { version = "2.0.1", features = ["heap-embedded-alloc"] }
+risc0-zkvm-platform = { version = "2.0.1", features = ["sys-getenv"] }
 
 anyhow = "1.0.95"
 sov-mock-da = { path = "../../../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
