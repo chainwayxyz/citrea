@@ -15,7 +15,7 @@ use tokio::select;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use crate::metrics::BATCH_PROVER_METRICS;
 
@@ -85,15 +85,16 @@ where
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
+                    info!("Shutting down L1 syncer");
                     return;
                 }
-                _ = &mut l1_sync_worker => {},
                 _ = interval.tick() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_l1_blocks().await {
                         error!("Could not process L1 blocks: {:?}", e);
                     }
                 },
+                _ = &mut l1_sync_worker => {},
             }
         }
     }

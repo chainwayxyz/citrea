@@ -105,6 +105,7 @@ where
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
+                    info!("Shutting down Prover");
                     return;
                 }
                 l1_signal = self.l1_signal_rx.recv() => {

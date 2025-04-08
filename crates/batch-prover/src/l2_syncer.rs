@@ -107,7 +107,11 @@ where
         let backup_manager = self.backup_manager.clone();
         loop {
             select! {
-                _ = &mut l2_sync_worker => {},
+                biased;
+                _ = &mut shutdown_signal => {
+                    info!("Shutting down L2 syncer");
+                    return;
+                },
                 Some(l2_blocks) = l2_rx.recv() => {
                     // While syncing, we'd like to process L2 blocks as they come without any delays.
                     for l2_block in l2_blocks {
@@ -125,11 +129,7 @@ where
                         }
                     }
                 },
-                _ = &mut shutdown_signal => {
-                    info!("Shutting down L2 sync worker");
-                    l2_rx.close();
-                    return;
-                },
+                _ = &mut l2_sync_worker => {},
             }
         }
     }
