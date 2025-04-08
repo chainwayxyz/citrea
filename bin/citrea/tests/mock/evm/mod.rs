@@ -33,6 +33,7 @@ use crate::common::{
 };
 
 mod archival_state;
+mod diff_sizes;
 mod fee;
 mod gas_price;
 mod precompiles;
