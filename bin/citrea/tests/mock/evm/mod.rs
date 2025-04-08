@@ -1080,7 +1080,13 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        // setting back should yield same diff
+        // remove L1_FEE_OVERHEAD = 2
+        // compressed diff sizes are:
+        // 20 --> 44 uncompressed
+        // 36 --> 76 uncompressed
+        // difference of 32 bytes is the first time adding authority account info
+        // to state
+        // setting back should yield same diff - creation of the authority
         assert_eq!(
             U64::from_str(
                 last_receipt
@@ -1090,7 +1096,8 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .as_str()
                     .unwrap()
             )
-            .unwrap(),
+            .unwrap()
+                + U64::from(16),
             U64::from_str(
                 single_auth_receipt
                     .other
@@ -1224,7 +1231,10 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
+        // 149 and 88
         assert_eq!(
+            // ((53 * 32 // 100) +  5 * (85 * 32 // 100 + 32)) * 48 // 100 + 2
+            // 151
             U64::from_str(
                 multiple_receipt
                     .other
@@ -1234,6 +1244,8 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .unwrap()
             )
             .unwrap(),
+            // ((53 * 32 // 100) +  1 * (85 * 32 // 100 + 32)) * 48 // 100 + 2
+            // 38
             U64::from_str(
                 single_auth_receipt
                     .other
@@ -1243,8 +1255,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .unwrap()
             )
             .unwrap()
-                // 4 accs * (85 acc diff * 32 / 100 acc discount) * 48 / 100 brotli discount
-                + U64::from(52) // 5 - 1 account diffs
+                + U64::from(113)
         )
     }
 
