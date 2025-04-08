@@ -152,7 +152,7 @@ where
                         }
                     }
                     None => {
-                        info!("Found commitment with index {}", index);
+                        info!("Got commitment with index {} in L1 block {}", index, l1_height);
 
                         self.ledger_db
                             .put_commitment_by_index(commitment)
