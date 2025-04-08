@@ -702,7 +702,7 @@ where
                 let account = account_changes.entry(address).or_default();
                 account.account_info_changed = true;
             }
-            // Only addded to the journal on smart contract creation
+            // Only added to the journal on smart contract creation
             JournalEntry::AccountCreated { address } => {
                 let account = account_changes.entry(address).or_default();
                 account.account_info_changed = true;
