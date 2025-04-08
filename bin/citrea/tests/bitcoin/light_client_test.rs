@@ -21,7 +21,6 @@ use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
-use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
@@ -595,7 +594,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
+            .get_commitment_indices_by_l1(commitment_l1_height)
             .await
             .unwrap()
             .unwrap();
