@@ -34,6 +34,7 @@ use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
 
+use super::db::AccountExistsProvider;
 use crate::precompiles::schnorr::SCHNORRVERIFY;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
@@ -311,11 +312,12 @@ pub trait CitreaContextTr:
     Tx: Transaction,
     Cfg: Cfg,
     Chain: CitreaChainExt,
+    Db: Database + AccountExistsProvider,
 >
 {
 }
 
-impl<T, DB: Database> CitreaContextTr for T where
+impl<T, DB: Database + AccountExistsProvider> CitreaContextTr for T where
     T: ContextTr<Db = DB, Journal = Journal<DB>, Chain: CitreaChainExt>
 {
 }
@@ -337,7 +339,7 @@ where
     BLOCK: Block,
     TX: Transaction,
     CFG: Cfg,
-    DB: Database,
+    DB: Database + AccountExistsProvider,
     CHAIN: CitreaChainExt,
 {
     type Context = Self;
@@ -567,12 +569,12 @@ where
     ) -> Result<revm::context::result::ResultAndState<Self::HaltReason>, Self::Error> {
         let uncompressed_size = calc_diff_size(evm.ctx());
 
-        // Estimate the size of the state diff after the brotli compression
-        let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64;
+        // Estimate the size of the state diff after the brotli compression and add L1 fee overhead
+        let diff_size = (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64
+            + L1_FEE_OVERHEAD as u64;
 
         let l1_fee_rate = evm.ctx().chain().l1_fee_rate();
-        let l1_fee =
-            U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
+        let l1_fee = U256::from(l1_fee_rate) * U256::from(diff_size);
         evm.ctx().chain().set_tx_info(TxInfo {
             l1_diff_size: diff_size,
             l1_fee,
@@ -629,11 +631,8 @@ where
 
     #[derive(Default)]
     struct AccountChange<'a> {
-        created: bool,
-        destroyed: bool,
         storage_changes: BTreeSet<&'a U256>,
-        code_changed: bool,         // implies code and code hash changed
-        account_info_changed: bool, // implies balance or nonce changed
+        account_info_changed: bool, // implies balance, nonce or code_hash changed
     }
 
     let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
@@ -678,9 +677,6 @@ where
                 // we set account changed for the authority
                 let account = account_changes.entry(authority).or_default();
                 account.account_info_changed = true;
-                // doing this does not matter anymore as account info is already set to changed
-                // but doing it anyway to be consistent
-                account.code_changed = true;
             }
         }
     }
@@ -704,11 +700,11 @@ where
             }
             JournalEntry::CodeChange { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.code_changed = true;
+                account.account_info_changed = true;
             }
+            // Only added to the journal on smart contract creation
             JournalEntry::AccountCreated { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.created = true;
                 account.account_info_changed = true;
             }
             JournalEntry::AccountDestroyed {
@@ -728,20 +724,11 @@ where
                     continue;
                 }
 
+                // transferred balance causes account diff change on target
                 if address != target && !had_balance.is_zero() {
                     // mark changes to the target account
                     let target = account_changes.entry(target).or_default();
                     target.account_info_changed = true;
-                }
-
-                let account = account_changes.entry(address).or_default();
-                if account.created {
-                    // That's a temporary account.
-                    // Delete it from the account changes to enable cancun support.
-                    // Acc with the same address can be created again in the same tx.
-                    account_changes.remove(address);
-                } else {
-                    account.destroyed = true;
                 }
             }
             _ => {}
@@ -752,15 +739,18 @@ where
         "Total accounts for diff size"
     );
 
-    let mut diff_size = 0usize;
+    // Check if it's a new address to charge for new index
+    let mut addresses_to_check = Vec::with_capacity(account_changes.len());
+
+    let mut account_based_diff = 0usize;
+    let mut storage_based_diff = 0usize;
 
     for (addr, account) in account_changes {
-        if account.created {
-            diff_size += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
-        }
+        // cloning addresses to avoid borrowing issues
+        addresses_to_check.push(*addr);
 
         // Apply size of account_info
-        if account.account_info_changed || account.code_changed {
+        if account.account_info_changed {
             let db_account_size = {
                 let account = &state[addr];
                 if account.info.code_hash == KECCAK_EMPTY {
@@ -771,20 +761,27 @@ where
             };
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
+            account_based_diff += db_account_size + DB_ACCOUNT_KEY_SIZE;
         }
 
         // Apply size of changed slots
         let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
 
-        diff_size +=
-            slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
+        storage_based_diff += slot_size * account.storage_changes.len();
 
         // No checks on code change as it is not part of the state diff
     }
+    let mut new_account_based_diff = 0usize;
+    for addr in addresses_to_check {
+        if context.db().is_first_time_committing_address(&addr) {
+            new_account_based_diff += ACCOUNT_IDX_KEY_SIZE + ACCOUNT_IDX_SIZE;
+        }
+    }
 
-    diff_size
+    // final diff size
+    (account_based_diff * ACCOUNT_DISCOUNTED_PERCENTAGE / 100)
+        + (storage_based_diff * STORAGE_DISCOUNTED_PERCENTAGE / 100)
+        + new_account_based_diff
 }
 
 // #[cfg_attr(feature = "native", instrument(level = "trace", skip(context)))]
