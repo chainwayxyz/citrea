@@ -13,7 +13,7 @@ use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use citrea_stf::genesis_config::GenesisPaths;
-use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
 
@@ -349,7 +349,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .await;
 
     let l2_block = seq_test_client
-        .ledger_get_l2_block_by_number::<MockDaSpec>(block.header.number)
+        .ledger_get_l2_block_by_number(block.header.number)
         .await
         .unwrap();
 
@@ -598,7 +598,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     sleep(Duration::from_secs(1)).await;
 
     let initial_l2_block = seq_test_client
-        .ledger_get_l2_block_by_number::<MockDaSpec>(1)
+        .ledger_get_l2_block_by_number(1)
         .await
         .unwrap();
 
@@ -644,7 +644,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     seq_test_client.send_publish_batch_request().await;
 
     let second_l2_block = seq_test_client
-        .ledger_get_l2_block_by_number::<MockDaSpec>(2)
+        .ledger_get_l2_block_by_number(2)
         .await
         .unwrap();
 

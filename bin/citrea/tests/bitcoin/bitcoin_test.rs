@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::{Amount, Txid};
@@ -8,13 +7,13 @@ use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::{Client, RpcApi};
+use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
-use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
@@ -129,7 +128,7 @@ impl TestCase for BitcoinReorgTest {
         let original_commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
+            .get_commitment_indices_by_l1(finalized_height)
             .await?
             .unwrap_or_default();
 
@@ -331,7 +330,7 @@ impl TestCase for CpfpFeeBumpingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
+            .get_commitment_indices_by_l1(finalized_height)
             .await?
             .unwrap();
 

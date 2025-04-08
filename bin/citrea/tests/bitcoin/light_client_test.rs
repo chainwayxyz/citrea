@@ -8,7 +8,7 @@ use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
-use citrea_batch_prover::GroupCommitments;
+use citrea_batch_prover::PartitionMode;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig,
@@ -21,7 +21,6 @@ use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
-use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
@@ -29,10 +28,10 @@ use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, Cum
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
+use crate::bitcoin::batch_prover_test::wait_for_prover_job;
 use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
-const TWENTY_MINS: Duration = Duration::from_secs(20 * 60);
 
 struct LightClientProvingTest {}
 
@@ -107,7 +106,7 @@ impl TestCase for LightClientProvingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
+            .get_commitment_indices_by_l1(commitment_l1_height)
             .await
             .unwrap()
             .unwrap();
@@ -242,32 +241,30 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
-        // Wait for batch prover to generate proofs for commitments
+        // Wait for batch prover to see commitments
         batch_prover
-            .wait_for_l1_height(commitment_l1_height, Some(Duration::from_secs(1200)))
+            .wait_for_l1_height(commitment_l1_height, None)
             .await
             .unwrap();
 
         // There are two commitments, for each commitment generate a proof
-        batch_prover
+        let job_ids = batch_prover
             .client
             .http_client()
-            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
+            .prove(PartitionMode::OneByOne)
             .await
             .unwrap();
+        assert_eq!(job_ids.len(), 2);
 
-        // Ensure that batch proofs are submitted to DA (2x reveal & 2x commit txs)
-        da.wait_mempool_len(4, Some(TWENTY_MINS)).await?;
-
-        // Assert that commitments are queryable this also means that the batch proofs are submitted to DA
-        let commitments = batch_prover
-            .client
-            .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
+        // Wait for both prover jobs to finish
+        let response_1 = wait_for_prover_job(batch_prover, job_ids[0], None)
             .await
-            .unwrap()
             .unwrap();
-        assert_eq!(commitments.len(), n_commitments as usize);
+        let response_2 = wait_for_prover_job(batch_prover, job_ids[1], None)
+            .await
+            .unwrap();
+        assert_eq!(response_1.commitments.len(), 1);
+        assert_eq!(response_2.commitments.len(), 1);
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
@@ -412,25 +409,17 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await?;
 
         // There is one commitment, generate a single proof
-        batch_prover
+        let job_ids = batch_prover
             .client
             .http_client()
-            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
+            .prove(PartitionMode::OneByOne)
             .await
             .unwrap();
 
-        // Ensure that batch proofs is submitted to DA (1x reveal & 1x commit txs)
-        da.wait_mempool_len(2, Some(TWENTY_MINS)).await?;
-
-        // Assert that commitments are queryable this also means the batch proofs are submitted to DA with the prove rpc
-        let commitments = batch_prover
-            .client
-            .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
+        let response = wait_for_prover_job(batch_prover, job_ids[0], None)
             .await
-            .unwrap()
             .unwrap();
-        assert_eq!(commitments.len(), 1);
+        assert_eq!(response.commitments.len(), 1);
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
@@ -605,7 +594,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
+            .get_commitment_indices_by_l1(commitment_l1_height)
             .await
             .unwrap()
             .unwrap();

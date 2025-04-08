@@ -7,6 +7,7 @@ use alloy_primitives::{U32, U64};
 use block::L2BlockResponse;
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
@@ -168,13 +169,39 @@ pub struct LightClientProofResponse {
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
 }
 
+/// The response to JSON-RPC request for querying proving job
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobRpcResponse {
+    /// Job id
+    pub id: Uuid,
+    /// Commitments being proven in the job
+    pub commitments: Vec<SequencerCommitmentResponse>,
+    /// Proof result of the job. If proof is None, job still continues,
+    /// and if it is Some but l1_tx_id is 0-value, it is being submitted to L1.
+    pub proof: Option<BatchProofResponse>,
+}
+
+/// Parameter type used in set commitments rpc.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequencerCommitmentRpcParam {
+    /// Merkle root of the commitment
+    #[serde(with = "hex::serde")]
+    pub merkle_root: [u8; 32],
+    /// Index of the commitment
+    pub index: u32,
+    /// L2 end block number of the commitment
+    pub l2_end_block_number: u64,
+    /// L1 height of the commitment
+    pub l1_height: u64,
+}
+
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofResponse {
     /// l1 tx id of
-    #[serde(with = "hex::serde")] // without 0x prefix
-    pub l1_tx_id: [u8; 32],
+    #[serde(with = "utils::option_hex_array32")]
+    pub l1_tx_id: Option<[u8; 32]>,
     /// Proof
     #[serde(with = "faster_hex")]
     pub proof: ProofRpcResponse,
@@ -507,6 +534,43 @@ pub mod utils {
             }
 
             deserializer.deserialize_str(HexStrVisitor(PhantomData))
+        }
+    }
+
+    /// Serde module for serializing Option wrapped [u8; 32] as hex string
+    pub mod option_hex_array32 {
+        use hex;
+        use serde::{Deserialize, Deserializer, Serializer};
+
+        /// Serialize Option<[[u8; 32]]> as hex string
+        pub fn serialize<S>(val: &Option<[u8; 32]>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            match val {
+                Some(arr) => serializer.serialize_str(&hex::encode(arr)),
+                None => serializer.serialize_none(),
+            }
+        }
+
+        /// Deserialize Option<[[u8; 32]]> from hex string
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<[u8; 32]>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let opt = Option::<String>::deserialize(deserializer)?;
+            match opt {
+                Some(hex_str) => {
+                    let bytes = hex::decode(&hex_str).map_err(serde::de::Error::custom)?;
+                    if bytes.len() != 32 {
+                        return Err(serde::de::Error::custom("Expected 32-byte hex string"));
+                    }
+                    let mut arr = [0u8; 32];
+                    arr.copy_from_slice(&bytes);
+                    Ok(Some(arr))
+                }
+                None => Ok(None),
+            }
         }
     }
 }

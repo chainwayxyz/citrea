@@ -89,6 +89,8 @@ metrics-derive = "0.1.0"
 metrics-exporter-prometheus = "0.15.3"
 metrics-util = "0.17.0"
 num_cpus = "1.0"
+# 1.13 uses getrandom 0.3
+uuid = { version = "=1.12.1", default-features = false, features = ["serde", "borsh", "v7"] }
 parking_lot = "0.12.3"
 proptest = { version = "1.6.0", default-features = false, features = ["alloc"] }
 pin-project = "1.1.9"
@@ -115,12 +117,14 @@ tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
+bonsai-sdk = { version = "1.4" }
 risc0-binfmt = "2.0.0"
 risc0-zkvm = { version = "2.0.1", default-features = false }
 risc0-zkvm-platform = "2.0.1"
 risc0-zkp = "2.0.0"
 risc0-circuit-rv32im = "2.0.1"
 risc0-build = "2.0.1"
+rzup = "0.4.1"
 
 # EVM dependencies
 revm-inspectors = { version = "0.18.0", default-features = false }

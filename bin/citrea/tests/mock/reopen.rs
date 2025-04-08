@@ -15,7 +15,7 @@ use tokio::time::sleep;
 use super::init_test_rollup;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_prover_l1_height_proofs, NodeMode,
+    wait_for_l2_block, wait_for_prover_job, wait_for_prover_job_count, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -359,10 +359,10 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
-    let prover_node_test_client = make_test_client(prover_node_port).await?;
+    let prover_client = make_test_client(prover_node_port).await?;
 
     // prover should not have any blocks saved
-    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
+    assert_eq!(prover_client.eth_block_number().await, 0);
     // publish 3 l2 blocks, no commitment should be sent
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
@@ -376,15 +376,22 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // Block that contains the commitment
     wait_for_l1_block(&da_service, 2, None).await;
 
-    // wait here until we see from prover's rpc that it finished proving
-    // seq comm is in block 2
-    wait_for_prover_l1_height_proofs(&prover_node_test_client, 2, None).await?;
+    // wait for prover to start the proving job
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None)
+        .await
+        .unwrap();
+    assert_eq!(job_ids.len(), 1);
+
+    // wait for prover to finish the proving job
+    wait_for_prover_job(&prover_client, job_ids[0], None)
+        .await
+        .unwrap();
 
     // Contains the proof
     wait_for_l1_block(&da_service, 3, None).await;
 
     // prover should have synced all 4 l2 blocks
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+    assert_eq!(prover_client.eth_block_number().await, 4);
 
     prover_node_task_manager.graceful_shutdown();
 
@@ -419,17 +426,17 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
-    let prover_node_test_client = make_test_client(prover_node_port).await?;
+    let prover_client = make_test_client(prover_node_port).await?;
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 6, None).await;
     // Still should have 4 blocks there are no commitments yet
-    wait_for_l2_block(&prover_node_test_client, 6, None).await;
+    wait_for_l2_block(&prover_client, 6, None).await;
     // Allow for the L2 block to be commited and stored
     // Otherwise, the L2 block height might be registered but it hasn't
     // been processed inside the EVM yet.
     sleep(Duration::from_secs(1)).await;
-    assert_eq!(prover_node_test_client.eth_block_number().await, 6);
+    assert_eq!(prover_client.eth_block_number().await, 6);
 
     prover_node_task_manager.graceful_shutdown();
     sleep(Duration::from_secs(2)).await;
@@ -467,13 +474,13 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
-    let prover_node_test_client = make_test_client(prover_node_port).await?;
+    let prover_client = make_test_client(prover_node_port).await?;
     sleep(Duration::from_secs(2)).await;
 
     // We have 8 blocks in total, make sure the prover syncs
     // and starts proving the second commitment.
-    wait_for_l2_block(&prover_node_test_client, 7, Some(Duration::from_secs(300))).await;
-    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+    wait_for_l2_block(&prover_client, 7, Some(Duration::from_secs(300))).await;
+    assert_eq!(prover_client.eth_block_number().await, 8);
     sleep(Duration::from_secs(1)).await;
 
     seq_test_client.send_publish_batch_request().await;
@@ -484,16 +491,24 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     // Commitment is sent
     wait_for_l1_block(&da_service, 5, None).await;
-    // wait here until we see from prover's rpc that it finished proving
-    // seq comm is in block 6
-    wait_for_prover_l1_height_proofs(&prover_node_test_client, 5, None).await?;
+
+    // wait for prover to start the proving job
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None)
+        .await
+        .unwrap();
+    assert_eq!(job_ids.len(), 1);
+
+    // wait for proving job to finish
+    wait_for_prover_job(&prover_client, job_ids[0], None)
+        .await
+        .unwrap();
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra l2 block due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra l2 block
     // TODO: Debug why this is not including block 9 in the commitment
     // https://github.com/chainwayxyz/citrea/issues/684
-    assert!(prover_node_test_client.eth_block_number().await >= 8);
+    assert!(prover_client.eth_block_number().await >= 8);
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.graceful_shutdown();
     prover_node_task_manager.graceful_shutdown();

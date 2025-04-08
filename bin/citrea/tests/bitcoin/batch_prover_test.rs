@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::config::{
     BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
     TestCaseConfig, TestCaseEnv,
@@ -17,8 +18,9 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
+use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use tokio::time::sleep;
+use uuid::Uuid;
 
 use super::get_citrea_path;
 use crate::common::make_test_client;
@@ -53,28 +55,64 @@ pub async fn wait_for_zkproofs(
     }
 }
 
-pub async fn wait_for_proving_finish(
+/// Wait for prover job to finish.
+pub async fn wait_for_prover_job(
     batch_prover: &BatchProver,
-    height: u64,
+    job_id: Uuid,
     timeout: Option<Duration>,
-) -> Result<Vec<BatchProofResponse>> {
+) -> Result<JobRpcResponse> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(300));
+    loop {
+        let response = batch_prover
+            .client
+            .http_client()
+            .get_proving_job(job_id)
+            .await?;
+        if let Some(response) = response {
+            if let Some(proof) = &response.proof {
+                if proof.l1_tx_id.is_some() {
+                    return Ok(response);
+                }
+            }
+        }
+
+        let now = Instant::now();
+        if start + timeout <= now {
+            bail!("Timeout. Failed to get prover job {}", job_id);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_prover_job_count(
+    batch_prover: &BatchProver,
+    count: usize,
+    timeout: Option<Duration>,
+) -> Result<Vec<Uuid>> {
     let start = Instant::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(240));
 
     loop {
         if start.elapsed() >= timeout {
-            bail!("BatchProver failed to get zkproofs within the specified timeout");
+            bail!(
+                "BatchProver failed to reach proving job count {} on time",
+                count
+            );
         }
 
-        match batch_prover
+        let job_ids = batch_prover
             .client
             .http_client()
-            .get_batch_proofs_by_slot_height(U64::from(height))
-            .await?
-        {
-            Some(proofs) => return Ok(proofs),
-            None => sleep(Duration::from_millis(500)).await,
+            .get_proving_jobs(count)
+            .await
+            .unwrap();
+        if job_ids.len() >= count {
+            return Ok(job_ids);
         }
+
+        sleep(Duration::from_millis(500)).await;
     }
 }
 
@@ -885,22 +923,37 @@ impl TestCase for L1HashOutputTest {
 
         da.generate(100).await?; // This will produce ceil(100 - 1 / MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK) l2 blocks post fork2 which is 10
 
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
         sequencer.client.send_publish_batch_request().await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
         sequencer.client.send_publish_batch_request().await?;
 
-        // Wait for blob inscribe tx to be in mempool
+        // Wait for commitment tx
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
+        // Wait for prover to see the commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
 
-        let zkp = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
+        // Wait for proving job to start
+        let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 1);
+        let job_id = job_ids[0];
 
-        assert_eq!(zkp.len(), 1);
+        // Wait for proving job to finish
+        let response = wait_for_prover_job(batch_prover, job_id, None)
+            .await
+            .unwrap();
+        let proof = response.proof.unwrap();
 
-        let l1_hash = zkp[0]
+        let l1_hash = proof
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
             .clone();
@@ -935,30 +988,46 @@ impl TestCase for L1HashOutputTest {
 
         let commitments_with_l1_update = txs[0..4].iter().map(|txid| txid.to_string()).collect();
 
+        // First, finalize the commitments with l1 update
         da.generate_block(temp_addr, commitments_with_l1_update)
             .await?;
+        da.generate(FINALITY_DEPTH - 1).await?;
 
-        // now the other commitment with no L1 update
-        da.generate(FINALITY_DEPTH).await?;
+        // Wait for 2nd proving job to start
+        let job_ids = wait_for_prover_job_count(batch_prover, 2, None)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 2);
 
-        let finalized_height = da.get_finalized_height(None).await?;
+        // Wait for job to finish, job ids are descending order, so latest is in the first index
+        let response_prev = wait_for_prover_job(batch_prover, job_ids[0], None)
+            .await
+            .unwrap();
+        let zkp_prev = response_prev.proof.unwrap();
 
-        let zkp_prev = wait_for_proving_finish(batch_prover, finalized_height - 1, None).await?;
-
-        assert_eq!(zkp_prev.len(), 1);
-
-        let prev_l1_hash = zkp_prev[0]
+        let prev_l1_hash = zkp_prev
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
             .clone();
 
         assert_ne!(prev_l1_hash, l1_hash);
 
-        let zkp_last = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
+        // Second, finalize the rest of the commitments
+        da.generate(1).await?;
 
-        assert_eq!(zkp.len(), 1);
+        // Wait for 3rd proving job to start
+        let job_ids = wait_for_prover_job_count(batch_prover, 3, None)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 3);
 
-        let new_l1_hash = zkp_last[0]
+        // Wait for last proving to finish
+        let response_last = wait_for_prover_job(batch_prover, job_ids[0], None)
+            .await
+            .unwrap();
+        let zkp_last = response_last.proof.unwrap();
+
+        let new_l1_hash = zkp_last
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
             .clone();
