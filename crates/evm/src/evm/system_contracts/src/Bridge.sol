@@ -36,23 +36,24 @@ contract Bridge is Ownable2StepUpgradeable {
 
     bool public initialized;
     address public operator;
-    bool[1000] public isOperatorMalicious;
     uint256 public depositAmount;
     uint256 currentDepositId;
-    bytes public scriptPrefix;
-    bytes public scriptSuffix;
-    bytes public slashOrTakeScript;
+    bytes public depositPrefix;
+    bytes public depositSuffix;
+    bytes public replacePrefix;
+    bytes public replaceSuffix;
+
     UTXO[] public withdrawalUTXOs;
-    mapping(bytes32 => uint256) public txIdToDepositId;
-    mapping(uint256 => uint256) public withdrawFillers;
+    bytes32[] public depositTxIds;
+
+    mapping(bytes32 => bool) public processedTxIds;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
-    event DepositScriptUpdate(bytes scriptPrefix, bytes scriptSuffix);
+    event DepositScriptUpdate(bytes depositPrefix, bytes depositSuffix);
+    event ReplaceScriptUpdate(bytes replacePrefix, bytes replaceSuffix);
+    event DepositReplaced(uint256 index, bytes32 oldTxId, bytes32 newTxId);
     event OperatorUpdated(address oldOperator, address newOperator);
-    event WithdrawFillerDeclared(uint256 withdrawId, uint256 withdrawFillerId);
-    event MaliciousOperatorMarked(uint256 operatorId);
-    event SlashOrTakeScriptUpdate(bytes slashOrTakeScript);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -64,55 +65,63 @@ contract Bridge is Ownable2StepUpgradeable {
         _;
     }
 
+    modifier onlySystemOrOperator() {
+        require(msg.sender == SYSTEM_CALLER || msg.sender == operator, "caller is not the system caller or operator");
+        _;
+    }
+
     /// @notice Initializes the bridge contract and sets the deposit script
-    /// @param _scriptPrefix First part of the deposit script expected in the witness field for all L1 deposits 
-    /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
+    /// @param _depositPrefix First part of the deposit script expected in the witness field for all L1 deposits 
+    /// @param _depositSuffix The suffix of the deposit script that follows the receiver address
     /// @param _depositAmount The CBTC amount that can be deposited and withdrawn
-    function initialize(bytes calldata _scriptPrefix, bytes calldata _scriptSuffix, uint256 _depositAmount) external onlySystem {
+    function initialize(bytes calldata _depositPrefix, bytes calldata _depositSuffix, uint256 _depositAmount) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
-        require(_scriptPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
 
         initialized = true;
-        scriptPrefix = _scriptPrefix;
-        scriptSuffix = _scriptSuffix;
+        depositPrefix = _depositPrefix;
+        depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
-        
-        // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
-        operator = SYSTEM_CALLER;
 
+        // Set initial operator to SYSTEM_CALLER
+        operator = SYSTEM_CALLER;
+        
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
-        emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);
+        emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
     /// @dev Deposit script contains a fixed script that checks signatures of verifiers and pushes EVM address of the receiver
-    /// @param _scriptPrefix The new deposit script prefix
-    /// @param _scriptSuffix The part of the deposit script that succeeds the receiver address
-    function setDepositScript(bytes calldata _scriptPrefix, bytes calldata _scriptSuffix) external onlyOwner {
-        require(_scriptPrefix.length != 0, "Deposit script cannot be empty");
+    /// @param _depositPrefix The new deposit script prefix
+    /// @param _depositSuffix The part of the deposit script that succeeds the receiver address
+    function setDepositScript(bytes calldata _depositPrefix, bytes calldata _depositSuffix) external onlyOwner {
+        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
 
-        scriptPrefix = _scriptPrefix;
-        scriptSuffix = _scriptSuffix;
+        depositPrefix = _depositPrefix;
+        depositSuffix = _depositSuffix;
 
-        emit DepositScriptUpdate(_scriptPrefix, _scriptSuffix);
+        emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
     }
 
-    /// @notice Sets the slashOrTake script that is expected in the witness field of the slashOrTake transaction on Bitcoin
-    /// @param _slashOrTakeScript The slashOrTake script
-    function setSlashOrTakeScript(bytes calldata _slashOrTakeScript) external onlyOwner {
-        require(_slashOrTakeScript.length != 0, "Deposit script cannot be empty");
+    /// @notice Sets the replace script of the replacement transaction on Bitcoin, contained in the witness
+    /// @dev Replace script contains a fixed script that checks signatures of verifiers and pushes txId of the deposit transaction to be replaced
+    /// @param _replacePrefix The new replace prefix
+    /// @param _replaceSuffix The part of the replace script that succeeds the txId
+    function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
+        require(_replacePrefix.length != 0, "Replace script cannot be empty");
 
-        slashOrTakeScript = _slashOrTakeScript;
+        replacePrefix = _replacePrefix;
+        replaceSuffix = _replaceSuffix;
 
-        emit SlashOrTakeScriptUpdate(_slashOrTakeScript);
+        emit ReplaceScriptUpdate(_replacePrefix, _replaceSuffix);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param moveTp Transaction parameters of the move transaction on Bitcoin
     function deposit(
         TransactionParams calldata moveTp 
-    ) external onlyOperator {
+    ) external onlySystemOrOperator {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
@@ -121,19 +130,22 @@ contract Bridge is Ownable2StepUpgradeable {
         require(nIns == 1, "Only one input allowed");
         bytes32 txId = ValidateSPV.calculateTxId(moveTp.version, moveTp.vin, moveTp.vout, moveTp.locktime);
 
-        require(txIdToDepositId[txId] == 0, "txId already spent");
-        txIdToDepositId[txId] = ++currentDepositId;
+        require(processedTxIds[txId] == false, "txId already spent");
+        processedTxIds[txId] = true;
+        depositTxIds.push(txId);
         
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
         require(nItems == 3, "Invalid witness items"); // musig + script + witness script
 
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
-        uint256 len = scriptPrefix.length;
-        bytes memory _scriptPrefix = script.slice(0, len);
-        require(isBytesEqual(_scriptPrefix, scriptPrefix), "Invalid deposit script");
-        bytes memory _scriptSuffix = script.slice(script.length - scriptSuffix.length, scriptSuffix.length);
-        require(isBytesEqual(_scriptSuffix, scriptSuffix), "Invalid script suffix");
+        uint256 prefixLen = depositPrefix.length;
+        uint256 suffixLen = depositSuffix.length;
+        require(script.length == prefixLen + 20 + suffixLen, "Invalid script length");
+        bytes memory _depositPrefix = script.slice(0, prefixLen);
+        require(isBytesEqual(_depositPrefix, depositPrefix), "Invalid deposit script");
+        bytes memory _depositSuffix = script.slice(script.length - suffixLen, suffixLen);
+        require(isBytesEqual(_depositSuffix, depositSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
         emit Deposit(wtxId, txId, recipient, block.timestamp, currentDepositId);
@@ -186,54 +198,36 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
-    /// @notice Stores the filler of a certain withdrawal after the a user's withdrawal is covered on Bitcoin side
-    /// @param withdrawTp Transaction parameters of the withdrawal transaction on Bitcoin
-    /// @param inputIndex Index of the input that is the withdrawal UTXO (withdrawing user's ANYONECANPAY)
-    /// @param withdrawId ID of the withdrawal action
-    function declareWithdrawFiller(TransactionParams calldata withdrawTp, uint256 inputIndex, uint256 withdrawId) external {
-        validateAndCheckInclusion(withdrawTp);
-        bytes memory input = BTCUtils.extractInputAtIndex(withdrawTp.vin, inputIndex);
-        bytes32 txId = BTCUtils.extractInputTxIdLE(input);
-        bytes4 index = BTCUtils.extractTxIndexLE(input);
-        UTXO memory utxo = withdrawalUTXOs[withdrawId];
-        require(utxo.txId == txId && utxo.outputId == index, "not matching UTXO");
+    /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
+    /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
+    /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
+    function replaceDeposit(TransactionParams calldata replaceTp, uint256 index) external onlyOperator {
+        validateAndCheckInclusion(replaceTp);
+        require(index < depositTxIds.length, "Invalid index");
+        require(replacePrefix.length != 0, "Replace script is not set");
+        bytes32 txIdToReplace = depositTxIds[index];
 
-        (, uint256 nOuts) = BTCUtils.parseVarInt(withdrawTp.vout);
-        bytes memory output = BTCUtils.extractOutputAtIndex(withdrawTp.vout, nOuts - 1);
-        bytes memory opReturnData = BTCUtils.extractOpReturnData(output);
-        uint256 withdrawFillerId = uint256(bytesToBytes32(opReturnData));
-        withdrawFillers[withdrawId] = getInternalOperatorId(withdrawFillerId);
-        emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
-    }
-
-    /// @notice Marks an operator as malicious if the operator burned their slashOrTake transaction as if they filled a withdrawal even though they didn't fill a withdrawal
-    /// @param slashOrTakeTp Transaction parameters of the slashOrTake transaction on Bitcoin
-    function markMaliciousOperator(TransactionParams calldata slashOrTakeTp) external {
-        validateAndCheckInclusion(slashOrTakeTp);
-        
-        (, uint256 nOuts) = BTCUtils.parseVarInt(slashOrTakeTp.vout);
-        bytes memory output = BTCUtils.extractOutputAtIndex(slashOrTakeTp.vout, nOuts - 1);
-        bytes memory opReturnData = BTCUtils.extractOpReturnData(output);
-        bytes32 moveTxId = bytesToBytes32(opReturnData.slice(0, 32));
-        uint256 operatorId = uint256(bytesToBytes32(opReturnData.slice(32, opReturnData.length - 32)));
-        uint256 depositId = txIdToDepositId[moveTxId];
-        require(depositId != 0, "Deposit do not exist");
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(slashOrTakeTp.witness, 0);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
+        (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
+        require(nItems == 3, "Invalid witness items"); // musig + script + witness script
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
-        uint256 len = slashOrTakeScript.length;
-        bytes memory _slashOrTakeScript = script.slice(0, len);
-        require(isBytesEqual(_slashOrTakeScript, slashOrTakeScript), "Invalid slashOrTake script");
-        uint256 fillerOperatorId = withdrawFillers[depositId - 1]; // depositId is 1-indexed while withdrawFillers is 0-indexed
-        bool isMalicious = fillerOperatorId == 0 || fillerOperatorId != getInternalOperatorId(operatorId);
-        require(isMalicious, "Operator is not malicious");
-        isOperatorMalicious[operatorId] = true;
 
-        emit MaliciousOperatorMarked(operatorId);
-    }
+        uint256 prefixLen = replacePrefix.length;
+        uint256 suffixLen = replaceSuffix.length;
+        require(script.length == prefixLen + 32 + suffixLen, "Invalid script length");
+        bytes memory _replacePrefix = script.slice(0, prefixLen);
+        require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid replace script prefix");
+        bytes memory _replaceSuffix = script.slice(script.length - suffixLen, suffixLen);
+        require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid replace script suffix");
 
-    // In order to prevent confusion between absence of a withdrawal filler and the first operator, we use 1-indexing for operator IDs
-    function getInternalOperatorId(uint256 operatorId) internal pure returns (uint256) {
-        return operatorId + 1;
+        bytes32 txId = extractTxId(script);
+        require(txId == txIdToReplace, "Invalid txId to replace provided");
+
+        bytes32 newTxId = ValidateSPV.calculateTxId(replaceTp.version, replaceTp.vin, replaceTp.vout, replaceTp.locktime);
+        depositTxIds[index] = newTxId;
+        processedTxIds[newTxId] = true;
+
+        emit DepositReplaced(index, txId, newTxId);
     }
 
     function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
@@ -251,9 +245,15 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
-        uint256 offset = scriptPrefix.length;
+        uint256 offset = depositPrefix.length;
         bytes20 _addr = bytes20(_script.slice(offset, 20));
         return address(uint160(_addr));
+    }
+
+    function extractTxId(bytes memory _script) internal view returns (bytes32) {
+        uint256 offset = replacePrefix.length;
+        bytes32 txId = bytesToBytes32(_script.slice(offset, 32));
+        return txId;
     }
 
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes

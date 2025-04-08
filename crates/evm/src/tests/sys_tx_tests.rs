@@ -210,7 +210,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 303148,
+                    cumulative_gas_used: 303170,
                     logs: vec![
                         Log {
                             address: BridgeWrapper::address(),
@@ -228,7 +228,7 @@ fn test_sys_bitcoin_light_client() {
                         }
                     ]
                 }.into(),
-                gas_used: 169112,
+                gas_used: 169134,
                 log_index_start: 1,
                 l1_diff_size: 136,
             }
