@@ -86,7 +86,7 @@ pub async fn wait_for_prover_job(
     }
 }
 
-pub async fn wait_for_proving_job_count(
+pub async fn wait_for_prover_job_count(
     batch_prover: &BatchProver,
     count: usize,
     timeout: Option<Duration>,
@@ -941,7 +941,7 @@ impl TestCase for L1HashOutputTest {
             .unwrap();
 
         // Wait for proving job to start
-        let job_ids = wait_for_proving_job_count(batch_prover, 1, None)
+        let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
             .await
             .unwrap();
         assert_eq!(job_ids.len(), 1);
@@ -998,7 +998,7 @@ impl TestCase for L1HashOutputTest {
         da.generate(FINALITY_DEPTH - 1).await?;
 
         // Wait for 2nd proving job to start
-        let job_ids = wait_for_proving_job_count(batch_prover, 2, None)
+        let job_ids = wait_for_prover_job_count(batch_prover, 2, None)
             .await
             .unwrap();
         assert_eq!(job_ids.len(), 2);
@@ -1022,7 +1022,7 @@ impl TestCase for L1HashOutputTest {
         da.generate(1).await?;
 
         // Wait for 3rd proving job to start
-        let job_ids = wait_for_proving_job_count(batch_prover, 3, None)
+        let job_ids = wait_for_prover_job_count(batch_prover, 3, None)
             .await
             .unwrap();
         assert_eq!(job_ids.len(), 3);

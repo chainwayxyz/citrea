@@ -20,7 +20,7 @@ use revm::bytecode::eip7702::Eip7702Bytecode;
 use sha2::Digest;
 use sov_ledger_rpc::LedgerRpcClient;
 
-use crate::bitcoin::batch_prover_test::wait_for_proving_finish;
+use crate::bitcoin::batch_prover_test::{wait_for_prover_job, wait_for_prover_job_count};
 use crate::bitcoin::get_citrea_path;
 use crate::common::make_test_client;
 
@@ -293,15 +293,23 @@ impl TestCase for PrecompilesAndEip7702 {
 
         da.generate(FINALITY_DEPTH).await?;
 
-        // wait for proving to finish
         let finalized_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
 
-        let proofs = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
+        // wait for batch prover to see commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
 
-        // assert state roots match
-        assert_eq!(proofs.len(), 1);
+        let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 1);
 
-        let proof = proofs[0].clone();
+        let response = wait_for_prover_job(batch_prover, job_ids[0], None)
+            .await
+            .unwrap();
+        let proof = response.proof.unwrap();
 
         let state_root = full_node
             .client
