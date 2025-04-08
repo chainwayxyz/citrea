@@ -3,7 +3,7 @@
 
 use std::collections::VecDeque;
 use std::io::Write;
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -87,8 +87,8 @@ impl MockProof {
 /// of a single proof. It is useful for testing parallel proving.
 #[derive(Clone)]
 pub struct MockZkvm {
-    waiting_tasks: Arc<Mutex<VecDeque<mpsc::Sender<()>>>>,
-    committed_data: VecDeque<Vec<u8>>,
+    waiting_tasks: Arc<Mutex<VecDeque<oneshot::Sender<ProofWithJob>>>>,
+    committed_data: Arc<Mutex<VecDeque<Vec<u8>>>>,
     is_valid: bool,
 }
 
@@ -110,10 +110,16 @@ impl MockZkvm {
 
     /// Notifies the next proof in FIFO order to emulate finishing behavior.
     /// Returns whether there was any proof in the queue.
-    pub fn finish_next_proof(&self) -> bool {
+    pub fn finish_next_proof(&mut self) -> bool {
         let mut tasks = self.waiting_tasks.lock().unwrap();
         if let Some(chan) = tasks.pop_front() {
-            chan.send(()).unwrap();
+            let mut committed_data = self.committed_data.lock().unwrap();
+            let proof = committed_data.pop_front().unwrap_or_default();
+            chan.send(ProofWithJob {
+                job_id: Uuid::now_v7(),
+                proof,
+            })
+            .unwrap();
             true
         } else {
             false
@@ -172,7 +178,8 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
 
         let data = borsh::to_vec(&proof_info).unwrap();
 
-        self.committed_data.push_back(data);
+        let mut committed_data = self.committed_data.lock().unwrap();
+        committed_data.push_back(data);
     }
 
     fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
@@ -193,17 +200,13 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         _receipt_type: ReceiptType,
         _with_prove: bool,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = oneshot::channel();
 
         let mut tasks = self.waiting_tasks.lock().unwrap();
         tasks.push_back(tx);
         drop(tasks);
 
-        // Block until finish signal arrives
-        rx.recv().unwrap();
-
-        // TODO: FIX MockZkvm
-        todo!()
+        Ok(rx)
     }
 
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
