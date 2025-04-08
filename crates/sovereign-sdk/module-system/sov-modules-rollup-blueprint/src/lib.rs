@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::backup::BackupManager;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{FullNodeConfig, ProverGuestRunConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::ParallelProverService;
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::default_context::DefaultContext;
@@ -107,7 +107,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
-        task_manager: &mut TaskManager<()>,
+        task_manager: TaskExecutor,
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`BitcoinDaVerifier`]

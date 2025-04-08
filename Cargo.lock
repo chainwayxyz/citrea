@@ -1606,6 +1606,7 @@ dependencies = [
  "pin-project",
  "rand 0.8.5",
  "reqwest",
+ "reth-tasks",
  "secp256k1 0.29.0",
  "serde",
  "serde_json",
@@ -1613,7 +1614,6 @@ dependencies = [
  "sov-rollup-interface",
  "thiserror 2.0.12",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -2288,6 +2288,7 @@ dependencies = [
  "regex",
  "reqwest",
  "reth-primitives",
+ "reth-tasks",
  "reth-transaction-pool",
  "revm",
  "risc0-binfmt",
@@ -2312,7 +2313,6 @@ dependencies = [
  "sp1-helper",
  "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
  "tracing-subscriber 0.3.19",
 ]
@@ -2341,6 +2341,7 @@ dependencies = [
  "prover-services",
  "rand 0.8.5",
  "rayon",
+ "reth-tasks",
  "rs_merkle",
  "serde",
  "short-header-proof-provider",
@@ -2354,7 +2355,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
- "tokio-util",
  "tower 0.4.13",
  "tracing",
  "tracing-subscriber 0.3.19",
@@ -2396,6 +2396,7 @@ dependencies = [
  "lru 0.13.0",
  "metrics 0.23.0",
  "reth-primitives",
+ "reth-tasks",
  "rocksdb",
  "rs_merkle",
  "serde",
@@ -2412,7 +2413,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tokio",
- "tokio-util",
  "toml",
  "tower 0.4.13",
  "tower-http",
@@ -2422,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=1e3b1b501aa2a5b7b8f89a014ec4871d2edca6a9#1e3b1b501aa2a5b7b8f89a014ec4871d2edca6a9"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=055e7b2#055e7b2f3a4f8112016368c430666c1c16800f4b"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2433,6 +2433,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
+ "nix",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -2522,6 +2523,7 @@ dependencies = [
  "metrics 0.23.0",
  "metrics-derive",
  "once_cell",
+ "reth-tasks",
  "rs_merkle",
  "serde",
  "sov-db",
@@ -2533,7 +2535,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -2558,6 +2559,7 @@ dependencies = [
  "once_cell",
  "prover-services",
  "rand 0.8.5",
+ "reth-tasks",
  "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -2568,7 +2570,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -2665,7 +2666,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
- "tokio-util",
  "tracing",
  "tracing-subscriber 0.3.19",
 ]
@@ -2698,6 +2698,7 @@ dependencies = [
  "futures",
  "hex",
  "jmt",
+ "reth-tasks",
  "serde",
  "sov-db",
  "sov-prover-storage-manager",
@@ -2706,7 +2707,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 
@@ -5951,6 +5951,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
+dependencies = [
+ "bitflags 2.8.0",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
+
+[[package]]
 name = "no_std_strings"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8618,9 +8630,9 @@ dependencies = [
 
 [[package]]
 name = "revm-inspectors"
-version = "0.18.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dee7d2bed492744ec778066909fd5da0e144ddab5e36555a78187db2378bdef8"
+checksum = "8a32ec21c38a85f83773e6b3cdb7060aae8ac9edb291118fbfd4da7f2a50e620"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
@@ -9956,6 +9968,7 @@ dependencies = [
  "derive_more 1.0.0",
  "jsonrpsee",
  "prover-services",
+ "reth-tasks",
  "sov-db",
  "sov-ledger-rpc",
  "sov-modules-api",
@@ -10510,8 +10523,6 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
- "futures-util",
- "hashbrown 0.14.5",
  "pin-project-lite",
  "slab",
  "tokio",

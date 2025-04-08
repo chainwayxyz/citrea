@@ -43,10 +43,10 @@ once_cell = { workspace = true, default-features = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
+reth-tasks = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 tower = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

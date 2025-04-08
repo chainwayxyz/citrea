@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::RollupParams;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use reth_tasks::TaskExecutor;
 
 pub(super) enum DaServiceKeyKind {
     #[allow(dead_code)]
@@ -16,7 +16,7 @@ pub(super) enum DaServiceKeyKind {
 }
 
 pub(super) async fn spawn_bitcoin_da_service(
-    task_manager: &mut TaskManager<()>,
+    task_executor: TaskExecutor,
     da_config: &BitcoinConfig,
     test_dir: PathBuf,
     kind: DaServiceKeyKind,
@@ -59,9 +59,8 @@ pub(super) async fn spawn_bitcoin_da_service(
         .unwrap(),
     );
 
-    task_manager.spawn(TaskType::Secondary, |tk| {
-        bitcoin_da_service.clone().run_da_queue(rx, tk)
-    });
+    task_executor
+        .spawn_with_graceful_shutdown_signal(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
     bitcoin_da_service
 }

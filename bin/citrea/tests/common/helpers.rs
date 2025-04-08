@@ -8,7 +8,6 @@ use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -18,6 +17,7 @@ use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PruningConfig;
+use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
@@ -62,7 +62,7 @@ pub async fn start_rollup(
     sequencer_config: Option<SequencerConfig>,
     network: Option<Network>,
     let_hell_loose: bool,
-) -> TaskManager<()> {
+) -> TaskManager {
     // create rollup config default creator function and use them here for the configs
 
     // We enable risc0 dev mode in tests because the provers in dev mode generate fake receipts that can be verified if the verifier is also in dev mode
@@ -139,7 +139,7 @@ pub async fn start_rollup(
 
     let Dependencies {
         da_service,
-        mut task_manager,
+        task_manager,
         l2_block_channel,
     } = mock_demo_rollup
         .setup_dependencies(
@@ -155,6 +155,8 @@ pub async fn start_rollup(
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
     };
+
+    let task_executor = task_manager.executor();
 
     // I am sorry
     if let_hell_loose {
@@ -223,23 +225,27 @@ pub async fn start_rollup(
             l2_block_tx,
             rpc_module,
             backup_manager,
+            task_executor.clone(),
         )
         .unwrap();
 
         start_rpc_server(
             rollup_config.rpc,
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            sequencer
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
-        });
+        task_executor.spawn_critical_with_graceful_shutdown_signal(
+            "Sequencer",
+            |shutdown_signal| async move {
+                sequencer
+                    .run(shutdown_signal)
+                    .instrument(span)
+                    .await
+                    .unwrap();
+            },
+        );
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
@@ -261,29 +267,28 @@ pub async fn start_rollup(
 
         start_rpc_server(
             rollup_config.rpc.clone(),
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             let start_l1_height = rollup_config
                 .runner
                 .map_or(1, |runner| runner.scan_l1_start_height);
             l1_block_handler
-                .run(start_l1_height, cancellation_token)
+                .run(start_l1_height, shutdown_signal)
                 .instrument(handler_span.clone())
                 .await
         });
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            prover
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
-        });
+        task_executor.spawn_critical_with_graceful_shutdown_signal(
+            "BatchProver",
+            |shutdown_signal| async move {
+                prover.run(shutdown_signal).instrument(span).await.unwrap();
+            },
+        );
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
 
@@ -315,25 +320,24 @@ pub async fn start_rollup(
 
         start_rpc_server(
             rollup_config.rpc.clone(),
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-            l1_block_handler
-                .run(starting_block, cancellation_token)
-                .instrument(handler_span.clone())
-                .await
-        });
+        task_executor.spawn_critical_with_graceful_shutdown_signal(
+            "LightClient",
+            |shutdown_signal| async move {
+                l1_block_handler
+                    .run(starting_block, shutdown_signal)
+                    .instrument(handler_span.clone())
+                    .await
+            },
+        );
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            rollup
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            rollup.run(shutdown_signal).instrument(span).await.unwrap();
         });
     } else {
         let span = info_span!("FullNode");
@@ -356,38 +360,35 @@ pub async fn start_rollup(
 
         start_rpc_server(
             rollup_config.rpc.clone(),
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             let start_l1_height = rollup_config
                 .runner
                 .map_or(1, |runner| runner.scan_l1_start_height);
             l1_block_handler
-                .run(start_l1_height, cancellation_token)
+                .run(start_l1_height, shutdown_signal)
                 .instrument(handler_span.clone())
                 .await
         });
 
         // Spawn pruner if configs are set
         if let Some(pruner) = pruner {
-            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-                pruner
-                    .run(StorageNodeType::FullNode, cancellation_token)
-                    .await
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                pruner.run(StorageNodeType::FullNode, shutdown_signal).await
             });
         }
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            rollup
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
-        });
+        task_executor.spawn_critical_with_graceful_shutdown_signal(
+            "FullNode",
+            |shutdown_signal| async move {
+                rollup.run(shutdown_signal).instrument(span).await.unwrap();
+            },
+        );
     }
 
     task_manager

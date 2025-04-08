@@ -24,6 +24,7 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
+use reth_tasks::shutdown::GracefulShutdown;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
@@ -52,7 +53,6 @@ use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
-use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
@@ -558,10 +558,10 @@ where
         Ok(())
     }
 
-    #[instrument(level = "trace", skip(self, cancellation_token), err, ret)]
+    #[instrument(level = "trace", skip(self, shutdown_signal), err, ret)]
     pub async fn run(
         &mut self,
-        cancellation_token: CancellationToken,
+        mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service
@@ -610,14 +610,14 @@ where
         tokio::spawn(commitment_service.run(
             self.storage_manager.clone(),
             self.l2_block_hash,
-            cancellation_token.child_token(),
+            shutdown_signal.clone(),
         ));
 
         tokio::spawn(da_block_monitor(
             self.da_service.clone(),
             da_height_update_tx,
             self.config.da_update_interval_ms,
-            cancellation_token.child_token(),
+            shutdown_signal.clone(),
         ));
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
@@ -658,7 +658,7 @@ where
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
                             // Cancel child tasks
-                            cancellation_token.cancel();
+                            drop(shutdown_signal);
                             // we never want to continue if we have missed blocks
                             return Err(e);
                         }
@@ -688,7 +688,7 @@ where
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
                             // Cancel child tasks
-                            cancellation_token.cancel();
+                            drop(shutdown_signal);
                             // we never want to continue if we have missed blocks
                             return Err(e);
                         }
@@ -706,7 +706,7 @@ where
                         }
                     };
                 },
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     info!("Shutting down sequencer");
                     da_height_update_rx.close();
                     self.l2_force_block_rx.close();

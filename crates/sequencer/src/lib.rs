@@ -10,6 +10,7 @@ use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
+use reth_tasks::TaskExecutor;
 pub use rpc::SequencerRpcClient;
 pub use runner::{CitreaSequencer, MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK};
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -48,6 +49,7 @@ pub fn build_services<Da, DB>(
     fork_manager: ForkManager<'static>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
+    task_executor: TaskExecutor,
 ) -> Result<(CitreaSequencer<Da, DB>, RpcModule<()>)>
 where
     Da: DaService,
@@ -60,6 +62,7 @@ where
     let mempool = Arc::new(CitreaMempool::new(
         db_provider.clone(),
         sequencer_config.mempool_conf.clone(),
+        task_executor,
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 

@@ -57,19 +57,17 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         None,
     );
     let sequener_config = SequencerConfig::default();
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequener_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequener_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -94,7 +92,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         "0x47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad".to_string()
     );
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -119,24 +117,22 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
         max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
     send_tx_test_to_eth(port).await.unwrap();
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -162,19 +158,17 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -183,7 +177,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 
     test_getlogs(&test_client).await.unwrap();
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -206,19 +200,17 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../../resources/genesis/mock/"),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -259,7 +251,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             .unwrap()
     );
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 
@@ -395,19 +387,17 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../../resources/genesis/mock/"),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -528,7 +518,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(acc_proof_latest, acc_proof_2);
     }
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 
@@ -877,19 +867,17 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -1260,6 +1248,6 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         )
     }
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }

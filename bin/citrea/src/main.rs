@@ -10,7 +10,6 @@ use citrea::{
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
-use citrea_common::tasks::manager::TaskType;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
@@ -20,6 +19,7 @@ use citrea_storage_ops::pruning::types::StorageNodeType;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
+use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
@@ -34,6 +34,8 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
+use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
 use tracing::{debug, error, info, instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
@@ -192,7 +194,7 @@ where
 
     let Dependencies {
         da_service,
-        mut task_manager,
+        task_manager,
         l2_block_channel,
     } = rollup_blueprint
         .setup_dependencies(
@@ -231,6 +233,8 @@ where
         &backup_manager,
     )?;
 
+    let task_executor = task_manager.executor();
+
     match node_type {
         NodeType::Sequencer(sequencer_config) => {
             let (mut sequencer, rpc_module) = rollup_blueprint
@@ -244,21 +248,20 @@ where
                     l2_block_tx,
                     rpc_module,
                     backup_manager,
+                    task_executor.clone(),
                 )
                 .expect("Could not start sequencer");
 
-            start_rpc_server(
-                rollup_config.rpc.clone(),
-                &mut task_manager,
-                rpc_module,
-                None,
-            );
+            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-                if let Err(e) = sequencer.run(cancellation_token).await {
-                    error!("Error: {}", e);
-                }
-            });
+            task_executor.spawn_critical_with_graceful_shutdown_signal(
+                "sequencer",
+                |shutdown_signal| async move {
+                    if let Err(e) = sequencer.run(shutdown_signal).await {
+                        error!("Error: {}", e);
+                    }
+                },
+            );
         }
         NodeType::BatchProver(batch_prover_config) => {
             let (prover, l1_block_handler, rpc_module) =
@@ -277,12 +280,7 @@ where
                 .await
                 .expect("Could not start batch prover");
 
-            start_rpc_server(
-                rollup_config.rpc.clone(),
-                &mut task_manager,
-                rpc_module,
-                None,
-            );
+            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
             let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
                 Some(l1_height) => l1_height.0,
@@ -296,17 +294,18 @@ where
                 }
             };
 
-            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-                l1_block_handler
-                    .run(l1_start_height, cancellation_token)
-                    .await
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                l1_block_handler.run(l1_start_height, shutdown_signal).await
             });
 
-            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-                if let Err(e) = prover.run(cancellation_token).await {
-                    error!("Error: {}", e);
-                }
-            });
+            task_executor.spawn_critical_with_graceful_shutdown_signal(
+                "BatchProver",
+                |shutdown_signal| async move {
+                    if let Err(e) = prover.run(shutdown_signal).await {
+                        error!("Error: {}", e);
+                    }
+                },
+            );
         }
         NodeType::LightClientProver(light_client_prover_config) => {
             let starting_block = match ledger_db.get_last_scanned_l1_height()? {
@@ -331,21 +330,17 @@ where
                 .await
                 .expect("Could not start light client prover");
 
-            start_rpc_server(
-                rollup_config.rpc.clone(),
-                &mut task_manager,
-                rpc_module,
-                None,
+            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+
+            task_executor.spawn_critical_with_graceful_shutdown_signal(
+                "LightClient",
+                |shutdown_signal| async move {
+                    l1_block_handler.run(starting_block, shutdown_signal).await
+                },
             );
 
-            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-                l1_block_handler
-                    .run(starting_block, cancellation_token)
-                    .await
-            });
-
-            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-                if let Err(e) = prover.run(cancellation_token).await {
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                if let Err(e) = prover.run(shutdown_signal).await {
                     error!("Error: {}", e);
                 }
             });
@@ -366,12 +361,7 @@ where
                 .await
                 .expect("Could not start full-node");
 
-            start_rpc_server(
-                rollup_config.rpc.clone(),
-                &mut task_manager,
-                rpc_module,
-                None,
-            );
+            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
             let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
                 Some(l1_height) => l1_height.0,
@@ -385,30 +375,52 @@ where
                 }
             };
 
-            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-                l1_block_handler
-                    .run(l1_start_height, cancellation_token)
-                    .await
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                l1_block_handler.run(l1_start_height, shutdown_signal).await
             });
 
             // Spawn pruner if configs are set
             if let Some(pruner_service) = pruner_service {
-                task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+                task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                     pruner_service
-                        .run(StorageNodeType::FullNode, cancellation_token)
+                        .run(StorageNodeType::FullNode, shutdown_signal)
                         .await
                 });
             }
 
-            task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-                if let Err(e) = full_node.run(cancellation_token).await {
-                    error!("Error: {}", e);
-                }
-            });
+            task_executor.spawn_critical_with_graceful_shutdown_signal(
+                "FullNode",
+                |shutdown_signal| async move {
+                    if let Err(e) = full_node.run(shutdown_signal).await {
+                        error!("Error: {}", e);
+                    }
+                },
+            );
         }
     }
 
-    task_manager.wait_shutdown().await;
+    wait_shutdown(task_manager).await;
 
     Ok(())
+}
+
+/// Wait for a termination signal and cancel all running tasks
+pub async fn wait_shutdown(task_manager: TaskManager) {
+    let mut term_signal =
+        signal(SignalKind::terminate()).expect("Failed to create termination signal");
+    let mut interrupt_signal =
+        signal(SignalKind::interrupt()).expect("Failed to create interrupt signal");
+
+    let wait_duration = Duration::from_secs(5);
+    tokio::select! {
+        _ = signal::ctrl_c() => {
+            task_manager.graceful_shutdown_with_timeout(wait_duration);
+        }
+        _ = term_signal.recv() => {
+            task_manager.graceful_shutdown_with_timeout(wait_duration);
+        },
+        _ = interrupt_signal.recv() => {
+            task_manager.graceful_shutdown_with_timeout(wait_duration);
+        }
+    }
 }

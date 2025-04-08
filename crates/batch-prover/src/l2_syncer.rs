@@ -9,6 +9,7 @@ use citrea_common::l2::{process_l2_block, sync_l2, ProcessL2BlockResult};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
@@ -21,7 +22,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::metrics::BATCH_PROVER_METRICS;
@@ -94,7 +94,7 @@ where
     }
 
     /// Runs the L2Syncer in a blocking manner.
-    pub async fn run(&mut self, cancellation_token: CancellationToken) {
+    pub async fn run(&mut self, mut shutdown_signal: GracefulShutdown) {
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
             self.start_l2_height,
@@ -125,7 +125,7 @@ where
                         }
                     }
                 },
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     info!("Shutting down L2 sync worker");
                     l2_rx.close();
                     return;

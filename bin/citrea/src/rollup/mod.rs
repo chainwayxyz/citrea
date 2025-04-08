@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use citrea_batch_prover::da_block_handler::L1BlockHandler as BatchProverL1BlockHandler;
 use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::backup::BackupManager;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, SequencerConfig,
 };
@@ -21,6 +20,7 @@ use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
 use jsonrpsee::RpcModule;
+use reth_tasks::{TaskExecutor, TaskManager};
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
@@ -62,7 +62,7 @@ pub struct Storage {
 /// Group for initialization dependencies
 pub struct Dependencies<T: RollupBlueprint> {
     /// The task manager
-    pub task_manager: TaskManager<()>,
+    pub task_manager: TaskManager,
     /// The DA service
     pub da_service: Arc<<T as RollupBlueprint>::DaService>,
     /// The channel on which L2 block number is broadcasted.
@@ -78,9 +78,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_da_wallet: bool,
     ) -> Result<Dependencies<Self>> {
-        let mut task_manager = TaskManager::default();
+        let task_manager = TaskManager::current();
         let da_service = self
-            .create_da_service(rollup_config, require_da_wallet, &mut task_manager)
+            .create_da_service(rollup_config, require_da_wallet, task_manager.executor())
             .await?;
         let (l2_block_tx, l2_block_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -222,6 +222,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         l2_block_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
+        task_executor: TaskExecutor,
     ) -> Result<(CitreaSequencer<Self::DaService, LedgerDB>, RpcModule<()>)> {
         let current_l2_height = ledger_db
             .get_head_l2_block()
@@ -248,6 +249,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             rpc_module,
             backup_manager,
+            task_executor,
         )
     }
 
