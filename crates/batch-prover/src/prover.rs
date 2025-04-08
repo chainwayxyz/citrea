@@ -165,7 +165,7 @@ where
         with_sampling: bool,
     ) -> anyhow::Result<Vec<Uuid>> {
         if self.proving_paused {
-            info!("Proving is paused");
+            debug!("Proving is paused");
             return Ok(Vec::new());
         }
 
