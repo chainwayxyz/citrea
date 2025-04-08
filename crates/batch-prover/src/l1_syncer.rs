@@ -142,6 +142,7 @@ where
                     continue;
                 }
 
+
                 match self.ledger_db.get_commitment_by_index(index)? {
                     Some(db_commitment) => {
                         if commitment != &db_commitment {
@@ -151,6 +152,8 @@ where
                         }
                     }
                     None => {
+                        info!("Found commitment with index {}", index);
+
                         self.ledger_db
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
