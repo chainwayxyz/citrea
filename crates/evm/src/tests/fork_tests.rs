@@ -548,7 +548,6 @@ fn test_kzg_point_eval_should_revert() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    // expect this call to fail because we do not have the kzg feature of revm enabled on fork1
     let receipts: Vec<_> = evm
         .receipts
         .iter(&mut working_set.accessory_state())

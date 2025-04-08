@@ -5,6 +5,7 @@ use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use revm::context::BlockEnv;
 use revm::context_interface::block::BlobExcessGasAndPrice;
+use revm::primitives::hardfork::SpecId;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
@@ -15,7 +16,7 @@ use tracing::instrument;
 use crate::evm::primitive_types::Block;
 #[cfg(feature = "native")]
 use crate::evm::system_events::SystemEvent;
-use crate::Evm;
+use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
@@ -70,7 +71,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg.base_fee_params,
         );
 
-        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0, true));
+        let evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec);
+
+        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(
+            0,
+            evm_spec.is_enabled_in(SpecId::PRAGUE),
+        ));
 
         let new_pending_env = BlockEnv {
             number: parent_block_number + 1,
@@ -132,6 +138,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map(|tx| tx.receipt.receipt.clone())
             .collect();
 
+        let evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec);
+
         let header = AlloyHeader {
             parent_hash: parent_block_hash,
             timestamp: self.block_env.timestamp,
@@ -142,7 +150,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             state_root: KECCAK_EMPTY,
             transactions_root: proofs::calculate_transaction_root(transactions.as_slice()),
             receipts_root: proofs::calculate_receipt_root(receipts.as_slice()),
-            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             logs_bloom: receipts
                 .iter()
                 .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom()),
@@ -157,10 +164,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: Some(B256::ZERO),
-            requests_hash: Some(EMPTY_REQUESTS_HASH),
+            requests_hash: if let SpecId::PRAGUE = evm_spec {
+                Some(EMPTY_REQUESTS_HASH)
+            } else {
+                None
+            },
         };
 
         let block = Block {

@@ -5,6 +5,7 @@ use once_cell::race::OnceBox;
 use revm::context::result::{
     EVMError, FromStringError, HaltReason, InvalidTransaction, ResultAndState,
 };
+use revm::context::transaction::AuthorizationTr;
 use revm::context::{
     Block, BlockEnv, Cfg, CfgEnv, ContextSetters, ContextTr, Evm, EvmData, JournalTr, Transaction,
     TxEnv,
@@ -23,6 +24,7 @@ use revm::interpreter::{
 };
 use revm::primitives::hardfork::SpecId;
 use revm::primitives::{Address, B256, KECCAK_EMPTY, U256};
+use revm::state::Bytecode;
 use revm::{Context, Database, ExecuteEvm, Journal, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{InspectEvm, Inspector};
@@ -180,10 +182,11 @@ pub struct CitreaEvm<CTX, INSP>(
 
 impl<CTX: CitreaContextTr, INSP> CitreaEvm<CTX, INSP> {
     pub fn new(ctx: CTX, inspector: INSP) -> Self {
+        let spec = ctx.cfg().spec().into();
         Self(Evm {
             data: EvmData { ctx, inspector },
             instruction: EthInstructions::new_mainnet(),
-            precompiles: CitreaPrecompiles::default(),
+            precompiles: CitreaPrecompiles::new_with_spec(spec),
         })
     }
 }
@@ -357,21 +360,25 @@ pub struct CitreaPrecompiles {
     inner: EthPrecompiles,
 }
 
-/// Returns precompiles.
-pub fn citrea_precompiles() -> &'static Precompiles {
+// Returns precompiles for Citrea's Cancun spec.
+pub fn cancun() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         // Berlin because POINT_EVALUATION precompile(0x0A) is enabled in Cancun
-        // then we add prague precompiles
-        // and then we add the rest of the precompiles
-        let mut precompiles = Precompiles::berlin().clone();
+        Box::new(Precompiles::berlin().clone())
+    })
+}
 
+// Returns precompiles for Citrea's Prague spec.
+pub fn prague() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = cancun().clone();
         // Add prague precompiles
         // Effectively skipping kzg precompiles in Cancun
         precompiles.extend(bls12_381::precompiles());
 
         precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
-
         Box::new(precompiles)
     })
 }
@@ -380,8 +387,11 @@ impl CitreaPrecompiles {
     /// Create a new precompile provider with the given Spec.
     #[inline]
     pub fn new_with_spec(spec: SpecId) -> Self {
-        let precompiles = citrea_precompiles();
-
+        let precompiles = match spec {
+            SpecId::CANCUN => cancun(),
+            SpecId::PRAGUE => prague(),
+            _ => panic!("Citrea precompiles are not supported for this spec"),
+        };
         Self {
             inner: EthPrecompiles { precompiles, spec },
         }
@@ -612,8 +622,7 @@ fn calc_diff_size<CTX>(context: &mut CTX) -> usize
 where
     CTX: CitreaContextTr,
 {
-    let tx_caller = context.tx().caller();
-    let journaled_state = context.journal_ref();
+    let (journaled_state, tx) = (context.journal_ref(), context.tx());
 
     // For each call there is a journal entry.
     // We need to iterate over all journal entries to get the size of the diff.
@@ -629,8 +638,48 @@ where
     let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
 
     // tx.from always has `account_info_changed` because its nonce is incremented
+    let tx_caller = tx.caller();
     let from = account_changes.entry(&tx_caller).or_default();
     from.account_info_changed = true;
+
+    // Special handling for eip7702 transactions
+    // as there is no journal entry for changes on the authority
+
+    // collecting then consuming the iterator
+    // to avoid borrowing issues
+    // also not doing tx type check as authorization_list will return empty list
+    let auths = tx
+        .authorization_list()
+        .filter_map(|auth| {
+            let delegated_to = auth.address();
+            let authority = auth.authority();
+            authority.map(|authority| (authority, delegated_to))
+        })
+        .collect::<Vec<_>>();
+
+    for (authority, delegated_to) in &auths {
+        // if returns None, the authorization failed at one of the following checks:
+        // - if the chain id check failed
+        // - if nonce was u64::MAX
+        // - if the signer couldn't be recovered <-- this case is not possible as we checked this on the above
+        //   if let
+        if let Some(authority_in_state) = journaled_state.state.get(authority) {
+            // if the final code of the authority is equal to delegated address
+            // or the delegated address is zero and the account code hash is KECCAK_EMPTY
+            // we know the authorization went through
+            if (delegated_to == &Address::ZERO && authority_in_state.info.code_hash == KECCAK_EMPTY)
+                || authority_in_state
+                    .info
+                    .code
+                    .as_ref()
+                    .is_some_and(|code| *code == Bytecode::new_eip7702(*delegated_to))
+            {
+                // we set account changed for the authority
+                let account = account_changes.entry(authority).or_default();
+                account.account_info_changed = true;
+            }
+        }
+    }
 
     for entry in journal {
         match entry {
