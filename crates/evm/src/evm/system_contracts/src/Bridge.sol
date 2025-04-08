@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
+import "../lib/P2TRVerify.sol";
 import "./BitcoinLightClient.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
