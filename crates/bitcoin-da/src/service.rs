@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Context};
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -33,6 +33,7 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::error::BitcoinServiceError;
 use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::builders::body_builders::{
     backup_chunked_txs, backup_complete_txs, create_light_client_transactions, DaTxs, RawTxData,
@@ -53,6 +54,8 @@ use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
 use crate::REVEAL_OUTPUT_AMOUNT;
+
+type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 #[cfg(feature = "testing")]
 pub const FINALITY_DEPTH: u64 = 5; // blocks
@@ -82,7 +85,7 @@ pub struct BitcoinServiceConfig {
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
-    fn from_env() -> Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             node_url: std::env::var("NODE_URL")?,
             node_username: std::env::var("NODE_USERNAME")?,
@@ -208,6 +211,7 @@ impl BitcoinService {
         token: CancellationToken,
     ) {
         trace!("BitcoinDA queue is initialized. Waiting for the first request...");
+        let mut fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
 
         loop {
             select! {
@@ -222,7 +226,7 @@ impl BitcoinService {
                         loop {
                             // Build and send tx with retries:
                             let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
-                                Ok(rate) => rate,
+                                Ok(rate) => (rate as f64 * fee_rate_multiplier) as u64,
                                 Err(e) => {
                                     error!(?e, "Failed to call get_fee_rate. Retrying...");
                                     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -245,10 +249,16 @@ impl BitcoinService {
                                 if let Err(e) = self.monitoring.monitor_transaction_chain(txids).await {
                                     error!(?e, "Failed to monitor tx chain");
                                 }
+
+                                fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
                             }
                             Err(e) => {
                                 error!(?e, "Failed to send transaction to DA layer");
                                 tokio::time::sleep(Duration::from_secs(1)).await;
+
+                                if let BitcoinServiceError::MinRelayFeeNotMet = e {
+                                    fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
+                                }
                                 continue;
                                 }
                             }
@@ -282,7 +292,7 @@ impl BitcoinService {
             .list_unspent(Some(0), None, None, None, None)
             .await?;
         if utxos.is_empty() {
-            bail!("There are no UTXOs");
+            return Err(BitcoinServiceError::MissingUTXO);
         }
 
         let utxos: Vec<UTXO> = utxos
@@ -295,7 +305,7 @@ impl BitcoinService {
             .map(Into::into)
             .collect();
         if utxos.is_empty() {
-            bail!("There are no spendable UTXOs");
+            return Err(BitcoinServiceError::MissingSpendableUTXO);
         }
 
         Ok(utxos)
@@ -331,8 +341,7 @@ impl BitcoinService {
             .address
             .clone()
             .context("Missing address")?
-            .require_network(network)
-            .context("Invalid network for address")?;
+            .require_network(network)?;
 
         match tx_request {
             DaTxRequest::ZKProof(zkproof) => {
@@ -510,7 +519,10 @@ impl BitcoinService {
                 .await?;
 
             if let Some(errors) = signed_raw_commit_tx.errors {
-                bail!("Failed to sign commit transaction: {:?}", errors);
+                return Err(BitcoinServiceError::InvalidTransaction(format!(
+                    "Failed to sign commit transaction: {:?}",
+                    errors
+                )));
             }
 
             raw_txs.push(signed_raw_commit_tx.hex);
@@ -540,10 +552,10 @@ impl BitcoinService {
             .await?;
 
         if let Some(errors) = signed_raw_commit_tx.errors {
-            bail!(
+            return Err(BitcoinServiceError::InvalidTransaction(format!(
                 "Failed to sign the aggregate commit transaction: {:?}",
                 errors
-            );
+            )));
         }
 
         raw_txs.push(signed_raw_commit_tx.hex);
@@ -586,7 +598,10 @@ impl BitcoinService {
             .await?;
 
         if let Some(errors) = signed_raw_commit_tx.errors {
-            bail!("Failed to sign commit transaction: {:?}", errors);
+            return Err(BitcoinServiceError::InvalidTransaction(format!(
+                "Failed to sign commit transaction: {:?}",
+                errors
+            )));
         }
 
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
@@ -627,12 +642,15 @@ impl BitcoinService {
                 ..
             } = res
             {
-                bail!(
-                    "{}",
-                    reject_reason
-                        .or(package_error)
-                        .unwrap_or("[testmempoolaccept] Unknown rejection".to_string())
-                )
+                let reason = reject_reason
+                    .or(package_error)
+                    .unwrap_or("[testmempoolaccept] Unknown rejection".to_string());
+
+                if reason.contains("min relay fee not met") {
+                    return Err(BitcoinServiceError::MinRelayFeeNotMet);
+                }
+
+                return Err(BitcoinServiceError::MempoolRejection(reason));
             }
         }
         Ok(())
@@ -673,14 +691,11 @@ impl BitcoinService {
         };
 
         let TxStatus::Pending { .. } = tx.status else {
-            bail!(
-                "Cannot bump fee for TX with status: {:?}. Transaction must be pending",
-                tx.status
-            )
+            return Err(BitcoinServiceError::WrongStatusForBumping(tx.status));
         };
 
         let Some(utxo) = self.get_prev_utxo().await else {
-            bail!("Cannot bump fee without prev_utxo available")
+            return Err(BitcoinServiceError::MissingPreviousUTXO);
         };
 
         let funded_psbt = match method {
@@ -700,12 +715,10 @@ impl BitcoinService {
         let processed = self.client.finalize_psbt(&wallet_psbt.psbt, None).await?;
 
         let Some(raw_hex) = processed.hex else {
-            bail!("Couldn't finalize psbt")
+            return Err(BitcoinServiceError::PsbtFinalizationFailure);
         };
 
-        if let Err(e) = self.client.test_mempool_accept(&[&raw_hex]).await {
-            bail!("Tx not accepted in mempool : {e}");
-        }
+        self.client.test_mempool_accept(&[&raw_hex]).await?;
 
         let new_txid = self.client.send_raw_transaction(&raw_hex).await?;
         histogram!("da_transaction_size").record(raw_hex.len() as f64);
@@ -741,7 +754,7 @@ impl DaService for BitcoinService {
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock> {
+    async fn get_block_at(&self, height: u64) -> anyhow::Result<Self::FilteredBlock> {
         debug!("Getting block at height {}", height);
 
         let block_hash;
@@ -774,7 +787,9 @@ impl DaService for BitcoinService {
 
     // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_last_finalized_block_header(&self) -> Result<<Self::Spec as DaSpec>::BlockHeader> {
+    async fn get_last_finalized_block_header(
+        &self,
+    ) -> anyhow::Result<<Self::Spec as DaSpec>::BlockHeader> {
         let block_count = self.client.get_block_count().await?;
 
         let finalized_blockhash = self
@@ -789,7 +804,7 @@ impl DaService for BitcoinService {
 
     // Fetch the head block of DA.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_head_block_header(&self) -> Result<<Self::Spec as DaSpec>::BlockHeader> {
+    async fn get_head_block_header(&self) -> anyhow::Result<<Self::Spec as DaSpec>::BlockHeader> {
         let best_blockhash = self.client.get_best_block_hash().await?;
 
         let head_block_header = self.get_block_by_hash(best_blockhash.into()).await?;
@@ -797,7 +812,7 @@ impl DaService for BitcoinService {
         Ok(head_block_header.header)
     }
 
-    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> anyhow::Result<Vec<u8>, Self::Error> {
         BitcoinSpec::decompress_chunks(complete_chunks)
             .map_err(|_| anyhow!("Failed to parse complete chunks"))
     }
@@ -1121,7 +1136,7 @@ impl DaService for BitcoinService {
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
-    ) -> Result<<Self as DaService>::TransactionId> {
+    ) -> anyhow::Result<<Self as DaService>::TransactionId> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
         queue.send(TxRequestWithNotifier {
@@ -1138,7 +1153,7 @@ impl DaService for BitcoinService {
     }
 
     #[instrument(level = "trace", skip(self))]
-    async fn get_fee_rate(&self) -> Result<u128> {
+    async fn get_fee_rate(&self) -> anyhow::Result<u128> {
         let sat_vb_ceil = self.fee.get_fee_rate_as_sat_vb().await? as u128;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
@@ -1150,7 +1165,7 @@ impl DaService for BitcoinService {
     async fn get_block_by_hash(
         &self,
         hash: <Self::Spec as DaSpec>::SlotHash,
-    ) -> Result<Self::FilteredBlock> {
+    ) -> anyhow::Result<Self::FilteredBlock> {
         let hash = hash.0;
         debug!("Getting block with hash {:?}", hash);
 
