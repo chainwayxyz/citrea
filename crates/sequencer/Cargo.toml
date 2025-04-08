@@ -21,6 +21,7 @@ backoff = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
 digest = { workspace = true }
+futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 metrics = { workspace = true }

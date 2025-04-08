@@ -156,6 +156,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         storage_manager: ProverStorageManager,
         rpc_module: RpcModule<()>,
         l2_block_tx: broadcast::Sender<u64>,
+        task_executor: TaskExecutor,
     ) -> Result<(
         citrea_sequencer::reorg::syncing::CitreaReorgSequencer<Self::DaService, LedgerDB>,
         RpcModule<()>,
@@ -182,6 +183,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager,
             rpc_module,
             l2_block_tx,
+            task_executor,
         )
     }
 

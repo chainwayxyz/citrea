@@ -2636,6 +2636,7 @@ dependencies = [
  "citrea-stf",
  "digest 0.10.7",
  "ed25519-dalek",
+ "futures",
  "hex",
  "jsonrpsee",
  "l2-block-rule-enforcer",

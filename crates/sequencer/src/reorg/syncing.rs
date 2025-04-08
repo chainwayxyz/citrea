@@ -20,9 +20,11 @@ use citrea_evm::{
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use futures::FutureExt;
 use jsonrpsee::core::client::{ClientT, Error as JsonrpseeError};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use reth_primitives::{Recovered, TransactionSigned};
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -44,7 +46,6 @@ use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, trace, warn};
 
 use super::types::SoftConfirmationResponse;
@@ -127,7 +128,7 @@ where
     }
     pub async fn run(
         &mut self,
-        cancellation_token: CancellationToken,
+        mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
         tracing::info!("running");
         let mut start_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
@@ -138,8 +139,10 @@ where
         };
 
         loop {
-            if cancellation_token.is_cancelled() {
-                tracing::info!("Cancellation token is cancelled, stopping reorg sequencer");
+            // If shutdown singal is triggered return here
+            // Inside your loop
+            if shutdown_signal.clone().now_or_never().is_some() {
+                tracing::info!("Received shutdown signal. Exiting sync loop.");
                 return Ok(());
             }
             let end_l2_height = start_l2_height + self.sync_blocks_count - 1;

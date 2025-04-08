@@ -6,6 +6,7 @@ pub use citrea_common::SequencerConfig;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -36,6 +37,7 @@ pub fn build_reorg_services<Da, DB>(
     storage_manager: ProverStorageManager,
     rpc_module: RpcModule<()>,
     _l2_block_tx: broadcast::Sender<u64>,
+    task_executor: TaskExecutor,
 ) -> Result<(CitreaReorgSequencer<Da, DB>, RpcModule<()>)>
 where
     Da: DaService,
@@ -48,6 +50,7 @@ where
     let mempool = Arc::new(CitreaMempool::new(
         db_provider.clone(),
         sequencer_config.mempool_conf.clone(),
+        task_executor,
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
     let rpc_storage = storage_manager.create_final_view_storage();
