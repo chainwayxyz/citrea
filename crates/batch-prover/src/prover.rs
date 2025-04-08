@@ -12,6 +12,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData};
 use rand::Rng;
+use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
@@ -29,7 +30,6 @@ use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use sov_state::Witness;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tokio_util::sync::CancellationToken;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, instrument, warn};
 use tracing_subscriber::layer::SubscriberExt;
@@ -98,13 +98,13 @@ where
         }
     }
 
-    pub async fn run(mut self, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         self.recover_proving_sessions().await;
 
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 }
                 l1_signal = self.l1_signal_rx.recv() => {

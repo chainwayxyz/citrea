@@ -282,15 +282,16 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            task_manager.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                 l1_syncer.run(shutdown_signal).await
             });
 
-            task_manager.spawn_critical_with_graceful_shutdown_signal("Prover", |shutdown_signal| async move {
-                prover.run(shutdown_signal).await
-            });
+            task_executor.spawn_critical_with_graceful_shutdown_signal(
+                "Prover",
+                |shutdown_signal| async move { prover.run(shutdown_signal).await },
+            );
 
-            task_manager.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                 if let Err(e) = runner.run(shutdown_signal).await {
                     error!("Error: {}", e);
                 }

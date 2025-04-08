@@ -5,6 +5,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
 use citrea_common::RollupPublicKeys;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::DaSpec;
@@ -14,7 +15,6 @@ use tokio::select;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
 use crate::metrics::BATCH_PROVER_METRICS;

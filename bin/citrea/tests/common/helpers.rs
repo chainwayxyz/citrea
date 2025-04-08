@@ -275,7 +275,7 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
-        task_manager.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             l1_syncer
                 .run(shutdown_signal)
                 .instrument(handler_span)
@@ -283,19 +283,13 @@ pub async fn start_rollup(
         });
 
         let handler_span = span.clone();
-        task_manager.spawn_critical_with_graceful_shutdown_signal("Prover", |shutdown_signal| async move {
-            prover
-                .run(shutdown_signal)
-                .instrument(handler_span)
-                .await
-        });
+        task_executor
+            .spawn_critical_with_graceful_shutdown_signal("Prover", |shutdown_signal| async move {
+                prover.run(shutdown_signal).instrument(handler_span).await
+            });
 
-        task_manager.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-            runner
-                .run(shutdown_signal)
-                .instrument(span)
-                .await
-                .unwrap();
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            runner.run(shutdown_signal).instrument(span).await.unwrap();
         });
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
