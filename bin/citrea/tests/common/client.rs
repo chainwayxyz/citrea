@@ -11,7 +11,7 @@ use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, Pro
 use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
 use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
-use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
+use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U32, U64};
 // use reth_rpc_types::TransactionReceipt;
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
 use alloy_rpc_types_trace::geth::{
@@ -821,6 +821,29 @@ impl TestClient {
 
     pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<Uuid> {
         self.http_client.get_proving_jobs(count).await.unwrap()
+    }
+
+    pub(crate) async fn batch_prover_get_commitments_by_l1(
+        &self,
+        l1_height: u64,
+    ) -> Option<Vec<SequencerCommitmentResponse>> {
+        let indices = self
+            .http_client
+            .get_commitment_indices_by_l1(l1_height)
+            .await
+            .unwrap()?;
+        let mut commitments = Vec::with_capacity(indices.len());
+        for index in indices {
+            let commitment = self
+                .http_client
+                .get_sequencer_commitment_by_index(U32::from(index))
+                .await
+                .unwrap()
+                .unwrap();
+            commitments.push(commitment);
+        }
+
+        Some(commitments)
     }
 }
 

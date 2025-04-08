@@ -7,12 +7,11 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::SequencerCommitmentRpcParam;
-use sov_rollup_interface::services::da::DaService;
 
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
     wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job,
-    wait_for_prover_l1_height, wait_for_prover_l1_height_proofs, NodeMode,
+    wait_for_prover_l1_height, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -127,41 +126,31 @@ async fn full_node_verify_proof_and_store() {
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_client, 4, None).await;
 
-    // Commitment submitted
-    wait_for_l1_block(&da_service, 3, None).await;
+    // wait for commitment at block 3, mockda produces block when it receives a transaction, hence 3
+    let commitments = wait_for_commitment(&da_service, 3, None).await;
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
-    // Full node sync commitment block
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_client, 5, None).await;
-
-    // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height_proofs(&prover_client, 3, None)
+    // wait for prover to see commitment
+    wait_for_prover_l1_height(&prover_client, 3, None)
         .await
         .unwrap();
 
     let commitments = prover_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(3)
+        .batch_prover_get_commitments_by_l1(3)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
     assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
+    let job_ids = prover_client.get_proving_jobs(1).await;
+    assert_eq!(job_ids.len(), 1);
 
-    let commitments_hash = prover_client
-        .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
+    let response = wait_for_prover_job(&prover_client, job_ids[0], None)
         .await
-        .unwrap()
         .unwrap();
-    assert_eq!(commitments_hash, commitments);
-
-    let prover_proof = prover_client
-        .ledger_get_batch_proofs_by_slot_height(3)
-        .await
-        .unwrap()[0]
-        .clone();
+    let prover_proof = response.proof.unwrap();
 
     // The proof will be in l1 block #4 because prover publishes it after the commitment and
     // in mock da submitting proof and commitments creates a new block.
