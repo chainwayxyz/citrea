@@ -1,5 +1,5 @@
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2StatusHeights, LightClientProofBySlotNumber, ProverLastScannedSlot, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber
+    CommitmentsByNumber, L2StatusHeights, LightClientProofBySlotNumber, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber
 };
 use sov_db::schema::types::{L2HeightStatus, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
@@ -47,7 +47,6 @@ pub(crate) fn rollback_slots(
 // CommitmentIndicesByL1
 // JobIdOfCommitment
 pub(crate) fn rollback_batch_prover_slots(node_type: StorageNodeType, ledger_db: &DB, target_l1: u64) -> anyhow::Result<u64> {
-    let _ = ledger_db.put::<ProverLastScannedSlot>(&(), &SlotNumber(target_l1));
     // target_l1 + 1 due to rollback_slot_by_hash being inclusive
     rollback_slot_by_hash(node_type, ledger_db, SlotNumber(target_l1 + 1))
 }
