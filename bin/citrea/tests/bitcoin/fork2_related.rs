@@ -3,8 +3,8 @@ use std::str::FromStr;
 
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
-use alloy_primitives::{Address, Bytes, U256};
-use alloy_rpc_types::Authorization;
+use alloy_primitives::{Address, Bytes, U256, U64};
+use alloy_rpc_types::{Authorization, TransactionRequest};
 use anyhow::Result;
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
@@ -13,8 +13,8 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_evm::smart_contracts::{
-    KZGPointEvaluationCallerContract, P256VerifyCallerContract, SchnorrVerifyCallerContract,
-    SimpleStorageContract,
+    G1AddCallerContract, KZGPointEvaluationCallerContract, P256VerifyCallerContract,
+    SchnorrVerifyCallerContract, SimpleStorageContract,
 };
 use revm::bytecode::eip7702::Eip7702Bytecode;
 use sha2::Digest;
@@ -100,14 +100,18 @@ impl TestCase for PrecompilesAndEip7702 {
             .unwrap();
         let p256verify_caller_address = seq_test_client.from_addr.create(3);
 
-        // TODO: deploy bls caller contract
+        let _deploy_tx = seq_test_client
+            .deploy_contract(G1AddCallerContract::default().byte_code(), None)
+            .await
+            .unwrap();
+        let g1_add_caller_address = seq_test_client.from_addr.create(4);
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         sequencer.client.send_publish_batch_request().await?;
 
         let last_block = seq_test_client.eth_get_block_by_number(None).await;
 
-        assert_eq!(last_block.transactions.len(), 4);
+        assert_eq!(last_block.transactions.len(), 5);
 
         // send eip7702 tx
         let authority_signer = PrivateKeySigner::random();
@@ -182,14 +186,21 @@ impl TestCase for PrecompilesAndEip7702 {
             )
             .await;
 
-        // TODO: send tx to bls precompile caller
+        let input = Bytes::from_str("0x0000000000000000000000000000000017f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb0000000000000000000000000000000008b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e100000000000000000000000000000000112b98340eee2777cc3c14163dea3ec97977ac3dc5c70da32e6e87578f44912e902ccef9efe28d4a78b8999dfbca942600000000000000000000000000000000186b28d92356c4dfec4b5201ad099dbdede3781f8998ddf929b4cd7756192185ca7b8f4ef7088f813270ac3d48868a21").unwrap();
+        let g1_add_call = seq_test_client
+            .contract_transaction(
+                g1_add_caller_address,
+                G1AddCallerContract::default().call_g1_add(input),
+                None,
+            )
+            .await;
 
         // publish block and make necessary assertions
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         sequencer.client.send_publish_batch_request().await?;
 
         let last_block = seq_test_client.eth_get_block_by_number(None).await;
-        assert_eq!(last_block.transactions.len(), 4);
+        assert_eq!(last_block.transactions.len(), 5);
 
         // authority should have code
         assert!(set_code_tx.get_receipt().await.unwrap().status());
@@ -232,6 +243,14 @@ impl TestCase for PrecompilesAndEip7702 {
                 .await
                 .unwrap(),
             U256::from(1)
+        );
+
+        assert!(g1_add_call.get_receipt().await.unwrap().status());
+        assert_eq!(
+            seq_test_client
+                .client.call(TransactionRequest::default().to(g1_add_caller_address).input(G1AddCallerContract::default().get_result().into())).await.unwrap(),
+            // encoding of example input's result
+            Bytes::from_str("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000a40300ce2dec9888b60690e9a41d3004fda4886854573974fab73b046d3147ba5b7a5bde85279ffede1b45b3918d82d0000000000000000000000000000000006d3d887e9f53b9ec4eb6cedf5607226754b07c01ace7834f57f3e7315faefb739e59018e22c492006190fba4a870025").unwrap()
         );
 
         let set_storage_tx = seq_test_client
@@ -304,6 +323,8 @@ impl TestCase for PrecompilesAndEip7702 {
             .header
             .state_root;
         assert!(proof.proof_output.final_state_root() == state_root);
+
+        assert!(proof.proof_output.last_l2_height > U64::from(cur_block_number));
 
         Ok(())
     }
