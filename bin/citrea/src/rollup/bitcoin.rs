@@ -12,7 +12,7 @@ use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::FullNodeConfig;
 use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::REVEAL_TX_PREFIX;
-use citrea_risc0_adapter::host::Risc0BonsaiHost;
+use citrea_risc0_adapter::host::Risc0Host;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
@@ -50,7 +50,7 @@ impl RollupBlueprint for BitcoinRollup {
     type DaSpec = BitcoinSpec;
     type DaConfig = BitcoinServiceConfig;
     type DaVerifier = BitcoinVerifier;
-    type Vm = Risc0BonsaiHost;
+    type Vm = Risc0Host;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -263,7 +263,7 @@ impl RollupBlueprint for BitcoinRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
+        let vm = Risc0Host::new(ledger_db.clone(), self.network);
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

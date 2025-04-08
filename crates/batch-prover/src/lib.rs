@@ -2,19 +2,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
-use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
-use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
-use l2_syncer::L2Syncer;
+pub use l1_syncer::L1Syncer;
+pub use l2_syncer::L2Syncer;
+pub use partition::PartitionMode;
+use prover::Prover;
 use prover_services::ParallelProverService;
-pub use proving::GroupCommitments;
-pub use runner::*;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{SpecId, Zkvm};
@@ -22,16 +20,15 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 
-pub mod da_block_handler;
 pub mod db_migrations;
-mod errors;
+pub mod l1_syncer;
 mod l2_syncer;
 mod metrics;
-mod proving;
+mod partition;
+pub mod prover;
 pub mod rpc;
-mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub async fn build_services<DA, DB, Vm>(
@@ -55,8 +52,9 @@ pub async fn build_services<DA, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    CitreaBatchProver<DA, DB>,
-    L1BlockHandler<Vm, DA, DB>,
+    L2Syncer<DA, DB>,
+    L1Syncer<DA, DB>,
+    Prover<DA, DB, Vm>,
     RpcModule<()>,
 )>
 where
@@ -65,22 +63,13 @@ where
     Vm: ZkvmHost + Zkvm + 'static,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
+    let (request_tx, request_rx) = mpsc::channel(4);
 
-    let rpc_context = rpc::create_rpc_context::<DA, Vm, DB>(
-        da_service.clone(),
-        prover_service.clone(),
-        ledger_db.clone(),
-        storage_manager.clone(),
-        public_keys.sequencer_da_pub_key.clone(),
-        K256PublicKey::try_from_slice(&public_keys.sequencer_public_key.clone())?,
-        l1_block_cache,
-        code_commitments.clone(),
-        elfs.clone(),
-    );
-    let rpc_module = rpc::register_rpc_methods::<DA, Vm, DB>(rpc_context, rpc_module)?;
+    let rpc_context = rpc::create_rpc_context(ledger_db.clone(), request_tx);
+    let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
     let l2_syncer = L2Syncer::new(
-        runner_config,
+        runner_config.clone(),
         init_params,
         native_stf,
         public_keys.clone(),
@@ -88,28 +77,37 @@ where
         ledger_db.clone(),
         storage_manager.clone(),
         fork_manager,
-        l2_block_tx,
+        l2_block_tx.clone(),
         backup_manager.clone(),
         true,
     )?;
 
-    let batch_prover = CitreaBatchProver::new(l2_syncer)?;
+    let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);
 
-    let skip_submission_until_l1 =
-        std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
+    let l1_syncer = L1Syncer::new(
+        ledger_db.clone(),
+        da_service,
+        public_keys.clone(),
+        runner_config.scan_l1_start_height,
+        l1_block_cache,
+        backup_manager,
+        l1_signal_tx,
+    );
 
-    let l1_block_handler = L1BlockHandler::new(
+    let l2_block_rx = l2_block_tx.subscribe();
+
+    let prover = Prover::new(
         prover_config,
-        prover_service,
         ledger_db,
         storage_manager,
-        da_service,
-        public_keys,
-        code_commitments,
+        prover_service,
+        public_keys.sequencer_public_key,
         elfs,
-        skip_submission_until_l1,
-        Arc::new(Mutex::new(L1BlockCache::new())),
-        backup_manager,
+        code_commitments,
+        l1_signal_rx,
+        l2_block_rx,
+        request_rx,
     );
-    Ok((batch_prover, l1_block_handler, rpc_module))
+
+    Ok((l2_syncer, l1_syncer, prover, rpc_module))
 }

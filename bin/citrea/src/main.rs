@@ -264,7 +264,7 @@ where
             );
         }
         NodeType::BatchProver(batch_prover_config) => {
-            let (prover, l1_block_handler, rpc_module) =
+            let (l2_syncer, l1_syncer, prover, rpc_module) =
                 CitreaRollupBlueprint::create_batch_prover(
                     &rollup_blueprint,
                     batch_prover_config,
@@ -282,29 +282,17 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
-                Some(l1_height) => l1_height.0,
-                None => {
-                    rollup_config
-                        .runner
-                        .ok_or(anyhow!(
-                    "Failed to start batch prover L1 block handler: Runner config not present"
-                ))?
-                        .scan_l1_start_height
-                }
-            };
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                l1_syncer.run(shutdown_signal).await
+            });
 
             task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-                l1_block_handler.run(l1_start_height, shutdown_signal).await
+                l2_syncer.run(shutdown_signal).await
             });
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
-                "BatchProver",
-                |shutdown_signal| async move {
-                    if let Err(e) = prover.run(shutdown_signal).await {
-                        error!("Error: {}", e);
-                    }
-                },
+                "Prover",
+                |shutdown_signal| async move { prover.run(shutdown_signal).await },
             );
         }
         NodeType::LightClientProver(light_client_prover_config) => {

@@ -1,4 +1,4 @@
-FROM risczero/risc0-guest-builder:r0.1.81.0 AS build
+FROM risczero/risc0-guest-builder:r0.1.85.0 AS build
 WORKDIR /src
 
 ARG GUEST_NAME

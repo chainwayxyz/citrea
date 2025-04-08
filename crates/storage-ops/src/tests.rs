@@ -291,19 +291,6 @@ pub fn test_pruning_ledger_db_batch_prover_l2_blocks() {
         .is_some());
 
     assert!(ledger_db
-        .get::<L2Witness>(&L2BlockNumber(1))
-        .unwrap()
-        .is_none());
-    assert!(ledger_db
-        .get::<L2Witness>(&L2BlockNumber(10))
-        .unwrap()
-        .is_none());
-    assert!(ledger_db
-        .get::<L2Witness>(&L2BlockNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
         .get::<ProverStateDiffs>(&L2BlockNumber(1))
         .unwrap()
         .is_none());

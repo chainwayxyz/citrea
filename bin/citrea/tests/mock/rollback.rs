@@ -19,7 +19,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
-    ProofsBySlotNumberV2, VerifiedBatchProofsBySlotNumber, BATCH_PROVER_LEDGER_TABLES,
+    CommitmentIndicesByL1, VerifiedBatchProofsBySlotNumber, BATCH_PROVER_LEDGER_TABLES,
     FULL_NODE_LEDGER_TABLES, SEQUENCER_LEDGER_TABLES,
 };
 use sov_db::schema::types::SlotNumber;
@@ -792,11 +792,11 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         instantiate_dbs(&new_batch_prover_db_dir, BATCH_PROVER_LEDGER_TABLES).unwrap();
     let bp_ledger_db = bp_ledger_db.inner();
     assert!(bp_ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(8))
+        .get::<CommitmentIndicesByL1>(&SlotNumber(8))
         .unwrap()
         .is_some());
     assert!(bp_ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .get::<CommitmentIndicesByL1>(&SlotNumber(10))
         .unwrap()
         .is_none());
 

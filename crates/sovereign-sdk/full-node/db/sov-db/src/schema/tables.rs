@@ -18,13 +18,14 @@ use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
+use uuid::Uuid;
 
 use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2BlockNumber, L2HeightRange,
-    L2HeightStatus, SlotNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L2BlockNumber,
+    L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -111,18 +112,17 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     L2BlockByNumber::table_name(),
     L2BlockByHash::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
-    L2RangeByL1Height::table_name(),
-    L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
     ProverLastScannedSlot::table_name(),
-    CommitmentsByNumber::table_name(),
-    ProofsBySlotNumber::table_name(),
-    ProofsBySlotNumberV2::table_name(),
-    PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
-    CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    CommitmentIndicesByL1::table_name(),
+    ProofByJobId::table_name(),
+    JobIdOfCommitment::table_name(),
+    CommitmentIndicesByJobId::table_name(),
+    ProverPendingCommitments::table_name(),
+    PendingL1SubmissionJobs::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
@@ -169,6 +169,13 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     CommitmentMerkleRoots::table_name(),
     SequencerCommitmentByIndex::table_name(),
+    CommitmentIndicesByL1::table_name(),
+    ProofByJobId::table_name(),
+    JobIdOfCommitment::table_name(),
+    CommitmentIndicesByJobId::table_name(),
+    ProverPendingCommitments::table_name(),
+    PendingL1SubmissionJobs::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
     L2StatusHeights::table_name(),
     PendingSequencerCommitments::table_name(),
     PendingProofs::table_name(),
@@ -352,6 +359,46 @@ define_table_with_seek_key_codec!(
     (L2BlockByNumber) L2BlockNumber => StoredL2Block
 );
 
+define_table_with_seek_key_codec!(
+    /// Index to sequencer commitment mapping
+    (SequencerCommitmentByIndex) u32 => SequencerCommitment
+);
+
+define_table_with_default_codec!(
+    /// list of commitment indices by l1 height
+    (CommitmentIndicesByL1) SlotNumber => Vec<u32>
+);
+
+define_table_with_default_codec!(
+    /// Proving results of the job
+    (ProofByJobId) Uuid => StoredBatchProof
+);
+
+define_table_with_default_codec!(
+    /// Secondary index table for quickly associating commitment idx with its proving job id
+    (JobIdOfCommitment) u32 => Uuid
+);
+
+define_table_with_default_codec!(
+    /// Commitment indices that are associated with the proving job
+    (CommitmentIndicesByJobId) Uuid => Vec<u32>
+);
+
+define_table_with_default_codec!(
+    /// Commitment indices waiting to be proven
+    (ProverPendingCommitments) u32 => ()
+);
+
+define_table_with_default_codec!(
+    /// Jobs waiting to be submitted to DA layer
+    (PendingL1SubmissionJobs) Uuid => ()
+);
+
+define_table_with_default_codec!(
+    /// Pending Bonsai proving sessions by job id
+    (PendingBonsaiSessionByJobId) Uuid => BonsaiSession
+);
+
 define_table_with_default_codec!(
     /// A "secondary index" for l2 block data by hash
     (L2BlockByHash) DbHash => L2BlockNumber
@@ -389,11 +436,6 @@ define_table_with_seek_key_codec!(
     /// However, we don't rename here to avoid breaking changes on deployed nodes
     /// and prover.
     (ProverLastScannedSlot) () => SlotNumber
-);
-
-define_table_with_seek_key_codec!(
-    /// Index to sequencer commitment mapping
-    (SequencerCommitmentByIndex) u32 => SequencerCommitment
 );
 
 define_table_without_codec!(

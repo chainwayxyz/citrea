@@ -14,6 +14,7 @@ use sov_modules_api::{native_error, native_trace, L2BlockModuleCallError, Workin
 use tracing::trace_span;
 
 use super::conversions::create_tx_env;
+use super::db::AccountExistsProvider;
 use super::handler::{CitreaBuilder, CitreaChain, CitreaChainExt, CitreaContext};
 use super::system_contracts::BitcoinLightClientContract;
 use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
@@ -25,7 +26,7 @@ pub(crate) struct CitreaEvm<'a, DB: Database> {
 
 impl<'a, DB> CitreaEvm<'a, DB>
 where
-    DB: Database,
+    DB: Database + AccountExistsProvider,
 {
     /// Creates a new Citrea EVM with the given parameters.
     pub fn new(db: DB, block_env: BlockEnv, config_env: CfgEnv, ext: &'a mut CitreaChain) -> Self {

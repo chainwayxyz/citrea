@@ -1,28 +1,25 @@
 #![allow(clippy::type_complexity)]
 
-use std::collections::HashMap;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use alloy_primitives::{U32, U64};
-use citrea_common::cache::L1BlockCache;
-use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
-use prover_services::ParallelProverService;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_keys::default_signature::K256PublicKey;
-use sov_modules_api::{SpecId, Zkvm};
-use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::ZkvmHost;
-use tokio::sync::Mutex;
+use sov_db::schema::types::SlotNumber;
+use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::rpc::{
+    JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
+};
+use tokio::sync::{mpsc, oneshot};
+use uuid::Uuid;
 
-use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
+use crate::partition::PartitionMode;
+use crate::prover::ProverRequest;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,107 +29,87 @@ pub struct ProverInputResponse {
     pub encoded_serialized_batch_proof_input: String,
 }
 
-pub struct RpcContext<Da, Vm, DB>
+pub struct RpcContext<DB>
 where
-    // C: sov_modules_api::Context,
-    Da: DaService,
     DB: BatchProverLedgerOps + Clone,
-    Vm: ZkvmHost + Zkvm + 'static,
 {
-    pub da_service: Arc<Da>,
-    pub prover_service: Arc<ParallelProverService<Da, Vm>>,
-    pub ledger: DB,
-    pub storage_manager: ProverStorageManager,
-    pub sequencer_da_pub_key: Vec<u8>,
-    pub sequencer_pub_key: K256PublicKey,
-    pub l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pub code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    pub elfs_by_spec: HashMap<SpecId, Vec<u8>>,
-    pub(crate) phantom_vm: PhantomData<fn() -> Vm>,
+    pub ledger_db: DB,
+    pub request_tx: mpsc::Sender<ProverRequest>,
 }
 
 /// Creates a shared RpcContext with all required data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn create_rpc_context<Da, Vm, DB>(
-    da_service: Arc<Da>,
-    prover_service: Arc<ParallelProverService<Da, Vm>>,
-    ledger: DB,
-    storage_manager: ProverStorageManager,
-    sequencer_da_pub_key: Vec<u8>,
-    sequencer_pub_key: K256PublicKey,
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    elfs_by_spec: HashMap<SpecId, Vec<u8>>,
-) -> RpcContext<Da, Vm, DB>
+pub fn create_rpc_context<DB>(
+    ledger_db: DB,
+    request_tx: mpsc::Sender<ProverRequest>,
+) -> RpcContext<DB>
 where
-    Da: DaService,
     DB: BatchProverLedgerOps + Clone,
-    Vm: ZkvmHost + Zkvm,
 {
     RpcContext {
-        ledger,
-        da_service,
-        storage_manager,
-        sequencer_da_pub_key,
-        sequencer_pub_key,
-        l1_block_cache,
-        prover_service,
-        code_commitments_by_spec,
-        elfs_by_spec,
-        phantom_vm: std::marker::PhantomData,
+        ledger_db,
+        request_tx,
     }
 }
 
 /// Updates the given RpcModule with Prover methods.
-pub fn register_rpc_methods<Da, Vm, DB>(
-    rpc_context: RpcContext<Da, Vm, DB>,
+pub fn register_rpc_methods<DB>(
+    rpc_context: RpcContext<DB>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
 where
-    Da: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
-    Vm: ZkvmHost + Zkvm + 'static,
 {
-    let rpc = create_rpc_module::<Da, Vm, DB>(rpc_context);
+    let rpc = create_rpc_module::<DB>(rpc_context);
     rpc_methods.merge(rpc)?;
     Ok(rpc_methods)
 }
 
 #[rpc(client, server, namespace = "batchProver")]
 pub trait BatchProverRpc {
-    /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
-    #[method(name = "generateInput")]
-    async fn generate_input(
-        &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
-    ) -> RpcResult<Vec<ProverInputResponse>>;
+    /// Manually set commitments. It overrides the commitment already if exists, so use with caution.
+    #[method(name = "setCommitments")]
+    async fn set_commitments(&self, commitments: Vec<SequencerCommitmentRpcParam>)
+        -> RpcResult<()>;
 
-    /// Manually invoke proving.
+    /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
-    async fn prove(
-        &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
-    ) -> RpcResult<()>;
+    async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>>;
+
+    /// Stop further proving jobs to be spawned. Existing jobs will continue.
+    #[method(name = "pauseProving")]
+    async fn pause_proving(&self) -> RpcResult<()>;
+
+    /// Get job details by job id. If proof is null, it means job is still being proven,
+    /// if proof exists but l1_tx_id is 0, it means job is being submitted to L1.
+    #[method(name = "getProvingJob")]
+    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>>;
+
+    /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
+    #[method(name = "getProvingJobs")]
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
+
+    /// Gets proving job details of the commitment index.
+    #[method(name = "getProvingJobOfCommitment")]
+    async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>>;
+
+    /// Gets commitment indices seen in the L1 block
+    #[method(name = "getCommitmentIndicesByL1")]
+    async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
 }
 
-pub struct BatchProverRpcServerImpl<Da, Vm, DB>
+pub struct BatchProverRpcServerImpl<DB>
 where
-    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: ZkvmHost + Zkvm + 'static,
 {
-    context: Arc<RpcContext<Da, Vm, DB>>,
+    context: Arc<RpcContext<DB>>,
 }
 
-impl<Da, Vm, DB> BatchProverRpcServerImpl<Da, Vm, DB>
+impl<DB> BatchProverRpcServerImpl<DB>
 where
-    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: ZkvmHost + Zkvm,
 {
-    pub fn new(context: RpcContext<Da, Vm, DB>) -> Self {
+    pub fn new(context: RpcContext<DB>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -140,145 +117,143 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Da, Vm, DB> BatchProverRpcServer for BatchProverRpcServerImpl<Da, Vm, DB>
+impl<DB> BatchProverRpcServer for BatchProverRpcServerImpl<DB>
 where
-    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: ZkvmHost + Zkvm + 'static,
 {
-    async fn generate_input(
+    async fn set_commitments(
         &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
-    ) -> RpcResult<Vec<ProverInputResponse>> {
-        let l1_block: <Da as DaService>::FilteredBlock = self
-            .context
-            .da_service
-            .get_block_at(l1_height)
-            .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?;
-
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
-            self.context.da_service.clone(),
-            self.context.ledger.clone(),
-            &self.context.storage_manager,
-            self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_da_pub_key.clone(),
-            &l1_block,
-            group_commitments,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
-        })?;
-
-        let mut batch_proof_circuit_input_responses = vec![];
-
-        for (input, sequencer_commitment_range) in inputs {
-            let range_start = sequencer_commitment_range.0;
-            let range_end = sequencer_commitment_range.1;
-
-            let last_seq_com = sequencer_commitments
-                .get(range_end as usize)
-                .expect("Commitment does not exist");
-            let last_l2_height = last_seq_com.l2_end_block_number;
-            let _current_spec = fork_from_block_number(last_l2_height).spec_id;
-
-            let serialized_circuit_input = borsh::to_vec(&input.into_v3_parts())
-                .expect("Risc0 hint serialization is infallible");
-
-            let response = ProverInputResponse {
-                commitment_range: (U32::from(range_start), U32::from(range_end)),
-                l1_block_height: U64::from(l1_height),
-                encoded_serialized_batch_proof_input: format!(
-                    "0x{}",
-                    faster_hex::hex_string(&serialized_circuit_input)
-                ),
+        commitments: Vec<SequencerCommitmentRpcParam>,
+    ) -> RpcResult<()> {
+        for commitment in commitments {
+            let l1_height = commitment.l1_height;
+            let commitment = SequencerCommitment {
+                merkle_root: commitment.merkle_root,
+                index: commitment.index,
+                l2_end_block_number: commitment.l2_end_block_number,
             };
 
-            batch_proof_circuit_input_responses.push(response);
+            self.context
+                .ledger_db
+                .put_commitment_by_index(&commitment)
+                .map_err(|e| internal_rpc_error(e.to_string()))?;
+            // This might cause some duplicate commitment indices appear in l1 -> index table which is ok
+            self.context
+                .ledger_db
+                .put_commitment_index_by_l1(SlotNumber(l1_height), commitment.index)
+                .map_err(|e| internal_rpc_error(e.to_string()))?;
+            self.context
+                .ledger_db
+                .put_prover_pending_commitment(commitment.index)
+                .map_err(|e| internal_rpc_error(e.to_string()))?;
         }
-
-        Ok(batch_proof_circuit_input_responses)
-    }
-
-    async fn prove(
-        &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
-    ) -> RpcResult<()> {
-        let l1_block: <Da as DaService>::FilteredBlock = self
-            .context
-            .da_service
-            .get_block_at(l1_height)
-            .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?;
-
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB>(
-            self.context.da_service.clone(),
-            self.context.ledger.clone(),
-            &self.context.storage_manager,
-            self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_da_pub_key.clone(),
-            &l1_block,
-            group_commitments,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
-        })?;
-
-        prove_l1::<Da, Vm, DB>(
-            self.context.prover_service.clone(),
-            self.context.ledger.clone(),
-            self.context.code_commitments_by_spec.clone(),
-            self.context.elfs_by_spec.clone(),
-            &l1_block,
-            sequencer_commitments,
-            inputs,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
-        })?;
 
         Ok(())
     }
+
+    async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>> {
+        let (result_tx, result_rx) = oneshot::channel();
+
+        if self
+            .context
+            .request_tx
+            .send(ProverRequest::Prove(mode, result_tx))
+            .await
+            .is_err()
+        {
+            return Err(internal_rpc_error("Proving request channel is closed"));
+        }
+
+        let Ok(job_ids) = result_rx.await else {
+            return Err(internal_rpc_error(
+                "Proving request failed for some reason, check logs for details",
+            ));
+        };
+
+        Ok(job_ids)
+    }
+
+    async fn pause_proving(&self) -> RpcResult<()> {
+        self.context
+            .request_tx
+            .send(ProverRequest::Pause)
+            .await
+            .map_err(|_| internal_rpc_error("Proving request channel is closed"))
+    }
+
+    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>> {
+        let ledger_db = &self.context.ledger_db;
+
+        let Some(commitment_indices) = ledger_db
+            .get_commitment_indices_by_job_id(job_id)
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+        else {
+            return Ok(None);
+        };
+
+        let mut commitments = Vec::with_capacity(commitment_indices.len());
+        for index in commitment_indices {
+            let commitment = ledger_db
+                .get_commitment_by_index(index)
+                .map_err(|e| internal_rpc_error(e.to_string()))?
+                .expect("Commitment must exist");
+            commitments.push(SequencerCommitmentResponse {
+                merkle_root: commitment.merkle_root,
+                index: commitment.index.try_into().unwrap(),
+                l2_end_block_number: commitment.l2_end_block_number.try_into().unwrap(),
+            });
+        }
+
+        let stored_proof = ledger_db
+            .get_proof_by_job_id(job_id)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+
+        Ok(Some(JobRpcResponse {
+            id: job_id,
+            commitments,
+            proof: stored_proof.map(Into::into),
+        }))
+    }
+
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>> {
+        Ok(self
+            .context
+            .ledger_db
+            .get_latest_job_ids(count)
+            .map_err(|e| internal_rpc_error(e.to_string()))?)
+    }
+
+    async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>> {
+        let job_id = self
+            .context
+            .ledger_db
+            .get_job_id_by_commitment_index(index)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+        match job_id {
+            Some(job_id) => self.get_proving_job(job_id).await,
+            None => Ok(None),
+        }
+    }
+
+    async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>> {
+        self.context
+            .ledger_db
+            .get_prover_commitment_indices_by_l1(SlotNumber(l1_height))
+            .map_err(|e| internal_rpc_error(e.to_string()))
+    }
 }
 
-pub fn create_rpc_module<Da, Vm, DB>(
-    rpc_context: RpcContext<Da, Vm, DB>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, Vm, DB>>
+pub fn create_rpc_module<DB>(
+    rpc_context: RpcContext<DB>,
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<DB>>
 where
-    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: ZkvmHost + Zkvm + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
     BatchProverRpcServer::into_rpc(server)
+}
+
+fn internal_rpc_error(msg: impl AsRef<str>) -> ErrorObjectOwned {
+    ErrorObjectOwned::owned(INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG, Some(msg.as_ref()))
 }

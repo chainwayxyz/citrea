@@ -30,7 +30,7 @@ impl StoredBatchProofOutput {
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub struct StoredBatchProof {
     /// Tx id
-    pub l1_tx_id: [u8; 32],
+    pub l1_tx_id: Option<[u8; 32]>,
     /// Proof
     pub proof: Proof,
     /// Output

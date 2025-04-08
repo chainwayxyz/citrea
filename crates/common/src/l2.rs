@@ -127,12 +127,6 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
 
     ledger_db.commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
 
-    // TODO: https://github.com/chainwayxyz/citrea/issues/1992
-    // self.ledger_db.extend_l2_range_of_l1_slot(
-    //     SlotNumber(current_l1_block.header().height()),
-    //     L2BlockNumber(l2_height),
-    // )?;
-
     info!(
         "New State Root after l2 block #{} is: 0x{}",
         l2_height,

@@ -6,6 +6,7 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use uuid::Uuid;
 
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use crate::schema::types::l2_block::StoredL2Block;
@@ -13,7 +14,7 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
 };
 
 /// Shared ledger operations
@@ -190,27 +191,59 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
 
 /// Prover ledger operations
 pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Stores proof related data on disk, accessible via l1 slot height
-    /// Inserts proofs of state transitions of multiple ranges of sequencer commitments found in an l1 block
-    fn insert_batch_proof_data_by_l1_height(
-        &self,
-        l1_height: u64,
-        l1_tx_id: [u8; 32],
-        proof: Proof,
-        output: StoredBatchProofOutput,
-    ) -> Result<()>;
-
-    /// Gets proofs by L1 height
-    fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
-
     /// Save a specific L2 range state diff
     fn set_l2_state_diff(&self, l2_height: L2BlockNumber, state_diff: StateDiff) -> Result<()>;
 
     /// Returns an L2 state diff
     fn get_l2_state_diff(&self, l2_height: L2BlockNumber) -> Result<Option<StateDiff>>;
 
-    /// Clears all pending proving sessions
-    fn clear_pending_proving_sessions(&self) -> Result<()>;
+    /// Set commitment index to be proven
+    fn put_prover_pending_commitment(&self, index: u32) -> Result<()>;
+
+    /// Get commitment indices to be proven
+    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>>;
+
+    /// Delete commitment indices from pending commitments table
+    fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
+
+    /// Put commitment indices found in the L1 height
+    fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> Result<()>;
+
+    /// Inserts a new prover job with its corresponding commitment indices, marking job as running
+    #[allow(clippy::ptr_arg)]
+    fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
+
+    /// Get commitment indices of job id
+    fn get_commitment_indices_by_job_id(&self, id: Uuid) -> Result<Option<Vec<u32>>>;
+
+    /// Get job id by commitment index
+    fn get_job_id_by_commitment_index(&self, index: u32) -> anyhow::Result<Option<Uuid>>;
+
+    /// Save proof by its job id
+    fn put_proof_by_job_id(
+        &self,
+        id: Uuid,
+        proof: Proof,
+        output: StoredBatchProofOutput,
+    ) -> Result<()>;
+
+    /// Updates job tx id and removes job from running jobs
+    fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
+
+    /// Get stored proof by job id
+    fn get_proof_by_job_id(&self, id: Uuid) -> Result<Option<StoredBatchProof>>;
+
+    /// Get jobs pending to be submitted to DA
+    fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
+
+    /// Get latest job ids with max count.
+    fn get_latest_job_ids(&self, count: usize) -> Result<Vec<Uuid>>;
+
+    /// Get commitment indices by l1 height
+    fn get_prover_commitment_indices_by_l1(
+        &self,
+        l1_height: SlotNumber,
+    ) -> Result<Option<Vec<u32>>>;
 }
 
 /// Light client prover ledger operations
@@ -230,19 +263,16 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<Option<StoredLightClientProof>>;
 }
 
-/// Ledger operations for the prover service
-pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
-    /// Gets all pending sessions and step numbers
-    fn get_pending_proving_sessions(&self) -> Result<Vec<Vec<u8>>>;
+/// Ledger operations for the Bonsai service
+pub trait BonsaiLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
+    /// Gets all bonsai sessions and their associated job ids
+    fn get_pending_bonsai_sessions(&self) -> Result<Vec<(Uuid, BonsaiSession)>>;
 
-    /// Adds a pending proving session
-    fn add_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
+    /// Insert or update bonsai proving session
+    fn upsert_pending_bonsai_session(&self, job_id: Uuid, session: BonsaiSession) -> Result<()>;
 
-    /// Removes a pending proving session
-    fn remove_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
-
-    /// Clears all pending proving sessions
-    fn clear_pending_proving_sessions(&self) -> Result<()>;
+    /// Removes bonsai proving session
+    fn remove_pending_bonsai_session(&self, job_id: Uuid) -> Result<()>;
 }
 
 /// Sequencer ledger operations

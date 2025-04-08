@@ -8,7 +8,7 @@ use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::FullNodeConfig;
 use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
-use citrea_risc0_adapter::host::Risc0BonsaiHost;
+use citrea_risc0_adapter::host::Risc0Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
@@ -37,7 +37,7 @@ impl RollupBlueprint for MockDemoRollup {
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
     type DaVerifier = MockDaVerifier;
-    type Vm = Risc0BonsaiHost;
+    type Vm = Risc0Host;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -133,7 +133,7 @@ impl RollupBlueprint for MockDemoRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
+        let vm = Risc0Host::new(ledger_db.clone(), self.network);
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,
