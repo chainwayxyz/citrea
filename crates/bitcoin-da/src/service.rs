@@ -256,11 +256,8 @@ impl BitcoinService {
                                 error!(?e, "Failed to send transaction to DA layer");
                                 tokio::time::sleep(Duration::from_secs(1)).await;
 
-                                match e {
-                                    BitcoinServiceError::MinRelayFeeNotMet => {
-                                            fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
-                                    },
-                                    _ => {}
+                                if let BitcoinServiceError::MinRelayFeeNotMet = e {
+                                    fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
                                 }
                                 continue;
                                 }
