@@ -88,6 +88,10 @@ pub trait BatchProverRpc {
     /// Gets latest job ids.
     #[method(name = "getProvingJobs")]
     async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
+
+    /// Gets latest job ids.
+    #[method(name = "getProvingJobOfCommitment")]
+    async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>>;
 }
 
 pub struct BatchProverRpcServerImpl<DB>
@@ -213,6 +217,18 @@ where
             .ledger_db
             .get_latest_job_ids(count)
             .map_err(|e| internal_rpc_error(e.to_string()))?)
+    }
+
+    async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>> {
+        let job_id = self
+            .context
+            .ledger_db
+            .get_job_id_by_commitment_index(index)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+        match job_id {
+            Some(job_id) => self.get_proving_job(job_id).await,
+            None => Ok(None),
+        }
     }
 }
 

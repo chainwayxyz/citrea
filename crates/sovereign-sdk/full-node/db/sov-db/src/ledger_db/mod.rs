@@ -565,6 +565,11 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
+    fn get_job_id_by_commitment_index(&self, index: u32) -> anyhow::Result<Option<Uuid>> {
+        self.db.get::<JobIdOfCommitment>(&index)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
     fn put_proof_by_job_id(
         &self,
         id: Uuid,

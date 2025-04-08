@@ -216,6 +216,9 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get commitment indices of job id
     fn get_commitment_indices_by_job_id(&self, id: Uuid) -> Result<Option<Vec<u32>>>;
 
+    /// Get job id by commitment index
+    fn get_job_id_by_commitment_index(&self, index: u32) -> anyhow::Result<Option<Uuid>>;
+
     /// Save proof by its job id
     fn put_proof_by_job_id(
         &self,
