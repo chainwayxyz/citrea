@@ -1234,7 +1234,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
         // 149 and 88
         assert_eq!(
-            // ((53 * 32 // 100) +  5 * (85 * 32 // 100 + 32)) * 48 // 100 + 2
+            // ((53 + 5 * 85) * 32 // 100 + 5 * 32) * 48 // 100 + 2
             // 151
             U64::from_str(
                 multiple_receipt
@@ -1245,7 +1245,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .unwrap()
             )
             .unwrap(),
-            // ((53 * 32 // 100) +  1 * (85 * 32 // 100 + 32)) * 48 // 100 + 2
+            // ((53 + 1 * 85) * 32 // 100 + 1 * 32) * 48 // 100 + 2
             // 38
             U64::from_str(
                 single_auth_receipt
