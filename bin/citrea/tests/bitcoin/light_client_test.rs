@@ -107,7 +107,7 @@ impl TestCase for LightClientProvingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
+            .get_commitment_indices_by_l1(commitment_l1_height)
             .await
             .unwrap()
             .unwrap();
