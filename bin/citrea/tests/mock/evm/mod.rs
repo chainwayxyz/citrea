@@ -1083,8 +1083,10 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
         // remove L1_FEE_OVERHEAD = 2
         // compressed diff sizes are:
-        // 20 --> 44 uncompressed
-        // 36 --> 76 uncompressed
+        // ((53 + 1 * 85) * 32 // 100) = 44 uncompressed
+        // 21 compressed
+        // ((53 + 1 * 85) * 32 // 100 + 1 * 32) = 76 uncompressed
+        // 36 compressed diff size
         // difference of 32 bytes is the first time adding authority account info
         // to state
         // setting back should yield same diff - creation of the authority
@@ -1098,7 +1100,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .unwrap()
             )
             .unwrap()
-                + U64::from(16),
+                + U64::from(15),
             U64::from_str(
                 single_auth_receipt
                     .other
@@ -1232,7 +1234,6 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        // 149 and 88
         assert_eq!(
             // ((53 + 5 * 85) * 32 // 100 + 5 * 32) * 48 // 100 + 2
             // 151
