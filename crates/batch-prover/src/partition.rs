@@ -1,4 +1,4 @@
-use citrea_primitives::forks::get_fork2_activation_height_non_zero;
+use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_rollup_interface::da::SequencerCommitment;
@@ -35,7 +35,7 @@ impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
     pub fn new(commitments: &'a [SequencerCommitment], ledger_db: DB) -> anyhow::Result<Self> {
         let start_l2_height = if commitments[0].index == 1 {
             // If this is the first commitment ever, start from 1
-            get_fork2_activation_height_non_zero()
+            get_tangerine_activation_height_non_zero()
         } else {
             // If this is not the first commitment, start l2 height will be end block number + 1 of the previous commitment
             ledger_db

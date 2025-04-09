@@ -347,7 +347,7 @@ where
         result
     }
 
-    /// Post fork2 block production
+    /// Post tangerine block production
     async fn produce_l2_block_inner(
         &mut self,
         da_blocks: Vec<Da::FilteredBlock>,
@@ -864,7 +864,7 @@ where
             self.produce_l2_block(
                 chunk_of_filtered_blocks.to_vec(),
                 l1_fee_rate,
-                // l2 block mode is ignored for post fork2 block production
+                // l2 block mode is ignored for post tangerine block production
                 last_used_l1_height,
             )
             .await?;

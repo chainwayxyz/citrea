@@ -8,7 +8,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_block_exists;
-use citrea_primitives::forks::{fork_from_block_number, get_fork2_activation_height_non_zero};
+use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -291,7 +291,7 @@ where
         }
 
         let start_l2_height = if sequencer_commitment.index == 1 {
-            get_fork2_activation_height_non_zero()
+            get_tangerine_activation_height_non_zero()
         } else {
             match self
                 .ledger_db
@@ -402,7 +402,7 @@ where
         Vm::verify(proof.as_slice(), code_commitment)
             .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
-        self.process_fork2_zk_proof(
+        self.process_tangerine_zk_proof(
             l1_block,
             batch_proof_output.initial_state_root(),
             proof,
@@ -410,7 +410,7 @@ where
         )
     }
 
-    fn process_fork2_zk_proof(
+    fn process_tangerine_zk_proof(
         &self,
         l1_block: &Da::FilteredBlock,
         initial_state_root: [u8; 32],
@@ -483,8 +483,8 @@ where
                 }
                 previous_sequencer_commitment.l2_end_block_number
             }
-            // If there is no previous seq comm hash then this must be the first post fork2 commitment
-            None => get_fork2_activation_height_non_zero() - 1,
+            // If there is no previous seq comm hash then this must be the first post tangerine commitment
+            None => get_tangerine_activation_height_non_zero() - 1,
         };
 
         // Check that first commitment's state root matches initial_state_root

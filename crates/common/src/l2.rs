@@ -95,7 +95,7 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
         .context("Failed to parse transactions")?;
 
     let l2_block_result = {
-        // Since Post fork2 we do not have the slot hash in l2 blocks we inspect the txs and get the slot hashes from set block infos
+        // Post tangerine, we do not have the slot hash in l2 blocks we inspect the txs and get the slot hashes from set block infos
         // Then store the short header proofs of those blocks in the ledger db
 
         decode_sov_tx_and_update_short_header_proofs(l2_block_response, ledger_db, da_service)

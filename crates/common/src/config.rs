@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use citrea_primitives::PRE_FORK2_BRIDGE_INITIALIZE_PARAMS;
+use citrea_primitives::PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS;
 use citrea_storage_ops::pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -354,7 +354,7 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
-            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
         }
     }
@@ -626,7 +626,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(config, expected);
     }
@@ -685,7 +685,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_FORK2_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
         };
         assert_eq!(sequencer_config, expected);
     }

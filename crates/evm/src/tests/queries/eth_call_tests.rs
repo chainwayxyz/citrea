@@ -19,7 +19,7 @@ use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
-    create_contract_message, get_evm, get_evm_config, get_fork_fn_only_fork2,
+    create_contract_message, get_evm, get_evm_config, get_fork_fn_only_tangerine,
 };
 use crate::{CallMessage, Evm};
 
@@ -27,7 +27,7 @@ type C = DefaultContext;
 
 #[test]
 fn call_contract_without_value() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -46,7 +46,7 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -65,7 +65,7 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(
@@ -77,7 +77,7 @@ fn call_contract_without_value() {
 
 #[test]
 fn test_state_change() {
-    let (mut evm, mut working_set, _, signer, l2_height) = init_evm(SpecId::Fork2);
+    let (mut evm, mut working_set, _, signer, l2_height) = init_evm(SpecId::Tangerine);
 
     let balance_1 = evm.get_balance(signer.address(), None, &mut working_set);
 
@@ -86,7 +86,7 @@ fn test_state_change() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -106,7 +106,7 @@ fn test_state_change() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -120,7 +120,7 @@ fn test_state_change() {
 
 #[test]
 fn call_contract_with_value_transfer() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -139,7 +139,7 @@ fn call_contract_with_value_transfer() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert!(call_result.is_err());
@@ -147,7 +147,7 @@ fn call_contract_with_value_transfer() {
 
 #[test]
 fn call_contract_with_invalid_nonce() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -170,7 +170,7 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -191,7 +191,7 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -199,7 +199,7 @@ fn call_contract_with_invalid_nonce() {
 
 #[test]
 fn call_to_nonexistent_contract() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
 
     let nonexistent_contract_address =
         Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
@@ -220,7 +220,7 @@ fn call_to_nonexistent_contract() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -228,7 +228,7 @@ fn call_to_nonexistent_contract() {
 
 #[test]
 fn call_with_high_gas_price() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -248,7 +248,7 @@ fn call_with_high_gas_price() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(
@@ -263,7 +263,7 @@ fn call_with_high_gas_price() {
 
 #[test]
 fn test_eip1559_fields_call() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
 
     let default_result = eth_call_eip1559(
         &evm,
@@ -357,13 +357,13 @@ fn eth_call_eip1559(
         None,
         None,
         working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     )
 }
 
 #[test]
 fn gas_price_call_test() {
-    let (evm, mut working_set, signer) = init_evm_single_block(SpecId::Fork2);
+    let (evm, mut working_set, signer) = init_evm_single_block(SpecId::Tangerine);
 
     // Define a base transaction request for reuse
     let base_tx_req = || TransactionRequest {
@@ -399,7 +399,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(
@@ -418,7 +418,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(result_only_gas, Ok(Bytes::new()));
@@ -436,7 +436,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(
@@ -457,7 +457,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert_eq!(result_gas_and_gas_price, Ok(Bytes::new()));
@@ -475,7 +475,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert!(result_fees.is_ok());
@@ -494,7 +494,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -513,7 +513,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -531,7 +531,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        get_fork_fn_only_tangerine(),
     );
 
     assert!(result_high_fees.is_ok());
@@ -540,7 +540,7 @@ fn gas_price_call_test() {
 
 #[test]
 fn test_call_with_state_overrides() {
-    let (evm, mut working_set, prover_storage, signer, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, prover_storage, signer, _) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -558,7 +558,7 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -600,7 +600,7 @@ fn test_call_with_state_overrides() {
             Some(state_override),
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -625,7 +625,7 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -647,7 +647,7 @@ fn test_call_with_block_overrides() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -657,7 +657,8 @@ fn test_call_with_block_overrides() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = DefaultContext::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context =
+            DefaultContext::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -680,7 +681,7 @@ fn test_call_with_block_overrides() {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
-            current_spec: SpecId::Fork2,
+            current_spec: SpecId::Tangerine,
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
@@ -720,7 +721,7 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes.clone()),
             }),
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -749,7 +750,7 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes),
             }),
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
     let expected_hash = Bytes::from_iter([2; 32]);

@@ -33,7 +33,7 @@ fn begin_l2_block_hook_creates_pending_block() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 54,
@@ -69,7 +69,7 @@ fn end_l2_block_hook_sets_head() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root,
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 54,
@@ -139,7 +139,7 @@ fn end_l2_block_hook_moves_transactions_and_receipts() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -254,7 +254,7 @@ fn finalize_hook_creates_final_block() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: root,
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 54,
@@ -279,7 +279,7 @@ fn finalize_hook_creates_final_block() {
         &HookL2BlockInfo {
             l2_height,
             pre_state_root: root_hash,
-            current_spec: SpecId::Fork2,
+            current_spec: SpecId::Tangerine,
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 54,
@@ -344,8 +344,8 @@ fn finalize_hook_creates_final_block() {
 }
 
 #[test]
-// this test is run with Fork2 spec
-// because pre fork2 we were deleting block hashes and
+// this test is run with Tangerine spec
+// because pre tangerine we were deleting block hashes and
 // we'd still like to test that
 fn begin_l2_block_hook_appends_last_block_hashes() {
     let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
@@ -363,7 +363,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: root,
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -397,7 +397,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: random_32_bytes,
-            current_spec: SpecId::Fork2,
+            current_spec: SpecId::Tangerine,
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
@@ -417,7 +417,7 @@ fn begin_l2_block_hook_appends_last_block_hashes() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: random_32_bytes,
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
