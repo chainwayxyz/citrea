@@ -197,6 +197,16 @@ where
                 }
             };
 
+            if soft_confirmation_responses.is_empty() {
+                tracing::info!(
+                    "No soft confirmation responses found for range: {:?}, retrying in 2 seconds",
+                    range
+                );
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                continue;
+            }
+
+            let mut last_synced_height = start_l2_height - 1;
             for soft_confirmation_response in soft_confirmation_responses {
                 tracing::info!(
                     "Processing soft confirmation response for L2 height: {}, DA slot height: {}  last_processed_l1_height: {}",
@@ -349,13 +359,14 @@ where
                     evm_txs_count
                 );
 
+                last_synced_height = l2_block.height();
                 self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
                 last_processed_l1_height = soft_confirmation_response.da_slot_height;
                 self.ledger_db.set_last_scanned_l1_height(SlotNumber(
                     soft_confirmation_response.da_slot_height,
                 ))?;
             }
-            start_l2_height = end_l2_height + 1;
+            start_l2_height = last_synced_height + 1;
         }
     }
 
