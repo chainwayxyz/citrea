@@ -106,7 +106,7 @@ impl<C: Context, Da: DaSpec> L2BlockRuleEnforcer<C, Da> {
     /// This is put in the end because if the block count exceeds the max L2 blocks per L1,
     /// and since the rule is checked before set block info is applied by the sequencer,
     /// the sequencer halts and never produces any more blocks.
-    /// Works for post fork2 blocks
+    /// Works for post tangerine blocks
     #[cfg_attr(
         feature = "native",
         instrument(level = "trace", skip(self, working_set), err, ret)

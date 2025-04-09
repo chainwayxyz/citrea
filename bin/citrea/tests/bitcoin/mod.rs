@@ -7,12 +7,12 @@ mod utils;
 // pub mod mempool_accept;
 pub mod backup;
 pub mod bitcoin_test;
-pub mod fork2_related;
 pub mod full_node;
 pub mod guest_cycles;
 pub mod sequencer_commitments;
 pub mod sequencer_test;
 pub mod syncing;
+pub mod tangerine_related;
 pub mod tx_chain;
 pub mod tx_propagation;
 

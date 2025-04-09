@@ -32,8 +32,8 @@ pub enum SpecId {
     /// 4. Better usage of DA layer by committing only the hash
     ///    of the smart contracts to state
     Kumquat = 1,
-    /// Fork2 spec
-    Fork2 = 2,
+    /// Tangerine spec
+    Tangerine = 2,
     /// Fork3 spec
     #[cfg(feature = "testing")]
     Fork3 = 3,
@@ -49,7 +49,7 @@ impl SpecId {
         match n {
             0 => Some(SpecId::Genesis),
             1 => Some(SpecId::Kumquat),
-            2 => Some(SpecId::Fork2),
+            2 => Some(SpecId::Tangerine),
             #[cfg(feature = "testing")]
             3 => Some(SpecId::Fork3),
             #[cfg(feature = "testing")]

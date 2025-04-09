@@ -10,7 +10,7 @@ use crate::zk::StorageRootHash;
 type InputV3Part2<Witness> = VecDeque<Vec<(u64, L2Block, Witness, Witness)>>;
 
 #[derive(BorshDeserialize, BorshSerialize)]
-/// Second part of the Fork2 elf input
+/// Second part of the Tangerine elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
 pub struct BatchProofCircuitInputV3Part2(pub InputV3Part2<Witness>);
@@ -70,7 +70,7 @@ pub struct BatchProofCircuitInputV3 {
 }
 
 impl BatchProofCircuitInputV3 {
-    /// Into Fork2 expected inputs
+    /// Into Tangerine expected inputs
     pub fn into_v3_parts(self) -> (BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2) {
         assert_eq!(self.l2_blocks.len(), self.state_transition_witnesses.len());
         let mut x = VecDeque::with_capacity(self.l2_blocks.len());

@@ -28,7 +28,7 @@ use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
-    get_evm_config_starting_base_fee, get_fork_fn_only_fork2, publish_event_message,
+    get_evm_config_starting_base_fee, get_fork_fn_only_tangerine, publish_event_message,
     TestingShortHeaderProofProviderService,
 };
 use crate::{
@@ -150,7 +150,7 @@ fn test_sys_bitcoin_light_client() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -161,7 +161,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
 
@@ -263,7 +263,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -278,7 +278,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -290,7 +290,7 @@ fn test_sys_bitcoin_light_client() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -301,7 +301,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let set_block_info_tx =
             set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
@@ -388,7 +388,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -403,7 +403,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -430,12 +430,12 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut l2_height = 1;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -462,7 +462,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -470,7 +470,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
 
@@ -541,7 +541,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -549,7 +549,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
 
@@ -640,12 +640,12 @@ fn test_bridge() {
     let l1_fee_rate = 1;
     let mut l2_height = 1;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -677,7 +677,7 @@ fn test_bridge() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [11u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -790,12 +790,12 @@ fn test_upgrade_light_client() {
     let l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -838,7 +838,7 @@ fn test_upgrade_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -913,12 +913,12 @@ fn test_change_upgrade_owner() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -948,12 +948,12 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -998,7 +998,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -1018,7 +1018,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -1046,12 +1046,12 @@ fn test_wcbtc() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1099,7 +1099,7 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 
@@ -1117,11 +1117,11 @@ fn test_wcbtc() {
     assert!(signer_new_balance <= signer_old_balance - U256::from(deposit_amount));
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1159,7 +1159,7 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            get_fork_fn_only_tangerine(),
         )
         .unwrap();
 

@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::RefCount;
 
-/// Fork2 output module
+/// Tangerine output module
 pub mod v3;
 
 /// State diff produced by the Zk proof

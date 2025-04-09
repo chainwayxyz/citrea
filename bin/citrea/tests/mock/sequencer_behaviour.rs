@@ -83,7 +83,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
 
     // publish a block which will start filling of all missing da blocks in one l2 block
-    // since this test runs on fork2 instead of generating one block pre missed da block
+    // since this test runs on tangerine instead of generating one block pre missed da block
     // It will generate one l2 block for every missed 10 da block
     // We are testing for 25 missed da blocks one of them will go to the last l2 block
     // So we will have 24 missed block count

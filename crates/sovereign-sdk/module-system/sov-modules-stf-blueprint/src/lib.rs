@@ -101,7 +101,7 @@ where
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
-    /// Begin a l2 block for blocks post fork2
+    /// Begin a l2 block for blocks post tangerine
     /// There are no slot hash comparisons with l2 blocks
     pub fn begin_l2_block(
         &mut self,
@@ -130,7 +130,7 @@ where
         self.apply_sov_txs_inner(l2_block_info, txs, batch_workspace)
     }
 
-    /// Verify l2_block hash and signature post fork2
+    /// Verify l2_block hash and signature post tangerine
     /// No da slot hash, height and txs commitment checks are done here
     pub fn verify_l2_block(
         &self,
@@ -353,15 +353,15 @@ where
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
 
-        // Get fork2
-        let fork2 = forks
+        // Get tangerine
+        let tangerine = forks
             .iter()
-            .find(|f| f.spec_id == SpecId::Fork2)
-            .expect("Fork2 must exist");
+            .find(|f| f.spec_id == SpecId::Tangerine)
+            .expect("Tangerine must exist");
 
-        let fork2_activation_height = fork2.activation_height;
+        let tangerine_activation_height = tangerine.activation_height;
 
-        let mut previous_batch_proof_l2_end_height = fork2_activation_height;
+        let mut previous_batch_proof_l2_end_height = tangerine_activation_height;
 
         // If there is no previous commitment, then this is the first batch proof
         // and this should start from proving the first l2 block
