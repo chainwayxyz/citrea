@@ -98,6 +98,7 @@ pub fn main() {
             L2_GENESIS_ROOT,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &BATCH_PROVER_DA_PUBLIC_KEY,
+            &SEQUENCER_DA_PUBLIC_KEY,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
         )
         .unwrap();
