@@ -1928,7 +1928,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let blob1 = MockBlob::new(
         commitment_serialized.clone(),
-        MockAddress::new(sequencer_da_pub_key.clone().try_into().unwrap()),
+        MockAddress::new(sequencer_da_pub_key),
         [0u8; 32],
         Some([1; 32]),
     );
@@ -1978,7 +1978,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let blob2 = MockBlob::new(
         commitment_serialized.clone(),
-        MockAddress::new(sequencer_da_pub_key.clone().try_into().unwrap()),
+        MockAddress::new(sequencer_da_pub_key),
         [1u8; 32],
         Some([2; 32]),
     );
@@ -2054,7 +2054,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
 
     let blob1 = MockBlob::new(
         commitment_serialized.clone(),
-        MockAddress::new(sequencer_da_pub_key.clone().try_into().unwrap()),
+        MockAddress::new(sequencer_da_pub_key),
         [0u8; 32],
         Some([1; 32]),
     );
