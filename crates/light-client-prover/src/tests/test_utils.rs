@@ -256,6 +256,7 @@ impl NativeCircuitRunner {
         l2_genesis_state_root: [u8; 32],
         inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
+        sequencer_da_pub_key: &[u8],
         method_id_upgrade_authority: &[u8],
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
@@ -287,6 +288,7 @@ impl NativeCircuitRunner {
             l2_genesis_state_root,
             inital_batch_proof_method_ids,
             batch_prover_da_pub_key,
+            sequencer_da_pub_key,
             method_id_upgrade_authority,
         );
 
