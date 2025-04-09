@@ -1878,7 +1878,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let blob1 = MockBlob::new(
         commitment_serialized.clone(),
-        MockAddress::new([9u8; 32]),
+        MockAddress::new([45u8; 32]),
         [0u8; 32],
         Some([1; 32]),
     );
@@ -1928,7 +1928,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let blob2 = MockBlob::new(
         commitment_serialized.clone(),
-        MockAddress::new([9u8; 32]),
+        MockAddress::new([45u8; 32]),
         [1u8; 32],
         Some([2; 32]),
     );
