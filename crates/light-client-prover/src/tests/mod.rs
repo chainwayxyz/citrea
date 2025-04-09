@@ -817,6 +817,7 @@ fn test_unverifiable_batch_proofs() {
         None,
         batch_prover_da_pub_key,
     );
+    // ZK proof invalid
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
         3,
@@ -825,6 +826,16 @@ fn test_unverifiable_batch_proofs() {
         vec![seq_comm_2.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
         batch_prover_da_pub_key,
+    );
+    // Wrong pubkey
+    let blob_3 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        false,
+        block_header_1.hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        [1u8; 32], // wrong pubkey
     );
 
     let l2_genesis_state_root = [1u8; 32];
@@ -837,7 +848,7 @@ fn test_unverifiable_batch_proofs() {
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
-            completeness_proof: vec![seq_comm_1_blob, seq_comm_2_blob, blob_1, blob_2],
+            completeness_proof: vec![seq_comm_1_blob, seq_comm_2_blob, blob_1, blob_2, blob_3],
             witness: Default::default(),
         },
         l2_genesis_state_root,
