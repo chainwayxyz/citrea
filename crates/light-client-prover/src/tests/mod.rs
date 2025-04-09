@@ -63,9 +63,9 @@ fn test_light_client_circuit_valid_da_valid_data() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -207,9 +207,9 @@ fn test_light_client_circuit_commitment_chaining() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -290,9 +290,9 @@ fn test_previous_commitment_not_set_should_not_transition() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -352,9 +352,9 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -426,9 +426,9 @@ fn test_wrong_order_da_blocks_should_still_work() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -502,9 +502,9 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -661,9 +661,9 @@ fn test_header_chain_proof_height_and_hash() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -799,9 +799,9 @@ fn test_unverifiable_batch_proofs() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -888,9 +888,9 @@ fn test_unverifiable_prev_light_client_proof() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -986,7 +986,7 @@ fn test_new_method_id_txs() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
-    let sequencer_da_pub_key = [45; 32].to_vec();
+    let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
@@ -1154,7 +1154,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
-    let sequencer_da_pub_key = [45; 32].to_vec();
+    let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
@@ -1226,7 +1226,7 @@ fn test_light_client_circuit_verify_chunks() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
-    let sequencer_da_pub_key = [45; 32].to_vec();
+    let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
     let state_diff = create_random_state_diff(100);
@@ -1363,7 +1363,7 @@ fn test_missing_chunk() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
-    let sequencer_da_pub_key = [45; 32].to_vec();
+    let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
     let state_diff = create_random_state_diff(100);
@@ -1490,7 +1490,7 @@ fn test_malicious_aggregate_should_not_work() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
-    let sequencer_da_pub_key = [45; 32].to_vec();
+    let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
@@ -1741,9 +1741,9 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32].to_vec();
-    let sequencer_da_pub_key = [45; 32].to_vec();
-    let method_id_upgrade_authority = [11u8; 32].to_vec();
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -1863,7 +1863,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
-    let sequencer_da_pub_key = [45; 32].to_vec();
+    let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
@@ -1989,7 +1989,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
-    let sequencer_da_pub_key = [45; 32].to_vec();
+    let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
