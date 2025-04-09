@@ -71,6 +71,7 @@ citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer", features = ["native"] }
 
+# TODO: Remove these after testnet deployment
 # Reorg syncer deps
 serde = { workspace = true }
 sha2 = { workspace = true }

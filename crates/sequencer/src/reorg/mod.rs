@@ -1,3 +1,8 @@
+//! This module is a mix of full node and sequencer. It is a special node type with the purpose of fetching pre tangerine blocks from the current sequencer and converting them to tangerine blocks.
+//! After this is synced at some point we will shut down the current pre Tangerine sequencer and start a new Tangerine sequencer with the state of this node, the new sequencer will be publishing Tangerine blocks after that
+//! Thanks to this we were able to remove all backwards compat
+//! This module will be removed after the testnet deployment
+
 use std::sync::Arc;
 
 use anyhow::Result;

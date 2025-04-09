@@ -58,8 +58,8 @@ use super::utils::collect_user_txs;
 /// There are no other txs other than that in this block
 const BLOCK_TO_IGNORE: u64 = 59387;
 
-// This sequencer's purpose is to get all pre fork2 blocks including genesis and convert all of them to post fork2 blocks
-// This sequencer will only run up to fork2 activation height, will not produce any blocks and will create the storage for the fork2 sequencer
+// This sequencer's purpose is to get all pre tangerine blocks including genesis and convert all of them to tangerine blocks
+// This sequencer will only run up to tangerine activation height, will not produce any blocks and will create the storage for the tangerine sequencer
 pub struct CitreaReorgSequencer<Da, DB>
 where
     Da: DaService,
@@ -126,10 +126,7 @@ where
             l1_block_cache,
         }
     }
-    pub async fn run(
-        &mut self,
-        mut shutdown_signal: GracefulShutdown,
-    ) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self, shutdown_signal: GracefulShutdown) -> Result<(), anyhow::Error> {
         tracing::info!("running");
         let mut start_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
 
@@ -249,7 +246,7 @@ where
                     .collect::<Vec<_>>();
                 let txs_to_run =
                     if soft_confirmation_response.da_slot_height > last_processed_l1_height {
-                        self.dry_run_transactions_post_fork2(
+                        self.dry_run_transactions(
                             user_txs,
                             pub_key,
                             prestate,
@@ -259,7 +256,7 @@ where
                         )
                         .unwrap()
                     } else {
-                        self.dry_run_transactions_post_fork2(
+                        self.dry_run_transactions(
                             user_txs,
                             pub_key,
                             prestate,
@@ -326,10 +323,10 @@ where
                 // Finalize l2 block
                 let l2_block_result =
                     self.stf
-                        .finalize_l2_block(SpecId::Fork2, working_set, prestate);
+                        .finalize_l2_block(SpecId::Tangerine, working_set, prestate);
 
                 // Calculate tx hashes for merkle root
-                let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, SpecId::Fork2);
+                let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, SpecId::Tangerine);
                 let tx_merkle_root = compute_tx_merkle_root(&tx_hashes)?;
 
                 // create the l2 block header
@@ -566,7 +563,7 @@ where
         Ok((all_txs, working_set_to_discard))
     }
 
-    fn dry_run_transactions_post_fork2(
+    fn dry_run_transactions(
         &mut self,
         user_transactions: Vec<Recovered<TransactionSigned>>,
         pub_key: &K256PublicKey,

@@ -65,7 +65,7 @@ pub struct SoftConfirmationResponse {
 #[derive(
     Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize,
 )]
-pub struct PreFork2Transaction<C: sov_modules_api::Context> {
+pub struct PreTangerineTransaction<C: sov_modules_api::Context> {
     pub signature: C::Signature,
     pub pub_key: C::PublicKey,
     pub runtime_msg: Vec<u8>,
@@ -74,7 +74,7 @@ pub struct PreFork2Transaction<C: sov_modules_api::Context> {
 }
 
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct PreFork2Context {
+pub struct PreTangerineContext {
     pub sender: Address,
     pub l1_fee_rate: u128,
     pub active_spec: SpecId,
@@ -82,16 +82,16 @@ pub struct PreFork2Context {
     visible_height: u64,
 }
 
-impl Spec for PreFork2Context {
+impl Spec for PreTangerineContext {
     type Address = Address;
     type Storage = ProverStorage;
-    type PrivateKey = private_key::DefaultPrivateKey;
-    type PublicKey = DefaultPublicKey;
+    type PrivateKey = private_key::PreTangerinePrivateKey;
+    type PublicKey = PreTangerinePublicKey;
     type Hasher = sha2::Sha256;
-    type Signature = DefaultSignature;
+    type Signature = PreTangerineSignature;
 }
 
-impl Context for PreFork2Context {
+impl Context for PreTangerineContext {
     fn sender(&self) -> &Self::Address {
         &self.sender
     }
@@ -123,10 +123,10 @@ pub mod private_key {
     use sov_keys::PrivateKey;
     use thiserror::Error;
 
-    use super::{DefaultPublicKey, DefaultSignature};
+    use super::{PreTangerinePublicKey, PreTangerineSignature};
 
     #[derive(Error, Debug)]
-    pub enum DefaultPrivateKeyDeserializationError {
+    pub enum PreTangerinePrivateKeyDeserializationError {
         #[error("Hex deserialization error")]
         FromHexError(#[from] hex::FromHexError),
         #[error("KeyPairError deserialization error")]
@@ -142,13 +142,15 @@ pub mod private_key {
     /// A private key for the default signature scheme.
     /// This struct also stores the corresponding public key.
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
-    pub struct DefaultPrivateKey {
+    pub struct PreTangerinePrivateKey {
         pub key_pair: SigningKey,
     }
 
-    impl DefaultPrivateKey {
+    impl PreTangerinePrivateKey {
         // This is private method and panics if input slice has incorrect length
-        fn try_from_keypair(value: &[u8]) -> Result<Self, DefaultPrivateKeyDeserializationError> {
+        fn try_from_keypair(
+            value: &[u8],
+        ) -> Result<Self, PreTangerinePrivateKeyDeserializationError> {
             let value: [u8; KEYPAIR_LENGTH] = value
                 .try_into()
                 .expect("incorrect usage of `try_from_keypair`, check input length");
@@ -166,16 +168,16 @@ pub mod private_key {
         }
     }
 
-    impl core::fmt::Debug for DefaultPrivateKey {
+    impl core::fmt::Debug for PreTangerinePrivateKey {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("DefaultPrivateKey")
+            f.debug_struct("PreTangerinePrivateKey")
                 .field("public_key", &self.key_pair.verifying_key())
                 .field("private_key", &"***REDACTED***")
                 .finish()
         }
     }
 
-    impl TryFrom<&[u8]> for DefaultPrivateKey {
+    impl TryFrom<&[u8]> for PreTangerinePrivateKey {
         type Error = anyhow::Error;
 
         fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -185,7 +187,7 @@ pub mod private_key {
                 Ok(Self::try_from_private_key(value))
             } else {
                 let err = Err(
-                    DefaultPrivateKeyDeserializationError::InvalidPrivateKeyLength {
+                    PreTangerinePrivateKeyDeserializationError::InvalidPrivateKeyLength {
                         expected_1: SECRET_KEY_LENGTH,
                         expected_2: KEYPAIR_LENGTH,
                         actual: value.len(),
@@ -196,19 +198,19 @@ pub mod private_key {
         }
     }
 
-    impl PrivateKey for DefaultPrivateKey {
-        type PublicKey = DefaultPublicKey;
+    impl PrivateKey for PreTangerinePrivateKey {
+        type PublicKey = PreTangerinePublicKey;
 
-        type Signature = DefaultSignature;
+        type Signature = PreTangerineSignature;
 
         fn pub_key(&self) -> Self::PublicKey {
-            DefaultPublicKey {
+            PreTangerinePublicKey {
                 pub_key: self.key_pair.verifying_key(),
             }
         }
 
         fn sign(&self, msg: &[u8]) -> Self::Signature {
-            DefaultSignature {
+            PreTangerineSignature {
                 msg_sig: self.key_pair.sign(msg),
             }
         }
@@ -222,18 +224,18 @@ pub mod private_key {
 #[derive(
     PartialEq, Eq, Clone, Debug, schemars::JsonSchema, serde::Serialize, serde::Deserialize,
 )]
-pub struct DefaultPublicKey {
+pub struct PreTangerinePublicKey {
     #[schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))]
     pub(crate) pub_key: DalekPublicKey,
 }
 
-impl Hash for DefaultPublicKey {
+impl Hash for PreTangerinePublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.pub_key.as_bytes().hash(state);
     }
 }
 
-impl BorshDeserialize for DefaultPublicKey {
+impl BorshDeserialize for PreTangerinePublicKey {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut buffer = [0; PUBLIC_KEY_LENGTH];
         reader.read_exact(&mut buffer)?;
@@ -244,35 +246,35 @@ impl BorshDeserialize for DefaultPublicKey {
     }
 }
 
-impl BorshSerialize for DefaultPublicKey {
+impl BorshSerialize for PreTangerinePublicKey {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(self.pub_key.as_bytes())
     }
 }
 
-impl StateKeyCodec<DefaultPublicKey> for BorshCodec {
-    fn encode_key(&self, value: &DefaultPublicKey) -> Vec<u8> {
+impl StateKeyCodec<PreTangerinePublicKey> for BorshCodec {
+    fn encode_key(&self, value: &PreTangerinePublicKey) -> Vec<u8> {
         let mut buf = Vec::with_capacity(32);
         BorshSerialize::serialize(value, &mut buf).unwrap();
         buf
     }
 }
 
-impl StateValueCodec<DefaultPublicKey> for BorshCodec {
+impl StateValueCodec<PreTangerinePublicKey> for BorshCodec {
     type Error = std::io::Error;
 
-    fn encode_value(&self, value: &DefaultPublicKey) -> Vec<u8> {
+    fn encode_value(&self, value: &PreTangerinePublicKey) -> Vec<u8> {
         let mut buf = Vec::with_capacity(32);
         BorshSerialize::serialize(value, &mut buf).unwrap();
         buf
     }
 
-    fn try_decode_value(&self, bytes: &[u8]) -> Result<DefaultPublicKey, Self::Error> {
+    fn try_decode_value(&self, bytes: &[u8]) -> Result<PreTangerinePublicKey, Self::Error> {
         borsh::from_slice(bytes)
     }
 }
 
-impl TryFrom<&[u8]> for DefaultPublicKey {
+impl TryFrom<&[u8]> for PreTangerinePublicKey {
     type Error = anyhow::Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -298,12 +300,12 @@ impl TryFrom<&[u8]> for DefaultPublicKey {
 #[derive(
     PartialEq, Eq, Debug, Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize,
 )]
-pub struct DefaultSignature {
+pub struct PreTangerineSignature {
     #[schemars(with = "&[u8]", length(equal = "ed25519_dalek::Signature::BYTE_SIZE"))]
     pub msg_sig: DalekSignature,
 }
 
-impl BorshDeserialize for DefaultSignature {
+impl BorshDeserialize for PreTangerineSignature {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut buffer = [0; DalekSignature::BYTE_SIZE];
         reader.read_exact(&mut buffer)?;
@@ -314,13 +316,13 @@ impl BorshDeserialize for DefaultSignature {
     }
 }
 
-impl BorshSerialize for DefaultSignature {
+impl BorshSerialize for PreTangerineSignature {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(&self.msg_sig.to_bytes())
     }
 }
 
-impl TryFrom<&[u8]> for DefaultSignature {
+impl TryFrom<&[u8]> for PreTangerineSignature {
     type Error = anyhow::Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -330,8 +332,8 @@ impl TryFrom<&[u8]> for DefaultSignature {
     }
 }
 
-impl Signature for DefaultSignature {
-    type PublicKey = DefaultPublicKey;
+impl Signature for PreTangerineSignature {
+    type PublicKey = PreTangerinePublicKey;
 
     fn verify(&self, pub_key: &Self::PublicKey, msg: &[u8]) -> Result<(), SigVerificationError> {
         pub_key
@@ -345,7 +347,7 @@ fn map_error(_e: ed25519_dalek::SignatureError) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::Other, "Signature error")
 }
 
-impl FromStr for DefaultPublicKey {
+impl FromStr for PreTangerinePublicKey {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -354,7 +356,7 @@ impl FromStr for DefaultPublicKey {
     }
 }
 
-impl FromStr for DefaultSignature {
+impl FromStr for PreTangerineSignature {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -364,16 +366,16 @@ impl FromStr for DefaultSignature {
             .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid signature"))?;
 
-        Ok(DefaultSignature {
+        Ok(PreTangerineSignature {
             msg_sig: DalekSignature::from_bytes(&bytes),
         })
     }
 }
 
-impl PublicKey for DefaultPublicKey {
+impl PublicKey for PreTangerinePublicKey {
     fn to_address<A: From<[u8; 32]>>(&self) -> A {
         let pub_key_hash = {
-            let mut hasher = <PreFork2Context as Spec>::Hasher::new();
+            let mut hasher = <PreTangerineContext as Spec>::Hasher::new();
             hasher.update(self.pub_key);
             hasher.finalize().into()
         };
@@ -381,14 +383,14 @@ impl PublicKey for DefaultPublicKey {
     }
 }
 
-impl From<&DefaultPublicKey> for PublicKeyHex {
-    fn from(pub_key: &DefaultPublicKey) -> Self {
+impl From<&PreTangerinePublicKey> for PublicKeyHex {
+    fn from(pub_key: &PreTangerinePublicKey) -> Self {
         let hex = hex::encode(pub_key.pub_key.as_bytes());
         Self::new(hex)
     }
 }
 
-impl TryFrom<&PublicKeyHex> for DefaultPublicKey {
+impl TryFrom<&PublicKeyHex> for PreTangerinePublicKey {
     type Error = anyhow::Error;
 
     fn try_from(pub_key: &PublicKeyHex) -> Result<Self, Self::Error> {
@@ -401,6 +403,6 @@ impl TryFrom<&PublicKeyHex> for DefaultPublicKey {
         let pub_key = DalekPublicKey::from_bytes(&bytes)
             .map_err(|_| anyhow::anyhow!("Invalid public key"))?;
 
-        Ok(DefaultPublicKey { pub_key })
+        Ok(PreTangerinePublicKey { pub_key })
     }
 }
