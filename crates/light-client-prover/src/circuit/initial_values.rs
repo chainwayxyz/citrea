@@ -397,7 +397,7 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         match self {
             Network::Mainnet => bitcoinda::MAINNET_SEQUENCER_DA_PUBLIC_KEY,
             Network::Testnet => bitcoinda::TESTNET_SEQUENCER_DA_PUBLIC_KEY,
-            Network::Devnet => bitcoinda::DEVNET_BSEQUENCER_DA_PUBLIC_KEY,
+            Network::Devnet => bitcoinda::DEVNET_SEQUENCER_DA_PUBLIC_KEY,
             Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
             Network::TestNetworkWithForks => {
                 bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
