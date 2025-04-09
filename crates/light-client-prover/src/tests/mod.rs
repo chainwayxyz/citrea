@@ -6,7 +6,7 @@ use sov_modules_api::WorkingSet;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::Network;
-use sov_state::{ProverStorage, Witness, ZkStorage};
+use sov_state::{ProverStorage, ZkStorage};
 use tempfile::tempdir;
 use test_utils::{
     create_mock_batch_proof, create_mock_sequencer_commitment,
@@ -1878,7 +1878,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let blob1 = MockBlob::new(
         commitment_serialized.clone(),
-        MockAddress::new([45u8; 32]),
+        MockAddress::new(sequencer_da_pub_key.clone().try_into().unwrap()),
         [0u8; 32],
         Some([1; 32]),
     );
@@ -1928,7 +1928,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let blob2 = MockBlob::new(
         commitment_serialized.clone(),
-        MockAddress::new([45u8; 32]),
+        MockAddress::new(sequencer_da_pub_key.clone().try_into().unwrap()),
         [1u8; 32],
         Some([2; 32]),
     );
@@ -1950,7 +1950,6 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         &method_id_upgrade_authority,
     );
 
-    let witness = Witness::default();
     zk_circuit_runner
         .run_circuit(
             da_verifier.clone(),
@@ -1967,8 +1966,8 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let prover_storage = native_circuit_runner
         .prover_storage_manager
-        .create_storage_for_next_l2_height();
-    let mut working_set = WorkingSet::with_witness(prover_storage, witness, Default::default());
+        .create_final_view_storage();
+    let mut working_set = WorkingSet::new(prover_storage);
     let commitment =
         SequencerCommitmentAccessor::get(1, &mut working_set).expect("Should be available");
 
@@ -1977,4 +1976,134 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
     assert_eq!(commitment.index, 1);
     assert_eq!(commitment.l2_end_block_number, 30);
     assert_eq!(commitment.merkle_root, [1; 32]);
+}
+
+#[test]
+fn wrong_pubkey_sequencer_commitment_should_not_work() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32].to_vec();
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let commitment = SequencerCommitment {
+        merkle_root: [1; 32],
+        index: 1,
+        l2_end_block_number: 30,
+    };
+    let commitment_da_data = DataOnDa::SequencerCommitment(commitment);
+    let commitment_serialized = borsh::to_vec(&commitment_da_data).expect("should serialize");
+
+    let blob1 = MockBlob::new(
+        commitment_serialized.clone(),
+        MockAddress::new(sequencer_da_pub_key.clone().try_into().unwrap()),
+        [0u8; 32],
+        Some([1; 32]),
+    );
+    blob1.full_data();
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        &method_id_upgrade_authority,
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &sequencer_da_pub_key,
+            &method_id_upgrade_authority,
+        )
+        .unwrap();
+
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let mock_output_1_serialized = create_prev_lcp_serialized(output, true);
+
+    // submit next commitment from wrong pubkey
+    let commitment = SequencerCommitment {
+        merkle_root: [2; 32],
+        index: 1,
+        l2_end_block_number: 60,
+    };
+    let commitment_da_data = DataOnDa::SequencerCommitment(commitment);
+    let commitment_serialized = borsh::to_vec(&commitment_da_data).expect("should serialize");
+
+    let blob2 = MockBlob::new(
+        commitment_serialized.clone(),
+        MockAddress::new([54u8; 32]),
+        [1u8; 32],
+        Some([2; 32]),
+    );
+    blob2.full_data();
+
+    let input2: LightClientCircuitInput<MockDaSpec> = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof_journal: Some(mock_output_1_serialized),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        &method_id_upgrade_authority,
+    );
+
+    zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input2,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &sequencer_da_pub_key,
+            &method_id_upgrade_authority,
+        )
+        .unwrap();
+
+    let prover_storage = native_circuit_runner
+        .prover_storage_manager
+        .create_final_view_storage();
+    let mut working_set = WorkingSet::new(prover_storage);
+    let commitment =
+        SequencerCommitmentAccessor::get(1, &mut working_set).expect("Should be available");
+
+    // As the first commitment pubkey was correct, this was set
+    assert_eq!(commitment.index, 1);
+    assert_eq!(commitment.l2_end_block_number, 30);
+    assert_eq!(commitment.merkle_root, [1; 32]);
+
+    let commitment = SequencerCommitmentAccessor::get(2, &mut working_set);
+
+    // ignored commitment from wrong pubkey
+    assert_eq!(commitment, None);
 }
