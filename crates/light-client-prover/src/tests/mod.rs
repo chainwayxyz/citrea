@@ -45,6 +45,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
     let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
     let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -52,6 +54,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
@@ -60,10 +63,10 @@ fn test_light_client_circuit_valid_da_valid_data() {
         block_header_1.hash.0,
         vec![seq_comm_2.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -115,6 +118,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         block_header_1.hash.0,
         vec![seq_comm_3.clone()],
         Some(seq_comm_2.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
     let blob_4 = create_mock_batch_proof(
         [4u8; 32],
@@ -123,6 +127,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         block_header_1.hash.0,
         vec![seq_comm_4.clone()],
         Some(seq_comm_3.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let block_header_2 = MockBlockHeader::from_height(2);
@@ -189,6 +194,8 @@ fn test_light_client_circuit_commitment_chaining() {
     let seq_comm_4_blob = create_mock_sequencer_commitment_blob(seq_comm_4.clone());
     let seq_comm_5_blob = create_mock_sequencer_commitment_blob(seq_comm_5.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         4,
@@ -196,6 +203,7 @@ fn test_light_client_circuit_commitment_chaining() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone(), seq_comm_2.clone(), seq_comm_3.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [4u8; 32],
@@ -204,10 +212,10 @@ fn test_light_client_circuit_commitment_chaining() {
         block_header_1.hash.0,
         vec![seq_comm_3.clone(), seq_comm_4.clone(), seq_comm_5.clone()],
         Some(seq_comm_2.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -271,6 +279,8 @@ fn test_previous_commitment_not_set_should_not_transition() {
     let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
     let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -278,6 +288,7 @@ fn test_previous_commitment_not_set_should_not_transition() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
@@ -287,10 +298,10 @@ fn test_previous_commitment_not_set_should_not_transition() {
         vec![seq_comm_2.clone()],
         // The previous commitment not set so it will not transition to [3]
         None,
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -342,6 +353,8 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
 
     let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -349,10 +362,10 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -408,6 +421,8 @@ fn test_wrong_order_da_blocks_should_still_work() {
     let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
     let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -415,6 +430,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
@@ -423,10 +439,10 @@ fn test_wrong_order_da_blocks_should_still_work() {
         block_header_1.hash.0,
         vec![seq_comm_2.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -484,6 +500,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
     let seq_comm_3_blob = create_mock_sequencer_commitment_blob(seq_comm_3.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [2u8; 32],
         3,
@@ -491,6 +509,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         block_header_1.hash.0,
         vec![seq_comm_2.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [3u8; 32],
@@ -499,10 +518,10 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         block_header_1.hash.0,
         vec![seq_comm_3.clone()],
         Some(seq_comm_2.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -584,6 +603,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         block_header_1.hash.0,
         vec![seq_comm_1],
         None,
+        batch_prover_da_pub_key,
     );
 
     let block_header_2 = MockBlockHeader::from_height(2);
@@ -643,6 +663,8 @@ fn test_header_chain_proof_height_and_hash() {
     let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
     let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -650,6 +672,7 @@ fn test_header_chain_proof_height_and_hash() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
@@ -658,10 +681,10 @@ fn test_header_chain_proof_height_and_hash() {
         block_header_1.hash.0,
         vec![seq_comm_2.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -714,6 +737,7 @@ fn test_header_chain_proof_height_and_hash() {
         block_header_1.hash.0,
         vec![seq_comm_3.clone()],
         Some(seq_comm_2.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
     let blob_4 = create_mock_batch_proof(
         [4u8; 32],
@@ -722,6 +746,7 @@ fn test_header_chain_proof_height_and_hash() {
         block_header_1.hash.0,
         vec![seq_comm_4],
         Some(seq_comm_3.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let block_header_2 = MockBlockHeader::from_height(3);
@@ -781,6 +806,8 @@ fn test_unverifiable_batch_proofs() {
     let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
     let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -788,6 +815,7 @@ fn test_unverifiable_batch_proofs() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
@@ -796,10 +824,10 @@ fn test_unverifiable_batch_proofs() {
         block_header_1.hash.0,
         vec![seq_comm_2.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -870,6 +898,8 @@ fn test_unverifiable_prev_light_client_proof() {
     let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
     let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -877,6 +907,7 @@ fn test_unverifiable_prev_light_client_proof() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
@@ -885,10 +916,10 @@ fn test_unverifiable_prev_light_client_proof() {
         block_header_1.hash.0,
         vec![seq_comm_2],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -1002,6 +1033,7 @@ fn test_new_method_id_txs() {
         block_header_1.hash.0,
         vec![seq_comm_1],
         None,
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
 
@@ -1172,6 +1204,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
     let blob_2 = create_mock_batch_proof(
         [2u8; 32],
@@ -1180,6 +1213,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
         block_header_1.hash.0,
         vec![seq_comm_2.clone()],
         Some(seq_comm_2.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let input = native_circuit_runner.run(
@@ -1713,6 +1747,8 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
 
     let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
 
+    let batch_prover_da_pub_key = [9; 32];
+
     let blob_1 = create_mock_batch_proof(
         [1u8; 32],
         2,
@@ -1720,6 +1756,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone()],
         None,
+        batch_prover_da_pub_key,
     );
     let incorrect_hash = {
         let mut copy = block_header_1.hash.0;
@@ -1738,10 +1775,10 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         incorrect_hash,
         vec![seq_comm_2.clone()],
         Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let l2_genesis_state_root = [1u8; 32];
-    let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_upgrade_authority = [11u8; 32];
 
@@ -1801,6 +1838,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         incorrect_hash,
         vec![seq_comm_3.clone()],
         Some(seq_comm_2.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
     let blob_4 = create_mock_batch_proof(
         [4u8; 32],
@@ -1809,6 +1847,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         block_header_1.hash.0,
         vec![seq_comm_4.clone()],
         Some(seq_comm_3.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
     );
 
     let block_header_2 = MockBlockHeader::from_height(2);
