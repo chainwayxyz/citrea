@@ -1,5 +1,6 @@
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -631,7 +632,10 @@ where
             {
                 // Decrement nonce if the transaction failed
                 nonce -= 1;
-                let error_log_path = "error_log.txt";
+                let tx_backup_dir = std::env::var("TX_BACKUP_DIR").unwrap();
+
+                let error_log_path =
+                    Path::new(&tx_backup_dir).join("REORG_SYNC_L2_FAILING_TXS.txt");
                 let mut file = OpenOptions::new()
                     .create(true)
                     .append(true)
