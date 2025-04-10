@@ -93,7 +93,11 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_DEVNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/devnet/batch-0.elf"));
+        // won't be used but putting here just in case
+        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"));
+        // won't be used but putting here just in case
+        m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"));
+        m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"));
 
         m
     };
@@ -113,7 +117,11 @@ lazy_static! {
     pub(crate) static ref LIGHT_CLIENT_DEVNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/devnet/light-0.elf"));
+        // won't be used but putting here just in case
+        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"));
+        // won't be used but putting here just in case
+        m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"));
+        m.insert(SpecId::Tangerine, guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"));
         m
     };
 }

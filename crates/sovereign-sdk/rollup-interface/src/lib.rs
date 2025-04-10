@@ -9,7 +9,7 @@
 ///
 /// Mostly used for web3_clientVersion RPC calls and might be used for other purposes.
 #[cfg(feature = "native")]
-pub const CITREA_VERSION: &str = "v0.6.7";
+pub const CITREA_VERSION: &str = "v0.7.0-rc.1";
 
 /// Fork module
 pub mod fork;

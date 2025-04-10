@@ -628,7 +628,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "borsh",
  "citrea-risc0-batch-proof",
@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -650,7 +650,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "bincode",
  "borsh",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "risc0-build",
 ]
@@ -1415,7 +1415,7 @@ dependencies = [
 
 [[package]]
 name = "light-client-proof-mock"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "anyhow",
  "citrea-light-client-prover",
@@ -2210,7 +2210,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2227,7 +2227,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2241,7 +2241,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "anyhow",
  "bech32",
@@ -2261,7 +2261,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "anyhow",
  "bech32",
@@ -2281,7 +2281,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2298,7 +2298,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2312,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",

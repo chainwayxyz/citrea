@@ -226,7 +226,7 @@ impl BitcoinService {
                         loop {
                             // Build and send tx with retries:
                             let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
-                                Ok(rate) => (rate as f64 * fee_rate_multiplier) as u64,
+                                Ok(rate) => (rate as f64 * fee_rate_multiplier).ceil() as u64,
                                 Err(e) => {
                                     error!(?e, "Failed to call get_fee_rate. Retrying...");
                                     tokio::time::sleep(Duration::from_secs(1)).await;

@@ -1,6 +1,6 @@
 [package]
 name = "bitcoin-da"
-version = "0.1.0"
+version = { workspace = true }
 authors = { workspace = true }
 edition = "2021"
 homepage = { workspace = true }
