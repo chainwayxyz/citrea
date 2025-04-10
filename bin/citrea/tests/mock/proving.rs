@@ -11,7 +11,7 @@ use sov_rollup_interface::rpc::SequencerCommitmentRpcParam;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
     wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job,
-    wait_for_prover_l1_height, NodeMode,
+    wait_for_prover_job_count, wait_for_prover_l1_height, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -138,7 +138,7 @@ async fn full_node_verify_proof_and_store() {
 
     assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    let job_ids = prover_client.get_proving_jobs(1).await;
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None).await?;
     assert_eq!(job_ids.len(), 1);
 
     let response = wait_for_prover_job(&prover_client, job_ids[0], None)
