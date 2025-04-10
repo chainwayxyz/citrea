@@ -361,6 +361,8 @@ impl TestCase for OutOfOrderCommitmentsTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        da.wait_mempool_len(4, None).await?;
+
         let range1 = sequencer
             .client
             .http_client()
@@ -391,8 +393,6 @@ impl TestCase for OutOfOrderCommitmentsTest {
             l2_end_block_number: max_l2_blocks_per_commitment * 2,
             index: 2,
         };
-
-        da.wait_mempool_len(4, None).await?;
 
         // Restart and remove txs from mempool
         da.restart(None, None).await?;
@@ -611,6 +611,8 @@ impl TestCase for ConflictingCommitmentsTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        da.wait_mempool_len(2, None).await?;
+
         let range2 = sequencer
             .client
             .http_client()
@@ -636,7 +638,7 @@ impl TestCase for ConflictingCommitmentsTest {
             .await
             .unwrap();
 
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let l1_height_c = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(l1_height_c, None).await?;
@@ -1045,7 +1047,7 @@ impl TestCase for OutOfRangeProofTest {
             .await
             .unwrap();
 
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let commitment2_l1_height = da.get_finalized_height(None).await?;
         full_node
@@ -1426,6 +1428,7 @@ impl TestCase for OverlappingProofRangesTest {
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
+        da.wait_mempool_len(6, None).await?;
 
         let range4 = sequencer
             .client
@@ -1443,7 +1446,6 @@ impl TestCase for OverlappingProofRangesTest {
             index: 4,
         };
 
-        da.wait_mempool_len(6, None).await?;
         da.generate(FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         full_node
