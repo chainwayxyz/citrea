@@ -22,12 +22,119 @@ contract BridgeHarness is Bridge {
     function isBytesEqual_(bytes memory a, bytes memory b) public pure returns (bool result) {
         result = super.isBytesEqual(a, b);
     }
+
+    function verifySigInTx_(TransactionParams calldata tp, bytes32 shaScriptPubkeys) public view {
+        super.verifySigInTx(tp, shaScriptPubkeys);
+    }
 }
 
 contract FalseBridge is Bridge {
     function falseFunc() public pure returns (bytes32) {
         return keccak256("false");
     }
+}
+
+contract MockSchnorrPrecompile {
+    // Modified from https://github.com/zerodao-finance/bip340-solidity
+    uint256 public constant GX = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798;
+    uint256 public constant GY = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8;
+    uint256 public constant AA = 0;
+    uint256 public constant BB = 7;
+    uint256 public constant PP = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+    uint256 public constant NN = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141; // curve order
+    uint256 constant private U255_MAX_PLUS_1 = 57896044618658097711785492504343953926634992332820282019728792003956564819968;
+
+    fallback(bytes calldata) external returns (bytes memory) {
+        uint256 px;
+        uint256 rx;
+        uint256 s;
+        bytes32 m;
+        
+        assembly {
+            px := calldataload(0)
+            m := calldataload(32)
+            rx := calldataload(64)
+            s := calldataload(96)
+        }
+        
+        return abi.encode(verify(px, rx, s, m));
+    }
+
+    function verify(uint256 px, uint256 rx, uint256 s, bytes32 m) public pure returns (bool) {
+        // Check pubkey, rx, and s are in-range.
+        if (px >= PP || rx >= PP || s >= NN) {
+            return false;
+        }
+
+        (address exp, bool ok) = convToFakeAddr(rx);
+        if (!ok) {
+            return false;
+        }
+
+        uint256 e = computeChallenge(bytes32(rx), bytes32(px), m);
+        bytes32 sp = bytes32(NN - mulmod(s, px, NN));
+        bytes32 ep = bytes32(NN - mulmod(e, px, NN));
+
+        // 27 apparently used to signal even parity (which it will always have).
+        address rvh = ecrecover(sp, 27, bytes32(px), ep);
+        return rvh == exp; // if recovery fails we fail anyways
+    }
+
+    function liftX(uint256 _x) internal pure returns (uint256, bool) {
+        if (_x >= PP) {
+            return (0, false);
+        }
+        
+        // Taken from the EllipticCurve code.
+        uint256 y2 = addmod(mulmod(_x, mulmod(_x, _x, PP), PP), addmod(mulmod(_x, AA, PP), BB, PP), PP);
+        y2 = expMod(y2, (PP + 1) / 4, PP);
+        uint256 y = (y2 & 1) == 0 ? y2 : PP - y2;
+
+        return (y, true);
+    }
+
+    function convToFakeAddr(uint256 px) internal pure returns (address, bool) {
+        (uint256 py, bool ok) = liftX(px);
+        if (!ok) {
+            return (address(0), false);
+        }
+        bytes32 h = keccak256(abi.encodePacked(bytes32(px), bytes32(py)));
+        return (address(uint160(uint256(h))), true);
+    }
+
+    function computeChallenge(bytes32 rx, bytes32 px, bytes32 m) internal pure returns (uint256) {
+        // Precomputed `sha256("BIP0340/challenge")`.
+        //
+        // Saves ~10k gas, mostly from byte shuffling to prepare the call.
+        //bytes32 tag = sha256("BIP0340/challenge");
+        bytes32 tag = 0x7bb52d7a9fef58323eb1bf7a407db382d2f3f2d81bb1224f49fe518f6d48d37c;
+
+        // Let e = int(hashBIP0340/challenge(bytes(r) || bytes(P) || m)) mod n.
+        return uint256(sha256(abi.encodePacked(tag, tag, rx, px, m))) % NN;
+    }
+
+    function expMod(uint256 _base, uint256 _exp, uint256 _pp) internal pure returns (uint256) {
+        require(_pp!=0, "Modulus is zero");
+
+        if (_base == 0)
+        return 0;
+        if (_exp == 0)
+        return 1;
+
+        uint256 r = 1;
+        uint256 bit = U255_MAX_PLUS_1;
+        assembly {
+        for { } gt(bit, 0) { }{
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, bit)))), _pp)
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, div(bit, 2))))), _pp)
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, div(bit, 4))))), _pp)
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, div(bit, 8))))), _pp)
+            bit := div(bit, 16)
+        }
+        }
+
+        return r;
+  }
 }
 
 contract BridgeTest is Test {
@@ -68,6 +175,9 @@ contract BridgeTest is Test {
         address proxy_impl = address(new TransparentUpgradeableProxy(bridgeImpl, address(proxyAdmin), ""));
 
         vm.etch(address(bridge), proxy_impl.code);
+        
+        // Mock Schnorr verifier precompile
+        vm.etch(address(0x200), address(new MockSchnorrPrecompile()).code);
 
         bytes32 IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
         bytes32 ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
@@ -359,5 +469,16 @@ contract BridgeTest is Test {
         Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
         bridge.deposit(depositParams);
         vm.stopPrank();
+    }
+
+    function testVerifySigInTx() public {
+        version = hex"03000000";
+        vin = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
+        Bridge.TransactionParams memory testParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
+        bridge.verifySigInTx_(testParams, hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d");
     }
 }

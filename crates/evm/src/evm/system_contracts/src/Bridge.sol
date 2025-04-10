@@ -4,7 +4,6 @@ pragma solidity ^0.8.26;
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
-import "../lib/P2TRVerify.sol";
 import "./BitcoinLightClient.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
@@ -14,6 +13,7 @@ import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradea
 contract Bridge is Ownable2StepUpgradeable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
+    using WitnessUtils for bytes;
 
     struct TransactionParams {
         bytes4 version;
@@ -121,12 +121,14 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param moveTp Transaction parameters of the move transaction on Bitcoin
     function deposit(
-        TransactionParams calldata moveTp 
+        TransactionParams calldata moveTp,
+        bytes32 shaScriptPubkeys
     ) external onlySystemOrOperator {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
+        verifySigInTx(moveTp, shaScriptPubkeys);
         (bytes32 wtxId, uint256 nIns) = validateAndCheckInclusion(moveTp);
         require(nIns == 1, "Only one input allowed");
         bytes32 txId = ValidateSPV.calculateTxId(moveTp.version, moveTp.vin, moveTp.vout, moveTp.locktime);
@@ -202,7 +204,8 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
     /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
     /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
-    function replaceDeposit(TransactionParams calldata replaceTp, uint256 index) external onlyOperator {
+    function replaceDeposit(TransactionParams calldata replaceTp, uint256 index, bytes32 shaScriptPubkeys) external onlyOperator {
+        verifySigInTx(replaceTp, shaScriptPubkeys);
         validateAndCheckInclusion(replaceTp);
         require(index < depositTxIds.length, "Invalid index");
         require(replacePrefix.length != 0, "Replace script is not set");
@@ -303,5 +306,36 @@ contract Bridge is Ownable2StepUpgradeable {
             diff := sub(32, length)
             result := shr(mul(diff, 8), result)
         }
+    }
+
+    function verifySigInTx(TransactionParams calldata tp, bytes32 shaScriptPubkeys) internal view {
+        bytes memory input = tp.vin.extractInputAtIndex(0);
+        bytes32 shaPrevouts = sha256(input.extractOutpoint());
+        bytes32 shaAmounts = sha256(hex"00CA9A3B00000000"); // 1000000000 in LE
+        bytes32 shaSequences = sha256(abi.encodePacked(input.extractSequenceLEWitness()));
+        bytes32 shaOutputs = sha256(abi.encodePacked(tp.vout.slice(1, tp.vout.length - 1)));
+        bytes memory witness0 = tp.witness.extractWitnessAtIndex(0);
+        bytes memory script = witness0.extractItemFromWitness(1);
+        bytes memory controlBlock = witness0.extractItemFromWitness(2);
+        // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
+        bytes1 leafVersion = controlBlock[1] & 0xFE;
+        bytes32 tapleafHash = taggedHash("TapLeaf", (abi.encodePacked(leafVersion, script)));
+        bytes memory message = abi.encodePacked(hex"00", hex"00", hex"03000000", hex"00000000", shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, hex"02", hex"00000000", tapleafHash, hex"00", hex"ffffffff");
+        bytes32 messageHash = taggedHash("TapSighash", message);
+        bytes memory signatureWithLen = witness0.extractItemFromWitness(0);
+        bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
+        bytes memory aggregatedKey = depositPrefix.slice(2, 32);
+        require(isP2TRSigValid(aggregatedKey, messageHash, signature), "Invalid signature");
+    }
+
+    function isP2TRSigValid(bytes memory aggregatedKey, bytes32 messageHash, bytes memory signature) internal view returns (bool isValid) {
+        require(signature.length == 64, "Invalid signature length");
+        (, bytes memory result) = address(0x200).staticcall(abi.encodePacked(aggregatedKey, messageHash, signature));
+        isValid = abi.decode(result, (bool));
+    }
+
+    function taggedHash(string memory tag, bytes memory message) internal pure returns (bytes32) {
+        bytes32 tagHash = sha256(bytes(tag));
+        return sha256(abi.encodePacked(tagHash, tagHash, message));
     }
 }
