@@ -138,7 +138,9 @@ async fn full_node_verify_proof_and_store() {
 
     assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    let job_ids = wait_for_prover_job_count(&prover_client, 1, None).await?;
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None)
+        .await
+        .unwrap();
     assert_eq!(job_ids.len(), 1);
 
     let response = wait_for_prover_job(&prover_client, job_ids[0], None)
