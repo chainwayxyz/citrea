@@ -260,6 +260,10 @@ contract Bridge is Ownable2StepUpgradeable {
         return txId;
     }
 
+    function getAggregatedKey() public view returns (bytes memory) {
+        return depositPrefix.slice(2, 32);
+    }
+
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
     /// @dev This approach compares chunks of 32 bytes using bytes32 equality checks for optimization
     /// @param a First byte sequence
@@ -324,7 +328,7 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes32 messageHash = taggedHash("TapSighash", message);
         bytes memory signatureWithLen = witness0.extractItemFromWitness(0);
         bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
-        bytes memory aggregatedKey = depositPrefix.slice(2, 32);
+        bytes memory aggregatedKey = getAggregatedKey();
         require(isP2TRSigValid(aggregatedKey, messageHash, signature), "Invalid signature");
     }
 
