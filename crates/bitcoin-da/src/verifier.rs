@@ -17,8 +17,11 @@ use crate::spec::BitcoinSpec;
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 /// An epoch should be two weeks (represented as number of seconds)
-/// seconds/minute * minutes/hour * hours/day * 14 days
 const EXPECTED_EPOCH_TIMESPAN: u32 = 60 * 60 * 24 * 14;
+
+/// While the regular expected epoch timespan is 14 days (10 minutes per block),
+/// in our custom signet it is ~5.5 hours (10 seconds per block)
+const EXPECTED_EPOCH_TIMESPAN_SIGNET: u32 = EXPECTED_EPOCH_TIMESPAN / 60;
 
 /// Number of blocks per epoch
 const BLOCKS_PER_EPOCH: u64 = 2016;
@@ -436,7 +439,7 @@ impl BitcoinVerifier {
                 block_header.time().secs() as u32,
                 block_header.bits(),
                 network_constants.max_target,
-                EXPECTED_EPOCH_TIMESPAN,
+                EXPECTED_EPOCH_TIMESPAN_SIGNET,
             );
             target_to_bits(&next_target)
         } else {
