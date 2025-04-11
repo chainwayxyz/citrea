@@ -23,8 +23,8 @@ contract BridgeHarness is Bridge {
         result = super.isBytesEqual(a, b);
     }
 
-    function verifySigInTx_(TransactionParams calldata tp, bytes32 shaScriptPubkeys) public view {
-        super.verifySigInTx(tp, shaScriptPubkeys);
+    function verifySigInTx_(bytes memory input, bytes memory output, bytes memory witness0, bytes32 shaScriptPubkeys) public view {
+        super.verifySigInTx(input, output, witness0, shaScriptPubkeys);
     }
 }
 
@@ -139,6 +139,7 @@ contract MockSchnorrPrecompile {
 
 contract BridgeTest is Test {
     using BytesLib for bytes;
+    using BTCUtils for bytes;
 
     uint256 constant DEPOSIT_AMOUNT = 10 ether;
     BridgeHarness public bridge = BridgeHarness(address(0x3100000000000000000000000000000000000002));
@@ -479,6 +480,10 @@ contract BridgeTest is Test {
         vm.startPrank(owner);
         bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
         Bridge.TransactionParams memory testParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
-        bridge.verifySigInTx_(testParams, hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d");
+
+        bytes memory input = testParams.vin.extractInputAtIndex(0);
+        bytes memory output = testParams.vout.slice(1, testParams.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(testParams.witness, 0);
+        bridge.verifySigInTx_(input, output, witness0, hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d");
     }
 }
