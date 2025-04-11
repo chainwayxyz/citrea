@@ -137,8 +137,11 @@ impl RollupBlueprint for MockDemoRollup {
         #[cfg(feature = "r0")]
         let vm = citrea_risc0_adapter::host::Risc0Host::new(ledger_db.clone(), self.network);
         #[cfg(feature = "sp1")]
-        let vm =
-            citrea_sp1_host::SP1Host::new(citrea_sp1_host::ELF, ledger_db.clone(), self.network);
+        let vm = citrea_sp1_host::SP1Host::new(
+            citrea_sp1_host::ELF.to_vec(),
+            ledger_db.clone(),
+            self.network,
+        );
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,

@@ -269,14 +269,14 @@ impl RollupBlueprint for BitcoinRollup {
                 use citrea_sp1_host::SP1Host;
 
                 let vm = SP1Host::new(
-                    citrea_sp1_host::ELF,
+                    citrea_sp1_host::ELF.to_vec(),
                     ledger_db.clone(),
                     self.network,
                 );
             } else {
                 use citrea_risc0_adapter::host::Risc0Host;
 
-                let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
+                let vm = Risc0Host::new(ledger_db.clone(), self.network);
             }
         }
 

@@ -157,6 +157,11 @@ impl Digest {
     pub fn new(value: [u32; 8]) -> Self {
         Self(value)
     }
+
+    /// Returns a reference to the [Digest] as a slice of words.
+    pub fn as_words(&self) -> &[u32] {
+        &self.0
+    }
 }
 
 impl From<[u32; 8]> for Digest {

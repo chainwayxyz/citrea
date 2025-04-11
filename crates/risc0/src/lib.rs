@@ -4,10 +4,9 @@
 //! This crate contains an adapter allowing the Risc0 to be used as a proof system for
 //! Sovereign SDK rollups.
 use risc0_zkp::verify::VerificationError;
-pub use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{InnerReceipt, PrunedValueError, Receipt};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::Matches;
+use sov_rollup_interface::zk::{Digest, Matches};
 use thiserror::Error;
 
 pub mod guest;
