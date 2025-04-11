@@ -450,12 +450,6 @@ where
                     );
                 }
 
-                assert_eq!(
-                    l2_block.height(),
-                    l2_height,
-                    "L2 block heights not sequential"
-                );
-
                 let result = self
                     .apply_l2_block(
                         fork_manager.active_fork().spec_id,
