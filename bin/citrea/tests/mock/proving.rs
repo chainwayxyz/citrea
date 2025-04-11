@@ -1,6 +1,7 @@
 /// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
 
+use alloy_primitives::U64;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
@@ -334,9 +335,9 @@ async fn test_batch_prover_prove_rpcs() {
         .unwrap();
     let new_commitment = SequencerCommitmentRpcParam {
         merkle_root,
-        index: commitment.index.to::<u32>(),
-        l2_end_block_number: 6,
-        l1_height: da_service.get_height().await + 1,
+        index: commitment.index,
+        l2_end_block_number: U64::from(6),
+        l1_height: U64::from(da_service.get_height().await + 1),
     };
 
     // ensure that prover also syncs up to l2 block 6

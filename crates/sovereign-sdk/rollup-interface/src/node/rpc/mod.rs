@@ -183,16 +183,17 @@ pub struct JobRpcResponse {
 
 /// Parameter type used in set commitments rpc.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SequencerCommitmentRpcParam {
     /// Merkle root of the commitment
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub merkle_root: [u8; 32],
     /// Index of the commitment
-    pub index: u32,
+    pub index: U32,
     /// L2 end block number of the commitment
-    pub l2_end_block_number: u64,
+    pub l2_end_block_number: U64,
     /// L1 height of the commitment
-    pub l1_height: u64,
+    pub l1_height: U64,
 }
 
 /// The rpc response of proof by l1 slot height

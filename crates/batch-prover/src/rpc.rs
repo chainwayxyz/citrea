@@ -16,6 +16,7 @@ use sov_rollup_interface::rpc::{
     JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
 use tokio::sync::{mpsc, oneshot};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::partition::PartitionMode;
@@ -126,12 +127,20 @@ where
         commitments: Vec<SequencerCommitmentRpcParam>,
     ) -> RpcResult<()> {
         for commitment in commitments {
-            let l1_height = commitment.l1_height;
+            let l1_height = commitment.l1_height.to::<u64>();
             let commitment = SequencerCommitment {
                 merkle_root: commitment.merkle_root,
-                index: commitment.index,
-                l2_end_block_number: commitment.l2_end_block_number,
+                index: commitment.index.to::<u32>(),
+                l2_end_block_number: commitment.l2_end_block_number.to::<u64>(),
             };
+
+            info!(
+                "Overriding sequencer commitment, index={} merkle_root={} l2_end_height={} l1_height={}",
+                commitment.index,
+                hex::encode(commitment.merkle_root),
+                commitment.l2_end_block_number,
+                l1_height,
+            );
 
             self.context
                 .ledger_db
