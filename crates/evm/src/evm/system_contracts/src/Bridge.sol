@@ -128,7 +128,11 @@ contract Bridge is Ownable2StepUpgradeable {
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
-        verifySigInTx(moveTp, shaScriptPubkeys);
+        bytes memory input = moveTp.vin.extractInputAtIndex(0);
+        bytes memory output = moveTp.vout.slice(1, moveTp.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
+        verifySigInTx(input, output, witness0, shaScriptPubkeys);
+
         (bytes32 wtxId, uint256 nIns) = validateAndCheckInclusion(moveTp);
         require(nIns == 1, "Only one input allowed");
         bytes32 txId = ValidateSPV.calculateTxId(moveTp.version, moveTp.vin, moveTp.vout, moveTp.locktime);
@@ -137,7 +141,6 @@ contract Bridge is Ownable2StepUpgradeable {
         processedTxIds[txId] = true;
         depositTxIds.push(txId);
         
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
         require(nItems == 3, "Invalid witness items"); // musig + script + witness script
 
@@ -205,13 +208,16 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
     /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
     function replaceDeposit(TransactionParams calldata replaceTp, uint256 index, bytes32 shaScriptPubkeys) external onlyOperator {
-        verifySigInTx(replaceTp, shaScriptPubkeys);
+        bytes memory input = replaceTp.vin.extractInputAtIndex(0);
+        bytes memory output = replaceTp.vout.slice(1, replaceTp.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
+        verifySigInTx(input, output, witness0, shaScriptPubkeys);
+
         validateAndCheckInclusion(replaceTp);
         require(index < depositTxIds.length, "Invalid index");
         require(replacePrefix.length != 0, "Replace script is not set");
         bytes32 txIdToReplace = depositTxIds[index];
 
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
         require(nItems == 3, "Invalid witness items"); // musig + script + witness script
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
@@ -312,13 +318,11 @@ contract Bridge is Ownable2StepUpgradeable {
         }
     }
 
-    function verifySigInTx(TransactionParams calldata tp, bytes32 shaScriptPubkeys) internal view {
-        bytes memory input = tp.vin.extractInputAtIndex(0);
+    function verifySigInTx(bytes memory input, bytes memory output, bytes memory witness0, bytes32 shaScriptPubkeys) internal view {
         bytes32 shaPrevouts = sha256(input.extractOutpoint());
         bytes32 shaAmounts = sha256(hex"00CA9A3B00000000"); // 1000000000 in LE
         bytes32 shaSequences = sha256(abi.encodePacked(input.extractSequenceLEWitness()));
-        bytes32 shaOutputs = sha256(abi.encodePacked(tp.vout.slice(1, tp.vout.length - 1)));
-        bytes memory witness0 = tp.witness.extractWitnessAtIndex(0);
+        bytes32 shaOutputs = sha256(abi.encodePacked(output));
         bytes memory script = witness0.extractItemFromWitness(1);
         bytes memory controlBlock = witness0.extractItemFromWitness(2);
         // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
