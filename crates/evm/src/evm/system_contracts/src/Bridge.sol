@@ -35,6 +35,13 @@ contract Bridge is Ownable2StepUpgradeable {
     BitcoinLightClient public constant LIGHT_CLIENT = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
+    bytes public constant SIGHASH_EPOCH = hex"00";
+    bytes public constant SIGHASH_HASH_TYPE = hex"00";
+    bytes public constant SIGHASH_SPEND_TYPE = hex"02";
+    bytes public constant SIGHASH_INPUT_INDEX = hex"00000000";
+    bytes public constant SIGHASH_KEY_VERSION = hex"00";
+    bytes public constant SIGHASH_CODESEP_POS = hex"ffffffff";
+
     bool public initialized;
     address public operator;
     uint256 public depositAmount;
@@ -131,7 +138,7 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes memory input = moveTp.vin.extractInputAtIndex(0);
         bytes memory output = moveTp.vout.slice(1, moveTp.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
-        verifySigInTx(input, output, witness0, shaScriptPubkeys);
+        verifySigInTx(input, output, witness0, moveTp.version, moveTp.locktime, shaScriptPubkeys);
 
         (bytes32 wtxId, uint256 nIns) = validateAndCheckInclusion(moveTp);
         require(nIns == 1, "Only one input allowed");
@@ -208,20 +215,27 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
     /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
     function replaceDeposit(TransactionParams calldata replaceTp, uint256 index, bytes32 shaScriptPubkeys) external onlyOperator {
+
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
+        {
         bytes memory input = replaceTp.vin.extractInputAtIndex(0);
         bytes memory output = replaceTp.vout.slice(1, replaceTp.vout.length - 1);
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
-        verifySigInTx(input, output, witness0, shaScriptPubkeys);
-
+        verifySigInTx(input, output, witness0, replaceTp.version, replaceTp.locktime, shaScriptPubkeys);
         validateAndCheckInclusion(replaceTp);
+        }
+
         require(index < depositTxIds.length, "Invalid index");
         require(replacePrefix.length != 0, "Replace script is not set");
         bytes32 txIdToReplace = depositTxIds[index];
-
+        
+        {
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
         require(nItems == 3, "Invalid witness items"); // musig + script + witness script
+        }
+        
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
 
+        {
         uint256 prefixLen = replacePrefix.length;
         uint256 suffixLen = replaceSuffix.length;
         require(script.length == prefixLen + 32 + suffixLen, "Invalid script length");
@@ -229,7 +243,9 @@ contract Bridge is Ownable2StepUpgradeable {
         require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid replace script prefix");
         bytes memory _replaceSuffix = script.slice(script.length - suffixLen, suffixLen);
         require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid replace script suffix");
-
+        }
+        
+        {
         bytes32 txId = extractTxId(script);
         require(txId == txIdToReplace, "Invalid txId to replace provided");
 
@@ -238,6 +254,7 @@ contract Bridge is Ownable2StepUpgradeable {
         processedTxIds[newTxId] = true;
 
         emit DepositReplaced(index, txId, newTxId);
+        }
     }
 
     function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
@@ -318,9 +335,9 @@ contract Bridge is Ownable2StepUpgradeable {
         }
     }
 
-    function verifySigInTx(bytes memory input, bytes memory output, bytes memory witness0, bytes32 shaScriptPubkeys) internal view {
+    function verifySigInTx(bytes memory input, bytes memory output, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) internal view {
         bytes32 shaPrevouts = sha256(input.extractOutpoint());
-        bytes32 shaAmounts = sha256(hex"00CA9A3B00000000"); // 1000000000 in LE
+        bytes32 shaAmounts = sha256(abi.encodePacked(bytes8(BTCUtils.reverseUint64(uint64(depositAmount/(10**10)))))); // 1000000000 in LE
         bytes32 shaSequences = sha256(abi.encodePacked(input.extractSequenceLEWitness()));
         bytes32 shaOutputs = sha256(abi.encodePacked(output));
         bytes memory script = witness0.extractItemFromWitness(1);
@@ -328,7 +345,7 @@ contract Bridge is Ownable2StepUpgradeable {
         // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
         bytes1 leafVersion = controlBlock[1] & 0xFE;
         bytes32 tapleafHash = taggedHash("TapLeaf", (abi.encodePacked(leafVersion, script)));
-        bytes memory message = abi.encodePacked(hex"00", hex"00", hex"03000000", hex"00000000", shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, hex"02", hex"00000000", tapleafHash, hex"00", hex"ffffffff");
+        bytes memory message = abi.encodePacked(SIGHASH_EPOCH, SIGHASH_HASH_TYPE, version, locktime, shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, SIGHASH_SPEND_TYPE, SIGHASH_INPUT_INDEX, tapleafHash, SIGHASH_KEY_VERSION, SIGHASH_CODESEP_POS);
         bytes32 messageHash = taggedHash("TapSighash", message);
         bytes memory signatureWithLen = witness0.extractItemFromWitness(0);
         bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
