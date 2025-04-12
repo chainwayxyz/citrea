@@ -865,7 +865,7 @@ impl NodeLedgerOps for LedgerDB {
         val: L2HeightAndIndex,
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2StatusHeights>(&(status, l1_height), &val);
+        schema_batch.put::<L2StatusHeights>(&(status, l1_height), &val)?;
         self.db.write_schemas(schema_batch)?;
         Ok(())
     }
