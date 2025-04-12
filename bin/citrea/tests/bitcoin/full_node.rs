@@ -257,6 +257,15 @@ impl TestCase for L2StatusTest {
         assert_eq!(status.committed, max_l2_blocks_per_commitment * 2);
         assert_eq!(status.proven, max_l2_blocks_per_commitment);
 
+        let status_at_commitment_l1_height = full_node_http_client
+            .get_l2_status_heights_by_l1_height(commitment_l1_height)
+            .await?;
+        assert_eq!(
+            status_at_commitment_l1_height.committed,
+            max_l2_blocks_per_commitment
+        );
+        assert_eq!(status_at_commitment_l1_height.proven, 0);
+
         full_node.wait_until_stopped().await?;
 
         // Rollback to genesis and check that committed and proven height are correctly resetted
