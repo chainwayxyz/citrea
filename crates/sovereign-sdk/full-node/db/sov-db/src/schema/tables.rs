@@ -25,7 +25,7 @@ use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
     AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L2BlockNumber,
-    L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
+    L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -511,7 +511,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// Stores L2 height and index per status
-    (L2StatusHeights) (L2HeightStatus, u64) => u32
+    (L2StatusHeights) (L2HeightStatus, u64) => L2HeightAndIndex
 );
 
 define_table_with_default_codec!(

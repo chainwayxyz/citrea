@@ -157,7 +157,12 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<Option<L2HeightAndIndex>>;
 
     /// Set L2 height by status
-    fn set_l2_height_status(&self, status: L2HeightStatus, height: L2HeightAndIndex) -> Result<()>;
+    fn set_l2_height_status(
+        &self,
+        status: L2HeightStatus,
+        l1_height: u64,
+        l2_height_and_index: L2HeightAndIndex,
+    ) -> Result<()>;
 
     /// Get highest committed and proven L2 heights up to a specific L1 height
     fn get_l2_status_heights_by_l1_height(

@@ -372,6 +372,7 @@ where
 
         self.ledger_db.set_l2_height_status(
             L2HeightStatus::Committed,
+            l1_block.header().height(),
             L2HeightAndIndex {
                 height: end_l2_height,
                 commitment_index: sequencer_commitment.index,
@@ -550,6 +551,7 @@ where
 
         self.ledger_db.set_l2_height_status(
             L2HeightStatus::Proven,
+            l1_block.header().height(),
             L2HeightAndIndex {
                 height: end_l2_height,
                 commitment_index: sequencer_commitment_index_range.1,

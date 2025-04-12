@@ -841,21 +841,17 @@ impl NodeLedgerOps for LedgerDB {
     fn get_highest_l2_height_for_status(
         &self,
         status: L2HeightStatus,
-        height: Option<u64>,
+        l1_height: Option<u64>,
     ) -> anyhow::Result<Option<L2HeightAndIndex>> {
         let mut iter = self
             .db
             .iter_with_direction::<L2StatusHeights>(Default::default(), ScanDirection::Backward)?;
-        iter.seek_for_prev(&(status, height.unwrap_or(u64::MAX)))?;
+        iter.seek_for_prev(&(status, l1_height.unwrap_or(u64::MAX)))?;
 
         match iter.next() {
             Some(Ok(item)) if item.key.0 == status => {
-                let ((_, height), commitment_index) = item.into_tuple();
-
-                Ok(Some(L2HeightAndIndex {
-                    height,
-                    commitment_index,
-                }))
+                let ((_, _), val) = item.into_tuple();
+                Ok(Some(val))
             }
             Some(Err(e)) => Err(e),
             _ => Ok(None),
@@ -865,10 +861,11 @@ impl NodeLedgerOps for LedgerDB {
     fn set_l2_height_status(
         &self,
         status: L2HeightStatus,
+        l1_height: u64,
         val: L2HeightAndIndex,
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2StatusHeights>(&(status, val.height), &val.commitment_index)?;
+        schema_batch.put::<L2StatusHeights>(&(status, l1_height), &val);
         self.db.write_schemas(schema_batch)?;
         Ok(())
     }
