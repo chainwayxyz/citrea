@@ -42,12 +42,11 @@ pub(crate) fn rollback_slots(
         deleted += 1;
     }
 
-    let last_scanned_l1_height = ledger_db
-        .get::<ProverLastScannedSlot>(&())?
-        .unwrap_or_default();
-
-    for l1_height in (target_l1..=last_scanned_l1_height.0).rev() {
-        if matches!(node_type, StorageNodeType::FullNode) {
+    if matches!(node_type, StorageNodeType::FullNode) {
+        let last_scanned_l1_height = ledger_db
+            .get::<ProverLastScannedSlot>(&())?
+            .unwrap_or_default();
+        for l1_height in (target_l1..=last_scanned_l1_height.0).rev() {
             ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l1_height))?;
             ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Proven, l1_height))?;
         }
