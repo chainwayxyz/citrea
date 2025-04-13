@@ -17,8 +17,11 @@ use crate::spec::BitcoinSpec;
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 /// An epoch should be two weeks (represented as number of seconds)
-/// seconds/minute * minutes/hour * hours/day * 14 days
 const EXPECTED_EPOCH_TIMESPAN: u32 = 60 * 60 * 24 * 14;
+
+/// While the regular expected epoch timespan is 14 days (10 minutes per block),
+/// in our custom signet it is ~5.5 hours (10 seconds per block)
+const EXPECTED_EPOCH_TIMESPAN_SIGNET: u32 = EXPECTED_EPOCH_TIMESPAN / 60;
 
 /// Number of blocks per epoch
 const BLOCKS_PER_EPOCH: u64 = 2016;
@@ -310,6 +313,7 @@ impl BitcoinVerifier {
                 block_header.time().secs() as u32,
                 block_header.bits(),
                 network_constants.max_target,
+                EXPECTED_EPOCH_TIMESPAN,
             );
             target_to_bits(&next_target)
         } else {
@@ -376,6 +380,7 @@ impl BitcoinVerifier {
                 // to be equal to current block bits anyway.
                 latest_da_state.current_target_bits,
                 network_constants.max_target,
+                EXPECTED_EPOCH_TIMESPAN,
             );
             target_to_bits(&next_target)
         } else {
@@ -434,6 +439,7 @@ impl BitcoinVerifier {
                 block_header.time().secs() as u32,
                 block_header.bits(),
                 network_constants.max_target,
+                EXPECTED_EPOCH_TIMESPAN_SIGNET,
             );
             target_to_bits(&next_target)
         } else {
@@ -603,19 +609,20 @@ fn calculate_new_difficulty(
     last_timestamp: u32,
     current_target_bits: u32,
     max_target: U256,
+    expected_epoch_timespan: u32,
 ) -> [u8; 32] {
     // Step 1: Calculate the actual timespan of the epoch
     let mut actual_timespan = last_timestamp - epoch_start_time;
-    if actual_timespan < EXPECTED_EPOCH_TIMESPAN / 4 {
-        actual_timespan = EXPECTED_EPOCH_TIMESPAN / 4;
-    } else if actual_timespan > EXPECTED_EPOCH_TIMESPAN * 4 {
-        actual_timespan = EXPECTED_EPOCH_TIMESPAN * 4;
+    if actual_timespan < expected_epoch_timespan / 4 {
+        actual_timespan = expected_epoch_timespan / 4;
+    } else if actual_timespan > expected_epoch_timespan * 4 {
+        actual_timespan = expected_epoch_timespan * 4;
     }
     // Step 2: Calculate the new target
     let new_target_bytes = bits_to_target(current_target_bits);
     let mut new_target = U256::from_be_bytes(new_target_bytes)
         .wrapping_mul(&U256::from(actual_timespan))
-        .wrapping_div(&U256::from(EXPECTED_EPOCH_TIMESPAN));
+        .wrapping_div(&U256::from(expected_epoch_timespan));
     // Step 3: Clamp the new target to the maximum target
     if new_target > max_target {
         new_target = max_target;
