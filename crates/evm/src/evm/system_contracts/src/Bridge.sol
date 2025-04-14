@@ -215,27 +215,20 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
     /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
     function replaceDeposit(TransactionParams calldata replaceTp, uint256 index, bytes32 shaScriptPubkeys) external onlyOperator {
-
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
-        {
         bytes memory input = replaceTp.vin.extractInputAtIndex(0);
         bytes memory output = replaceTp.vout.slice(1, replaceTp.vout.length - 1);
+
         verifySigInTx(input, output, witness0, replaceTp.version, replaceTp.locktime, shaScriptPubkeys);
         validateAndCheckInclusion(replaceTp);
-        }
-
         require(index < depositTxIds.length, "Invalid index");
         require(replacePrefix.length != 0, "Replace script is not set");
+
         bytes32 txIdToReplace = depositTxIds[index];
-        
-        {
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
-        require(nItems == 3, "Invalid witness items"); // musig + script + witness script
-        }
-        
+        require(nItems == 3, "Invalid witness items"); // musig + script + witness script        
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
 
-        {
         uint256 prefixLen = replacePrefix.length;
         uint256 suffixLen = replaceSuffix.length;
         require(script.length == prefixLen + 32 + suffixLen, "Invalid script length");
@@ -243,9 +236,6 @@ contract Bridge is Ownable2StepUpgradeable {
         require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid replace script prefix");
         bytes memory _replaceSuffix = script.slice(script.length - suffixLen, suffixLen);
         require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid replace script suffix");
-        }
-        
-        {
         bytes32 txId = extractTxId(script);
         require(txId == txIdToReplace, "Invalid txId to replace provided");
 
@@ -254,7 +244,6 @@ contract Bridge is Ownable2StepUpgradeable {
         processedTxIds[newTxId] = true;
 
         emit DepositReplaced(index, txId, newTxId);
-        }
     }
 
     function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
