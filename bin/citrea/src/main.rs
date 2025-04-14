@@ -224,13 +224,14 @@ where
     };
 
     let rpc_storage = storage_manager.create_final_view_storage();
-    let rpc_module = rollup_blueprint.setup_rpc(
+    let rpc_module = rollup_blueprint.create_rpc_methods(
         rpc_storage,
-        ledger_db.clone(),
-        da_service.clone(),
+        &ledger_db,
+        &da_service,
         sequencer_client_url,
         l2_block_rx,
         &backup_manager,
+        rollup_config.rpc.clone(),
     )?;
 
     let task_executor = task_manager.executor();

@@ -36,7 +36,6 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
-use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 use tracing::{debug, info, instrument};
 
@@ -123,26 +122,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db,
             storage_manager,
         })
-    }
-
-    /// Setup the RPC server
-    fn setup_rpc(
-        &self,
-        prover_storage: ProverStorage,
-        ledger_db: LedgerDB,
-        da_service: Arc<<Self as RollupBlueprint>::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
-        backup_manager: &Arc<BackupManager>,
-    ) -> Result<RpcModule<()>> {
-        self.create_rpc_methods(
-            prover_storage,
-            &ledger_db,
-            &da_service,
-            sequencer_client_url,
-            l2_block_rx,
-            backup_manager,
-        )
     }
 
     /// Creates a new reorging sequencer

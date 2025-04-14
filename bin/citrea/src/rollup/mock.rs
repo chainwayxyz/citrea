@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::FullNodeConfig;
+use citrea_common::{FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
 use citrea_risc0_adapter::host::Risc0Host;
@@ -52,6 +52,7 @@ impl RollupBlueprint for MockDemoRollup {
         sequencer_client_url: Option<String>,
         l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
+        rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
@@ -59,7 +60,7 @@ impl RollupBlueprint for MockDemoRollup {
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage.clone(), ledger_db, sequencer)?;
+        >(storage.clone(), ledger_db, sequencer, rpc_config)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
