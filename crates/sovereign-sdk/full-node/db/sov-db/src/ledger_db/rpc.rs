@@ -5,18 +5,12 @@ use sov_rollup_interface::rpc::{
     SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 
+use super::{L2GenesisStateRoot, LedgerDB, ProofsBySlotNumberV2, SharedLedgerOps};
 use crate::schema::tables::{
     CommitmentsByNumber, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
     SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
 };
 use crate::schema::types::{SlotNumber, SoftConfirmationNumber};
-
-/// The maximum number of batches that can be requested in a single RPC range query
-const MAX_BATCHES_PER_REQUEST: u64 = 20;
-/// The maximum number of soft confirmations that can be requested in a single RPC range query
-const MAX_SOFT_CONFIRMATIONS_PER_REQUEST: u64 = 20;
-
-use super::{L2GenesisStateRoot, LedgerDB, ProofsBySlotNumberV2, SharedLedgerOps};
 
 impl LedgerRpcProvider for LedgerDB {
     fn get_soft_confirmation(
@@ -50,19 +44,18 @@ impl LedgerRpcProvider for LedgerDB {
         self.get_soft_confirmation(&SoftConfirmationIdentifier::Number(number))
     }
 
-    fn get_soft_confirmations(
+    fn get_soft_confirmations_range(
         &self,
-        soft_confirmation_ids: &[SoftConfirmationIdentifier],
+        start: u64,
+        end: u64,
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error> {
-        anyhow::ensure!(
-            soft_confirmation_ids.len() <= MAX_SOFT_CONFIRMATIONS_PER_REQUEST as usize,
-            "requested too many soft confirmations. Requested: {}. Max: {}",
-            soft_confirmation_ids.len(),
-            MAX_BATCHES_PER_REQUEST
-        );
+        anyhow::ensure!(start <= end, "start must be <= end");
 
+        let soft_confirmation_ids: Vec<_> = (start..=end)
+            .map(SoftConfirmationIdentifier::Number)
+            .collect();
         let mut out = Vec::with_capacity(soft_confirmation_ids.len());
-        for soft_confirmation_id in soft_confirmation_ids {
+        for soft_confirmation_id in &soft_confirmation_ids {
             if let Some(soft_confirmation) = self.get_soft_confirmation(soft_confirmation_id)? {
                 out.push(Some(soft_confirmation));
             } else {
@@ -70,23 +63,6 @@ impl LedgerRpcProvider for LedgerDB {
             }
         }
         Ok(out)
-    }
-
-    fn get_soft_confirmations_range(
-        &self,
-        start: u64,
-        end: u64,
-    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start < MAX_BATCHES_PER_REQUEST,
-            "requested batch range too large. Max: {}",
-            MAX_BATCHES_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end)
-            .map(SoftConfirmationIdentifier::Number)
-            .collect();
-        self.get_soft_confirmations(&ids)
     }
 
     fn get_soft_confirmation_status(

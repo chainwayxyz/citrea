@@ -1,3 +1,4 @@
+use citrea_common::RpcConfig;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, Spec};
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
@@ -10,6 +11,7 @@ pub fn register_rpc<RT, C, Da>(
     ledger_db: &LedgerDB,
     _da_service: &Da,
     _sequencer: C::Address,
+    rpc_config: RpcConfig,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
     RT: RuntimeTrait<C, <Da as DaService>::Spec> + Send + Sync + 'static,
@@ -23,6 +25,7 @@ where
     {
         rpc_methods.merge(sov_ledger_rpc::server::create_rpc_module::<LedgerDB>(
             ledger_db.clone(),
+            rpc_config.into(),
         ))?;
     }
 

@@ -978,7 +978,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -999,7 +999,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "bincode",
  "borsh",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "borsh",
  "citrea-evm",
@@ -3157,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "soft-confirmation-rule-enforcer"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "borsh",
  "serde",
@@ -3168,7 +3168,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "borsh",
  "serde",
@@ -3179,7 +3179,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -3200,7 +3200,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -3218,7 +3218,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3230,7 +3230,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3246,7 +3246,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3259,7 +3259,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "alloy-rlp",
  "anyhow",

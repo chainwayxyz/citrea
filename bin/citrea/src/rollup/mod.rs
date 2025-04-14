@@ -126,26 +126,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         })
     }
 
-    /// Setup the RPC server
-    fn setup_rpc(
-        &self,
-        prover_storage: &ProverStorage<SnapshotManager>,
-        ledger_db: LedgerDB,
-        da_service: Arc<<Self as RollupBlueprint>::DaService>,
-        sequencer_client_url: Option<String>,
-        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
-        backup_manager: &Arc<BackupManager>,
-    ) -> Result<RpcModule<()>> {
-        self.create_rpc_methods(
-            prover_storage,
-            &ledger_db,
-            &da_service,
-            sequencer_client_url,
-            soft_confirmation_rx,
-            backup_manager,
-        )
-    }
-
     /// Creates a new sequencer
     #[instrument(level = "trace", skip_all)]
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]

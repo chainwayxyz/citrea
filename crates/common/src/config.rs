@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use citrea_storage_ops::pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sov_ledger_rpc::server::LedgerRpcServerConfig;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
@@ -83,6 +84,14 @@ pub struct RpcConfig {
     pub max_subscriptions_per_connection: u32,
     /// API key for protected JSON-RPC methods
     pub api_key: Option<String>,
+}
+
+impl From<RpcConfig> for LedgerRpcServerConfig {
+    fn from(val: RpcConfig) -> Self {
+        LedgerRpcServerConfig {
+            max_l2_blocks_per_request: val.batch_requests_limit,
+        }
+    }
 }
 
 impl FromEnv for RpcConfig {

@@ -611,7 +611,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "borsh",
  "sov-modules-api",
@@ -620,7 +620,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -629,7 +629,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "bincode",
  "borsh",
@@ -1986,7 +1986,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2006,7 +2006,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2024,7 +2024,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2040,7 +2040,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2053,7 +2053,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.6.0"
+version = "0.6.11"
 dependencies = [
  "alloy-rlp",
  "anyhow",

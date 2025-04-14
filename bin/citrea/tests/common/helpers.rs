@@ -154,13 +154,14 @@ pub async fn start_rollup(
         None
     };
     let rpc_module = mock_demo_rollup
-        .setup_rpc(
+        .create_rpc_methods(
             &prover_storage,
-            ledger_db.clone(),
-            da_service.clone(),
+            &ledger_db,
+            &da_service,
             sequencer_client_url,
             soft_confirmation_rx,
             &backup_manager,
+            rollup_config.rpc.clone(),
         )
         .expect("RPC module setup should work");
 

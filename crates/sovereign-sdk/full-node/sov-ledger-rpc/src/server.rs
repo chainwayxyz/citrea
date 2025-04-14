@@ -15,16 +15,32 @@ use crate::{HexHash, HexStateRoot, LedgerRpcServer};
 
 const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 
+/// LedgerRpcServerConfig
+#[derive(Clone, Debug)]
+pub struct LedgerRpcServerConfig {
+    /// The maximum number of l2 blocks that can be requested in a single RPC range query
+    pub max_l2_blocks_per_request: u32,
+}
+
+impl Default for LedgerRpcServerConfig {
+    fn default() -> Self {
+        Self {
+            max_l2_blocks_per_request: 20,
+        }
+    }
+}
+
 fn to_ledger_rpc_error(err: impl ToString) -> ErrorObjectOwned {
     to_jsonrpsee_error_object(LEDGER_RPC_ERROR, err)
 }
 pub struct LedgerRpcServerImpl<T> {
     ledger: T,
+    config: LedgerRpcServerConfig,
 }
 
 impl<T> LedgerRpcServerImpl<T> {
-    pub fn new(ledger: T) -> Self {
-        Self { ledger }
+    pub fn new(ledger: T, config: LedgerRpcServerConfig) -> Self {
+        Self { ledger, config }
     }
 }
 
@@ -55,6 +71,12 @@ where
         start: U64,
         end: U64,
     ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>> {
+        if (end - start).to::<u32>() > self.config.max_l2_blocks_per_request {
+            return Err(to_ledger_rpc_error(format!(
+                "requested batch range too large. Max: {}",
+                self.config.max_l2_blocks_per_request
+            )));
+        }
         self.ledger
             .get_soft_confirmations_range(start.to(), end.to())
             .map_err(to_ledger_rpc_error)
@@ -164,10 +186,13 @@ where
     }
 }
 
-pub fn create_rpc_module<T>(ledger: T) -> RpcModule<LedgerRpcServerImpl<T>>
+pub fn create_rpc_module<T>(
+    ledger: T,
+    config: LedgerRpcServerConfig,
+) -> RpcModule<LedgerRpcServerImpl<T>>
 where
     T: LedgerRpcProvider + Send + Sync + 'static,
 {
-    let server = LedgerRpcServerImpl::new(ledger);
+    let server = LedgerRpcServerImpl::new(ledger, config);
     LedgerRpcServer::into_rpc(server)
 }

@@ -444,12 +444,6 @@ pub enum SoftConfirmationStatus {
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
-    /// Get a list of soft confirmations by id. The IDs need not be ordered.
-    fn get_soft_confirmations(
-        &self,
-        batch_ids: &[SoftConfirmationIdentifier],
-    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
-
     /// Get soft confirmation
     fn get_soft_confirmation(
         &self,

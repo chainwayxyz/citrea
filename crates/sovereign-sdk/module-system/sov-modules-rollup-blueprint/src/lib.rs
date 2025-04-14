@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::backup::BackupManager;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{FullNodeConfig, ProverGuestRunConfig};
+use citrea_common::{FullNodeConfig, ProverGuestRunConfig, RpcConfig};
 use prover_services::ParallelProverService;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -74,6 +74,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 
     /// Creates RPC methods for the rollup.
+    #[allow(clippy::too_many_arguments)]
     fn create_rpc_methods(
         &self,
         storage: &ProverStorage<SnapshotManager>,
@@ -82,6 +83,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
+        rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
