@@ -1,10 +1,10 @@
 #![allow(clippy::type_complexity)]
 
-use std::{env, fs};
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{env, fs};
 
 use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
