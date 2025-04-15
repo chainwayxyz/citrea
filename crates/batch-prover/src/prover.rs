@@ -724,6 +724,7 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
     ))
 }
 
+#[allow(clippy::type_complexity)]
 fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     committed_l2_blocks: &VecDeque<Vec<L2Block>>,
     ledger_db: &DB,
