@@ -85,7 +85,7 @@ impl ZkvmHost for Risc0Host {
         if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
             let mut backup_path = PathBuf::from(backup_dir);
             let input_file = format!(
-                "proof-input-{}.bin",
+                "{}-proof-input.bin",
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()

@@ -235,14 +235,14 @@ where
         };
 
         let mut b64_inputs = Vec::with_capacity(raw_inputs.len());
-        let unix_time = SystemTime::now()
+        let unix_nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         for (i, raw_input) in raw_inputs.into_iter().enumerate() {
             if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
                 let mut backup_path = PathBuf::from(backup_dir);
-                let input_file = format!("{}-rpc-proof-input-{}.bin", i, unix_time);
+                let input_file = format!("{}-rpc-proof-input-{}.bin", unix_nanos, i);
                 backup_path.push(input_file);
                 fs::write(backup_path, &raw_input).expect("Proof input write cannot fail");
             }
