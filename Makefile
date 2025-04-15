@@ -24,7 +24,7 @@ build: ## Build the project
 build-test: $(EF_TESTS_DIR) ## Build the project
 	@cargo build --locked $(TEST_FEATURES)
 
-build-reproducible: build-risc0-docker build-sp1 ## Build the project in release mode with reproducible guest builds
+build-reproducible: build-sp1 ## Build the project in release mode with reproducible guest builds
 	REPR_GUEST_BUILD=1 cargo build --release --locked
 
 build-release: ## Build the project in release mode
