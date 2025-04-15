@@ -117,7 +117,15 @@ where
                     }
                 },
                 l2_signal = self.l2_block_rx.recv() => {
-                    let l2_height = l2_signal.expect("L2 signal sender channel closed abruptly");
+                    let l2_height = match l2_signal {
+                        Ok(l2_height) => l2_height,
+                        Err(broadcast::error::RecvError::Lagged(_)) => {
+                            // prover will get the latest block number eventually
+                            continue;
+                        }
+                        _ => panic!("L2 signal sender channel closed abruptly"),
+                    };
+
                     let Some(sync_target_l2_height) = self.sync_target_l2_height else {
                         // we are already fully synced or no commitments are waiting for l2 blocks
                         continue;
