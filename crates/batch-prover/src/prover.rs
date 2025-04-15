@@ -213,7 +213,7 @@ where
             return Ok(Vec::new());
         }
         info!("Got {} pending commitment(s)", commitments.len());
-        
+
         let partitions = self.create_partitions(&mut commitments, mode)?;
 
         let mut proving_jobs = Vec::with_capacity(partitions.len());
