@@ -5,7 +5,7 @@ use risc0_build::{embed_methods_with_options, DockerOptionsBuilder, GuestOptions
 fn main() {
     // Build environment variables
     println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
-    println!("cargo:rerun-if-env-changed=REPR_GUEST_BUILD_LATEST");
+    println!("cargo:rerun-if-env-changed=REPR_GUEST_BUILD");
     println!("cargo:rerun-if-env-changed=OUT_DIR");
     // Compile time constant environment variables
     println!("cargo:rerun-if-env-changed=CITREA_NETWORK");
@@ -65,12 +65,18 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         features.push("testing".to_string());
     }
 
-    let opts = if std::env::var("REPR_GUEST_BUILD_LATEST").is_ok() {
+    let opts = if std::env::var("REPR_GUEST_BUILD").is_ok() {
+        let network =
+            std::env::var("CITREA_NETWORK").expect("CITREA_NETWORK must be set in docker build!");
+
+        println!("cargo:warning=Building guest in docker with network {network}");
+
         let this_package_dir = std::env!("CARGO_MANIFEST_DIR");
         let root_dir = format!("{this_package_dir}/../../../");
 
         let docker_opts = DockerOptionsBuilder::default()
             .root_dir(root_dir)
+            .env(vec![("CITREA_NETWORK".to_string(), network)])
             .build()
             .unwrap();
 
@@ -89,6 +95,12 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     };
 
     guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
-    guest_pkg_to_options.insert("batch-proof-mock", opts.clone());
+
+    if std::env::var("REPR_GUEST_BUILD").is_err() {
+        guest_pkg_to_options.insert("batch-proof-mock", opts.clone());
+    } else {
+        println!("cargo:warning=Skipping mock da guest build because building in docker");
+        println!("cargo:warning=Set REPR_GUEST_BUILD=0 to build mock da guest");
+    }
     guest_pkg_to_options
 }
