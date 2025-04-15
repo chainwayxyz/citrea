@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 use std::fmt::Debug;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
@@ -241,10 +241,9 @@ where
             .as_nanos();
         for (i, raw_input) in raw_inputs.into_iter().enumerate() {
             if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
-                let mut backup_path = PathBuf::from(backup_dir);
-                let input_file = format!("{}-rpc-proof-input-{}.bin", unix_nanos, i);
-                backup_path.push(input_file);
-                fs::write(backup_path, &raw_input).expect("Proof input write cannot fail");
+                let input_path = Path::new(&backup_dir)
+                    .join(format!("{}-rpc-proof-input-{}.bin", unix_nanos, i));
+                fs::write(input_path, &raw_input).expect("Proof input write cannot fail");
             }
             b64_inputs.push(BASE64_STANDARD.encode(&raw_input));
         }

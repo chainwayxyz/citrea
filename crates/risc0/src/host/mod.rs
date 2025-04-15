@@ -3,7 +3,7 @@
 mod bonsai;
 mod local;
 
-use std::path::PathBuf;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs, mem};
 
@@ -83,16 +83,14 @@ impl ZkvmHost for Risc0Host {
         let assumptions = mem::take(&mut self.assumptions);
 
         if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
-            let mut backup_path = PathBuf::from(backup_dir);
-            let input_file = format!(
+            let input_path = Path::new(&backup_dir).join(format!(
                 "{}-proof-input.bin",
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_nanos()
-            );
-            backup_path.push(input_file);
-            fs::write(backup_path, &input).expect("Proof input write cannot fail");
+            ));
+            fs::write(input_path, &input).expect("Proof input write cannot fail");
         }
 
         match &self.prover {
