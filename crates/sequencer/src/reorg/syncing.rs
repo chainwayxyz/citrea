@@ -59,12 +59,6 @@ use super::utils::collect_user_txs;
 /// There are no other txs other than that in this block
 const BLOCK_TO_IGNORE: u64 = 59387;
 
-const TX_HASHES_TO_REPLACE: [&str; 3] = [
-    "0xc662f7e99a3d7f98e954d52657500baac74ff34bbf008affa3128671995a9e75",
-    "0x4026b4220c470e3bbed75d9e5e6d29e55419744dca3398fde097f6e3e8a2b539",
-    "0xc9d34a7faccfe5e3e9f416f6dba1090643deeb42b17e17fd9a77789b615d25f7",
-];
-
 // This sequencer's purpose is to get all pre tangerine blocks including genesis and convert all of them to tangerine blocks
 // This sequencer will only run up to tangerine activation height, will not produce any blocks and will create the storage for the tangerine sequencer
 pub struct CitreaReorgSequencer<Da, DB>
