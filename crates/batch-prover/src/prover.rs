@@ -119,10 +119,8 @@ where
                 l2_signal = self.l2_block_rx.recv() => {
                     let l2_height = match l2_signal {
                         Ok(l2_height) => l2_height,
-                        Err(broadcast::error::RecvError::Lagged(_)) => {
-                            // prover will get the latest block number eventually
-                            continue;
-                        }
+                        // prover will get the latest block number eventually
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
                         _ => panic!("L2 signal sender channel closed abruptly"),
                     };
 
