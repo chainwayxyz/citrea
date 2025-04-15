@@ -279,33 +279,28 @@ contract BridgeTest is Test {
         doDeposit();
     }
 
-    // function testCannotDepositWithFalseDepositScript() public {
-    //     // False witness
-    //     witness = hex"0340abce0ec04f05a22e2bf811b824d91fda4ff6ec94f055d5715cf4384036dd157392cfab47ee808e2ddf97650e420dc848de08699f9184e2ee35da77ed05c9276e4a207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ac00630663697472656115010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51b540e929d1a8f60137e49aaf57049ce593639353871a9ce9cb176070827a09dd";
-    //     witnessRoot = hex"af3827c2b44a695e5306a643f6029b68c350f9907cdf7131ef44a00d6bdee480";
-    //     index = 0;
-    //     intermediate_nodes = hex"";
-    //     vm.startPrank(SYSTEM_CALLER);
-    //     bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 0);
-        
-    //     vm.expectRevert("Invalid deposit script");
-    //     // Incremented 1 block, that's why `doDeposit` is not used
-    //     Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
+    function testCannotDepositWithFalseDepositScript() public {
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656115", hex"08000000003b9aca0068");
+        vm.stopPrank();
+        vm.startPrank(operator);
+        // change deposit prefix
+        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
+        vm.expectRevert("Invalid deposit script");
+        bridge.deposit(depositParams, hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d");
+        vm.stopPrank();
+    }
 
-    //     bridge.deposit(depositParams);
-    //     vm.stopPrank();
-    // }
+    function testCannotDepositWithATxNotInBlock() public {
+        // Tries the hard coded txn on another block with a different witness root
+        witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
+        vm.startPrank(SYSTEM_CALLER);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 3);
 
-    // function testCannotDepositWithATxNotInBlock() public {
-    //     // Tries the hard coded txn on another block with a different witness root
-    //     witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
-    //     vm.startPrank(SYSTEM_CALLER);
-    //     bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 3);
-
-    //     vm.expectRevert("Transaction is not in block");
-    //     Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
-    //     bridge.deposit(depositParams);
-    // }
+        vm.expectRevert("Transaction is not in block");
+        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
+        bridge.deposit(depositParams, hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d");
+    }
 
     function testCannotWithdrawWithInvalidAmount() public {
         doDeposit();
