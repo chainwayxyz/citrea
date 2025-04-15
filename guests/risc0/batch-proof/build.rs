@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::{env, fs, path};
 
 use risc0_build::{embed_methods_with_options, DockerOptionsBuilder, GuestOptionsBuilder};
 
@@ -13,17 +14,17 @@ fn main() {
     println!("cargo:rerun-if-env-changed=SEQUENCER_DA_PUB_KEY");
 
     println!("cargo:rerun-if-env-changed=TEST_SKIP_GUEST_BUILD");
-    if let Ok("1" | "true") = std::env::var("TEST_SKIP_GUEST_BUILD").as_deref() {
+    if let Ok("1" | "true") = env::var("TEST_SKIP_GUEST_BUILD").as_deref() {
         println!("cargo:warning=Skipping guest build in test. Exiting");
         return;
     }
 
-    match std::env::var("SKIP_GUEST_BUILD") {
+    match env::var("SKIP_GUEST_BUILD") {
         Ok(value) => match value.as_str() {
             "1" | "true" => {
                 println!("cargo:warning=Skipping guest build");
-                let out_dir = std::env::var_os("OUT_DIR").unwrap();
-                let out_dir = std::path::Path::new(&out_dir);
+                let out_dir = env::var_os("OUT_DIR").unwrap();
+                let out_dir = path::Path::new(&out_dir);
                 let methods_path = out_dir.join("methods.rs");
 
                 let elf = r#"
@@ -33,7 +34,7 @@ fn main() {
                 pub const BATCH_PROOF_MOCK_ID: [u32; 8] = [0u32; 8];
                 "#;
 
-                return std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
+                return fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
             }
             "0" | "false" => {
                 println!("cargo:warning=Performing guest build");
@@ -42,12 +43,12 @@ fn main() {
                 println!("cargo:warning=Invalid value for SKIP_GUEST_BUILD: '{}'. Expected '0', '1', 'true', or 'false'. Defaulting to performing guest build.", value);
             }
         },
-        Err(std::env::VarError::NotPresent) => {
+        Err(env::VarError::NotPresent) => {
             println!(
                 "cargo:warning=SKIP_GUEST_BUILD not set. Defaulting to performing guest build."
             );
         }
-        Err(std::env::VarError::NotUnicode(_)) => {
+        Err(env::VarError::NotUnicode(_)) => {
             println!("cargo:warning=SKIP_GUEST_BUILD contains invalid Unicode. Defaulting to performing guest build.");
         }
     }
@@ -60,19 +61,24 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
 
     let mut features = Vec::new();
 
-    if std::env::var("CARGO_FEATURE_TESTING").is_ok() {
+    if env::var("CARGO_FEATURE_TESTING").is_ok() {
         println!("cargo:warning=Building with testing feature");
         features.push("testing".to_string());
     }
 
-    let opts = if std::env::var("REPR_GUEST_BUILD").is_ok() {
+    if env::var("REPR_GUEST_BUILD").is_ok() {
         let network =
-            std::env::var("CITREA_NETWORK").expect("CITREA_NETWORK must be set in docker build!");
+            env::var("CITREA_NETWORK").expect("CITREA_NETWORK must be set in docker build!");
+        assert!(
+            matches!(network.as_str(), "mainnet" | "testnet" | "devnet" | "nightly"),
+            "Invalid CITREA_NETWORK value: {}. Valid values are: mainnet | testnet | devnet | nightly",
+            network,
+        );
 
         println!("cargo:warning=Building guest in docker with network {network}");
 
-        let this_package_dir = std::env!("CARGO_MANIFEST_DIR");
-        let root_dir = format!("{this_package_dir}/../../../");
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let root_dir = format!("{manifest_dir}/../../../");
 
         let docker_opts = DockerOptionsBuilder::default()
             .root_dir(root_dir)
@@ -80,27 +86,25 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
             .build()
             .unwrap();
 
-        GuestOptionsBuilder::default()
+        let opts = GuestOptionsBuilder::default()
             .features(features)
             .use_docker(docker_opts)
             .build()
-            .unwrap()
+            .unwrap();
+
+        guest_pkg_to_options.insert("batch-proof-bitcoin", opts);
+        println!("cargo:warning=Skipping mock da guest due to building in docker, unset REPR_GUEST_BUILD to build mock da guest");
     } else {
         println!("cargo:warning=Guest code is not built in docker");
 
-        GuestOptionsBuilder::default()
+        let opts = GuestOptionsBuilder::default()
             .features(features)
             .build()
-            .unwrap()
-    };
+            .unwrap();
 
-    guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
-
-    if std::env::var("REPR_GUEST_BUILD").is_err() {
-        guest_pkg_to_options.insert("batch-proof-mock", opts.clone());
-    } else {
-        println!("cargo:warning=Skipping mock da guest build because building in docker");
-        println!("cargo:warning=Set REPR_GUEST_BUILD=0 to build mock da guest");
+        guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
+        guest_pkg_to_options.insert("batch-proof-mock", opts);
     }
+
     guest_pkg_to_options
 }
