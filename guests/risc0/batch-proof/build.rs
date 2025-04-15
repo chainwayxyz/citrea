@@ -66,7 +66,7 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         features.push("testing".to_string());
     }
 
-    if env::var("REPR_GUEST_BUILD").is_ok() {
+    let opts = if env::var("REPR_GUEST_BUILD").is_ok() {
         let network =
             env::var("CITREA_NETWORK").expect("CITREA_NETWORK must be set in docker build!");
         assert!(
@@ -86,25 +86,21 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
             .build()
             .unwrap();
 
-        let opts = GuestOptionsBuilder::default()
+        GuestOptionsBuilder::default()
             .features(features)
             .use_docker(docker_opts)
             .build()
-            .unwrap();
-
-        guest_pkg_to_options.insert("batch-proof-bitcoin", opts);
-        println!("cargo:warning=Skipping mock da guest due to building in docker, unset REPR_GUEST_BUILD to build mock da guest");
+            .unwrap()
     } else {
         println!("cargo:warning=Guest code is not built in docker");
-
-        let opts = GuestOptionsBuilder::default()
+        GuestOptionsBuilder::default()
             .features(features)
             .build()
-            .unwrap();
+            .unwrap()
+    };
 
-        guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
-        guest_pkg_to_options.insert("batch-proof-mock", opts);
-    }
+    guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
+    guest_pkg_to_options.insert("batch-proof-mock", opts);
 
     guest_pkg_to_options
 }
