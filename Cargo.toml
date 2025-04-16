@@ -19,7 +19,8 @@ members = [
   "crates/sequencer",
   "crates/short-header-proof-provider",
   "crates/l2-block-rule-enforcer",
-  # "crates/sp1",
+  "crates/sp1/guest",
+  "crates/sp1/host",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/mock-da",
@@ -67,6 +68,7 @@ brotli = "7"
 byteorder = { version = "1.5.0", default-features = false }
 bytes = { version = "1.10.0", default-features = false }
 chrono = { version = "0.4.39", default-features = false }
+cfg-if = "1.0.0"
 clap = { version = "4.5.23", features = ["derive", "env"] }
 const-hex = "1.14"
 constmuck = "1.1"
@@ -116,6 +118,11 @@ tempfile = "3.15"
 tokio = { version = "1.44.2", features = ["full"] }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
+
+# SP1 dependencies
+sp1-build = "4.1.7"
+sp1-sdk = "4.1.7"
+sp1-zkvm = "4.1.7"
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4" }
@@ -169,6 +176,10 @@ citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "055e7b2
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "0fe8a8b" }
+
+sp1-build ={ git = "https://github.com/succinctlabs/sp1", rev = "4602a5efbd17a7fd170079a9376f1962e551f9e6" }
+sp1-zkvm ={ git = "https://github.com/succinctlabs/sp1", rev = "4602a5efbd17a7fd170079a9376f1962e551f9e6" }
+sp1-sdk ={ git = "https://github.com/succinctlabs/sp1", rev = "4602a5efbd17a7fd170079a9376f1962e551f9e6" }
 
 [profile.release]
 opt-level = 3

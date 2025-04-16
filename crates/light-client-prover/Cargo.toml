@@ -13,7 +13,7 @@ repository.workspace = true
 bitcoin-da = { path = "../bitcoin-da", optional = true }
 citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives", optional = true }
-citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
+citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof", optional = true }
 prover-services = { path = "../prover-services", optional = true }
 
 # Sov SDK deps
@@ -51,6 +51,10 @@ tempfile = { workspace = true }
 
 [features]
 default = []
+r0 = [
+  "dep:citrea-risc0-batch-proof"
+]
+sp1 = []
 native = [
   "dep:sov-mock-da",
   "dep:bitcoin-da",

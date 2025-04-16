@@ -12,6 +12,7 @@ description = "An adapter allowing Citrea to use risc0 proving system"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+citrea-primitives = { path = "../primitives" }
 anyhow = { workspace = true, optional = true }
 bincode = { workspace = true }
 bonsai-sdk = { workspace = true, optional = true }
@@ -30,7 +31,8 @@ tracing = { workspace = true }
 uuid = { workspace = true, optional = true }
 
 [features]
-default = []
+default = ["r0"]
+r0 = ["sov-rollup-interface/r0"]
 testing = []
 native = [
   "dep:anyhow",

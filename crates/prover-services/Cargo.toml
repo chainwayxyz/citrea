@@ -24,6 +24,7 @@ uuid = { workspace = true }
 [dev-dependencies]
 borsh = { workspace = true }
 tempfile = { workspace = true }
+citrea-sp1-host = { path = "../sp1/host" }
 
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }

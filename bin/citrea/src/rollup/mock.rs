@@ -7,8 +7,6 @@ use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::FullNodeConfig;
 use citrea_primitives::forks::use_network_forks;
-// use citrea_sp1::host::SP1Host;
-use citrea_risc0_adapter::host::Risc0Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
@@ -37,7 +35,10 @@ impl RollupBlueprint for MockDemoRollup {
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
     type DaVerifier = MockDaVerifier;
-    type Vm = Risc0Host;
+    #[cfg(feature = "r0")]
+    type Vm = citrea_risc0_adapter::host::Risc0Host;
+    #[cfg(feature = "sp1")]
+    type Vm = citrea_sp1_host::SP1Host;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -112,7 +113,7 @@ impl RollupBlueprint for MockDemoRollup {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         BATCH_PROOF_LATEST_MOCK_GUESTS
             .iter()
-            .map(|(k, (id, _))| (*k, *id))
+            .map(|(k, (id, _))| (*k, id.clone()))
             .collect()
     }
 
@@ -121,7 +122,7 @@ impl RollupBlueprint for MockDemoRollup {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         LIGHT_CLIENT_LATEST_MOCK_GUESTS
             .iter()
-            .map(|(k, (id, _))| (*k, *id))
+            .map(|(k, (id, _))| (*k, id.clone()))
             .collect()
     }
 
@@ -133,7 +134,14 @@ impl RollupBlueprint for MockDemoRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0Host::new(ledger_db.clone(), self.network);
+        #[cfg(feature = "r0")]
+        let vm = citrea_risc0_adapter::host::Risc0Host::new(ledger_db.clone(), self.network);
+        #[cfg(feature = "sp1")]
+        let vm = citrea_sp1_host::SP1Host::new(
+            citrea_sp1_host::ELF.to_vec(),
+            ledger_db.clone(),
+            self.network,
+        );
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,

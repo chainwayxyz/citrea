@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 
 use alloy_primitives::{U32, U64};
 use block::L2BlockResponse;
-use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -13,6 +12,7 @@ use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
+use crate::zk::Digest;
 use crate::RefCount;
 
 /// L2 Block response

@@ -10,8 +10,9 @@
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use hex::{FromHex, FromHexError};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use tokio::sync::oneshot;
 
@@ -146,3 +147,84 @@ pub type StorageRootHash = [u8; 32];
 
 /// Alias to jmt::proof::SparseMerkleProof.
 pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;
+
+/// Represents a hashing function result.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Digest([u32; 8]);
+
+impl Digest {
+    /// Creates a new [`Digest`].
+    pub fn new(value: [u32; 8]) -> Self {
+        Self(value)
+    }
+
+    /// Returns a reference to the [Digest] as a slice of words.
+    pub fn as_words(&self) -> &[u32] {
+        &self.0
+    }
+}
+
+impl From<[u32; 8]> for Digest {
+    fn from(value: [u32; 8]) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<[u8; 32]> for Digest {
+    fn from(data: [u8; 32]) -> Self {
+        let mut result = [0u32; 8];
+
+        for (i, item) in result.iter_mut().enumerate() {
+            let start = i * 4;
+            *item = u32::from_ne_bytes([
+                data[start],
+                data[start + 1],
+                data[start + 2],
+                data[start + 3],
+            ]);
+        }
+
+        Self(result)
+    }
+}
+
+impl From<Digest> for [u32; 8] {
+    fn from(value: Digest) -> Self {
+        value.0
+    }
+}
+
+impl FromHex for Digest {
+    type Error = FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        Ok(<[u8; 32]>::from_hex(hex)?.into())
+    }
+}
+
+impl AsRef<[u8]> for Digest {
+    fn as_ref(&self) -> &[u8] {
+        todo!()
+    }
+}
+
+#[cfg(feature = "r0")]
+impl From<Digest> for risc0_zkp::core::digest::Digest {
+    fn from(value: Digest) -> Self {
+        Self::new(value.0)
+    }
+}
+
+#[cfg(feature = "r0")]
+impl From<&Digest> for risc0_zkp::core::digest::Digest {
+    fn from(value: &Digest) -> Self {
+        Self::new(value.0)
+    }
+}
+
+#[cfg(feature = "r0")]
+impl From<risc0_zkp::core::digest::Digest> for Digest {
+    fn from(value: risc0_zkp::core::digest::Digest) -> Self {
+        Self::new(value.into())
+    }
+}

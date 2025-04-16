@@ -30,8 +30,12 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
+    #[cfg(feature = "r0")]
     pub const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
         &[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
+
+    #[cfg(feature = "sp1")]
+    pub const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[];
 
     pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
@@ -122,6 +126,7 @@ pub mod bitcoinda {
         decode_to_u32_array("26af8a6fbafcf3eb81fe6d56c8c6e79ad78af645ab7b9803393477d6001cf8e4"),
     )];
 
+    #[cfg(feature = "r0")]
     pub const NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
@@ -129,6 +134,10 @@ pub mod bitcoinda {
         }
     };
 
+    #[cfg(feature = "sp1")]
+    pub const NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[];
+
+    #[cfg(feature = "r0")]
     pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
@@ -149,6 +158,9 @@ pub mod bitcoinda {
             ],
         }
     };
+
+    #[cfg(feature = "sp1")]
+    pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[];
 
     pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"030000000000000000000000000000000000000000000000000000000000000000",

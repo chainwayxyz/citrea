@@ -19,11 +19,8 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
-citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
-citrea-risc0-light-client = { path = "../../guests/risc0/light-client-proof" }
 citrea-sequencer = { path = "../../crates/sequencer" }
-# citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
+
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 citrea-storage-ops = { path = "../../crates/storage-ops" }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
@@ -43,12 +40,23 @@ sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["native"] }
 sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = ["native"] }
 
+# Risc Zero
+citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"], optional = true, default-features = false }
+citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof", optional = true }
+citrea-risc0-light-client = { path = "../../guests/risc0/light-client-proof", optional = true }
+risc0-binfmt = { workspace = true, optional = true}
+
+# SP1
+citrea-sp1-host = { path = "../../crates/sp1/host", optional = true }
+sp1-sdk = { workspace = true, optional = true }
+
 # 3rd-party deps
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
+cfg-if = { workspace = true }
 clap = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
@@ -60,7 +68,6 @@ metrics-util = { workspace = true }
 reth-primitives = { workspace = true }
 reth-tasks = { workspace = true }
 reth-transaction-pool = { workspace = true }
-risc0-binfmt = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -70,7 +77,6 @@ tracing-subscriber = { workspace = true }
 [dev-dependencies]
 citrea-evm = { path = "../../crates/evm", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives", features = ["testing"] }
-citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native", "testing"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["testing"] }
@@ -107,16 +113,32 @@ bitcoincore-rpc.workspace = true
 citrea-e2e = { workspace = true }
 
 [build-dependencies]
-sp1-helper = { version = "3.0.0", default-features = false }
+sp1-build = { workspace = true, optional = true }
 
 [features]
-default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
+default = ["r0"] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 testing = [
   "bitcoin-da/testing",
   "citrea-primitives/testing",
   "citrea-risc0-batch-proof/testing",
   "citrea-risc0-light-client/testing",
+  "citrea-sp1-host/testing",
   "sov-rollup-interface/testing",
+]
+r0 = [
+    "dep:citrea-risc0-adapter",
+    "dep:citrea-risc0-batch-proof",
+    "dep:citrea-risc0-light-client",
+    "dep:risc0-binfmt",
+    "citrea-risc0-adapter/r0",
+    "citrea-primitives/r0",
+    "citrea-light-client-prover/r0",
+]
+sp1 = [
+  "dep:citrea-sp1-host",
+  "dep:sp1-build",
+  "dep:sp1-sdk",
+  "citrea-light-client-prover/sp1",
 ]
 
 [[bin]]

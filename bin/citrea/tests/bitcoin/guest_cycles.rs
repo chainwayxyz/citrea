@@ -12,7 +12,6 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_sequencer::SequencerRpcClient;
-use risc0_zkvm::{default_prover, ExecutorEnvBuilder, ProveInfo, ProverOpts};
 
 /// Helper test to generate a batch proof input. Risc0 host code should be modified
 /// to save the input to a file if it will be used in `guest_cycles` test. If the input
@@ -141,9 +140,12 @@ async fn generate_proof_input() -> Result<()> {
     .await
 }
 
+#[cfg(feature = "r0")]
 #[tokio::test]
 #[ignore]
 async fn guest_cycles() {
+    use risc0_zkvm::{default_prover, ExecutorEnvBuilder, ProveInfo, ProverOpts};
+
     let input = fs::read("tests/bitcoin/test-data/kumquat-input.bin").unwrap();
     println!("Input size: {}", input.len());
 
@@ -190,4 +192,26 @@ async fn guest_cycles() {
         .unwrap();
 
     println!("Execution stats: {:?}", stats);
+}
+
+#[cfg(feature = "sp1")]
+#[tokio::test]
+#[ignore]
+async fn guest_cycles_sp1() {
+    use sp1_sdk::{ProverClient, SP1Stdin};
+
+    // Setup the prover client.
+    let client = ProverClient::from_env();
+
+    // Setup the inputs.
+    let input = fs::read("tests/bitcoin/test-data/kumquat-input1.bin").unwrap();
+
+    let stdin = bincode::deserialize(&input).unwrap();
+
+    let start = std::time::Instant::now();
+    let (_output, report) = client.execute(citrea_sp1_host::ELF, &stdin).run().unwrap();
+
+    println!("Report:\n{}", report);
+
+    println!("Elapsed: {}", start.elapsed().as_secs_f32());
 }
