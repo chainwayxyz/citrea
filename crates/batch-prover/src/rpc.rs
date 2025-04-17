@@ -20,6 +20,7 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::{
     JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
+use sov_rollup_interface::services::da::DaService;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -35,38 +36,44 @@ pub struct ProverInputResponse {
     pub encoded_serialized_batch_proof_input: String,
 }
 
-pub struct RpcContext<DB>
+pub struct RpcContext<Da, DB>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone,
 {
     pub ledger_db: DB,
     pub request_tx: mpsc::Sender<ProverRequest>,
+    pub da_service: Arc<Da>,
 }
 
 /// Creates a shared RpcContext with all required data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn create_rpc_context<DB>(
+pub fn create_rpc_context<Da, DB>(
     ledger_db: DB,
     request_tx: mpsc::Sender<ProverRequest>,
-) -> RpcContext<DB>
+    da_service: Arc<Da>,
+) -> RpcContext<Da, DB>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone,
 {
     RpcContext {
         ledger_db,
         request_tx,
+        da_service,
     }
 }
 
 /// Updates the given RpcModule with Prover methods.
-pub fn register_rpc_methods<DB>(
-    rpc_context: RpcContext<DB>,
+pub fn register_rpc_methods<Da, DB>(
+    rpc_context: RpcContext<Da, DB>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
 {
-    let rpc = create_rpc_module::<DB>(rpc_context);
+    let rpc = create_rpc_module(rpc_context);
     rpc_methods.merge(rpc)?;
     Ok(rpc_methods)
 }
@@ -81,6 +88,10 @@ pub trait BatchProverRpc {
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
     async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>>;
+
+    /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
+    #[method(name = "proveNative")]
+    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<()>;
 
     /// Stop further proving jobs to be spawned. Existing jobs will continue.
     #[method(name = "pauseProving")]
@@ -113,18 +124,20 @@ pub trait BatchProverRpc {
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
 }
 
-pub struct BatchProverRpcServerImpl<DB>
+pub struct BatchProverRpcServerImpl<Da, DB>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
-    context: Arc<RpcContext<DB>>,
+    context: Arc<RpcContext<Da, DB>>,
 }
 
-impl<DB> BatchProverRpcServerImpl<DB>
+impl<Da, DB> BatchProverRpcServerImpl<Da, DB>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
-    pub fn new(context: RpcContext<DB>) -> Self {
+    pub fn new(context: RpcContext<Da, DB>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -132,8 +145,9 @@ where
 }
 
 #[async_trait::async_trait]
-impl<DB> BatchProverRpcServer for BatchProverRpcServerImpl<DB>
+impl<Da, DB> BatchProverRpcServer for BatchProverRpcServerImpl<Da, DB>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
     async fn set_commitments(
@@ -194,6 +208,10 @@ where
         };
 
         Ok(job_ids)
+    }
+
+    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<()> {
+        Ok(())
     }
 
     async fn pause_proving(&self) -> RpcResult<()> {
@@ -313,10 +331,11 @@ where
     }
 }
 
-pub fn create_rpc_module<DB>(
-    rpc_context: RpcContext<DB>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<DB>>
+pub fn create_rpc_module<Da, DB>(
+    rpc_context: RpcContext<Da, DB>,
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, DB>>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
