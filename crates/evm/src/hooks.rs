@@ -128,15 +128,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .last()
             .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used());
 
-        let transactions: Vec<_> = pending_transactions
+        let (transactions, receipts): (Vec<_>, Vec<_>) = pending_transactions
             .iter()
-            .map(|tx| tx.transaction.signed_transaction.clone()) // TODO: https://github.com/alloy-rs/alloy/issues/2214
-            .collect();
-
-        let receipts: Vec<_> = pending_transactions
-            .iter_mut()
-            .map(|tx| tx.receipt.receipt.clone())
-            .collect();
+            .map(|tx| (&tx.transaction.signed_transaction, &tx.receipt.receipt))
+            .unzip();
 
         let evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec);
 
