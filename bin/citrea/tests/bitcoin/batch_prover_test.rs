@@ -1085,6 +1085,7 @@ impl TestCase for SubmitFakeProofRpcTest {
             sequencer.client.send_publish_batch_request().await.unwrap();
         }
         sequencer.wait_for_l2_height(20, None).await.unwrap();
+        batch_prover.wait_for_l2_height(20, None).await.unwrap();
 
         // wait for 4 commitment txs to hit DA
         da.wait_mempool_len(8, None).await.unwrap();
