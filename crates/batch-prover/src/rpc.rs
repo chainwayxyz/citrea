@@ -26,7 +26,7 @@ use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam
+    BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -109,7 +109,11 @@ pub trait BatchProverRpc {
 
     /// Simulate proving by collecting output from the execution in native, and submit the fake proof to DA.
     #[method(name = "submitFakeProof")]
-    async fn submit_fake_proof(&self, index_start: u32, index_end: u32) -> RpcResult<BatchProofResponse>;
+    async fn submit_fake_proof(
+        &self,
+        index_start: u32,
+        index_end: u32,
+    ) -> RpcResult<BatchProofResponse>;
 
     /// Stop further proving jobs to be spawned. Existing jobs will continue.
     #[method(name = "pauseProving")]
@@ -231,7 +235,11 @@ where
         Ok(job_ids)
     }
 
-    async fn submit_fake_proof(&self, index_start: u32, index_end: u32) -> RpcResult<BatchProofResponse> {
+    async fn submit_fake_proof(
+        &self,
+        index_start: u32,
+        index_end: u32,
+    ) -> RpcResult<BatchProofResponse> {
         info!(
             "Submitting fake proof for commitment index range [{},{}]",
             index_start, index_end

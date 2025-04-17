@@ -1213,6 +1213,50 @@ impl TestCase for SubmitFakeProofRpcTest {
         assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 4);
         assert_eq!(lcp_output.last_l2_height.to::<u32>(), 20);
 
+        // generate 1 last commitment
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await.unwrap();
+        }
+        sequencer.wait_for_l2_height(25, None).await.unwrap();
+        batch_prover.wait_for_l2_height(25, None).await.unwrap();
+
+        // wait for 1 commitment txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 commitment
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure batch prover saw 1 commitment
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // prove commitment index 5 through rpc
+        let job_id = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::Normal)
+            .await
+            .unwrap()[0];
+        let zkvm_prove_output = wait_for_prover_job(batch_prover, job_id, None)
+            .await
+            .unwrap()
+            .proof
+            .unwrap()
+            .proof_output;
+
+        // also submit fake proof of commitment index 5 through rpc
+        let native_prove_output = batch_prover
+            .client
+            .http_client()
+            .submit_fake_proof(5, 5)
+            .await
+            .unwrap()
+            .proof_output;
+        // compare actual zkvm
+        assert_eq!(zkvm_prove_output, native_prove_output);
+
         Ok(())
     }
 }
