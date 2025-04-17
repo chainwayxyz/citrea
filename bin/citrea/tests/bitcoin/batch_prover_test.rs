@@ -10,8 +10,7 @@ use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_e2e::config::{
-    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
-    TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig, TestCaseConfig, TestCaseEnv
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{BatchProver, FullNode};
@@ -1073,6 +1072,17 @@ impl TestCase for SubmitFakeProofRpcTest {
             proof_sampling_number: 999_999_999_999,
             ..Default::default()
         }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 170,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
