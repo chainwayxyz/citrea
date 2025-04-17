@@ -11,6 +11,7 @@ use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_stf::runtime::DefaultContext;
 use citrea_stf::verifier::get_last_l1_hash_on_contract;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -21,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
     JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
@@ -51,6 +53,7 @@ where
     pub ledger_db: DB,
     pub request_tx: mpsc::Sender<ProverRequest>,
     pub da_service: Arc<Da>,
+    pub storage_manager: ProverStorageManager,
     pub code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
 }
 
@@ -60,6 +63,7 @@ pub fn create_rpc_context<Da, DB, Vm>(
     ledger_db: DB,
     request_tx: mpsc::Sender<ProverRequest>,
     da_service: Arc<Da>,
+    storage_manager: ProverStorageManager,
     code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
 ) -> RpcContext<Da, DB, Vm>
 where
@@ -71,6 +75,7 @@ where
         ledger_db,
         request_tx,
         da_service,
+        storage_manager,
         code_commitments,
     }
 }
@@ -291,7 +296,16 @@ where
             start_l2_height = end_l2_height + 1;
         }
 
-        let last_l1_hash_on_contract = get_last_l1_hash_on_contract(Default::default(), storage, &mut Default::default(), [0; 32]);
+        let storage = self
+            .context
+            .storage_manager
+            .create_storage_for_l2_height(last_l2_block.height + 1);
+        let last_l1_hash_on_contract = get_last_l1_hash_on_contract::<DefaultContext>(
+            Default::default(),
+            storage,
+            &mut Default::default(),
+            [0; 32],
+        );
 
         let output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
             state_roots,
@@ -305,8 +319,7 @@ where
             previous_commitment_hash: Some(previous_commitment.serialize_and_calculate_sha_256()),
         });
 
-        let output_serialized =
-            borsh::to_vec(&output).expect("Output serialization cannot fail");
+        let output_serialized = borsh::to_vec(&output).expect("Output serialization cannot fail");
 
         let spec_id = fork_from_block_number(last_l2_block.height).spec_id;
         let method_id: [u32; 8] = self

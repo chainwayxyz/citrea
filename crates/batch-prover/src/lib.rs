@@ -69,6 +69,7 @@ where
         ledger_db.clone(),
         request_tx,
         da_service.clone(),
+        storage_manager.clone(),
         code_commitments.clone(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
