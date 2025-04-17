@@ -15,7 +15,7 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
@@ -241,24 +241,26 @@ where
 
         let first_commitment = commitments.first().expect("Must have at least 1");
         let last_commitment = commitments.last().expect("Must have at least 1");
+        let last_l2_block = ledger_db.get_l2_block_by_number(&L2BlockNumber(last_commitment.l2_end_block_number))
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .ok_or_else(|| internal_rpc_error("Not synced up to latest L2 block yet"))?;
 
         let mut sequencer_commitment_hashes = Vec::with_capacity(commitments.len());
         for commitment in commitments.iter() {
             sequencer_commitment_hashes.push(commitment.serialize_and_calculate_sha_256());
         }
 
-        let output = BatchProofCircuitOutputV3 {
+        let output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
             state_roots: vec![],
-            final_l2_block_hash: [0; 32],
+            final_l2_block_hash: last_l2_block.hash,
             state_diff: Default::default(),
-            last_l2_height: last_commitment.l2_end_block_number,
+            last_l2_height: last_l2_block.height,
             sequencer_commitment_hashes,
             sequencer_commitment_index_range: (index_start, index_end),
             last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
             previous_commitment_index: Some(previous_commitment.index),
             previous_commitment_hash: Some(previous_commitment.serialize_and_calculate_sha_256()),
-        };
-        let output = BatchProofCircuitOutput::V3(output);
+        });
         // TODO: convert output to serialized proof
 
         let proof = vec![];
