@@ -52,6 +52,7 @@ impl TestCase for ForkActivationTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
+        println!("Running with forks : {:?}", get_forks);
         let kumquat_height = get_forks()[1].activation_height;
         let tangerine_height = get_forks()[2].activation_height;
 
