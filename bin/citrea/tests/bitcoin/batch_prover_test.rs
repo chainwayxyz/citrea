@@ -736,12 +736,12 @@ async fn parallel_proving_test() -> Result<()> {
 //             .await?;
 //         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
 
-//         // Generate softcom in fork2
+//         // Generate softcom in Tangerine
 //         for _ in 0..min_l2_blocks {
 //             sequencer.client.send_publish_batch_request().await?;
 //         }
 
-//         let last_sc_before_fork2 = sequencer
+//         let last_sc_before_tangerine = sequencer
 //             .client
 //             .http_client()
 //             .get_l2_block_by_number(U64::from(199u64))
@@ -749,8 +749,8 @@ async fn parallel_proving_test() -> Result<()> {
 //             .unwrap()
 //             .unwrap();
 
-//         // the last tx of last l2 block before fork2 should be the change authority sov tx
-//         let last_tx_hex = last_sc_before_fork2
+//         // the last tx of last l2 block before tangerine should be the change authority sov tx
+//         let last_tx_hex = last_sc_before_tangerine
 //             .clone()
 //             .txs
 //             .clone()
@@ -798,7 +798,7 @@ async fn parallel_proving_test() -> Result<()> {
 //             .client
 //             .ledger_get_head_l2_block_height()
 //             .await?;
-//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
+//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Tangerine);
 
 //         da.wait_mempool_len(6, None).await?;
 
@@ -846,7 +846,7 @@ async fn parallel_proving_test() -> Result<()> {
 //         );
 //         assert_eq!(
 //             fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
-//             SpecId::Fork2
+//             SpecId::Tangerine
 //         );
 
 //         light_client_prover
@@ -921,7 +921,7 @@ impl TestCase for L1HashOutputTest {
 
         sequencer.client.wait_for_l2_block(1, None).await?;
 
-        da.generate(100).await?; // This will produce ceil(100 - 1 / MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK) l2 blocks post fork2 which is 10
+        da.generate(100).await?; // This will produce ceil(100 - 1 / MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK) l2 blocks post tangerine which is 10
 
         tokio::time::sleep(Duration::from_secs(2)).await;
         sequencer.client.send_publish_batch_request().await?;
