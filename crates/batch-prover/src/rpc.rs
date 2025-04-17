@@ -107,8 +107,8 @@ pub trait BatchProverRpc {
     async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>>;
 
     /// Simulate proving by collecting output from the execution in native, and submit the fake proof to DA.
-    #[method(name = "proveNative")]
-    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String>;
+    #[method(name = "submitFakeProof")]
+    async fn submit_fake_proof(&self, index_start: u32, index_end: u32) -> RpcResult<String>;
 
     /// Stop further proving jobs to be spawned. Existing jobs will continue.
     #[method(name = "pauseProving")]
@@ -230,7 +230,7 @@ where
         Ok(job_ids)
     }
 
-    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String> {
+    async fn submit_fake_proof(&self, index_start: u32, index_end: u32) -> RpcResult<String> {
         let ledger_db = &self.context.ledger_db;
 
         if index_start > index_end {
