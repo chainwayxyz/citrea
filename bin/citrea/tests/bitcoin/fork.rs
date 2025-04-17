@@ -145,6 +145,8 @@ impl ForkActivationTest {
         client: &TestClient,
         contracts: &TestContracts,
     ) -> Result<()> {
+        let height = sequencer.client.ledger_get_head_l2_block_height().await?;
+        println!("Running test_pre_kumquat at height {height}");
         {
             let schnorr_input = Bytes::from_str(SCHNORR_INPUT).unwrap();
             let schnorr_result = client
@@ -209,6 +211,8 @@ impl ForkActivationTest {
         client: &TestClient,
         contracts: &TestContracts,
     ) -> Result<()> {
+        let height = sequencer.client.ledger_get_head_l2_block_height().await?;
+        println!("Running test_kumquat_features at height {height}");
         // Test schnoor in Kumquat
         {
             let input = Bytes::from_str(SCHNORR_INPUT).unwrap();
@@ -293,6 +297,8 @@ impl ForkActivationTest {
         client: &TestClient,
         contracts: &TestContracts,
     ) -> Result<()> {
+        let height = sequencer.client.ledger_get_head_l2_block_height().await?;
+        println!("Running test_tangerine_features at height {height}");
         // Test that SCHNORR_VERIFY is available post Tangerine
         {
             let input = Bytes::from_str(SCHNORR_INPUT).unwrap();
