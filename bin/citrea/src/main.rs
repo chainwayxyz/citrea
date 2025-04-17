@@ -362,7 +362,7 @@ where
             });
         }
         _ => {
-            let (full_node, l1_block_handler, pruner_service, rpc_module) =
+            let (mut l2_syncer, l1_block_handler, pruner_service, rpc_module) =
                 CitreaRollupBlueprint::create_full_node(
                     &rollup_blueprint,
                     genesis_config,
@@ -406,11 +406,7 @@ where
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "FullNode",
-                |shutdown_signal| async move {
-                    if let Err(e) = full_node.run(shutdown_signal).await {
-                        error!("Error: {}", e);
-                    }
-                },
+                |shutdown_signal| async move { l2_syncer.run(shutdown_signal).await },
             );
         }
     }
