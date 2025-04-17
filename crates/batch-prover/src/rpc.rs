@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::Path;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use std::{env, fs};
 use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
@@ -17,7 +19,7 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
-use sov_modules_api::BatchProofCircuitOutputV3;
+use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
     JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
@@ -39,42 +41,48 @@ pub struct ProverInputResponse {
     pub encoded_serialized_batch_proof_input: String,
 }
 
-pub struct RpcContext<Da, DB>
+pub struct RpcContext<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone,
+    Vm: Zkvm + 'static,
 {
     pub ledger_db: DB,
     pub request_tx: mpsc::Sender<ProverRequest>,
     pub da_service: Arc<Da>,
+    pub code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
 }
 
 /// Creates a shared RpcContext with all required data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn create_rpc_context<Da, DB>(
+pub fn create_rpc_context<Da, DB, Vm>(
     ledger_db: DB,
     request_tx: mpsc::Sender<ProverRequest>,
     da_service: Arc<Da>,
-) -> RpcContext<Da, DB>
+    code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+) -> RpcContext<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone,
+    Vm: Zkvm,
 {
     RpcContext {
         ledger_db,
         request_tx,
         da_service,
+        code_commitments,
     }
 }
 
 /// Updates the given RpcModule with Prover methods.
-pub fn register_rpc_methods<Da, DB>(
-    rpc_context: RpcContext<Da, DB>,
+pub fn register_rpc_methods<Da, DB, Vm>(
+    rpc_context: RpcContext<Da, DB, Vm>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
+    Vm: Zkvm,
 {
     let rpc = create_rpc_module(rpc_context);
     rpc_methods.merge(rpc)?;
@@ -127,20 +135,22 @@ pub trait BatchProverRpc {
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
 }
 
-pub struct BatchProverRpcServerImpl<Da, DB>
+pub struct BatchProverRpcServerImpl<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
-    context: Arc<RpcContext<Da, DB>>,
+    context: Arc<RpcContext<Da, DB, Vm>>,
 }
 
-impl<Da, DB> BatchProverRpcServerImpl<Da, DB>
+impl<Da, DB, Vm> BatchProverRpcServerImpl<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
-    pub fn new(context: RpcContext<Da, DB>) -> Self {
+    pub fn new(context: RpcContext<Da, DB, Vm>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -148,10 +158,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Da, DB> BatchProverRpcServer for BatchProverRpcServerImpl<Da, DB>
+impl<Da, DB, Vm> BatchProverRpcServer for BatchProverRpcServerImpl<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
     async fn set_commitments(
         &self,
@@ -291,7 +302,17 @@ where
             previous_commitment_hash: Some(previous_commitment.serialize_and_calculate_sha_256()),
         });
 
-        let mut output_serialized = borsh::to_vec(&output).expect("Output serialization cannot fail");
+        let output_serialized =
+            borsh::to_vec(&output).expect("Output serialization cannot fail");
+
+        let spec_id = fork_from_block_number(last_l2_block.height).spec_id;
+        let method_id: [u32; 8] = self
+            .context
+            .code_commitments
+            .get(&spec_id)
+            .expect("Spec for L2 block must exist")
+            .clone()
+            .into();
 
         let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized));
         let fake_receipt = FakeReceipt::new(claim);
@@ -425,12 +446,13 @@ where
     }
 }
 
-pub fn create_rpc_module<Da, DB>(
-    rpc_context: RpcContext<Da, DB>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, DB>>
+pub fn create_rpc_module<Da, DB, Vm>(
+    rpc_context: RpcContext<Da, DB, Vm>,
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, DB, Vm>>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
