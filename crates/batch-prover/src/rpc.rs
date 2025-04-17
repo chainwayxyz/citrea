@@ -16,7 +16,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::SlotNumber;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
     JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
@@ -91,7 +91,7 @@ pub trait BatchProverRpc {
 
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "proveNative")]
-    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<()>;
+    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String>;
 
     /// Stop further proving jobs to be spawned. Existing jobs will continue.
     #[method(name = "pauseProving")]
@@ -210,8 +210,15 @@ where
         Ok(job_ids)
     }
 
-    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<()> {
-        Ok(())
+    async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String> {
+        let proof = vec![];
+        let tx_id = self
+            .context
+            .da_service
+            .send_transaction(DaTxRequest::ZKProof(proof))
+            .await
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+        Ok(hex::encode(tx_id.into()))
     }
 
     async fn pause_proving(&self) -> RpcResult<()> {
