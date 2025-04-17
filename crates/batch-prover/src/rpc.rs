@@ -220,14 +220,23 @@ where
         }
         // don't allow first commitment index to be called through this rpc as it requires extra handling
         if index_start <= 1 {
-            return Err(internal_rpc_error("proveNative rpc supports only index_start > 1"));
+            return Err(internal_rpc_error(
+                "proveNative rpc supports only index_start > 1",
+            ));
         }
+
+        let previous_commitment = ledger_db
+            .get_commitment_by_index(index_start - 1)
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .ok_or_else(|| internal_rpc_error("Missing previous commitment index"))?;
 
         let commitments = ledger_db
             .get_commitment_by_range(index_start..=index_end)
             .map_err(|e| internal_rpc_error(e.to_string()))?;
         if commitments.len() as u32 != index_end - index_start + 1 {
-            return Err(internal_rpc_error("Missing some commitment indices from the range"));
+            return Err(internal_rpc_error(
+                "Missing some commitment indices from the range",
+            ));
         }
 
         let first_commitment = commitments.first().expect("Must have at least 1");
@@ -243,8 +252,8 @@ where
             sequencer_commitment_hashes: vec![],
             sequencer_commitment_index_range: (index_start, index_end),
             last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
-            previous_commitment_index: None,
-            previous_commitment_hash: None,
+            previous_commitment_index: Some(previous_commitment.index),
+            previous_commitment_hash: Some(previous_commitment.serialize_and_calculate_sha_256()),
         };
         let output = BatchProofCircuitOutput::V3(output);
         // TODO: convert output to serialized proof
