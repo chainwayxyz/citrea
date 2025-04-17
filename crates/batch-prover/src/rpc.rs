@@ -218,7 +218,7 @@ where
         if index_start > index_end {
             return Err(internal_rpc_error("Invalid index range"));
         }
-        // don't allow first commitment index to be called through this rpc
+        // don't allow first commitment index to be called through this rpc as it requires extra handling
         if index_start <= 1 {
             return Err(internal_rpc_error("proveNative rpc supports only index_start > 1"));
         }
