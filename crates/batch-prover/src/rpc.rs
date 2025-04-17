@@ -13,6 +13,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
+use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
@@ -289,9 +290,15 @@ where
             previous_commitment_index: Some(previous_commitment.index),
             previous_commitment_hash: Some(previous_commitment.serialize_and_calculate_sha_256()),
         });
-        // TODO: convert output to serialized proof
 
-        let proof = vec![];
+        let mut output_serialized = borsh::to_vec(&output).expect("Output serialization cannot fail");
+
+        let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized));
+        let fake_receipt = FakeReceipt::new(claim);
+        // Receipt with verifiable claim
+        let receipt = InnerReceipt::Fake(fake_receipt);
+        let proof = bincode::serialize(&receipt).expect("Receipt serialization cannot fail");
+
         let tx_id = self
             .context
             .da_service
