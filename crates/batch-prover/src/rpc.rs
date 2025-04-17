@@ -1,9 +1,14 @@
 #![allow(clippy::type_complexity)]
 
 use std::fmt::Debug;
+use std::path::Path;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{env, fs};
 
 use alloy_primitives::{U32, U64};
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
@@ -80,6 +85,15 @@ pub trait BatchProverRpc {
     /// Stop further proving jobs to be spawned. Existing jobs will continue.
     #[method(name = "pauseProving")]
     async fn pause_proving(&self) -> RpcResult<()>;
+
+    /// Create circuit input for the given commitment index range start..=end
+    #[method(name = "createCircuitInput")]
+    async fn create_circuit_input(
+        &self,
+        index_start: u32,
+        index_end: u32,
+        mode: PartitionMode,
+    ) -> RpcResult<Vec<String>>;
 
     /// Get job details by job id. If proof is null, it means job is still being proven,
     /// if proof exists but l1_tx_id is 0, it means job is being submitted to L1.
@@ -188,6 +202,53 @@ where
             .send(ProverRequest::Pause)
             .await
             .map_err(|_| internal_rpc_error("Proving request channel is closed"))
+    }
+
+    async fn create_circuit_input(
+        &self,
+        index_start: u32,
+        index_end: u32,
+        mode: PartitionMode,
+    ) -> RpcResult<Vec<String>> {
+        let commitments = self
+            .context
+            .ledger_db
+            .get_commitment_by_range(index_start..=index_end)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+
+        let (result_tx, result_rx) = oneshot::channel();
+
+        if self
+            .context
+            .request_tx
+            .send(ProverRequest::CreateInput(mode, commitments, result_tx))
+            .await
+            .is_err()
+        {
+            return Err(internal_rpc_error("Proving request channel is closed"));
+        }
+
+        let Ok(raw_inputs) = result_rx.await else {
+            return Err(internal_rpc_error(
+                "Proving request failed for some reason, check logs for details",
+            ));
+        };
+
+        let mut b64_inputs = Vec::with_capacity(raw_inputs.len());
+        let unix_nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        for (i, raw_input) in raw_inputs.into_iter().enumerate() {
+            if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
+                let input_path = Path::new(&backup_dir)
+                    .join(format!("{}-rpc-proof-input-{}.bin", unix_nanos, i));
+                fs::write(input_path, &raw_input).expect("Proof input write cannot fail");
+            }
+            b64_inputs.push(BASE64_STANDARD.encode(&raw_input));
+        }
+
+        Ok(b64_inputs)
     }
 
     async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>> {

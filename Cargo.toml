@@ -54,6 +54,7 @@ repository = "https://github.com/chainwayxyz/citrea"
 async-trait = "0.1.83"
 anyhow = { version = "1.0.95", default-features = false }
 backoff = { version = "0.4.0", features = ["futures", "tokio"] }
+base64 = "0.22"
 borsh = { version = "1.5", default-features = false, features = ["derive"] }
 # TODO: Consider replacing this serialization format
 #     https://github.com/Sovereign-Labs/sovereign-sdk/issues/283

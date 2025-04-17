@@ -40,6 +40,11 @@ use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState
 pub enum ProverRequest {
     Pause,
     Prove(PartitionMode, oneshot::Sender<Vec<Uuid>>),
+    CreateInput(
+        PartitionMode,
+        Vec<SequencerCommitment>,
+        oneshot::Sender<Vec<Vec<u8>>>,
+    ),
 }
 
 pub struct Prover<Da, DB, Vm>
@@ -101,7 +106,7 @@ where
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         self.recover_proving_sessions().await;
 
-        loop {
+        'run_loop: loop {
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
@@ -117,7 +122,13 @@ where
                     }
                 },
                 l2_signal = self.l2_block_rx.recv() => {
-                    let l2_height = l2_signal.expect("L2 signal sender channel closed abruptly");
+                    let l2_height = match l2_signal {
+                        Ok(l2_height) => l2_height,
+                        // prover will get the latest block number eventually
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                        _ => panic!("L2 signal sender channel closed abruptly"),
+                    };
+
                     let Some(sync_target_l2_height) = self.sync_target_l2_height else {
                         // we are already fully synced or no commitments are waiting for l2 blocks
                         continue;
@@ -150,6 +161,31 @@ where
                                 Err(e) => error!("Failed to handle prove request: {}", e),
                             }
                         }
+                        ProverRequest::CreateInput(mode, mut commitments, result_tx) => {
+                            let partitions = match self.create_partitions(&mut commitments, mode) {
+                                Ok(partitions) => partitions,
+                                Err(e) => {
+                                    error!("Failed to create partitions based on rpc request: {}", e);
+                                    continue;
+                                }
+                            };
+
+                            let mut raw_inputs = Vec::with_capacity(partitions.len());
+                            for partition in partitions {
+                                match self.create_circuit_input(&partition) {
+                                    Ok(input) => {
+                                        let raw_input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
+                                        raw_inputs.push(raw_input);
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to create input from partition based on rpc request: {}", e);
+                                        continue 'run_loop;
+                                    }
+                                }
+                            }
+
+                            let _ = result_tx.send(raw_inputs);
+                        }
                     }
                 }
             }
@@ -171,35 +207,19 @@ where
             return Ok(Vec::new());
         }
 
-        let commitments = self.ledger_db.get_prover_pending_commitments()?;
+        let mut commitments = self.ledger_db.get_prover_pending_commitments()?;
         if commitments.is_empty() {
             debug!("No pending commitments found");
             return Ok(Vec::new());
         }
         info!("Got {} pending commitment(s)", commitments.len());
 
-        let commitments = self.filter_unsynced_commitments(commitments)?;
-        if commitments.is_empty() {
-            warn!("L2 blocks not synced up to any of the pending commitments yet");
-            return Ok(Vec::new());
-        }
-        info!("Got {} synced commitment(s)", commitments.len());
-
-        let commitments = self.filter_prev_missing_commitments(commitments)?;
-        if commitments.is_empty() {
-            warn!("None of the pending commitments have a known previous commitment");
-            return Ok(Vec::new());
-        }
-        info!("Processing {} commitment(s)", commitments.len());
-
-        let partitions = self.partition_commitments(&commitments, mode)?;
-        info!("Partitioned commitments into {} parts", partitions.len());
+        let partitions = self.create_partitions(&mut commitments, mode)?;
 
         let mut proving_jobs = Vec::with_capacity(partitions.len());
         for partition in partitions {
             let input = self
                 .create_circuit_input(&partition)
-                .await
                 .context("Failed to create circuit input")?;
 
             let (id, rx) = self.start_proving(input).await?;
@@ -224,6 +244,33 @@ where
         self.watch_proving_jobs(proving_jobs);
 
         Ok(job_ids)
+    }
+
+    fn create_partitions<'a>(
+        &mut self,
+        commitments: &'a mut Vec<SequencerCommitment>,
+        mode: PartitionMode,
+    ) -> anyhow::Result<Vec<Partition<'a>>> {
+        let filtered_commitments = self.filter_unsynced_commitments(commitments.clone())?;
+        if filtered_commitments.is_empty() {
+            warn!("L2 blocks not synced up to any of the pending commitments yet");
+            return Ok(Vec::new());
+        }
+        info!("Got {} synced commitment(s)", filtered_commitments.len());
+
+        let filtered_commitments = self.filter_prev_missing_commitments(filtered_commitments)?;
+        if filtered_commitments.is_empty() {
+            warn!("None of the pending commitments have a known previous commitment");
+            return Ok(Vec::new());
+        }
+        info!("Got {} provable commitment(s)", filtered_commitments.len());
+
+        *commitments = filtered_commitments;
+
+        let partitions = self.partition_commitments(commitments, mode)?;
+        info!("Partitioned commitments into {} parts", partitions.len());
+
+        Ok(partitions)
     }
 
     /// Filters out the commitments that prover l2 blocks not synced to yet
@@ -365,7 +412,7 @@ where
         Ok(state.into_inner())
     }
 
-    async fn create_circuit_input(
+    fn create_circuit_input(
         &self,
         partition: &Partition<'_>,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
@@ -394,7 +441,6 @@ where
             &self.storage_manager,
             &self.sequencer_pub_key,
         )
-        .await
         .context("Failed to get circuit input from commitments")?;
 
         let first_commitment = &partition.commitments[0];
@@ -596,7 +642,7 @@ type CommitmentStateTransitionData = (
     Witness,
 );
 
-pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
+pub(crate) fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
 >(
@@ -667,8 +713,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         ledger_db,
         storage_manager,
         sequencer_pub_key,
-    )
-    .await?;
+    )?;
 
     Ok((
         short_header_proofs,
@@ -679,7 +724,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     ))
 }
 
-async fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
+#[allow(clippy::type_complexity)]
+fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     committed_l2_blocks: &VecDeque<Vec<L2Block>>,
     ledger_db: &DB,
     storage_manager: &ProverStorageManager,

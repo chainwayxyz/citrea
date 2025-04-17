@@ -2326,6 +2326,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
+ "base64 0.22.1",
  "borsh",
  "citrea-common",
  "citrea-primitives",

@@ -31,6 +31,7 @@ alloy-primitives = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
+base64 = { workspace = true }
 borsh = { workspace = true }
 faster-hex = { workspace = true }
 futures = { workspace = true }

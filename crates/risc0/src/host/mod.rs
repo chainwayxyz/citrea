@@ -3,7 +3,9 @@
 mod bonsai;
 mod local;
 
-use std::mem;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{env, fs, mem};
 
 use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
@@ -79,6 +81,17 @@ impl ZkvmHost for Risc0Host {
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
         let input = mem::take(&mut self.env);
         let assumptions = mem::take(&mut self.assumptions);
+
+        if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
+            let input_path = Path::new(&backup_dir).join(format!(
+                "{}-proof-input.bin",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            fs::write(input_path, &input).expect("Proof input write cannot fail");
+        }
 
         match &self.prover {
             Prover::Local(local) => {
