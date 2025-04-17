@@ -244,7 +244,7 @@ where
         // don't allow first commitment index to be called through this rpc as it requires extra handling
         if index_start <= 1 {
             return Err(internal_rpc_error(
-                "proveNative rpc supports only index_start > 1",
+                "submitFakeProof rpc supports only index_start > 1",
             ));
         }
 
@@ -262,7 +262,7 @@ where
             ));
         }
 
-        let last_commitment = commitments.last().expect("Must have at least 1");
+        let last_commitment = commitments.last().expect("Already ensured");
         let last_l2_block = ledger_db
             .get_l2_block_by_number(&L2BlockNumber(last_commitment.l2_end_block_number))
             .map_err(|e| internal_rpc_error(e.to_string()))?
