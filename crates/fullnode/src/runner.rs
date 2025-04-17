@@ -1,7 +1,6 @@
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_rollup_interface::services::da::DaService;
-use tokio::select;
 use tracing::{info, instrument};
 
 use crate::l2_syncer::L2Syncer;
@@ -26,19 +25,9 @@ where
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) -> anyhow::Result<()> {
-        let l2_syncer = self.l2_syncer.run(shutdown_signal.clone());
-        tokio::pin!(l2_syncer);
-
-        loop {
-            select! {
-                _ = &mut l2_syncer => {},
-                _ = &mut shutdown_signal => {
-                    info!("Shutting down fullnode");
-                    break;
-                },
-            }
-        }
+    pub async fn run(mut self, shutdown_signal: GracefulShutdown) -> anyhow::Result<()> {
+        self.l2_syncer.run(shutdown_signal).await;
+        info!("Shutting down fullnode");
 
         Ok(())
     }
