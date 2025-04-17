@@ -16,11 +16,13 @@ use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::SlotNumber;
+use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
     JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -89,7 +91,7 @@ pub trait BatchProverRpc {
     #[method(name = "prove")]
     async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>>;
 
-    /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
+    /// Simulate proving by collecting output from the execution in native, and submit the fake proof to DA.
     #[method(name = "proveNative")]
     async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String>;
 
@@ -211,6 +213,20 @@ where
     }
 
     async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String> {
+        let output = BatchProofCircuitOutputV3 {
+            state_roots: vec![],
+            final_l2_block_hash: [0; 32],
+            state_diff: Default::default(),
+            last_l2_height: 0,
+            sequencer_commitment_hashes: vec![],
+            sequencer_commitment_index_range: (index_start, index_end),
+            last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
+            previous_commitment_index: None,
+            previous_commitment_hash: None,
+        };
+        let output = BatchProofCircuitOutput::V3(output);
+        // TODO: convert output to serialized proof
+
         let proof = vec![];
         let tx_id = self
             .context
