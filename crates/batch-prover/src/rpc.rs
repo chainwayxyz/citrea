@@ -213,6 +213,15 @@ where
     }
 
     async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String> {
+        let ledger_db = &self.context.ledger_db;
+
+        let commitments = ledger_db
+            .get_commitment_by_range(index_start..=index_end)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+        if commitments.len() as u32 != index_end - index_start + 1 {
+            return Err(internal_rpc_error("Missing some commitment indices from the range"));
+        }
+
         let output = BatchProofCircuitOutputV3 {
             state_roots: vec![],
             final_l2_block_hash: [0; 32],
