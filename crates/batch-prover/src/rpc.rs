@@ -231,6 +231,11 @@ where
     }
 
     async fn submit_fake_proof(&self, index_start: u32, index_end: u32) -> RpcResult<String> {
+        info!(
+            "Submitting fake proof for commitment index range [{},{}]",
+            index_start, index_end
+        );
+
         let ledger_db = &self.context.ledger_db;
 
         if index_start > index_end {
