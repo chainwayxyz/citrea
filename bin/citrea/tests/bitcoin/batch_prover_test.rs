@@ -1094,7 +1094,50 @@ impl TestCase for SubmitFakeProofRpcTest {
 
         let finalized_height = da.get_finalized_height(None).await.unwrap();
         // ensure batch prover saw 4 commitments
-        batch_prover.wait_for_l1_height(finalized_height, None).await.unwrap();
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // first, submit index 4
+        batch_prover
+            .client
+            .http_client()
+            .submit_fake_proof(4, 4)
+            .await
+            .unwrap();
+
+        // wait for 1 proof txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 proof
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure light client processed the proof
+        light_client
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // second, submit indices 2-3
+        batch_prover
+            .client
+            .http_client()
+            .submit_fake_proof(2, 3)
+            .await
+            .unwrap();
+
+        // wait for 1 proof txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 proof
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure light client processed the proof
+        light_client
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
 
         Ok(())
     }
