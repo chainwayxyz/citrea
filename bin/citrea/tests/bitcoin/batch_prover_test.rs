@@ -10,7 +10,8 @@ use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_e2e::config::{
-    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig, TestCaseConfig, TestCaseEnv
+    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
+    SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{BatchProver, FullNode};
@@ -1223,6 +1224,19 @@ impl TestCase for SubmitFakeProofRpcTest {
         assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 4);
         assert_eq!(lcp_output.last_l2_height.to::<u32>(), 20);
 
+        // invoke prove so that commitment indices 2-3-4 gets dropped from pending pool
+        let job_ids = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::Normal)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 1);
+        // ensure the proof txs hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // write it to a block, we don't care about this proof
+        da.generate(1).await.unwrap();
+
         // generate 1 last commitment
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await.unwrap();
@@ -1249,12 +1263,12 @@ impl TestCase for SubmitFakeProofRpcTest {
             .prove(PartitionMode::Normal)
             .await
             .unwrap()[0];
-        let zkvm_prove_output = wait_for_prover_job(batch_prover, job_id, None)
+        let job_response = wait_for_prover_job(batch_prover, job_id, None)
             .await
-            .unwrap()
-            .proof
-            .unwrap()
-            .proof_output;
+            .unwrap();
+        assert_eq!(job_response.commitments.len(), 1);
+        assert_eq!(job_response.commitments[0].index.to::<u32>(), 5);
+        let zkvm_prove_output = job_response.proof.unwrap().proof_output;
 
         // also submit fake proof of commitment index 5 through rpc
         let native_prove_output = batch_prover
