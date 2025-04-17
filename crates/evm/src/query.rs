@@ -702,11 +702,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map_err(EthApiError::from)?
             .unwrap_or_default();
 
-        let nonce = if request.nonce.is_some() {
-            None
-        } else {
-            Some(account.nonce)
-        };
+        let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
 
         let tx_env = create_txn_env(
@@ -932,11 +928,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .account_info(&request.from.unwrap_or_default(), working_set)
             .unwrap_or_default();
 
-        let nonce = if request.nonce.is_some() {
-            None
-        } else {
-            Some(account.nonce)
-        };
+        let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
 
         // create tx env
@@ -1391,11 +1383,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut evm_db = self.get_db(working_set);
 
-        let nonce = if request.nonce.is_some() {
-            None
-        } else {
-            Some(account.nonce)
-        };
+        let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
 
         // create tx env
