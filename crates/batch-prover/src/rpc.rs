@@ -22,7 +22,7 @@ use sov_rollup_interface::rpc::{
     JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -239,13 +239,15 @@ where
             ));
         }
 
-        let first_commitment = commitments.first().expect("Must have at least 1");
         let last_commitment = commitments.last().expect("Must have at least 1");
-        let last_l2_block = ledger_db.get_l2_block_by_number(&L2BlockNumber(last_commitment.l2_end_block_number))
+        let last_l2_block = ledger_db
+            .get_l2_block_by_number(&L2BlockNumber(last_commitment.l2_end_block_number))
             .map_err(|e| internal_rpc_error(e.to_string()))?
             .ok_or_else(|| internal_rpc_error("Not synced up to latest L2 block yet"))?;
 
-        let initial_state_root = ledger_db.get_l2_state_root(previous_commitment.l2_end_block_number + 1)
+        let mut start_l2_height = previous_commitment.l2_end_block_number + 1;
+        let initial_state_root = ledger_db
+            .get_l2_state_root(start_l2_height)
             .map_err(|e| internal_rpc_error(e.to_string()))?
             .expect("Initial L2 state root must exist");
 
@@ -253,18 +255,33 @@ where
         let mut state_roots = Vec::with_capacity(commitments.len() + 1);
         state_roots.push(initial_state_root);
 
+        let mut cumulative_state_diff = CumulativeStateDiff::new();
         for commitment in commitments.iter() {
-            let end_state_root = ledger_db.get_l2_state_root(commitment.l2_end_block_number)
+            let end_l2_height = commitment.l2_end_block_number;
+
+            for l2_height in start_l2_height..=end_l2_height {
+                let state_diff = ledger_db
+                    .get_l2_state_diff(L2BlockNumber(l2_height))
+                    .map_err(|e| internal_rpc_error(e.to_string()))?
+                    .expect("L2 state diff must exist");
+                cumulative_state_diff.extend(state_diff);
+            }
+
+            sequencer_commitment_hashes.push(commitment.serialize_and_calculate_sha_256());
+
+            let end_state_root = ledger_db
+                .get_l2_state_root(end_l2_height)
                 .map_err(|e| internal_rpc_error(e.to_string()))?
                 .expect("L2 state root must exist");
-            sequencer_commitment_hashes.push(commitment.serialize_and_calculate_sha_256());
             state_roots.push(end_state_root);
+
+            start_l2_height = end_l2_height + 1;
         }
 
         let output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
             state_roots,
             final_l2_block_hash: last_l2_block.hash,
-            state_diff: Default::default(),
+            state_diff: cumulative_state_diff,
             last_l2_height: last_l2_block.height,
             sequencer_commitment_hashes,
             sequencer_commitment_index_range: (index_start, index_end),
