@@ -292,7 +292,7 @@ impl TestClient {
             .nonce(nonce)
             .with_authorization_list(authorization_list);
 
-        let gas = self.client.estimate_gas(req.clone()).await.unwrap();
+        let gas = self.client.estimate_gas(req.clone()).await?;
 
         let req = req
             .gas_limit(gas)
