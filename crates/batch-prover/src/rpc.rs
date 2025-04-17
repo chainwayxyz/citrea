@@ -215,6 +215,14 @@ where
     async fn prove_native(&self, index_start: u32, index_end: u32) -> RpcResult<String> {
         let ledger_db = &self.context.ledger_db;
 
+        if index_start > index_end {
+            return Err(internal_rpc_error("Invalid index range"));
+        }
+        // don't allow first commitment index to be called through this rpc
+        if index_start <= 1 {
+            return Err(internal_rpc_error("proveNative rpc supports only index_start > 1"));
+        }
+
         let commitments = ledger_db
             .get_commitment_by_range(index_start..=index_end)
             .map_err(|e| internal_rpc_error(e.to_string()))?;
@@ -222,11 +230,16 @@ where
             return Err(internal_rpc_error("Missing some commitment indices from the range"));
         }
 
+        let first_commitment = commitments.first().expect("Must have at least 1");
+        let last_commitment = commitments.last().expect("Must have at least 1");
+
+        for commitment in commitments.iter() {}
+
         let output = BatchProofCircuitOutputV3 {
             state_roots: vec![],
             final_l2_block_hash: [0; 32],
             state_diff: Default::default(),
-            last_l2_height: 0,
+            last_l2_height: last_commitment.l2_end_block_number,
             sequencer_commitment_hashes: vec![],
             sequencer_commitment_index_range: (index_start, index_end),
             last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
