@@ -52,7 +52,7 @@ impl TestCase for ForkActivationTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        println!("Running with forks : {:?}", get_forks);
+        println!("Running with forks : {:?}", get_forks());
         let kumquat_height = get_forks()[1].activation_height;
         let tangerine_height = get_forks()[2].activation_height;
 
@@ -84,7 +84,7 @@ impl TestCase for ForkActivationTest {
             .await
             .unwrap();
 
-        self.test_tangerine_features(&seq_test_client, &contracts)
+        self.test_tangerine_features(sequencer, &seq_test_client, &contracts)
             .await
             .unwrap();
 
@@ -294,6 +294,7 @@ impl ForkActivationTest {
 
     async fn test_tangerine_features(
         &self,
+        sequencer: &Sequencer,
         client: &TestClient,
         contracts: &TestContracts,
     ) -> Result<()> {
