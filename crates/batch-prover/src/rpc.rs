@@ -242,14 +242,17 @@ where
         let first_commitment = commitments.first().expect("Must have at least 1");
         let last_commitment = commitments.last().expect("Must have at least 1");
 
-        for commitment in commitments.iter() {}
+        let mut sequencer_commitment_hashes = Vec::with_capacity(commitments.len());
+        for commitment in commitments.iter() {
+            sequencer_commitment_hashes.push(commitment.serialize_and_calculate_sha_256());
+        }
 
         let output = BatchProofCircuitOutputV3 {
             state_roots: vec![],
             final_l2_block_hash: [0; 32],
             state_diff: Default::default(),
             last_l2_height: last_commitment.l2_end_block_number,
-            sequencer_commitment_hashes: vec![],
+            sequencer_commitment_hashes,
             sequencer_commitment_index_range: (index_start, index_end),
             last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
             previous_commitment_index: Some(previous_commitment.index),
