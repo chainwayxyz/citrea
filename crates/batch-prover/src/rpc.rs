@@ -11,6 +11,7 @@ use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_stf::verifier::get_last_l1_hash_on_contract;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
@@ -290,6 +291,8 @@ where
             start_l2_height = end_l2_height + 1;
         }
 
+        let last_l1_hash_on_contract = get_last_l1_hash_on_contract(Default::default(), storage, &mut Default::default(), [0; 32]);
+
         let output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
             state_roots,
             final_l2_block_hash: last_l2_block.hash,
@@ -297,7 +300,7 @@ where
             last_l2_height: last_l2_block.height,
             sequencer_commitment_hashes,
             sequencer_commitment_index_range: (index_start, index_end),
-            last_l1_hash_on_bitcoin_light_client_contract: [0; 32],
+            last_l1_hash_on_bitcoin_light_client_contract: last_l1_hash_on_contract,
             previous_commitment_index: Some(previous_commitment.index),
             previous_commitment_hash: Some(previous_commitment.serialize_and_calculate_sha_256()),
         });
