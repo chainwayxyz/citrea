@@ -8,6 +8,7 @@ use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_batch_prover::PartitionMode;
 use citrea_e2e::config::{
     BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
     TestCaseConfig, TestCaseEnv,
@@ -17,6 +18,7 @@ use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
+use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use tokio::time::sleep;
@@ -1080,20 +1082,70 @@ impl TestCase for SubmitFakeProofRpcTest {
         let light_client = f.light_client_prover.as_ref().unwrap();
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-        // generate 4 commitments
-        for _ in 0..max_l2_blocks_per_commitment * 4 {
+        // generate 1 commitment
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await.unwrap();
+        }
+        sequencer.wait_for_l2_height(5, None).await.unwrap();
+        batch_prover.wait_for_l2_height(5, None).await.unwrap();
+
+        // wait for 1 commitment txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 commitment
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure batch prover saw 1 commitment
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // prove commitment index 1 through rpc
+        batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::Normal)
+            .await
+            .unwrap();
+
+        // wait for 1 proof txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 proof
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure light client processed the proof
+        light_client
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // verify lcp output
+        let lcp_output = light_client
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 1);
+        assert_eq!(lcp_output.last_l2_height.to::<u32>(), 5);
+
+        // generate 3 more commitments
+        for _ in 0..max_l2_blocks_per_commitment * 3 {
             sequencer.client.send_publish_batch_request().await.unwrap();
         }
         sequencer.wait_for_l2_height(20, None).await.unwrap();
         batch_prover.wait_for_l2_height(20, None).await.unwrap();
 
-        // wait for 4 commitment txs to hit DA
-        da.wait_mempool_len(8, None).await.unwrap();
-        // finalize 4 commitments
+        // wait for 3 commitment txs to hit DA
+        da.wait_mempool_len(6, None).await.unwrap();
+        // finalize 3 commitments
         da.generate(FINALITY_DEPTH).await.unwrap();
 
         let finalized_height = da.get_finalized_height(None).await.unwrap();
-        // ensure batch prover saw 4 commitments
+        // ensure batch prover saw 3 commitments
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await
@@ -1119,6 +1171,17 @@ impl TestCase for SubmitFakeProofRpcTest {
             .await
             .unwrap();
 
+        // verify lcp output, last commitment index should not change due to gap
+        let lcp_output = light_client
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 1);
+        assert_eq!(lcp_output.last_l2_height.to::<u32>(), 5);
+
         // second, submit indices 2-3
         batch_prover
             .client
@@ -1138,6 +1201,17 @@ impl TestCase for SubmitFakeProofRpcTest {
             .wait_for_l1_height(finalized_height, None)
             .await
             .unwrap();
+
+        // verify lcp output
+        let lcp_output = light_client
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 4);
+        assert_eq!(lcp_output.last_l2_height.to::<u32>(), 20);
 
         Ok(())
     }
