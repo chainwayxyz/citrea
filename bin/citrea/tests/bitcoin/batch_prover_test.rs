@@ -1045,3 +1045,64 @@ async fn test_batch_proof_l1_hashes_added_output() -> Result<()> {
         .run()
         .await
 }
+
+struct SubmitFakeProofRpcTest;
+
+#[async_trait]
+impl TestCase for SubmitFakeProofRpcTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 5,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            // prevent proving
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client = f.light_client_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        // generate 4 commitments
+        for _ in 0..max_l2_blocks_per_commitment * 4 {
+            sequencer.client.send_publish_batch_request().await.unwrap();
+        }
+        sequencer.wait_for_l2_height(20, None).await.unwrap();
+
+        // wait for 4 commitment txs to hit DA
+        da.wait_mempool_len(8, None).await.unwrap();
+        // finalize 4 commitments
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure batch prover saw 4 commitments
+        batch_prover.wait_for_l1_height(finalized_height, None).await.unwrap();
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_batch_prover_submit_fake_proof_rpc() -> Result<()> {
+    TestCaseRunner::new(SubmitFakeProofRpcTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
