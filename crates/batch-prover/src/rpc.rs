@@ -245,13 +245,24 @@ where
             .map_err(|e| internal_rpc_error(e.to_string()))?
             .ok_or_else(|| internal_rpc_error("Not synced up to latest L2 block yet"))?;
 
+        let initial_state_root = ledger_db.get_l2_state_root(previous_commitment.l2_end_block_number + 1)
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .expect("Initial L2 state root must exist");
+
         let mut sequencer_commitment_hashes = Vec::with_capacity(commitments.len());
+        let mut state_roots = Vec::with_capacity(commitments.len() + 1);
+        state_roots.push(initial_state_root);
+
         for commitment in commitments.iter() {
+            let end_state_root = ledger_db.get_l2_state_root(commitment.l2_end_block_number)
+                .map_err(|e| internal_rpc_error(e.to_string()))?
+                .expect("L2 state root must exist");
             sequencer_commitment_hashes.push(commitment.serialize_and_calculate_sha_256());
+            state_roots.push(end_state_root);
         }
 
         let output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
-            state_roots: vec![],
+            state_roots,
             final_l2_block_hash: last_l2_block.hash,
             state_diff: Default::default(),
             last_l2_height: last_l2_block.height,
