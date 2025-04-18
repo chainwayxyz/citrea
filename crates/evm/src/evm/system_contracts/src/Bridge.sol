@@ -37,7 +37,7 @@ contract Bridge is Ownable2StepUpgradeable {
     bool public initialized;
     address public operator;
     uint256 public depositAmount;
-    uint256 currentDepositId;
+    uint256 _currentDepositId;
     bytes public depositPrefix;
     bytes public depositSuffix;
     bytes public replacePrefix;
@@ -148,7 +148,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(isBytesEqual(_depositSuffix, depositSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
-        emit Deposit(wtxId, txId, recipient, block.timestamp, currentDepositId);
+        emit Deposit(wtxId, txId, recipient, block.timestamp, depositTxIds.length - 1);
 
         (bool success, ) = recipient.call{value: depositAmount}("");
         require(success, "Transfer failed");
