@@ -360,7 +360,7 @@ contract BridgeTest is Test {
         bridge.deposit(depositParams);
         vm.stopPrank();
     }
-    
+
     function testSecondDepositId() public {
         doDeposit();
         bytes2 flag2 = hex"0001";
@@ -389,7 +389,7 @@ contract BridgeTest is Test {
 
         vm.stopPrank();
         vm.startPrank(operator);
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit(true, true, true, true);
         emit Bridge.Deposit(hex"45957fe9a9bdb8e6c4a81bedbc55a0093105aa8eb6c3f2d8dc7bab6e9fd04fe9", hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929", receiver, block.timestamp, 1);
 
         bridge.deposit(secondParams);
