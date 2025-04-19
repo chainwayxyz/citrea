@@ -449,7 +449,7 @@ fn self_destruct_test() {
     // the tx should be a success
     assert!(receipts[0].receipt.status());
 
-    // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
+    // after cancun the funds go but account is not destructed if selfdestruct is not called in creation
     let contract_info = evm
         .account_info(&contract_addr, &mut working_set)
         .expect("contract address should exist");
