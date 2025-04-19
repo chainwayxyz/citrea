@@ -425,7 +425,7 @@ pub trait LedgerRpcProvider {
     /// Returns the slot number of a given hash
     fn get_slot_number_by_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error>;
 
-    /// Takes an L1 height and and returns all the sequencer commitments on the slot
+    /// Takes an L1 height and returns all the sequencer commitments on the slot
     fn get_sequencer_commitments_on_slot_by_number(
         &self,
         height: u64,
