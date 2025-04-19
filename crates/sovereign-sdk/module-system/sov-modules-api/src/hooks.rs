@@ -61,7 +61,7 @@ pub trait ApplyL2BlockHooks<Da: DaSpec> {
     ) -> Result<(), L2BlockHookError>;
 }
 
-/// Post fork 2 Information about the l2 block block
+/// Post fork 2 Information about the l2 block
 /// Does not include l1 data
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct HookL2BlockInfo {
