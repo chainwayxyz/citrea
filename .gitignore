@@ -39,3 +39,4 @@ elf/
 *stats.txt
 
 bitcoin-testnet4/
+resources/dbs*

@@ -1,6 +1,6 @@
+use reth_tasks::shutdown::Shutdown;
 use tokio::select;
 use tokio::sync::mpsc::Receiver;
-use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::Rollback;
@@ -24,11 +24,11 @@ impl RollbackService {
     }
 
     /// Run service to rollback when instructed to
-    pub async fn run(mut self, node_type: StorageNodeType, cancellation_token: CancellationToken) {
+    pub async fn run(mut self, node_type: StorageNodeType, mut shutdown_signal: Shutdown) {
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 },
                 Some(signal) = self.receiver.recv() => {

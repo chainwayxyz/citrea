@@ -283,6 +283,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         l2_genesis_root: [u8; 32],
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
+        sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_key: &[u8],
     ) -> RunL1BlockResult<S> {
         let mut working_set =
@@ -432,6 +433,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
                     println!("Found sequencer commitment with index {}", commitment.index);
+                    if blob.sender().as_ref() != sequencer_da_public_key {
+                        println!(
+                            "Sequencer commitment sender is not sequencer, wtxid={:?}",
+                            blob.wtxid()
+                        );
+                        continue;
+                    }
                     if SequencerCommitmentAccessor::<S>::get(commitment.index, &mut working_set)
                         .is_none()
                     {
@@ -510,6 +518,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         l2_genesis_root: [u8; 32],
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
+        sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_key: &[u8],
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
@@ -567,6 +576,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             l2_genesis_root,
             initial_batch_proof_method_ids,
             batch_prover_da_public_key,
+            sequencer_da_public_key,
             method_id_upgrade_authority_da_public_key,
         );
 

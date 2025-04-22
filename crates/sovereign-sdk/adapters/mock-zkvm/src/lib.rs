@@ -3,11 +3,13 @@
 
 use std::collections::VecDeque;
 use std::io::Write;
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{Matches, Proof, ReceiptType};
+use sov_rollup_interface::zk::{Matches, Proof, ProofWithJob, ReceiptType};
+use tokio::sync::oneshot;
+use uuid::Uuid;
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -85,8 +87,8 @@ impl MockProof {
 /// of a single proof. It is useful for testing parallel proving.
 #[derive(Clone)]
 pub struct MockZkvm {
-    waiting_tasks: Arc<Mutex<VecDeque<mpsc::Sender<()>>>>,
-    committed_data: VecDeque<Vec<u8>>,
+    waiting_tasks: Arc<Mutex<VecDeque<oneshot::Sender<ProofWithJob>>>>,
+    committed_data: Arc<Mutex<VecDeque<Vec<u8>>>>,
     is_valid: bool,
 }
 
@@ -108,10 +110,16 @@ impl MockZkvm {
 
     /// Notifies the next proof in FIFO order to emulate finishing behavior.
     /// Returns whether there was any proof in the queue.
-    pub fn finish_next_proof(&self) -> bool {
+    pub fn finish_next_proof(&mut self) -> bool {
         let mut tasks = self.waiting_tasks.lock().unwrap();
         if let Some(chan) = tasks.pop_front() {
-            chan.send(()).unwrap();
+            let mut committed_data = self.committed_data.lock().unwrap();
+            let proof = committed_data.pop_front().unwrap_or_default();
+            chan.send(ProofWithJob {
+                job_id: Uuid::now_v7(),
+                proof,
+            })
+            .unwrap();
             true
         } else {
             false
@@ -170,7 +178,8 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
 
         let data = borsh::to_vec(&proof_info).unwrap();
 
-        self.committed_data.push_back(data);
+        let mut committed_data = self.committed_data.lock().unwrap();
+        committed_data.push_back(data);
     }
 
     fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
@@ -186,20 +195,18 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
 
     fn run(
         &mut self,
+        _job_id: Uuid,
         _elf: Vec<u8>,
-        _with_proof: bool,
         _receipt_type: ReceiptType,
-    ) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
-        let (tx, rx) = mpsc::channel();
+        _with_prove: bool,
+    ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
+        let (tx, rx) = oneshot::channel();
 
         let mut tasks = self.waiting_tasks.lock().unwrap();
         tasks.push_back(tx);
         drop(tasks);
 
-        // Block until finish signal arrives
-        rx.recv().unwrap();
-
-        Ok(self.committed_data.pop_front().unwrap_or_default())
+        Ok(rx)
     }
 
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
@@ -208,7 +215,9 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         T::try_from_slice(&data.hint).map_err(Into::into)
     }
 
-    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
+    fn start_session_recovery(
+        &self,
+    ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
         unimplemented!()
     }
 }

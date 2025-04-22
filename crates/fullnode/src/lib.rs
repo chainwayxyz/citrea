@@ -9,8 +9,7 @@ use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
-use l2_syncer::L2Syncer;
-pub use runner::*;
+pub use l2_syncer::L2Syncer;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
@@ -26,7 +25,6 @@ pub mod db_migrations;
 mod l2_syncer;
 mod metrics;
 pub mod rpc;
-mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<DA, DB, Vm>(
@@ -47,7 +45,7 @@ pub fn build_services<DA, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    CitreaFullnode<DA, DB>,
+    L2Syncer<DA, DB>,
     L1BlockHandler<Vm, DA, DB>,
     Option<PrunerService>,
     RpcModule<()>,
@@ -87,8 +85,6 @@ where
         include_tx_bodies,
     )?;
 
-    let runner = CitreaFullnode::<DA, DB>::new(l2_syncer)?;
-
     let l1_block_handler = L1BlockHandler::new(
         ledger_db,
         da_service,
@@ -99,5 +95,5 @@ where
         backup_manager,
     );
 
-    Ok((runner, l1_block_handler, pruner, rpc_module))
+    Ok((l2_syncer, l1_block_handler, pruner, rpc_module))
 }

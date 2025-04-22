@@ -27,7 +27,7 @@ fn begin_l2_block_hook_checks_max_l2_blocks_per_l1() {
     )
     .unwrap();
 
-    let context = C::new(sender_address, 1, SpecId::Fork2, 0);
+    let context = C::new(sender_address, 1, SpecId::Tangerine, 0);
 
     let _ = l2_block_rule_enforcer
         .call(call_message, &context, &mut working_set)

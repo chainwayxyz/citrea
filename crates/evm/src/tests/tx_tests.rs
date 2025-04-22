@@ -85,6 +85,8 @@ fn tx_conversion() {
 fn prepare_call_env_conversion() {
     let from = Address::random();
     let to = Address::random();
+
+    let nonce = 1;
     let request = TransactionRequest {
         from: Some(from),
         to: Some(TxKind::Call(to)),
@@ -94,7 +96,7 @@ fn prepare_call_env_conversion() {
         gas: Some(200),
         value: Some(U256::from(300u64)),
         input: TransactionInput::default(),
-        nonce: Some(1u64),
+        nonce: Some(nonce),
         chain_id: Some(1u64),
         access_list: None,
         transaction_type: Some(2u8),
@@ -106,7 +108,7 @@ fn prepare_call_env_conversion() {
 
     let block_env = BlockEnv::default();
 
-    let tx_env = create_txn_env(&block_env, request, None, None, 1).unwrap();
+    let tx_env = create_txn_env(&block_env, request, None, nonce, 1).unwrap();
     let expected = TxEnv {
         tx_type: TxType::Eip1559 as u8,
         caller: from,
@@ -117,7 +119,7 @@ fn prepare_call_env_conversion() {
         value: U256::from(300u64),
         data: Default::default(),
         chain_id: Some(1u64),
-        nonce: 1u64,
+        nonce,
         access_list: Default::default(),
         blob_hashes: vec![],
         max_fee_per_blob_gas: 0,

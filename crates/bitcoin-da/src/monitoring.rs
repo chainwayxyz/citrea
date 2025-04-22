@@ -11,12 +11,12 @@ use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::FromEnv;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use crate::helpers::parsers::parse_relevant_transaction;
@@ -280,12 +280,12 @@ impl MonitoringService {
     }
 
     /// Run monitoring to keep track of TX status and chain re-orgs
-    pub async fn run(self: Arc<Self>, token: CancellationToken) {
+    pub async fn run(self: Arc<Self>, mut token: GracefulShutdown) {
         let mut interval = interval(Duration::from_secs(self.config.check_interval));
         loop {
             select! {
                 biased;
-                _ = token.cancelled() => {
+                _ = &mut token => {
                     debug!("Monitoring service received shutdown signal");
                     break;
                 }

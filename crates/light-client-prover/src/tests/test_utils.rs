@@ -36,7 +36,7 @@ pub(crate) fn create_mock_sequencer_commitment_blob(
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
 
-    let blob = MockBlob::new(da_data_ser, MockAddress::new([9u8; 32]), [0u8; 32], None);
+    let blob = MockBlob::new(da_data_ser, MockAddress::new([45u8; 32]), [0u8; 32], None);
     blob.full_data();
 
     blob
@@ -49,6 +49,7 @@ pub(crate) fn create_mock_batch_proof(
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
     sequencer_commitments: Vec<SequencerCommitment>,
     prev_commitment_hash: Option<[u8; 32]>,
+    batch_prover_da_pubkey: [u8; 32],
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
@@ -97,7 +98,12 @@ pub(crate) fn create_mock_batch_proof(
     let da_data = DataOnDa::Complete(mock_serialized);
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
 
-    let blob = MockBlob::new(da_data_ser, MockAddress::new([9u8; 32]), [0u8; 32], None);
+    let blob = MockBlob::new(
+        da_data_ser,
+        MockAddress::new(batch_prover_da_pubkey),
+        [0u8; 32],
+        None,
+    );
     blob.full_data();
 
     blob
@@ -256,6 +262,7 @@ impl NativeCircuitRunner {
         l2_genesis_state_root: [u8; 32],
         inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
+        sequencer_da_pub_key: &[u8],
         method_id_upgrade_authority: &[u8],
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
@@ -287,6 +294,7 @@ impl NativeCircuitRunner {
             l2_genesis_state_root,
             inital_batch_proof_method_ids,
             batch_prover_da_pub_key,
+            sequencer_da_pub_key,
             method_id_upgrade_authority,
         );
 

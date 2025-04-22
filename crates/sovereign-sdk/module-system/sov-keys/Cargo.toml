@@ -16,7 +16,7 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 schemars = { workspace = true, optional = true, features = [] }
 rand = { workspace = true, optional = true }
-derive_more = { workspace = true, default-features = true }
+derive_more = { workspace = true, features = ["display"] }
 
 k256 = { workspace = true, features = ["ecdsa", "serde", "pem"]}
 hex = { workspace = true }

@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::Duration;
 
 use alloy_primitives::{Address, U64};
 use alloy_rpc_types::BlockNumberOrTag;
@@ -410,6 +411,9 @@ impl TestCase for HealthCheckTest {
 
         // Stop sequencer and verify unhealthy status
         f.sequencer.as_mut().unwrap().stop().await?;
+
+        // Add a sleep to hit `Block number is not increasing` consistently
+        tokio::time::sleep(Duration::from_millis(1500)).await;
 
         let status = full_node_test_client.healthcheck().await.unwrap();
         assert_eq!(status, 500);

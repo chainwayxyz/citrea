@@ -13,7 +13,7 @@ use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use citrea_stf::genesis_config::GenesisPaths;
-use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
 
@@ -53,19 +53,17 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
         block_production_interval_ms: 500,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = init_test_rollup(seq_port).await;
@@ -85,7 +83,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
 
     // publish a block which will start filling of all missing da blocks in one l2 block
-    // since this test runs on fork2 instead of generating one block pre missed da block
+    // since this test runs on tangerine instead of generating one block pre missed da block
     // It will generate one l2 block for every missed 10 da block
     // We are testing for 25 missed da blocks one of them will go to the last l2 block
     // So we will have 24 missed block count
@@ -167,7 +165,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
         .unwrap();
     assert_eq!(head_l2_block_num, last_filler_l2_block + 2);
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 
@@ -205,19 +203,17 @@ async fn test_sequencer_commitment_threshold() {
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -266,7 +262,7 @@ async fn test_sequencer_commitment_threshold() {
     let commitments = wait_for_commitment(&da_service, 3, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }
 
 /// Run the sequencer.
@@ -353,7 +349,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .await;
 
     let l2_block = seq_test_client
-        .ledger_get_l2_block_by_number::<MockDaSpec>(block.header.number)
+        .ledger_get_l2_block_by_number(block.header.number)
         .await
         .unwrap();
 
@@ -369,8 +365,8 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     assert_eq!(block_from_full_node, block);
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }
@@ -415,19 +411,17 @@ async fn test_gas_limit_too_high() {
         block_production_interval_ms: 1000,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await.unwrap();
@@ -441,19 +435,17 @@ async fn test_gas_limit_too_high() {
         NodeMode::FullNode(seq_port),
         None,
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await.unwrap();
@@ -513,8 +505,8 @@ async fn test_gas_limit_too_high() {
     );
     assert_eq!(block_from_sequencer.header.hash, block.header.hash);
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 }
 
 /// Run the sequencer.
@@ -556,21 +548,17 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         block_production_interval_ms: 500,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(
-                "../../resources/test-data/integration-tests-low-block-gas-limit",
-            ),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir("../../resources/test-data/integration-tests-low-block-gas-limit"),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -610,7 +598,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     sleep(Duration::from_secs(1)).await;
 
     let initial_l2_block = seq_test_client
-        .ledger_get_l2_block_by_number::<MockDaSpec>(1)
+        .ledger_get_l2_block_by_number(1)
         .await
         .unwrap();
 
@@ -656,7 +644,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     seq_test_client.send_publish_batch_request().await;
 
     let second_l2_block = seq_test_client
-        .ledger_get_l2_block_by_number::<MockDaSpec>(2)
+        .ledger_get_l2_block_by_number(2)
         .await
         .unwrap();
 
@@ -680,7 +668,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     let block2_transactions = block2.transactions.as_hashes().unwrap();
     assert!(block2_transactions.iter().any(|tx| tx == &not_in_hash));
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 
     Ok(())
 }

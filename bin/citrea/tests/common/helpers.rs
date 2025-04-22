@@ -1,14 +1,13 @@
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -18,6 +17,7 @@ use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PruningConfig;
+use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
@@ -32,6 +32,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpe
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint as _;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::rpc::JobRpcResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
@@ -39,6 +40,7 @@ use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, warn, Instrument};
+use uuid::Uuid;
 
 use crate::common::client::TestClient;
 use crate::common::DEFAULT_PROOF_WAIT_DURATION;
@@ -62,7 +64,7 @@ pub async fn start_rollup(
     sequencer_config: Option<SequencerConfig>,
     network: Option<Network>,
     let_hell_loose: bool,
-) -> TaskManager<()> {
+) -> TaskManager {
     // create rollup config default creator function and use them here for the configs
 
     // We enable risc0 dev mode in tests because the provers in dev mode generate fake receipts that can be verified if the verifier is also in dev mode
@@ -139,7 +141,7 @@ pub async fn start_rollup(
 
     let Dependencies {
         da_service,
-        mut task_manager,
+        task_manager,
         l2_block_channel,
     } = mock_demo_rollup
         .setup_dependencies(
@@ -155,6 +157,8 @@ pub async fn start_rollup(
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
     };
+
+    let task_executor = task_manager.executor();
 
     // I am sorry
     if let_hell_loose {
@@ -193,13 +197,14 @@ pub async fn start_rollup(
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_module = mock_demo_rollup
-        .setup_rpc(
+        .create_rpc_methods(
             rpc_storage,
-            ledger_db.clone(),
-            da_service.clone(),
+            &ledger_db,
+            &da_service,
             sequencer_client_url,
             l2_block_rx,
             &backup_manager,
+            rollup_config.rpc.clone(),
         )
         .expect("RPC module setup should work");
 
@@ -223,67 +228,74 @@ pub async fn start_rollup(
             l2_block_tx,
             rpc_module,
             backup_manager,
+            task_executor.clone(),
         )
         .unwrap();
 
         start_rpc_server(
             rollup_config.rpc,
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            sequencer
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
-        });
+        task_executor.spawn_critical_with_graceful_shutdown_signal(
+            "Sequencer",
+            |shutdown_signal| async move {
+                sequencer
+                    .run(shutdown_signal)
+                    .instrument(span)
+                    .await
+                    .unwrap();
+            },
+        );
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
-        let (prover, l1_block_handler, rpc_module) = CitreaRollupBlueprint::create_batch_prover(
-            &mock_demo_rollup,
-            rollup_prover_config,
-            genesis_config,
-            rollup_config.clone(),
-            da_service,
-            ledger_db.clone(),
-            storage_manager,
-            l2_block_tx,
-            rpc_module,
-            backup_manager,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
+        let (l2_syncer, l1_syncer, prover, rpc_module) =
+            CitreaRollupBlueprint::create_batch_prover(
+                &mock_demo_rollup,
+                rollup_prover_config,
+                genesis_config,
+                rollup_config.clone(),
+                da_service,
+                ledger_db.clone(),
+                storage_manager,
+                l2_block_tx,
+                rpc_module,
+                backup_manager,
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
 
         start_rpc_server(
             rollup_config.rpc.clone(),
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-            let start_l1_height = rollup_config
-                .runner
-                .map_or(1, |runner| runner.scan_l1_start_height);
-            l1_block_handler
-                .run(start_l1_height, cancellation_token)
-                .instrument(handler_span.clone())
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            l1_syncer
+                .run(shutdown_signal)
+                .instrument(handler_span)
                 .await
         });
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            prover
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
+        let handler_span = span.clone();
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            l2_syncer
+                .run(shutdown_signal)
+                .instrument(handler_span)
+                .await;
         });
+
+        task_executor
+            .spawn_critical_with_graceful_shutdown_signal("Prover", |shutdown_signal| async move {
+                prover.run(shutdown_signal).instrument(span).await
+            });
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
 
@@ -315,30 +327,29 @@ pub async fn start_rollup(
 
         start_rpc_server(
             rollup_config.rpc.clone(),
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-            l1_block_handler
-                .run(starting_block, cancellation_token)
-                .instrument(handler_span.clone())
-                .await
-        });
+        task_executor.spawn_critical_with_graceful_shutdown_signal(
+            "LightClient",
+            |shutdown_signal| async move {
+                l1_block_handler
+                    .run(starting_block, shutdown_signal)
+                    .instrument(handler_span.clone())
+                    .await
+            },
+        );
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            rollup
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+            rollup.run(shutdown_signal).instrument(span).await.unwrap();
         });
     } else {
         let span = info_span!("FullNode");
 
-        let (rollup, l1_block_handler, pruner, rpc_module) =
+        let (mut l2_syncer, l1_block_handler, pruner, rpc_module) =
             CitreaRollupBlueprint::create_full_node(
                 &mock_demo_rollup,
                 genesis_config,
@@ -356,38 +367,35 @@ pub async fn start_rollup(
 
         start_rpc_server(
             rollup_config.rpc.clone(),
-            &mut task_manager,
+            &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
-        task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
+        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             let start_l1_height = rollup_config
                 .runner
                 .map_or(1, |runner| runner.scan_l1_start_height);
             l1_block_handler
-                .run(start_l1_height, cancellation_token)
+                .run(start_l1_height, shutdown_signal)
                 .instrument(handler_span.clone())
                 .await
         });
 
         // Spawn pruner if configs are set
         if let Some(pruner) = pruner {
-            task_manager.spawn(TaskType::Secondary, |cancellation_token| async move {
-                pruner
-                    .run(StorageNodeType::FullNode, cancellation_token)
-                    .await
+            task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                pruner.run(StorageNodeType::FullNode, shutdown_signal).await
             });
         }
 
-        task_manager.spawn(TaskType::Primary, |cancellation_token| async move {
-            rollup
-                .run(cancellation_token)
-                .instrument(span)
-                .await
-                .unwrap();
-        });
+        task_executor.spawn_critical_with_graceful_shutdown_signal(
+            "FullNode",
+            |shutdown_signal| async move {
+                l2_syncer.run(shutdown_signal).instrument(span).await;
+            },
+        );
     }
 
     task_manager
@@ -494,6 +502,34 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
     }
 }
 
+/// Wait for prover job to finish.
+pub async fn wait_for_prover_job(
+    prover_client: &TestClient,
+    job_id: Uuid,
+    timeout: Option<Duration>,
+) -> anyhow::Result<JobRpcResponse> {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
+    loop {
+        debug!("Waiting for prover job {}", job_id);
+        let response = prover_client.get_proving_job(job_id).await;
+        if let Some(response) = response {
+            if let Some(proof) = &response.proof {
+                if proof.l1_tx_id.is_some() {
+                    return Ok(response);
+                }
+            }
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            bail!("Timeout. Failed to get prover job {}", job_id);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
 #[instrument(level = "debug", skip(prover_client))]
 pub async fn wait_for_prover_l1_height_proofs(
     prover_client: &TestClient,
@@ -519,6 +555,60 @@ pub async fn wait_for_prover_l1_height_proofs(
         sleep(Duration::from_secs(1)).await;
     }
     Ok(())
+}
+
+/// Wait for prover to scan up-to l1 height. Useful for ensuring that sequencer commitments are scanned and ready to prove.
+#[instrument(level = "debug", skip(prover_client))]
+pub async fn wait_for_prover_l1_height(
+    prover_client: &TestClient,
+    num: u64,
+    timeout: Option<Duration>,
+) -> anyhow::Result<()> {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
+    loop {
+        debug!("Waiting for prover l1 height {}", num);
+        let last_scanned_num = prover_client.ledger_get_last_scanned_l1_height().await;
+        if last_scanned_num >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            bail!(
+                "Timeout. Failed to wait for batch prover to scan L1 height {}",
+                num
+            );
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+    Ok(())
+}
+
+pub async fn wait_for_prover_job_count(
+    prover_client: &TestClient,
+    count: usize,
+    timeout: Option<Duration>,
+) -> anyhow::Result<Vec<Uuid>> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(240));
+
+    loop {
+        if start.elapsed() >= timeout {
+            bail!(
+                "BatchProver failed to reach proving job count {} on time",
+                count
+            );
+        }
+
+        let job_ids = prover_client.get_proving_jobs(count).await;
+        if job_ids.len() >= count {
+            return Ok(job_ids);
+        }
+
+        sleep(Duration::from_millis(500)).await;
+    }
 }
 
 #[instrument(level = "debug", skip(da_service))]

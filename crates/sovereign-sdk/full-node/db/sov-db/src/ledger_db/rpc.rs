@@ -12,11 +12,6 @@ use crate::schema::tables::{
 };
 use crate::schema::types::{L2BlockNumber, SlotNumber};
 
-/// The maximum number of batches that can be requested in a single RPC range query
-const MAX_BATCHES_PER_REQUEST: u64 = 20;
-/// The maximum number of l2 blocks that can be requested in a single RPC range query
-const MAX_L2_BLOCK_PER_REQUEST: u64 = 20;
-
 fn check_if_l2_block_pruned(ledger_db: &LedgerDB, l2_height: u64) -> Result<(), anyhow::Error> {
     let last_pruned_l2_height = ledger_db.get_last_pruned_l2_height()?;
     if let Some(last_pruned_l2_height) = last_pruned_l2_height {
@@ -63,19 +58,16 @@ impl LedgerRpcProvider for LedgerDB {
         self.get_l2_block(&L2BlockIdentifier::Number(number))
     }
 
-    fn get_l2_blocks(
+    fn get_l2_blocks_range(
         &self,
-        l2_block_ids: &[L2BlockIdentifier],
+        start: u64,
+        end: u64,
     ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error> {
-        anyhow::ensure!(
-            l2_block_ids.len() <= MAX_L2_BLOCK_PER_REQUEST as usize,
-            "requested too many l2 blocks. Requested: {}. Max: {}",
-            l2_block_ids.len(),
-            MAX_L2_BLOCK_PER_REQUEST
-        );
+        anyhow::ensure!(start <= end, "start must be <= end");
 
+        let l2_block_ids: Vec<_> = (start..=end).map(L2BlockIdentifier::Number).collect();
         let mut out = Vec::with_capacity(l2_block_ids.len());
-        for l2_block_id in l2_block_ids {
+        for l2_block_id in &l2_block_ids {
             if let Some(l2_block) = self.get_l2_block(l2_block_id)? {
                 out.push(Some(l2_block));
             } else {
@@ -83,21 +75,6 @@ impl LedgerRpcProvider for LedgerDB {
             }
         }
         Ok(out)
-    }
-
-    fn get_l2_blocks_range(
-        &self,
-        start: u64,
-        end: u64,
-    ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start < MAX_BATCHES_PER_REQUEST,
-            "requested batch range too large. Max: {}",
-            MAX_BATCHES_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(L2BlockIdentifier::Number).collect();
-        self.get_l2_blocks(&ids)
     }
 
     fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error> {

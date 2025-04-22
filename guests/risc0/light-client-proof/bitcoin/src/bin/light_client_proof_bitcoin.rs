@@ -42,6 +42,16 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
     }
 };
 
+const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::TESTNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::DEVNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
+        Network::TestNetworkWithForks => bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY,
+    }
+};
+
 const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     match NETWORK {
         Network::Mainnet => bitcoinda::MAINNET_BATCH_PROVER_DA_PUBLIC_KEY,
@@ -88,6 +98,7 @@ pub fn main() {
             L2_GENESIS_ROOT,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &BATCH_PROVER_DA_PUBLIC_KEY,
+            &SEQUENCER_DA_PUBLIC_KEY,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
         )
         .unwrap();

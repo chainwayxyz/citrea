@@ -9,17 +9,16 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
+use reth_tasks::TaskManager;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::LastVerifiedBatchProofResponse;
-use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
-use tokio::task::JoinHandle;
 
 use self::evm::init_test_rollup;
 use crate::common::client::TestClient;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height_proofs, NodeMode,
+    wait_for_l2_block, wait_for_proof, wait_for_prover_job, wait_for_prover_job_count, NodeMode,
 };
 use crate::common::{
     make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
@@ -78,19 +77,17 @@ async fn test_all_flow() {
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await.unwrap();
@@ -105,27 +102,25 @@ async fn test_all_flow() {
         NodeMode::Prover(seq_port),
         None,
     );
-    let prover_node_task = tokio::spawn(async {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(BatchProverConfig {
-                proving_mode: citrea_common::ProverGuestRunConfig::Execute,
-                proof_sampling_number: 0,
-                enable_recovery: true,
-            }),
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let prover_node_task = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
-    let prover_node_test_client = make_test_client(prover_node_port).await.unwrap();
+    let prover_client = make_test_client(prover_node_port).await.unwrap();
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -136,19 +131,17 @@ async fn test_all_flow() {
         NodeMode::FullNode(seq_port),
         Some(PruningConfig { distance: 20 }),
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
@@ -186,34 +179,25 @@ async fn test_all_flow() {
     // Commitment
     wait_for_l1_block(&da_service, 3, None).await;
 
-    // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height_proofs(&prover_node_test_client, 3, None)
+    // Wait for job to start
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None)
+        .await
+        .unwrap();
+    assert_eq!(job_ids.len(), 1);
+    // Wait for prover job to finish
+    let response = wait_for_prover_job(&prover_client, job_ids[0], None)
         .await
         .unwrap();
 
-    let commitments = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(3)
+    let commitments = prover_client
+        .batch_prover_get_commitments_by_l1(3)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
     assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
-
-    let commitments_hash = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(commitments_hash, commitments);
-
-    let prover_proof = prover_node_test_client
-        .ledger_get_batch_proofs_by_slot_height(3)
-        .await
-        .unwrap()[0]
-        .clone();
+    let prover_proof = response.proof.unwrap();
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
     // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
@@ -251,10 +235,7 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(balance, U256::from(3e18 as u128));
 
-    let balance = prover_node_test_client
-        .eth_get_balance(addr, None)
-        .await
-        .unwrap();
+    let balance = prover_client.eth_get_balance(addr, None).await.unwrap();
     assert_eq!(balance, U256::from(3e18 as u128));
 
     // send one ether to some address
@@ -276,23 +257,23 @@ async fn test_all_flow() {
     // Commitment
     wait_for_l1_block(&da_service, 5, None).await;
 
-    // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height_proofs(&prover_node_test_client, 5, None)
+    // Wait for job to start
+    let job_ids = wait_for_prover_job_count(&prover_client, 1, None)
+        .await
+        .unwrap();
+    assert_eq!(job_ids.len(), 1);
+    // Wait for prover job to finish
+    let response = wait_for_prover_job(&prover_client, job_ids[0], None)
         .await
         .unwrap();
 
-    let commitments = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(5)
+    let commitments = prover_client
+        .batch_prover_get_commitments_by_l1(5)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    let prover_proof_data = prover_node_test_client
-        .ledger_get_batch_proofs_by_slot_height(5)
-        .await
-        .unwrap()[0]
-        .clone();
+    let prover_proof_data = response.proof.unwrap();
 
     wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client
@@ -326,10 +307,7 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(balance, U256::from(5e18 as u128));
 
-    let balance = prover_node_test_client
-        .eth_get_balance(addr, None)
-        .await
-        .unwrap();
+    let balance = prover_client.eth_get_balance(addr, None).await.unwrap();
     assert_eq!(balance, U256::from(5e18 as u128));
 
     // Synced up to the latest block
@@ -337,12 +315,12 @@ async fn test_all_flow() {
     assert!(full_node_test_client.eth_block_number().await == 8);
 
     // Synced up to the latest commitment
-    wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(60))).await;
-    assert!(prover_node_test_client.eth_block_number().await == 8);
+    wait_for_l2_block(&prover_client, 8, Some(Duration::from_secs(60))).await;
+    assert!(prover_client.eth_block_number().await == 8);
 
-    seq_task.abort();
-    prover_node_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    prover_node_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 }
 
 /// Test RPC `ledger_getHeadL2Block`
@@ -374,19 +352,17 @@ async fn test_ledger_get_head_l2_block() {
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = init_test_rollup(seq_port).await;
@@ -417,7 +393,7 @@ async fn test_ledger_get_head_l2_block() {
         .unwrap();
     assert_eq!(head_l2_block_height, 2);
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }
 
 async fn initialize_test(
@@ -425,8 +401,8 @@ async fn initialize_test(
 ) -> (
     Box<TestClient>, /* seq_test_client */
     Box<TestClient>, /* full_node_test_client */
-    JoinHandle<()>,  /* seq_task */
-    JoinHandle<()>,  /* full_node_task */
+    TaskManager,     /* seq_task */
+    TaskManager,     /* full_node_task */
     Address,
 ) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -445,19 +421,17 @@ async fn initialize_test(
         NodeMode::SequencerNode,
         config.pruning_config.clone(),
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await.unwrap();
@@ -471,19 +445,17 @@ async fn initialize_test(
         NodeMode::FullNode(seq_port),
         config.pruning_config,
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await.unwrap();
@@ -604,19 +576,17 @@ async fn test_offchain_contract_storage() {
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let sequencer_client = make_test_client(seq_port).await.unwrap();
@@ -671,8 +641,8 @@ async fn test_offchain_contract_storage() {
 
     let seq_fork = fork_from_block_number(seq_height);
 
-    // Assert we are at fork2
-    assert_eq!(seq_fork.spec_id, SpecId::Fork2);
+    // Assert we are at tangerine
+    assert_eq!(seq_fork.spec_id, SpecId::Tangerine);
 
     // This should access the `code` and copy code over to `offchain_code` in EVM
     let code = sequencer_client
@@ -722,5 +692,5 @@ async fn test_offchain_contract_storage() {
         sequencer_client.send_publish_batch_request().await;
         set_value_req.watch().await.unwrap();
     }
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }

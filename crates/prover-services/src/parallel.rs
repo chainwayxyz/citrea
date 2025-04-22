@@ -1,12 +1,13 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use anyhow::Context;
 use rand::Rng;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
-use tracing::{info, warn};
+use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 use crate::{ProofData, ProofGenMode};
 
@@ -22,7 +23,6 @@ where
     proof_mode: ProofGenMode,
     da_service: Arc<Da>,
     vm: Vm,
-    next_id: AtomicUsize,
 }
 
 impl<Da, Vm> ParallelProverService<Da, Vm>
@@ -70,7 +70,6 @@ where
             proof_mode,
             da_service,
             vm,
-            next_id: Default::default(),
         })
     }
 
@@ -90,9 +89,9 @@ where
     }
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
-    pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> Proof {
-        let rx = self.start_proving(data, receipt_type).await;
-        rx.await.expect("Proof channel should not close")
+    pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> anyhow::Result<Proof> {
+        let (_, rx) = self.start_proving(data, receipt_type).await?;
+        Ok(rx.await.expect("Proof channel should not close"))
     }
 
     /// Starts the proving task in the background and returns a channel which will resolve
@@ -102,7 +101,7 @@ where
         &self,
         data: ProofData,
         receipt_type: ReceiptType,
-    ) -> oneshot::Receiver<Proof> {
+    ) -> anyhow::Result<(Uuid, oneshot::Receiver<Proof>)> {
         self.reserve_proof_slot().await;
 
         let ProofData {
@@ -118,26 +117,36 @@ where
             vm.add_assumption(assumption);
         }
 
+        let id = Uuid::now_v7();
+
+        // Start proof immediately
+        let proof_rx = make_proof(vm, id, elf, self.proof_mode, receipt_type)
+            .context("Failed to start proving")?;
+        debug!("Started proving job {}", id);
+
         let ongoing_proof_count = self.ongoing_proof_count.clone();
-        let proof_mode = self.proof_mode;
         let notifier = self.proof_done_notifier.clone();
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-
         let (tx, rx) = oneshot::channel();
-        tokio::task::spawn_blocking(move || {
-            info!("Starting proving task {}", id);
+        tokio::spawn(async move {
+            let proof = proof_rx.await;
 
-            let proof = make_proof(vm, elf, proof_mode, receipt_type)
-                .expect("Proof creation must not fail");
+            *ongoing_proof_count.lock().await -= 1;
 
-            *ongoing_proof_count.blocking_lock() -= 1;
-            tx.send(proof).expect("Proof channel should not close");
+            match proof {
+                Ok(proof) => {
+                    tx.send(proof.proof)
+                        .expect("Proof channel should not close");
+                }
+                Err(e) => {
+                    error!("Vm proving channel closed abruptly: {}", e);
+                }
+            }
 
-            info!("Finished proving task {}", id);
+            debug!("Finished proving job {}", id);
             notifier.notify_one();
         });
 
-        rx
+        Ok((id, rx))
     }
 
     async fn reserve_proof_slot(&self) {
@@ -186,40 +195,40 @@ where
         Ok(tx_and_proof)
     }
 
-    pub async fn recover_and_submit_proving_sessions(
-        &self,
-    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+    pub fn start_session_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
         let vm = self.vm.clone();
-        let proofs = vm.recover_proving_sessions()?;
-
-        self.submit_proofs(proofs).await
+        vm.start_session_recovery()
     }
 }
 
 fn make_proof<Vm>(
     mut vm: Vm,
+    job_id: Uuid,
     elf: Vec<u8>,
     proof_mode: ProofGenMode,
     receipt_type: ReceiptType,
-) -> Result<Proof, anyhow::Error>
+) -> Result<oneshot::Receiver<ProofWithJob>, anyhow::Error>
 where
     Vm: ZkvmHost,
 {
-    match proof_mode {
-        ProofGenMode::Skip => Ok(Vec::default()),
-        ProofGenMode::Execute => vm.run(elf, false, receipt_type),
+    let with_prove = match proof_mode {
+        ProofGenMode::Skip => {
+            unimplemented!("ProofGenMode::Skip is not yet implemented")
+        }
+        ProofGenMode::Execute => false,
         ProofGenMode::ProveWithSampling => {
             // `make_proof` is called with a probability in this case.
             // When it's called, we have to produce a real proof.
-            vm.run(elf, true, receipt_type)
+            true
         }
-        ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
+        ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling) => {
             // `make_proof` is called unconditionally in this case.
             // When it's called, we have to calculate the probabiliry for a proof
             //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
-            let with_prove = proof_sampling_number == 0
-                || rand::thread_rng().gen_range(0..proof_sampling_number) == 0;
-            vm.run(elf, with_prove, receipt_type)
+            proof_sampling == 0 || rand::thread_rng().gen_range(0..proof_sampling) == 0
         }
-    }
+    };
+
+    let rx = vm.run(job_id, elf, receipt_type, with_prove)?;
+    Ok(rx)
 }

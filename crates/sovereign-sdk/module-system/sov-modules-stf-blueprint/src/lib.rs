@@ -101,7 +101,7 @@ where
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
-    /// Begin a l2 block for blocks post fork2
+    /// Begin a l2 block for blocks post tangerine
     /// There are no slot hash comparisons with l2 blocks
     pub fn begin_l2_block(
         &mut self,
@@ -130,7 +130,7 @@ where
         self.apply_sov_txs_inner(l2_block_info, txs, batch_workspace)
     }
 
-    /// Verify l2_block hash and signature post fork2
+    /// Verify l2_block hash and signature post tangerine
     /// No da slot hash, height and txs commitment checks are done here
     pub fn verify_l2_block(
         &self,
@@ -353,15 +353,22 @@ where
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
 
-        // Get fork2
-        let fork2 = forks
+        // Get tangerine
+        let tangerine = forks
             .iter()
-            .find(|f| f.spec_id == SpecId::Fork2)
-            .expect("Fork2 must exist");
+            .find(|f| f.spec_id == SpecId::Tangerine)
+            .expect("Tangerine must exist");
 
-        let fork2_activation_height = fork2.activation_height;
+        let tangerine_activation_height = tangerine.activation_height;
 
-        let mut previous_batch_proof_l2_end_height = fork2_activation_height;
+        let mut previous_batch_proof_l2_end_height = tangerine_activation_height;
+
+        // If tangerine start height is not 0 meaning there are other forks before tangerine,
+        // then the previous batch proof l2 end height should be the tangerine start height - 1
+        // Because the first l2 height of the first tangerine batch proof must be non-zero tangerine activation height
+        if tangerine_activation_height != 0 {
+            previous_batch_proof_l2_end_height = tangerine_activation_height - 1;
+        }
 
         // If there is no previous commitment, then this is the first batch proof
         // and this should start from proving the first l2 block
@@ -423,8 +430,10 @@ where
             let mut l2_block_hashes = Vec::with_capacity(state_change_count as usize);
 
             for _ in 0..state_change_count {
-                let l2_block_l2_height = guest.read_from_host::<u64>();
-                fork_manager.register_block(l2_block_l2_height).unwrap();
+                // there used to be a need for height to be passed before L2 block
+                // now this is not needed but deployed provers still have the same input generation in place
+                // so don't use this variable
+                let _l2_block_l2_height = guest.read_from_host::<u64>();
 
                 let (l2_block, state_witness, offchain_witness) =
                     guest.read_from_host::<(L2Block, Witness, Witness)>();
@@ -443,11 +452,7 @@ where
                     );
                 }
 
-                assert_eq!(
-                    l2_block.height(),
-                    l2_height,
-                    "L2 block heights not sequential"
-                );
+                fork_manager.register_block(l2_height).unwrap();
 
                 let result = self
                     .apply_l2_block(

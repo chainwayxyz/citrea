@@ -28,7 +28,7 @@ impl PartialEq for Fork {
 impl Default for Fork {
     fn default() -> Self {
         Self {
-            spec_id: SpecId::Fork2,
+            spec_id: SpecId::Tangerine,
             activation_height: 0,
         }
     }

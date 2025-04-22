@@ -24,7 +24,7 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
 
 pub mod mockda {
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"ae9a95a544a777e9df427f899c0f5ec30e9ccb2fa66fe20fea7b1e1435e992f0",
+        b"1857a148ae2f45e7d268b5abefc885379f63d2b2726597347de96353a9b40b11",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -35,6 +35,13 @@ pub mod mockda {
 
     pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
+    ) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("Can't happen"),
+    };
+
+    pub const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+        b"02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("Can't happen"),
@@ -60,14 +67,14 @@ pub mod bitcoinda {
     };
 
     pub const TESTNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"b7a7fdf56aa1725049704457596db552f2e975e37b2a786cfabedf987c2e7e08",
+        b"8292a2b07f40f9cee43fde4523567faab5261b1c1cf79ae56e1b4ef4b323735f",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
     };
 
     pub const DEVNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"7bc4a868439b637b57fcc55bf6e119e51996d6a4127a39f1393c8c1e29d37365",
+        b"ee72838efc878217d4a8150828f19afa9e58c3270269413a3c757aeddbad05a6",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -76,7 +83,7 @@ pub mod bitcoinda {
     pub const NIGHTLY_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "ae9a95a544a777e9df427f899c0f5ec30e9ccb2fa66fe20fea7b1e1435e992f0",
+            None => "1857a148ae2f45e7d268b5abefc885379f63d2b2726597347de96353a9b40b11",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -88,7 +95,7 @@ pub mod bitcoinda {
     pub const TEST_NETWORK_WITH_FORKS_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "ae9a95a544a777e9df427f899c0f5ec30e9ccb2fa66fe20fea7b1e1435e992f0",
+            None => "1857a148ae2f45e7d268b5abefc885379f63d2b2726597347de96353a9b40b11",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -99,27 +106,15 @@ pub mod bitcoinda {
 
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(0, [0; 8])];
 
-    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[
-        (
-            0,
-            decode_to_u32_array("3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f"),
-        ),
-        (
-            5546000,
-            decode_to_u32_array("670b7ef87e7fab2ff2d46f38f71be524d42cc0c62da41884d3d41928b8c967d1"),
-        ),
-    ];
+    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
+        0,
+        decode_to_u32_array("113facdcfff2cc03a50f74e462f568fa35c36fc405f9d49c58af98f62c2e5a20"),
+    )];
 
-    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[
-        (
-            0,
-            decode_to_u32_array("3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f"),
-        ),
-        (
-            1921835,
-            decode_to_u32_array("0ef8aaa707662dc591558890d6e98fe25070392b342f447532cc4325547ad1a8"),
-        ),
-    ];
+    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
+        0,
+        decode_to_u32_array("26af8a6fbafcf3eb81fe6d56c8c6e79ad78af645ab7b9803393477d6001cf8e4"),
+    )];
 
     pub const NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         match option_env!("BATCH_PROOF_METHOD_ID") {
@@ -190,7 +185,52 @@ pub mod bitcoinda {
 
         match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
             Ok(pub_key) => pub_key,
-            Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
+            Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+        }
+    };
+
+    pub const MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+        b"030000000000000000000000000000000000000000000000000000000000000000",
+    ) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+    };
+
+    pub const TESTNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+        b"03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
+    ) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+    };
+
+    pub const DEVNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+        b"039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
+    ) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+    };
+
+    pub const NIGHTLY_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+        let hex_pub_key = match option_env!("SEQUENCER_DA_PUB_KEY") {
+            Some(hex_pub_key) => hex_pub_key,
+            None => "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
+        };
+
+        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+        }
+    };
+
+    pub const TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+        let hex_pub_key = match option_env!("SEQUENCER_DA_PUB_KEY") {
+            Some(hex_pub_key) => hex_pub_key,
+            None => "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
+        };
+
+        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
         }
     };
 
@@ -260,6 +300,8 @@ pub trait InitialValueProvider<Das: DaSpec> {
 
     fn batch_prover_da_public_key(&self) -> [u8; 33];
 
+    fn sequencer_da_public_key(&self) -> [u8; 33];
+
     fn method_id_upgrade_authority_da_public_key(&self) -> [u8; 33];
 }
 
@@ -283,6 +325,11 @@ impl InitialValueProvider<MockDaSpec> for Network {
     fn method_id_upgrade_authority_da_public_key(&self) -> [u8; 33] {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY
+    }
+
+    fn sequencer_da_public_key(&self) -> [u8; 33] {
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
+        mockda::SEQUENCER_DA_PUBLIC_KEY
     }
 }
 
@@ -330,6 +377,18 @@ impl InitialValueProvider<BitcoinSpec> for Network {
             Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
             Network::TestNetworkWithForks => {
                 bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY
+            }
+        }
+    }
+
+    fn sequencer_da_public_key(&self) -> [u8; 33] {
+        match self {
+            Network::Mainnet => bitcoinda::MAINNET_SEQUENCER_DA_PUBLIC_KEY,
+            Network::Testnet => bitcoinda::TESTNET_SEQUENCER_DA_PUBLIC_KEY,
+            Network::Devnet => bitcoinda::DEVNET_SEQUENCER_DA_PUBLIC_KEY,
+            Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
+            Network::TestNetworkWithForks => {
+                bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
             }
         }
     }

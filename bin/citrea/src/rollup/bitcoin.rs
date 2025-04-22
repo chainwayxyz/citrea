@@ -9,15 +9,15 @@ use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
-use citrea_common::FullNodeConfig;
+use citrea_common::{FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::REVEAL_TX_PREFIX;
-use citrea_risc0_adapter::host::Risc0BonsaiHost;
+use citrea_risc0_adapter::host::Risc0Host;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, SpecId, Zkvm};
@@ -50,7 +50,7 @@ impl RollupBlueprint for BitcoinRollup {
     type DaSpec = BitcoinSpec;
     type DaConfig = BitcoinServiceConfig;
     type DaVerifier = BitcoinVerifier;
-    type Vm = Risc0BonsaiHost;
+    type Vm = Risc0Host;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -66,6 +66,7 @@ impl RollupBlueprint for BitcoinRollup {
         sequencer_client_url: Option<String>,
         l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
+        rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
@@ -73,7 +74,7 @@ impl RollupBlueprint for BitcoinRollup {
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage.clone(), ledger_db, sov_sequencer)?;
+        >(storage.clone(), ledger_db, sov_sequencer, rpc_config)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
@@ -112,7 +113,7 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
-        task_manager: &mut TaskManager<()>,
+        task_executor: TaskExecutor,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
 
@@ -142,12 +143,11 @@ impl RollupBlueprint for BitcoinRollup {
             // run only for sequencer and prover
             service.monitoring.restore().await?;
 
-            task_manager.spawn(TaskType::Secondary, |tk| {
+            task_executor.spawn_with_graceful_shutdown_signal(|tk| {
                 Arc::clone(&service).run_da_queue(rx, tk)
             });
-            task_manager.spawn(TaskType::Secondary, |tk| {
-                Arc::clone(&service.monitoring).run(tk)
-            });
+            task_executor
+                .spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));
         }
 
         Ok(service)
@@ -264,7 +264,7 @@ impl RollupBlueprint for BitcoinRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
+        let vm = Risc0Host::new(ledger_db.clone(), self.network);
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

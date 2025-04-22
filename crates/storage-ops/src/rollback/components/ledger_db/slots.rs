@@ -1,6 +1,6 @@
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2StatusHeights, LightClientProofBySlotNumber, ShortHeaderProofBySlotHash,
-    SlotByHash, VerifiedBatchProofsBySlotNumber,
+    CommitmentIndicesByL1, CommitmentsByNumber, L2StatusHeights, LightClientProofBySlotNumber,
+    ProverLastScannedSlot, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::{L2HeightStatus, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
@@ -42,6 +42,45 @@ pub(crate) fn rollback_slots(
         deleted += 1;
     }
 
+    if matches!(node_type, StorageNodeType::FullNode) {
+        let last_scanned_l1_height = ledger_db
+            .get::<ProverLastScannedSlot>(&())?
+            .unwrap_or_default();
+        for l1_height in (target_l1..=last_scanned_l1_height.0).rev() {
+            ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l1_height))?;
+            ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Proven, l1_height))?;
+        }
+    }
+
+    Ok(deleted)
+}
+
+// CommitmentIndicesByL1
+// JobIdOfCommitment
+pub(crate) fn rollback_batch_prover_slots(
+    node_type: StorageNodeType,
+    ledger_db: &DB,
+    target_l1: u64,
+) -> anyhow::Result<u64> {
+    // target_l1 + 1 due to rollback_slot_by_hash being inclusive
+    let deleted = rollback_slot_by_hash(node_type, ledger_db, SlotNumber(target_l1 + 1))?;
+
+    let mut commitment_indices_by_l1 = ledger_db.iter_with_direction::<CommitmentIndicesByL1>(
+        Default::default(),
+        ScanDirection::Backward,
+    )?;
+    commitment_indices_by_l1.seek_to_last();
+
+    for record in commitment_indices_by_l1 {
+        let l1_height = record?.key;
+
+        if l1_height <= SlotNumber(target_l1) {
+            break;
+        }
+
+        ledger_db.delete::<CommitmentIndicesByL1>(&l1_height)?;
+    }
+
     Ok(deleted)
 }
 
@@ -80,11 +119,12 @@ fn rollback_slot_by_hash(
     node_type: StorageNodeType,
     ledger_db: &DB,
     slot_number: SlotNumber,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<u64> {
     let mut slots =
         ledger_db.iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Backward)?;
     slots.seek_to_last();
 
+    let mut deleted = 0;
     for record in slots {
         let Ok(record) = record else {
             continue;
@@ -99,9 +139,11 @@ fn rollback_slot_by_hash(
         }
 
         ledger_db.delete::<SlotByHash>(&record.key)?;
+
+        deleted += 1;
     }
 
-    Ok(())
+    Ok(deleted)
 }
 
 fn rollback_verified_proofs_by_slot_number(
@@ -125,13 +167,6 @@ fn rollback_verified_proofs_by_slot_number(
         }
 
         ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
-
-        let proofs = record.value;
-        for proof in proofs.into_iter().rev() {
-            let output = proof.proof_output;
-            ledger_db
-                .delete::<L2StatusHeights>(&(L2HeightStatus::Proven, output.last_l2_height()))?;
-        }
     }
 
     Ok(())

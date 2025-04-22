@@ -27,7 +27,7 @@ fn change_max_l2_blocks_per_l1_and_authority() {
     )
     .unwrap();
 
-    let context = C::new(sender_address, 1, SpecId::Fork2, 0);
+    let context = C::new(sender_address, 1, SpecId::Tangerine, 0);
 
     let _ = l2_block_rule_enforcer
         .call(call_message, &context, &mut working_set)
@@ -94,7 +94,7 @@ fn change_max_l2_blocks_per_l1_and_authority() {
     );
 
     // create a new context with the new authority
-    let context = C::new(new_authority, 1, SpecId::Fork2, 0);
+    let context = C::new(new_authority, 1, SpecId::Tangerine, 0);
     let _ = l2_block_rule_enforcer
         .call(
             modify_max_l2_blocks_per_l1_message,

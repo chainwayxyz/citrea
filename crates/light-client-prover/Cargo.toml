@@ -37,8 +37,8 @@ jsonrpsee = { workspace = true, optional = true, features = ["http-client", "ser
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = true, optional = true }
+reth-tasks = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
-tokio-util = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -66,8 +66,8 @@ native = [
   "dep:metrics",
   "dep:metrics-derive",
   "dep:once_cell",
+  "dep:reth-tasks",
   "dep:tokio",
-  "dep:tokio-util",
   "dep:tracing",
   "dep:alloy-primitives",
   "sov-rollup-interface/native",
