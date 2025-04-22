@@ -138,24 +138,6 @@ where
         )
         .await;
 
-        let l2_end_block_number = commitments_and_proofs
-            .iter()
-            .filter_map(|item| match item {
-                ProofOrCommitment::Commitment(commitment) => Some(commitment.l2_end_block_number),
-                _ => None,
-            })
-            .max()
-            .unwrap_or(0);
-
-        if l2_end_block_number > 0 {
-            // If the L2 range does not exist, we break off the current process call
-            // We retry the L1 block at a later tick.
-            if !check_l2_block_exists(&self.ledger_db, l2_end_block_number) {
-                warn!("L1 commitment received, but L2 range is not synced yet...");
-                return;
-            }
-        }
-
         for commitment_or_proof in commitments_and_proofs {
             match commitment_or_proof {
                 ProofOrCommitment::Commitment(commitment) => {
@@ -164,10 +146,6 @@ where
                         .await
                     {
                         match e {
-                            SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                                warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
-                                return;
-                            }
                             SyncError::Error(e) => {
                                 error!(
                                     "Could not process sequencer commitments: {}... skipping",
@@ -190,10 +168,6 @@ where
                 ProofOrCommitment::Proof(proof) => {
                     if let Err(e) = self.process_zk_proof(l1_block, proof).await {
                         match e {
-                            SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                                warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
-                                return;
-                            }
                             SyncError::Error(e) => {
                                 error!("Could not process ZK proofs: {}... skipping...", e);
                             }
@@ -329,11 +303,30 @@ where
         // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
         // synced yet.
         if stored_l2_blocks.len() < ((end_l2_height - start_l2_height) as usize) {
-            return Err(SyncError::MissingL2(
-                "L2 range not synced yet",
-                start_l2_height,
-                end_l2_height,
-            ));
+            if self
+                .ledger_db
+                .get_pending_commitment_by_index(sequencer_commitment.index)?
+                .is_none()
+            {
+                info!(
+                    "Commitment with index: {} L2 blocks not synced yet. Range: {}-{}, merkle root: {} Storing commitment as pending.",
+                    sequencer_commitment.index,
+                    start_l2_height,
+                    end_l2_height,
+                    hex::encode(sequencer_commitment.merkle_root)
+                );
+                self.ledger_db
+                    .store_pending_commitment(sequencer_commitment.clone())?;
+                return Ok(ProcessingResult::Pending);
+            } else {
+                warn!("Found duplicate pending commitment with index: {}. Range: {}-{}, merkle root: {}",
+                    sequencer_commitment.index,
+                    start_l2_height,
+                    end_l2_height,
+                    hex::encode(sequencer_commitment.merkle_root)
+                );
+                return Ok(ProcessingResult::Discarded);
+            }
         }
 
         let l2_blocks_tree = MerkleTree::<Sha256>::from_leaves(
@@ -507,6 +500,8 @@ where
             ).into());
         }
 
+        let mut proof_is_pending = false;
+
         let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
@@ -521,9 +516,36 @@ where
                             hex::encode(expected_hash)
                         ).into());
                 }
+                // Check if any of the commitments is pending
+                // If so, store the proof as pending
+            } else if let Some(pending_commitment) =
+                self.ledger_db.get_pending_commitment_by_index(index)?
+            {
+                if pending_commitment.serialize_and_calculate_sha_256() != expected_hash {
+                    return Err(anyhow!(
+                            "Proof verification: For a pending sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                            hex::encode(pending_commitment.serialize_and_calculate_sha_256()),
+                            hex::encode(expected_hash)
+                        ).into());
+                }
+                info!("Proof has a pending commitment with index: {}.", index);
+                proof_is_pending = true;
             } else {
                 return Err(SyncError::SequencerCommitmentMissingForProof(index));
             }
+        }
+
+        if proof_is_pending {
+            info!(
+                "Proof is pending for commitment index range {}-{}. Storing proof as pending.",
+                sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
+            );
+            self.ledger_db.store_pending_proof(
+                sequencer_commitment_index_range.0,
+                sequencer_commitment_index_range.1,
+                raw_proof,
+            )?;
+            return Ok(ProcessingResult::Pending);
         }
 
         if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
