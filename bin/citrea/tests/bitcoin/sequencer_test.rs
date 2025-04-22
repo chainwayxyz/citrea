@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 
-use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
@@ -26,11 +25,8 @@ impl TestCase for BasicSequencerTest {
             anyhow::bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(da) = f.bitcoin_nodes.get(0) else {
-            bail!("bitcoind not running. Test cannot run with bitcoind runnign as DA")
-        };
-
         sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.wait_for_l2_block(1, None).await?;
 
         let head_batch0 = sequencer
             .client
@@ -41,10 +37,8 @@ impl TestCase for BasicSequencerTest {
         assert_eq!(head_batch0.header.height.to::<u64>(), 1);
 
         sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.wait_for_l2_block(2, None).await?;
 
-        da.generate(1).await?;
-
-        sequencer.client.wait_for_l2_block(1, None).await?;
         let head_batch1 = sequencer
             .client
             .http_client()

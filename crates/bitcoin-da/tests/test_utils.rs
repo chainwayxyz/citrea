@@ -12,12 +12,12 @@ use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::transaction::TransactionWrapper;
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::{MAX_TXBODY_SIZE, REVEAL_TX_PREFIX};
+use reth_tasks::TaskExecutor;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 
@@ -25,11 +25,11 @@ pub const DEFAULT_DA_PRIVATE_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
 
 pub async fn get_default_service(
-    task_manager: &mut TaskManager<()>,
+    task_executor: &TaskExecutor,
     config: &BitcoinConfig,
 ) -> Arc<BitcoinService> {
     get_service(
-        task_manager,
+        task_executor,
         config,
         NodeKind::Bitcoin.to_string(),
         DEFAULT_DA_PRIVATE_KEY.to_string(),
@@ -39,7 +39,7 @@ pub async fn get_default_service(
 }
 
 pub async fn get_service(
-    task_manager: &mut TaskManager<()>,
+    task_executor: &TaskExecutor,
     config: &BitcoinConfig,
     wallet: String,
     da_private_key: String,
@@ -69,9 +69,7 @@ pub async fn get_service(
     .expect("Error initializing BitcoinService");
 
     let da_service = Arc::new(da_service);
-    task_manager.spawn(TaskType::Secondary, |tk| {
-        da_service.clone().run_da_queue(rx, tk)
-    });
+    task_executor.spawn_with_graceful_shutdown_signal(|tk| da_service.clone().run_da_queue(rx, tk));
 
     da_service
 }
@@ -92,7 +90,7 @@ pub async fn get_service(
 pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
-    task_manager: &mut TaskManager<()>,
+    task_executor: &TaskExecutor,
 ) -> (
     BitcoinBlock,
     Vec<SequencerCommitment>,
@@ -104,7 +102,7 @@ pub async fn generate_mock_txs(
     let wrong_prefix_wallet = "wrong_prefix".to_string();
     create_and_fund_wallet(wrong_prefix_wallet.clone(), da_node).await;
     let wrong_prefix_da_service = get_service(
-        task_manager,
+        task_executor,
         &da_node.config,
         wrong_prefix_wallet,
         DEFAULT_DA_PRIVATE_KEY.to_string(),
@@ -115,7 +113,7 @@ pub async fn generate_mock_txs(
     let wrong_key_wallet = "wrong_key".to_string();
     create_and_fund_wallet(wrong_key_wallet.clone(), da_node).await;
     let wrong_key_da_service = get_service(
-        task_manager,
+        task_executor,
         &da_node.config,
         wrong_key_wallet,
         "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),

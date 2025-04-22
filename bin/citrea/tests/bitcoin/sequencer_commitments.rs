@@ -1,12 +1,13 @@
 use std::time::{Duration, Instant};
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
@@ -89,31 +90,28 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         // wait here until we see from prover's rpc that it finished proving
         prover.wait_for_l1_height(finalized_height, None).await?;
 
-        let commitments = prover
+        let commitment_indices = prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
+            .get_commitment_indices_by_l1(finalized_height)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitment_indices.len(), 1);
+
+        let commitment = prover
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(commitment_indices[0]))
             .await
             .unwrap()
             .unwrap();
 
-        assert_eq!(commitments.len(), 1);
-
         assert_eq!(
-            commitments[0].l2_end_block_number.to::<u64>(),
+            commitment.l2_end_block_number.to::<u64>(),
             max_l2_blocks_per_commitment
         );
 
-        let hash = da.get_block_hash(finalized_height).await?;
-
-        let commitments_hash = prover
-            .client
-            .http_client()
-            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array().into())
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(commitments_hash, commitments);
         Ok(())
     }
 }

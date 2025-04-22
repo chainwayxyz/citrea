@@ -24,7 +24,7 @@ type C = DefaultContext;
 
 #[test]
 fn logs_for_filter_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SpecId::Fork2);
+    let (evm, mut working_set, _, _, _) = init_evm(SpecId::Tangerine);
 
     let result = evm.eth_get_logs(
         Filter {
@@ -91,7 +91,7 @@ fn log_filter_test_at_block_hash() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -100,7 +100,7 @@ fn log_filter_test_at_block_hash() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         // deploy logs contract
         // call the contract function
@@ -302,7 +302,7 @@ fn log_filter_test_with_range() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -311,7 +311,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -360,7 +360,7 @@ fn log_filter_test_with_range() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [99u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -369,7 +369,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
         // call the contract function
         evm.call(
             CallMessage {
@@ -420,7 +420,7 @@ fn test_log_limits() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -429,7 +429,7 @@ fn test_log_limits() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -517,7 +517,7 @@ fn test_log_limits() {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
-            current_spec: SpecId::Fork2,
+            current_spec: SpecId::Tangerine,
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,

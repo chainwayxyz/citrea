@@ -11,10 +11,6 @@ LIGHT_OUT_PATH := resources/guests/risc0/
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-.PHONY: build-risc0-docker
-build-risc0-docker:
-	$(MAKE) -C guests/risc0 batch-proof-bitcoin-docker OUT_PATH=$(BATCH_OUT_PATH)
-	$(MAKE) -C guests/risc0 light-client-bitcoin-docker OUT_PATH=$(LIGHT_OUT_PATH)
 
 .PHONY: build-sp1
 build-sp1:
@@ -28,8 +24,8 @@ build: ## Build the project
 build-test: $(EF_TESTS_DIR) ## Build the project
 	@cargo build --locked $(TEST_FEATURES)
 
-build-reproducible: build-risc0-docker build-sp1 ## Build the project in release mode with reproducible guest builds
-	@cargo build --release --locked
+build-reproducible: build-sp1 ## Build the project in release mode with reproducible guest builds
+	REPR_GUEST_BUILD=1 cargo build --release --locked
 
 build-release: ## Build the project in release mode
 	@cargo build --release --locked

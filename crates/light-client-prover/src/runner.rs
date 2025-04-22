@@ -1,5 +1,5 @@
 use citrea_common::RunnerConfig;
-use tokio_util::sync::CancellationToken;
+use reth_tasks::shutdown::GracefulShutdown;
 use tracing::instrument;
 
 pub struct CitreaLightClientProver {
@@ -16,11 +16,8 @@ impl CitreaLightClientProver {
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(
-        &mut self,
-        cancellation_token: CancellationToken,
-    ) -> Result<(), anyhow::Error> {
-        cancellation_token.cancelled().await;
+    pub async fn run(&mut self, shutdown_signal: GracefulShutdown) -> Result<(), anyhow::Error> {
+        let _ = shutdown_signal.await;
 
         Ok(())
     }

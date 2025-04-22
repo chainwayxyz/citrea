@@ -34,19 +34,17 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -56,7 +54,7 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
     run_archival_valid_tests(addr, &seq_test_client).await;
     run_archival_fail_tests(addr, &seq_test_client).await;
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 

@@ -33,6 +33,7 @@ use crate::common::{
 };
 
 mod archival_state;
+mod diff_sizes;
 mod fee;
 mod gas_price;
 mod precompiles;
@@ -57,19 +58,17 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         None,
     );
     let sequener_config = SequencerConfig::default();
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequener_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequener_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -94,7 +93,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         "0x47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad".to_string()
     );
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -119,24 +118,22 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
         max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
     send_tx_test_to_eth(port).await.unwrap();
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -162,19 +159,17 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -183,7 +178,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 
     test_getlogs(&test_client).await.unwrap();
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -206,19 +201,17 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../../resources/genesis/mock/"),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -259,7 +252,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             .unwrap()
     );
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 
@@ -395,19 +388,17 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../../resources/genesis/mock/"),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -528,7 +519,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(acc_proof_latest, acc_proof_2);
     }
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 
@@ -877,19 +868,17 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
         max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -1092,7 +1081,15 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        // setting back should yield same diff
+        // remove L1_FEE_OVERHEAD = 2
+        // compressed diff sizes are:
+        // ((53 + 1 * 85) * 32 // 100) = 44 uncompressed
+        // 21 compressed
+        // ((53 + 1 * 85) * 32 // 100 + 1 * 32) = 76 uncompressed
+        // 36 compressed diff size
+        // difference of 32 bytes is the first time adding authority account info
+        // to state
+        // setting back should yield same diff - creation of the authority
         assert_eq!(
             U64::from_str(
                 last_receipt
@@ -1102,7 +1099,8 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .as_str()
                     .unwrap()
             )
-            .unwrap(),
+            .unwrap()
+                + U64::from(15),
             U64::from_str(
                 single_auth_receipt
                     .other
@@ -1237,6 +1235,8 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
             .unwrap();
 
         assert_eq!(
+            // ((53 + 5 * 85) * 32 // 100 + 5 * 32) * 48 // 100 + 2
+            // 151
             U64::from_str(
                 multiple_receipt
                     .other
@@ -1246,6 +1246,8 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .unwrap()
             )
             .unwrap(),
+            // ((53 + 1 * 85) * 32 // 100 + 1 * 32) * 48 // 100 + 2
+            // 38
             U64::from_str(
                 single_auth_receipt
                     .other
@@ -1255,11 +1257,10 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
                     .unwrap()
             )
             .unwrap()
-                // 4 accs * (85 acc diff * 32 / 100 acc discount) * 48 / 100 brotli discount
-                + U64::from(52) // 5 - 1 account diffs
+                + U64::from(113)
         )
     }
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }

@@ -2,11 +2,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
 /// Represents information about the current DA state.
@@ -18,7 +18,7 @@ pub(crate) async fn da_block_monitor<Da>(
     da_service: Arc<Da>,
     sender: mpsc::Sender<L1Data<Da>>,
     loop_interval: u64,
-    cancellation_token: CancellationToken,
+    mut shutdown_signal: GracefulShutdown,
 ) where
     Da: DaService,
 {
@@ -26,7 +26,7 @@ pub(crate) async fn da_block_monitor<Da>(
     loop {
         tokio::select! {
             biased;
-            _ = cancellation_token.cancelled() => {
+            _ = &mut shutdown_signal => {
                 return;
             }
             l1_data = get_da_block_data(da_service.clone()) => {

@@ -17,7 +17,9 @@ async fn test_successful_prover_execution() {
     ));
 
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        mut vm,
+        ..
     } = make_new_prover(1, da_service);
 
     let header_hash = MockHash::from([0; 32]);
@@ -46,7 +48,9 @@ async fn test_parallel_proofs_equal_to_limit() {
 
     // Parallel proof limit is 2
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        mut vm,
+        ..
     } = make_new_prover(2, da_service);
 
     // 1st proof
@@ -86,7 +90,9 @@ async fn test_parallel_proofs_higher_than_limit() {
 
     // Parallel proof limit is 3
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        mut vm,
+        ..
     } = make_new_prover(3, da_service);
 
     // 1st proof
@@ -181,7 +187,7 @@ async fn start_proof(
     header_hash: MockHash,
 ) -> oneshot::Receiver<Proof> {
     // Spawn mock proving in the background
-    let rx = prover_service
+    let (_, rx) = prover_service
         .start_proving(
             ProofData {
                 input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
@@ -190,7 +196,8 @@ async fn start_proof(
             },
             ReceiptType::Groth16,
         )
-        .await;
+        .await
+        .unwrap();
 
     // Ensure inner proving task is initialized
     tokio::time::sleep(Duration::from_millis(100)).await;

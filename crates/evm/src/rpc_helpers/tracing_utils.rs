@@ -12,7 +12,7 @@ use revm_inspectors::tracing::{
     FourByteInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
 };
 
-use crate::db::DBError;
+use crate::db::{AccountExistsProvider, DBError};
 use crate::evm::db::immutable::EvmDbRef;
 use crate::evm::db::EvmDb;
 use crate::handler::{CitreaBuilder, CitreaChain, CitreaChainExt, CitreaContext, TxInfo};
@@ -274,7 +274,7 @@ fn trace_citrea<DB, I>(
     inspector: I,
 ) -> Result<ResultAndState, EVMError<<DB as revm::Database>::Error>>
 where
-    DB: Database,
+    DB: Database + AccountExistsProvider,
     I: for<'c> Inspector<CitreaContext<'c, DB>>,
 {
     let mut ext = CitreaChain::new(l1_fee_rate);

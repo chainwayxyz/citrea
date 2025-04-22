@@ -37,20 +37,18 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    // Don't provide a prover since the EVM is not currently provable
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -530,6 +528,6 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         .to_vec(),
     );
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }

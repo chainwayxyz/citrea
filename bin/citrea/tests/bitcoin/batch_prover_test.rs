@@ -7,18 +7,22 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_batch_prover::PartitionMode;
 use citrea_e2e::config::{
-    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
-    TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
+    SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
+use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::rpc::{BatchProofResponse, VerifiedBatchProofResponse};
+use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use tokio::time::sleep;
+use uuid::Uuid;
 
 use super::get_citrea_path;
 use crate::common::make_test_client;
@@ -53,28 +57,64 @@ pub async fn wait_for_zkproofs(
     }
 }
 
-pub async fn wait_for_proving_finish(
+/// Wait for prover job to finish.
+pub async fn wait_for_prover_job(
     batch_prover: &BatchProver,
-    height: u64,
+    job_id: Uuid,
     timeout: Option<Duration>,
-) -> Result<Vec<BatchProofResponse>> {
+) -> Result<JobRpcResponse> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(300));
+    loop {
+        let response = batch_prover
+            .client
+            .http_client()
+            .get_proving_job(job_id)
+            .await?;
+        if let Some(response) = response {
+            if let Some(proof) = &response.proof {
+                if proof.l1_tx_id.is_some() {
+                    return Ok(response);
+                }
+            }
+        }
+
+        let now = Instant::now();
+        if start + timeout <= now {
+            bail!("Timeout. Failed to get prover job {}", job_id);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_prover_job_count(
+    batch_prover: &BatchProver,
+    count: usize,
+    timeout: Option<Duration>,
+) -> Result<Vec<Uuid>> {
     let start = Instant::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(240));
 
     loop {
         if start.elapsed() >= timeout {
-            bail!("BatchProver failed to get zkproofs within the specified timeout");
+            bail!(
+                "BatchProver failed to reach proving job count {} on time",
+                count
+            );
         }
 
-        match batch_prover
+        let job_ids = batch_prover
             .client
             .http_client()
-            .get_batch_proofs_by_slot_height(U64::from(height))
-            .await?
-        {
-            Some(proofs) => return Ok(proofs),
-            None => sleep(Duration::from_millis(500)).await,
+            .get_proving_jobs(count)
+            .await
+            .unwrap();
+        if job_ids.len() >= count {
+            return Ok(job_ids);
         }
+
+        sleep(Duration::from_millis(500)).await;
     }
 }
 
@@ -403,7 +443,7 @@ async fn basic_prover_test() -> Result<()> {
 //         Ok(())
 //     }
 
-//     async fn cleanup(&self) -> Result<()> {
+//     async fn cleanup(self) -> Result<()> {
 //         self.task_manager.abort().await;
 //         Ok(())
 //     }
@@ -885,22 +925,37 @@ impl TestCase for L1HashOutputTest {
 
         da.generate(100).await?; // This will produce ceil(100 - 1 / MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK) l2 blocks post fork2 which is 10
 
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
         sequencer.client.send_publish_batch_request().await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
         sequencer.client.send_publish_batch_request().await?;
 
-        // Wait for blob inscribe tx to be in mempool
+        // Wait for commitment tx
         da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
+        // Wait for prover to see the commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
 
-        let zkp = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
+        // Wait for proving job to start
+        let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 1);
+        let job_id = job_ids[0];
 
-        assert_eq!(zkp.len(), 1);
+        // Wait for proving job to finish
+        let response = wait_for_prover_job(batch_prover, job_id, None)
+            .await
+            .unwrap();
+        let proof = response.proof.unwrap();
 
-        let l1_hash = zkp[0]
+        let l1_hash = proof
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
             .clone();
@@ -935,30 +990,46 @@ impl TestCase for L1HashOutputTest {
 
         let commitments_with_l1_update = txs[0..4].iter().map(|txid| txid.to_string()).collect();
 
+        // First, finalize the commitments with l1 update
         da.generate_block(temp_addr, commitments_with_l1_update)
             .await?;
+        da.generate(FINALITY_DEPTH - 1).await?;
 
-        // now the other commitment with no L1 update
-        da.generate(FINALITY_DEPTH).await?;
+        // Wait for 2nd proving job to start
+        let job_ids = wait_for_prover_job_count(batch_prover, 2, None)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 2);
 
-        let finalized_height = da.get_finalized_height(None).await?;
+        // Wait for job to finish, job ids are descending order, so latest is in the first index
+        let response_prev = wait_for_prover_job(batch_prover, job_ids[0], None)
+            .await
+            .unwrap();
+        let zkp_prev = response_prev.proof.unwrap();
 
-        let zkp_prev = wait_for_proving_finish(batch_prover, finalized_height - 1, None).await?;
-
-        assert_eq!(zkp_prev.len(), 1);
-
-        let prev_l1_hash = zkp_prev[0]
+        let prev_l1_hash = zkp_prev
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
             .clone();
 
         assert_ne!(prev_l1_hash, l1_hash);
 
-        let zkp_last = wait_for_proving_finish(batch_prover, finalized_height, None).await?;
+        // Second, finalize the rest of the commitments
+        da.generate(1).await?;
 
-        assert_eq!(zkp.len(), 1);
+        // Wait for 3rd proving job to start
+        let job_ids = wait_for_prover_job_count(batch_prover, 3, None)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 3);
 
-        let new_l1_hash = zkp_last[0]
+        // Wait for last proving to finish
+        let response_last = wait_for_prover_job(batch_prover, job_ids[0], None)
+            .await
+            .unwrap();
+        let zkp_last = response_last.proof.unwrap();
+
+        let new_l1_hash = zkp_last
             .proof_output
             .last_l1_hash_on_bitcoin_light_client_contract
             .clone();
@@ -972,6 +1043,251 @@ impl TestCase for L1HashOutputTest {
 #[tokio::test]
 async fn test_batch_proof_l1_hashes_added_output() -> Result<()> {
     TestCaseRunner::new(L1HashOutputTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct SubmitFakeProofRpcTest;
+
+#[async_trait]
+impl TestCase for SubmitFakeProofRpcTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 5,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            // prevent proving
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 170,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client = f.light_client_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        // generate 1 commitment
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await.unwrap();
+        }
+        sequencer.wait_for_l2_height(5, None).await.unwrap();
+        batch_prover.wait_for_l2_height(5, None).await.unwrap();
+
+        // wait for 1 commitment txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 commitment
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure batch prover saw 1 commitment
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // prove commitment index 1 through rpc
+        batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::Normal)
+            .await
+            .unwrap();
+
+        // wait for 1 proof txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 proof
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure light client processed the proof
+        light_client
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // verify lcp output
+        let lcp_output = light_client
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 1);
+        assert_eq!(lcp_output.last_l2_height.to::<u32>(), 5);
+
+        // generate 3 more commitments
+        for _ in 0..max_l2_blocks_per_commitment * 3 {
+            sequencer.client.send_publish_batch_request().await.unwrap();
+        }
+        sequencer.wait_for_l2_height(20, None).await.unwrap();
+        batch_prover.wait_for_l2_height(20, None).await.unwrap();
+
+        // wait for 3 commitment txs to hit DA
+        da.wait_mempool_len(6, None).await.unwrap();
+        // finalize 3 commitments
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure batch prover saw 3 commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // first, submit index 4
+        batch_prover
+            .client
+            .http_client()
+            .submit_fake_proof(4, 4)
+            .await
+            .unwrap();
+
+        // wait for 1 proof txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 proof
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure light client processed the proof
+        light_client
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // verify lcp output, last commitment index should not change due to gap
+        let lcp_output = light_client
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 1);
+        assert_eq!(lcp_output.last_l2_height.to::<u32>(), 5);
+
+        // second, submit indices 2-3
+        batch_prover
+            .client
+            .http_client()
+            .submit_fake_proof(2, 3)
+            .await
+            .unwrap();
+
+        // wait for 1 proof txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 proof
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure light client processed the proof
+        light_client
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // verify lcp output
+        let lcp_output = light_client
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 4);
+        assert_eq!(lcp_output.last_l2_height.to::<u32>(), 20);
+
+        // invoke prove so that commitment indices 2-3-4 gets dropped from pending pool
+        let job_ids = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::Normal)
+            .await
+            .unwrap();
+        assert_eq!(job_ids.len(), 1);
+        // ensure the proof txs hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // write it to a block, we don't care about this proof
+        da.generate(1).await.unwrap();
+
+        // generate 1 last commitment
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await.unwrap();
+        }
+        sequencer.wait_for_l2_height(25, None).await.unwrap();
+        batch_prover.wait_for_l2_height(25, None).await.unwrap();
+
+        // wait for 1 commitment txs to hit DA
+        da.wait_mempool_len(2, None).await.unwrap();
+        // finalize 1 commitment
+        da.generate(FINALITY_DEPTH).await.unwrap();
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+        // ensure batch prover saw 1 commitment
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // prove commitment index 5 through rpc
+        let job_id = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::Normal)
+            .await
+            .unwrap()[0];
+        let job_response = wait_for_prover_job(batch_prover, job_id, None)
+            .await
+            .unwrap();
+        assert_eq!(job_response.commitments.len(), 1);
+        assert_eq!(job_response.commitments[0].index.to::<u32>(), 5);
+        let zkvm_prove_output = job_response.proof.unwrap().proof_output;
+
+        // also submit fake proof of commitment index 5 through rpc
+        let native_prove_output = batch_prover
+            .client
+            .http_client()
+            .submit_fake_proof(5, 5)
+            .await
+            .unwrap()
+            .proof_output;
+        // compare actual zkvm
+        assert_eq!(zkvm_prove_output, native_prove_output);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_batch_prover_submit_fake_proof_rpc() -> Result<()> {
+    TestCaseRunner::new(SubmitFakeProofRpcTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
