@@ -64,6 +64,7 @@ contract Bridge is Ownable2StepUpgradeable {
     event ReplaceScriptUpdate(bytes replacePrefix, bytes replaceSuffix);
     event DepositReplaced(uint256 index, bytes32 oldTxId, bytes32 newTxId);
     event OperatorUpdated(address oldOperator, address newOperator);
+    event DepositTransferFailed(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -170,13 +171,15 @@ contract Bridge is Ownable2StepUpgradeable {
         require(isBytesEqual(_depositSuffix, depositSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
-        emit Deposit(wtxId, txId, recipient, block.timestamp, depositTxIds.length - 1);
 
         (bool success, ) = recipient.call{value: depositAmount}("");
         if(!success) {
             // If the transfer fails, we send the funds to the failed deposit vault
+            emit DepositTransferFailed(wtxId, txId, recipient, block.timestamp, depositTxIds.length - 1);
             (success, ) = failedDepositVault.call{value: depositAmount}("");
             require(success, "Failed to send to failed deposit vault");
+        } else {
+            emit Deposit(wtxId, txId, recipient, block.timestamp, depositTxIds.length - 1);
         }
     }
 
