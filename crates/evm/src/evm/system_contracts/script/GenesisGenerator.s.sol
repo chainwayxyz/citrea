@@ -15,6 +15,7 @@ import "../src/Bridge.sol";
 import "../src/BaseFeeVault.sol";
 import "../src/L1FeeVault.sol";
 import "../src/PriorityFeeVault.sol";
+import "../src/FailedDepositVault.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 
 // Taken from Optimism
@@ -131,6 +132,7 @@ contract GenesisGenerator is Script {
         deployContract(address(new L1FeeVault()), 4);
         deployContract(address(new PriorityFeeVault()), 5);
         deployWCBTC();
+        deployContract(address(new FailedDepositVault()), 7);
     }
 
     function deployContract(address initImpl, uint160 index) internal {
@@ -153,7 +155,7 @@ contract GenesisGenerator is Script {
         }
 
         // Fee vault contracts have a fee recipient and min withdraw amount
-        if ((index >= 3) && (index <= 5)) {
+        if ((index >= 3) && (index <= 7)) {
             vm.store(namespacedProxy, OWNER_SLOT, bytes32(uint256(uint160(feeVaultOwner))));
             vm.store(namespacedProxy, FEE_RECIPIENT_SLOT, bytes32(uint256(uint160(feeRecipient))));
             vm.store(namespacedProxy, MIN_WITHDRAW_SLOT, bytes32(uint256(0.5 ether)));
