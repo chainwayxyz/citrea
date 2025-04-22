@@ -28,6 +28,8 @@ contract BridgeHarness is Bridge {
     }
 }
 
+contract RevertingReceiver {}
+
 contract FalseBridge is Bridge {
     function falseFunc() public pure returns (bytes32) {
         return keccak256("false");
@@ -481,5 +483,34 @@ contract BridgeTest is Test {
         bytes memory output = testParams.vout.slice(1, testParams.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(testParams.witness, 0);
         bridge.verifySigInTx_(input, output, witness0, version, locktime, hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d");
+    }
+
+    function testDepositRedirectsWhenReceiverReverts() public {
+        RevertingReceiver rev = new RevertingReceiver();
+        vm.etch(receiver, address(rev).code); 
+
+        address vault = bridge.failedDepositVault(); 
+        uint256 vaultBalBefore = vault.balance;
+
+        vm.startPrank(operator);
+        Bridge.TransactionParams memory p = Bridge.TransactionParams(
+            version,
+            flag,
+            vin,
+            vout,
+            witness,
+            locktime,
+            intermediate_nodes,
+            INITIAL_BLOCK_NUMBER,
+            index
+        );
+        bridge.deposit(p, hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d");
+        vm.stopPrank();
+
+        assertEq(receiver.balance, 0);
+
+        assertEq(vault.balance, vaultBalBefore + DEPOSIT_AMOUNT);
+
+        assertTrue(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
     }
 }
