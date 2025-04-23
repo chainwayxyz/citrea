@@ -171,7 +171,7 @@ impl FromEnv for MonitoringConfig {
             read_env("DA_MONITORING_HISTORY_LIMIT"),
             read_env("DA_MONITORING_MAX_HISTORY_SIZE"),
         ) {
-            (Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
+            (Err(_), Err(_), Err(_)) => Err(anyhow!("At least one of the monitoring envs must exist: DA_MONITORING_CHECK_INTERVAL, DA_MONITORING_HISTORY_LIMIT, DA_MONITORING_MAX_HISTORY_SIZE")),
             (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
                 check_interval: check_interval.map_or_else(
                     |_| Ok(monitoring_defaults::check_interval()),
