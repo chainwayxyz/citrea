@@ -375,7 +375,7 @@ impl TestClient {
         &self,
         address: Address,
         block_id: Option<BlockId>,
-    ) -> Result<Bytes, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<Bytes> {
         self.http_client
             .request("eth_getCode", rpc_params![address, block_id])
             .await

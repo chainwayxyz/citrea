@@ -163,7 +163,7 @@ impl ForkActivationTest {
             );
         }
 
-        let eip7702_result = self.send_eip7702_transaction(client).await;
+        let eip7702_result = self.send_eip7702_transaction_and_get_code(client).await;
         assert!(
             eip7702_result.is_err(),
             "eip7702 tx shouldn't be available in genesis"
@@ -247,7 +247,7 @@ impl ForkActivationTest {
             );
         }
 
-        let eip7702_result = self.send_eip7702_transaction(client).await;
+        let eip7702_result = self.send_eip7702_transaction_and_get_code(client).await;
         assert!(
             eip7702_result.is_err(),
             "eip7702 tx should fail before Tangerine fork"
@@ -311,8 +311,9 @@ impl ForkActivationTest {
                 )
                 .await;
 
-            assert!(
-                schnorr_result.is_ok(),
+            assert_eq!(
+                schnorr_result.unwrap(),
+                "0x0000000000000000000000000000000000000000000000000000000000000001",
                 "SCHNORR_VERIFY should be available after Tangerine fork"
             );
         }
@@ -328,8 +329,9 @@ impl ForkActivationTest {
                 )
                 .await;
 
-            assert!(
-                p256_result.is_ok(),
+            assert_eq!(
+                p256_result.unwrap(),
+                "0x0000000000000000000000000000000000000000000000000000000000000001",
                 "P256_VERIFY should be available after Tangerine fork"
             );
         }
@@ -344,21 +346,23 @@ impl ForkActivationTest {
                 )
                 .await;
 
-            assert!(
-                g1_add_result.is_ok(),
+            assert_eq!(
+                g1_add_result.unwrap(),
+                "0x0000000000000000000000000000000000000000000000000000000000000001",
                 "G1_ADD should be available after Tangerine fork"
             );
         }
 
-        let eip7702_result = self.send_eip7702_transaction(client).await;
+        let eip7702_result = self.send_eip7702_transaction_and_get_code(client).await;
         assert!(
             eip7702_result.is_ok(),
             "eip7702 tx should succeed after Tangerine"
         );
+
         Ok(())
     }
 
-    async fn send_eip7702_transaction(&self, client: &TestClient) -> Result<()> {
+    async fn send_eip7702_transaction_and_get_code(&self, client: &TestClient) -> Result<Bytes> {
         let authority_signer = alloy::signers::local::PrivateKeySigner::random();
         let delegate_to_address = client.from_addr.create(0);
 
@@ -374,15 +378,21 @@ impl ForkActivationTest {
 
         let signed_authorization = authorization.into_signed(signature);
 
-        client
+        let _ = client
             .send_eip7702_transaction(
                 alloy_primitives::Address::ZERO,
                 vec![],
                 None,
                 vec![signed_authorization],
             )
-            .await
-            .map(|_| ())
+            .await?;
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        client.send_publish_batch_request().await;
+
+        Ok(client
+            .eth_get_code(authority_signer.address(), None)
+            .await?)
     }
 
     async fn verify_sequencer_commitment(
