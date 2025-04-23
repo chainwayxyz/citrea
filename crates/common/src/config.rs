@@ -8,6 +8,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_ledger_rpc::server::LedgerRpcServerConfig;
 
+use crate::utils::read_env;
+
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
 }
@@ -15,7 +17,7 @@ pub trait FromEnv: Sized {
 impl FromEnv for PruningConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(PruningConfig {
-            distance: std::env::var("PRUNING_DISTANCE")?.parse()?,
+            distance: read_env("PRUNING_DISTANCE")?.parse()?,
         })
     }
 }
@@ -23,8 +25,8 @@ impl FromEnv for PruningConfig {
 impl FromEnv for sov_mock_da::MockDaConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            sender_address: std::env::var("SENDER_ADDRESS")?.parse()?,
-            db_path: std::env::var("DB_PATH")?.into(),
+            sender_address: read_env("SENDER_ADDRESS")?.parse()?,
+            db_path: read_env("DB_PATH")?.into(),
         })
     }
 }
@@ -48,14 +50,14 @@ pub struct RunnerConfig {
 impl FromEnv for RunnerConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            sequencer_client_url: std::env::var("SEQUENCER_CLIENT_URL")?,
-            include_tx_body: std::env::var("INCLUDE_TX_BODY")?.parse()?,
-            sync_blocks_count: std::env::var("SYNC_BLOCKS_COUNT")
+            sequencer_client_url: read_env("SEQUENCER_CLIENT_URL")?,
+            include_tx_body: read_env("INCLUDE_TX_BODY")?.parse()?,
+            sync_blocks_count: read_env("SYNC_BLOCKS_COUNT")
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_sync_blocks_count),
             pruning_config: PruningConfig::from_env().ok(),
-            scan_l1_start_height: std::env::var("SCAN_L1_START_HEIGHT")?.parse()?,
+            scan_l1_start_height: read_env("SCAN_L1_START_HEIGHT")?.parse()?,
         })
     }
 }
@@ -101,34 +103,34 @@ impl From<RpcConfig> for LedgerRpcServerConfig {
 impl FromEnv for RpcConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            bind_host: std::env::var("RPC_BIND_HOST")?,
-            bind_port: std::env::var("RPC_BIND_PORT")?.parse()?,
+            bind_host: read_env("RPC_BIND_HOST")?,
+            bind_port: read_env("RPC_BIND_PORT")?.parse()?,
             // for the rest of the fields, in case of a parsing error, the default value will be used
-            max_connections: std::env::var("RPC_MAX_CONNECTIONS")
+            max_connections: read_env("RPC_MAX_CONNECTIONS")
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_connections),
-            max_request_body_size: std::env::var("RPC_MAX_REQUEST_BODY_SIZE")
+            max_request_body_size: read_env("RPC_MAX_REQUEST_BODY_SIZE")
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_request_body_size),
-            max_response_body_size: std::env::var("RPC_MAX_RESPONSE_BODY_SIZE")
+            max_response_body_size: read_env("RPC_MAX_RESPONSE_BODY_SIZE")
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_response_body_size),
-            batch_requests_limit: std::env::var("RPC_BATCH_REQUESTS_LIMIT")
+            batch_requests_limit: read_env("RPC_BATCH_REQUESTS_LIMIT")
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_batch_requests_limit),
-            enable_subscriptions: std::env::var("RPC_ENABLE_SUBSCRIPTIONS")
+            enable_subscriptions: read_env("RPC_ENABLE_SUBSCRIPTIONS")
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_enable_subscriptions),
-            max_subscriptions_per_connection: std::env::var("RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION")
+            max_subscriptions_per_connection: read_env("RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION")
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_subscriptions_per_connection),
-            api_key: std::env::var("RPC_API_KEY").ok(),
+            api_key: read_env("RPC_API_KEY").ok(),
         })
     }
 }
@@ -183,11 +185,11 @@ pub struct StorageConfig {
 impl FromEnv for StorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            path: std::env::var("STORAGE_PATH")?.into(),
-            backup_path: std::env::var("STORAGE_BACKUP_PATH")
+            path: read_env("STORAGE_PATH")?.into(),
+            backup_path: read_env("STORAGE_BACKUP_PATH")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            db_max_open_files: std::env::var("DB_MAX_OPEN_FILES")
+            db_max_open_files: read_env("DB_MAX_OPEN_FILES")
                 .ok()
                 .and_then(|val| val.parse().ok()),
         })
@@ -213,9 +215,9 @@ pub struct RollupPublicKeys {
 impl FromEnv for RollupPublicKeys {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            sequencer_public_key: hex::decode(std::env::var("SEQUENCER_PUBLIC_KEY")?)?,
-            sequencer_da_pub_key: hex::decode(std::env::var("SEQUENCER_DA_PUB_KEY")?)?,
-            prover_da_pub_key: hex::decode(std::env::var("PROVER_DA_PUB_KEY")?)?,
+            sequencer_public_key: hex::decode(read_env("SEQUENCER_PUBLIC_KEY")?)?,
+            sequencer_da_pub_key: hex::decode(read_env("SEQUENCER_DA_PUB_KEY")?)?,
+            prover_da_pub_key: hex::decode(read_env("PROVER_DA_PUB_KEY")?)?,
         })
     }
 }
@@ -299,9 +301,9 @@ impl Default for LightClientProverConfig {
 impl FromEnv for BatchProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(BatchProverConfig {
-            proving_mode: serde_json::from_str(&format!("\"{}\"", std::env::var("PROVING_MODE")?))?,
-            proof_sampling_number: std::env::var("PROOF_SAMPLING_NUMBER")?.parse()?,
-            enable_recovery: std::env::var("ENABLE_RECOVERY")?.parse()?,
+            proving_mode: serde_json::from_str(&format!("\"{}\"", read_env("PROVING_MODE")?))?,
+            proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
+            enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
         })
     }
 }
@@ -309,10 +311,10 @@ impl FromEnv for BatchProverConfig {
 impl FromEnv for LightClientProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(LightClientProverConfig {
-            proving_mode: serde_json::from_str(&format!("\"{}\"", std::env::var("PROVING_MODE")?))?,
-            proof_sampling_number: std::env::var("PROOF_SAMPLING_NUMBER")?.parse()?,
-            enable_recovery: std::env::var("ENABLE_RECOVERY")?.parse()?,
-            initial_da_height: std::env::var("INITIAL_DA_HEIGHT")?.parse()?,
+            proving_mode: serde_json::from_str(&format!("\"{}\"", read_env("PROVING_MODE")?))?,
+            proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
+            enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
+            initial_da_height: read_env("INITIAL_DA_HEIGHT")?.parse()?,
         })
     }
 }
@@ -372,14 +374,14 @@ impl Default for SequencerConfig {
 impl FromEnv for SequencerConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            private_key: std::env::var("PRIVATE_KEY")?,
-            max_l2_blocks_per_commitment: std::env::var("MAX_L2_BLOCKS_PER_COMMITMENT")?.parse()?,
-            test_mode: std::env::var("TEST_MODE")?.parse()?,
-            deposit_mempool_fetch_limit: std::env::var("DEPOSIT_MEMPOOL_FETCH_LIMIT")?.parse()?,
+            private_key: read_env("PRIVATE_KEY")?,
+            max_l2_blocks_per_commitment: read_env("MAX_L2_BLOCKS_PER_COMMITMENT")?.parse()?,
+            test_mode: read_env("TEST_MODE")?.parse()?,
+            deposit_mempool_fetch_limit: read_env("DEPOSIT_MEMPOOL_FETCH_LIMIT")?.parse()?,
             mempool_conf: SequencerMempoolConfig::from_env()?,
-            da_update_interval_ms: std::env::var("DA_UPDATE_INTERVAL_MS")?.parse()?,
-            block_production_interval_ms: std::env::var("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
-            bridge_initialize_params: std::env::var("BRIDGE_INITIALIZE_PARAMS")?,
+            da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
+            block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
+            bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
         })
     }
 }
@@ -421,13 +423,13 @@ impl Default for SequencerMempoolConfig {
 impl FromEnv for SequencerMempoolConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            pending_tx_limit: std::env::var("PENDING_TX_LIMIT")?.parse()?,
-            pending_tx_size: std::env::var("PENDING_TX_SIZE")?.parse()?,
-            queue_tx_limit: std::env::var("QUEUE_TX_LIMIT")?.parse()?,
-            queue_tx_size: std::env::var("QUEUE_TX_SIZE")?.parse()?,
-            base_fee_tx_limit: std::env::var("BASE_FEE_TX_LIMIT")?.parse()?,
-            base_fee_tx_size: std::env::var("BASE_FEE_TX_SIZE")?.parse()?,
-            max_account_slots: std::env::var("MAX_ACCOUNT_SLOTS")?.parse()?,
+            pending_tx_limit: read_env("PENDING_TX_LIMIT")?.parse()?,
+            pending_tx_size: read_env("PENDING_TX_SIZE")?.parse()?,
+            queue_tx_limit: read_env("QUEUE_TX_LIMIT")?.parse()?,
+            queue_tx_size: read_env("QUEUE_TX_SIZE")?.parse()?,
+            base_fee_tx_limit: read_env("BASE_FEE_TX_LIMIT")?.parse()?,
+            base_fee_tx_size: read_env("BASE_FEE_TX_SIZE")?.parse()?,
+            max_account_slots: read_env("MAX_ACCOUNT_SLOTS")?.parse()?,
         })
     }
 }
@@ -443,8 +445,8 @@ pub struct TelemetryConfig {
 
 impl FromEnv for TelemetryConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let bind_host = std::env::var("TELEMETRY_BIND_HOST").ok();
-        let bind_port = std::env::var("TELEMETRY_BIND_PORT").ok();
+        let bind_host = read_env("TELEMETRY_BIND_HOST").ok();
+        let bind_port = read_env("TELEMETRY_BIND_PORT").ok();
         Ok(Self {
             bind_host,
             bind_port: bind_port.map(|p| p.parse()).transpose()?,

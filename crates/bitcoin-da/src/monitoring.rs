@@ -9,6 +9,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
+use citrea_common::utils::read_env;
 use citrea_common::FromEnv;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -166,9 +167,9 @@ impl Default for MonitoringConfig {
 impl FromEnv for MonitoringConfig {
     fn from_env() -> anyhow::Result<Self> {
         match (
-            std::env::var("DA_MONITORING_CHECK_INTERVAL"),
-            std::env::var("DA_MONITORING_HISTORY_LIMIT"),
-            std::env::var("DA_MONITORING_MAX_HISTORY_SIZE"),
+            read_env("DA_MONITORING_CHECK_INTERVAL"),
+            read_env("DA_MONITORING_HISTORY_LIMIT"),
+            read_env("DA_MONITORING_MAX_HISTORY_SIZE"),
         ) {
             (Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
             (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {

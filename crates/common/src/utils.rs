@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::sync::Arc;
 
 use alloy_consensus::transaction::Transaction as _;
@@ -148,4 +149,8 @@ pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: Sha
     }
 
     Ok(())
+}
+
+pub fn read_env(key: &str) -> anyhow::Result<String> {
+    env::var(key).map_err(|_| anyhow::anyhow!("Env {} missing or invalid UTF-8", key))
 }

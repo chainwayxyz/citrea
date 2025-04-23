@@ -20,6 +20,7 @@ use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
 use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
+use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use metrics::histogram;
@@ -87,14 +88,14 @@ pub struct BitcoinServiceConfig {
 impl citrea_common::FromEnv for BitcoinServiceConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            node_url: std::env::var("NODE_URL")?,
-            node_username: std::env::var("NODE_USERNAME")?,
-            node_password: std::env::var("NODE_PASSWORD")?,
-            network: serde_json::from_str(&format!("\"{}\"", std::env::var("NETWORK")?))?,
-            da_private_key: std::env::var("DA_PRIVATE_KEY").ok(),
-            tx_backup_dir: std::env::var("TX_BACKUP_DIR")?,
+            node_url: read_env("NODE_URL")?,
+            node_username: read_env("NODE_USERNAME")?,
+            node_password: read_env("NODE_PASSWORD")?,
+            network: serde_json::from_str(&format!("\"{}\"", read_env("NETWORK")?))?,
+            da_private_key: read_env("DA_PRIVATE_KEY").ok(),
+            tx_backup_dir: read_env("TX_BACKUP_DIR")?,
             monitoring: MonitoringConfig::from_env().ok(),
-            mempool_space_url: std::env::var("MEMPOOL_SPACE_URL").ok(),
+            mempool_space_url: read_env("MEMPOOL_SPACE_URL").ok(),
         })
     }
 }
