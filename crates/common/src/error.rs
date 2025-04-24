@@ -1,5 +1,3 @@
-use citrea_primitives::types::BlockNumber;
-
 #[derive(Debug)]
 pub enum SyncError {
     // Should not retry in this case

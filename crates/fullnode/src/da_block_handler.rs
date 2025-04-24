@@ -7,7 +7,6 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
 use citrea_common::error::SyncError;
-use citrea_common::utils::check_l2_block_exists;
 use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;

@@ -7,7 +7,7 @@ use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::{NodeT, Restart};
+use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use reth_tasks::TaskManager;
@@ -1748,21 +1748,12 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
-        let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
         let sequencer_da_service = spawn_bitcoin_da_service(
             task_executor.clone(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Sequencer,
-        )
-        .await;
-
-        let prover_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
@@ -1861,7 +1852,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             (U32::from(1), U32::from(1))
         );
         // Extract proof_a over range [1]
-        let proof_a = response.proof.unwrap().proof;
+        let _proof_a = response.proof.unwrap().proof;
 
         /*------- */
 
@@ -1883,7 +1874,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
-        let proof_2_l1_height = da.get_finalized_height(None).await?;
+        let _proof_2_l1_height = da.get_finalized_height(None).await?;
 
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
             .await
@@ -1906,7 +1897,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             (U32::from(2), U32::from(2))
         );
         // Extract proof_b over range [2]
-        let proof_b = response.proof.unwrap().proof;
+        let _proof_b = response.proof.unwrap().proof;
 
         /*------- */
 
@@ -1928,7 +1919,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
-        let proof_3_l1_height = da.get_finalized_height(None).await?;
+        let _proof_3_l1_height = da.get_finalized_height(None).await?;
 
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
             .await
@@ -1950,7 +1941,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             (U32::from(3), U32::from(3))
         );
         // Extract proof_c over range [3]
-        let proof_c = response.proof.unwrap().proof;
+        let _proof_c = response.proof.unwrap().proof;
 
         // // Rollback Bitcoin to initial height
         // let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
