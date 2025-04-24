@@ -1821,7 +1821,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_1_l1_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -1829,7 +1829,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_1_l1_height = da.get_finalized_height(None).await?;
 
         // Wait for proving job to start
@@ -1867,7 +1867,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_2_l1_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -1875,7 +1875,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let _proof_2_l1_height = da.get_finalized_height(None).await?;
 
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
@@ -1912,7 +1912,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_3_l1_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -1920,7 +1920,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let _proof_3_l1_height = da.get_finalized_height(None).await?;
 
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
