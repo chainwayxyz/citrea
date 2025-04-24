@@ -452,40 +452,11 @@ where
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
         let previous_l2_end_block_number = match batch_proof_output.previous_commitment_index() {
             Some(idx) => {
-                let previous_sequencer_commitment = if let Some(previous_sequencer_commitment) =
-                    self.ledger_db
-                        // TODO: This works for now, but once we generate proofs by taking commitments from mempool
-                        // we will need to store the commitments earlier to process proofs, maybe just process commitments first for that
-                        .get_commitment_by_index(idx)?
-                {
-                    previous_sequencer_commitment
-                } else if let Some(previous_sequencer_commitment) =
-                    self.ledger_db.get_pending_commitment_by_index(idx)?
-                {
-                    // If we have a pending commitment, we need to store the proof as pending
-                    info!(
-                        "Proof has a pending previous commitment with index: {}.",
-                        idx
-                    );
-                    proof_is_pending = true;
-                    previous_sequencer_commitment
-                } else {
-                    return Err(SyncError::SequencerCommitmentMissingForProof(idx));
-                };
-
-                // Check previous sequencer commitment hash
-                if previous_sequencer_commitment.serialize_and_calculate_sha_256()
-                    != batch_proof_output
-                        .previous_commitment_hash()
-                        .expect("If index exists so must hash")
-                {
-                    return Err(anyhow!(
-                        "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                        hex::encode(previous_sequencer_commitment.serialize_and_calculate_sha_256()),
-                        hex::encode(batch_proof_output.previous_commitment_hash().expect("If index exists so must hash"))
-                    ).into());
-                }
-                previous_sequencer_commitment.l2_end_block_number
+                self.verify_sequencer_commitment_hash_by_index(
+                    idx,
+                    batch_proof_output.previous_commitment_hash().expect("If previous commitment index is present, then the previous commitment hash must be present too"),
+                    &mut proof_is_pending,
+                )?
             }
             // If there is no previous seq comm hash then this must be the first post tangerine commitment
             None => get_tangerine_activation_height_non_zero() - 1,
@@ -496,32 +467,11 @@ where
             ..=sequencer_commitment_index_range.1)
             .zip(commitments_hashes)
         {
-            // Check if hash matches
-            if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(index)? {
-                if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
-                    return Err(anyhow!(
-                            "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                            hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
-                            hex::encode(expected_hash)
-                        ).into());
-                }
-                // Check if any of the commitments is pending
-                // If so, store the proof as pending
-            } else if let Some(pending_commitment) =
-                self.ledger_db.get_pending_commitment_by_index(index)?
-            {
-                if pending_commitment.serialize_and_calculate_sha_256() != expected_hash {
-                    return Err(anyhow!(
-                            "Proof verification: For a pending sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                            hex::encode(pending_commitment.serialize_and_calculate_sha_256()),
-                            hex::encode(expected_hash)
-                        ).into());
-                }
-                info!("Proof has a pending commitment with index: {}.", index);
-                proof_is_pending = true;
-            } else {
-                return Err(SyncError::SequencerCommitmentMissingForProof(index));
-            }
+            self.verify_sequencer_commitment_hash_by_index(
+                index,
+                expected_hash,
+                &mut proof_is_pending,
+            )?;
         }
 
         if proof_is_pending {
@@ -647,7 +597,7 @@ where
                     break;
                 }
                 Ok(ProcessingResult::Success) => {
-                    info!("Succesfully processed pending proof for commitment index range {min_index}-{max_index}");
+                    info!("Successfully processed pending proof for commitment index range {min_index}-{max_index}");
                     self.ledger_db.remove_pending_proof(min_index, max_index)?;
                 }
                 Ok(ProcessingResult::Discarded) => {
@@ -661,5 +611,38 @@ where
         }
 
         Ok(())
+    }
+
+    /// Returns l2 end block number of the commitment if verified
+    fn verify_sequencer_commitment_hash_by_index(
+        &self,
+        idx: u32,
+        expected_hash: [u8; 32],
+        proof_is_pending: &mut bool,
+    ) -> Result<u64, SyncError> {
+        let sequencer_commitment =
+            if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(idx)? {
+                sequencer_commitment
+            } else if let Some(sequencer_commitment) =
+                self.ledger_db.get_pending_commitment_by_index(idx)?
+            {
+                // If we have a pending commitment, we need to store the proof as pending
+                info!("Proof has a pending commitment with index: {}.", idx);
+                *proof_is_pending = true;
+                sequencer_commitment
+            } else {
+                return Err(SyncError::SequencerCommitmentMissingForProof(idx));
+            };
+
+        // Check if hash matches
+        if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
+            return Err(anyhow!(
+                "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
+                hex::encode(expected_hash)
+            )
+            .into());
+        }
+        Ok(sequencer_commitment.l2_end_block_number)
     }
 }
