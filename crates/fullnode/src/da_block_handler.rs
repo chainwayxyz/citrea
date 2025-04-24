@@ -292,16 +292,12 @@ where
             l1_block.header().height(),
         );
 
-        // Traverse each item's field of vector of transactions, put them in merkle tree
-        // and compare the root with the one from the ledger
-        let stored_l2_blocks: Vec<StoredL2Block> = self
+        // Check first if the end l2 height is within the range of the last scanned l2 height
+        let head_l2_height = self
             .ledger_db
-            .get_l2_block_range(&(L2BlockNumber(start_l2_height)..=L2BlockNumber(end_l2_height)))?;
-
-        // Make sure that the number of stored l2 blocks is equal to the range's length.
-        // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
-        // synced yet.
-        if stored_l2_blocks.len() < ((end_l2_height - start_l2_height) as usize) {
+            .get_head_l2_block_height()?
+            .unwrap_or_default();
+        if end_l2_height > head_l2_height {
             if self
                 .ledger_db
                 .get_pending_commitment_by_index(sequencer_commitment.index)?
@@ -322,6 +318,12 @@ where
                 return Ok(ProcessingResult::Pending);
             }
         }
+
+        // Traverse each item's field of vector of transactions, put them in merkle tree
+        // and compare the root with the one from the ledger
+        let stored_l2_blocks: Vec<StoredL2Block> = self
+            .ledger_db
+            .get_l2_block_range(&(L2BlockNumber(start_l2_height)..=L2BlockNumber(end_l2_height)))?;
 
         let l2_blocks_tree = MerkleTree::<Sha256>::from_leaves(
             stored_l2_blocks
