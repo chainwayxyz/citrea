@@ -1720,18 +1720,18 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         /*
-        Sequencer max l2 blocks is 10000 so it does not x
-        Sequencer publish 1-10 x
-        Full node sync 1-10 x
-        Stop full node x
-        Sequencer publish 11-30 x
-        Create commitments 1-3 x
-        Prover create proof over range [1] x
-        Prover create proof over range [2] x
-        Prover create proof over range [3] x
-        Get all proofs from prover x
-        Stop prover x
-        Stop sequencer (so full node can't sync) x
+        Sequencer max l2 blocks is 10000 so it does not publish commitments
+        Sequencer publish 1-10
+        Full node sync 1-10
+        Stop full node
+        Sequencer publish 11-30
+        Create commitments 1-3
+        Prover create proof over range [1]
+        Prover create proof over range [2]
+        Prover create proof over range [3]
+        Get all proofs from prover
+        Stop prover
+        Stop sequencer (so full node can't sync)
         Start full node
         Full node will get all the commitments and proofs
         Assert only the first proof is valid
@@ -1943,83 +1943,18 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         // Extract proof_c over range [3]
         let _proof_c = response.proof.unwrap().proof;
 
-        // // Rollback Bitcoin to initial height
-        // let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
-        // da.invalidate_block(&initial_height_hash).await?;
-        // let block_count = da.get_block_count().await?;
-        // assert_eq!(block_count, f.initial_da_height);
-        // da.restart(None, None).await?;
-        // assert_eq!(
-        //     da.get_raw_mempool().await?.len(),
-        //     0,
-        //     "Mempool should be empty"
-        // );
-
         // We are done with batch prover
         batch_prover.wait_until_stopped().await?;
 
-        // Rollback sequencer to genesis
+        // Stop sequencer for now
         sequencer.wait_until_stopped().await?;
-        // citrea_cli
-        //     .run(
-        //         "rollback",
-        //         &[
-        //             "--node-type",
-        //             "sequencer",
-        //             "--db-path",
-        //             sequencer.config.rollup.storage.path.to_str().unwrap(),
-        //             "--l2-target",
-        //             "0",
-        //             "--l1-target",
-        //             &f.initial_da_height.to_string(),
-        //             "--sequencer-commitment-index",
-        //             "0",
-        //         ],
-        //     )
-        //     .await?;
-
-        // sequencer.start(None, None).await?;
-
-        // Rollback fullnode to genesis
-        // full_node.wait_until_stopped().await?;
-        // citrea_cli
-        //     .run(
-        //         "rollback",
-        //         &[
-        //             "--node-type",
-        //             "full-node",
-        //             "--db-path",
-        //             full_node.config.rollup.storage.path.to_str().unwrap(),
-        //             "--l2-target",
-        //             "0",
-        //             "--l1-target",
-        //             &f.initial_da_height.to_string(),
-        //             "--sequencer-commitment-index",
-        //             "0",
-        //         ],
-        //     )
-        //     .await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
+        // Start full node
         full_node.start(None, None).await?;
 
         full_node.wait_for_l1_height(finalized_height, None).await?;
-
-        // // Send the first commitment
-        // sequencer_da_service
-        //     .send_transaction_with_fee_rate(
-        //         DaTxRequest::SequencerCommitment(commitment_1.clone()),
-        //         1,
-        //     )
-        //     .await
-        //     .unwrap();
-        // da.wait_mempool_len(2, None).await?;
-        // da.generate(FINALITY_DEPTH).await?;
-        // let commitments_1_l1_height = da.get_finalized_height(None).await?;
-        // full_node
-        //     .wait_for_l1_height(commitments_1_l1_height, None)
-        //     .await?;
 
         // Check that the first commitment was processed
         let committed_height = full_node
@@ -2060,115 +1995,6 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             .unwrap();
         assert_eq!(proven_height.height, commitment_1.l2_end_block_number);
         assert_eq!(proven_height.commitment_index, 1);
-
-        // // Send the first proof
-        // prover_da_service
-        //     .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1)
-        //     .await
-        //     .unwrap();
-        // da.wait_mempool_len(2, None).await?;
-        // da.generate(FINALITY_DEPTH).await?;
-        // let proof_1_l1_height = da.get_finalized_height(None).await?;
-        // full_node
-        //     .wait_for_l1_height(proof_1_l1_height, None)
-        //     .await?;
-        // let proof_output_1 = wait_for_zkproofs(full_node, proof_1_l1_height, None, 1)
-        //     .await
-        //     .unwrap()[0]
-        //     .clone()
-        //     .proof_output;
-        // // Assert that proof was processed
-        // assert_eq!(
-        //     proof_output_1
-        //         .sequencer_commitment_index_range
-        //         .0
-        //         .to::<u32>(),
-        //     1
-        // );
-        // assert_eq!(
-        //     proof_output_1
-        //         .sequencer_commitment_index_range
-        //         .1
-        //         .to::<u32>(),
-        //     1
-        // );
-        // // Assert the last proven height
-        // let proven_height = full_node
-        //     .client
-        //     .http_client()
-        //     .get_last_proven_l2_height()
-        //     .await?
-        //     .unwrap();
-        // assert_eq!(proven_height.height, commitment_1.l2_end_block_number);
-        // assert_eq!(proven_height.commitment_index, 1);
-
-        // // Send the second and third commitments
-        // sequencer_da_service
-        //     .send_transaction_with_fee_rate(
-        //         DaTxRequest::SequencerCommitment(commitment_2.clone()),
-        //         1,
-        //     )
-        //     .await
-        //     .unwrap();
-        // sequencer_da_service
-        //     .send_transaction_with_fee_rate(
-        //         DaTxRequest::SequencerCommitment(commitment_3.clone()),
-        //         1,
-        //     )
-        //     .await
-        //     .unwrap();
-
-        // da.wait_mempool_len(4, None).await?;
-        // da.generate(FINALITY_DEPTH).await?;
-        // let commitments_2_l1_height = da.get_finalized_height(None).await?;
-        // full_node
-        //     .wait_for_l1_height(commitments_2_l1_height, None)
-        //     .await?;
-        // let committed_height = full_node
-        //     .client
-        //     .http_client()
-        //     .get_last_committed_l2_height()
-        //     .await?
-        //     .unwrap();
-
-        // // Assert that since these commitments are still pending because they are not synced, the last committed height stays unchanged
-        // assert_eq!(committed_height.height, commitment_1.l2_end_block_number);
-
-        // // Send the second and third proofs
-        // prover_da_service
-        //     .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1)
-        //     .await
-        //     .unwrap();
-        // prover_da_service
-        //     .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_c.clone()), 1)
-        //     .await
-        //     .unwrap();
-        // da.wait_mempool_len(4, None).await?;
-        // da.generate(FINALITY_DEPTH).await?;
-        // let proof_2_3_l1_height = da.get_finalized_height(None).await?;
-        // full_node
-        //     .wait_for_l1_height(proof_2_3_l1_height, None)
-        //     .await?;
-        // let proof_output_2_3 = wait_for_zkproofs(full_node, proof_2_3_l1_height, None, 1)
-        //     .await
-        //     .unwrap();
-
-        // // Assert that there is no verified batch proofs stored because the proofs' commitments are pending so the proofs are also pending
-        // assert_eq!(proof_output_2_3.len(), 0);
-
-        // // Assert that proven height is not changed
-        // let proven_height = full_node
-        //     .client
-        //     .http_client()
-        //     .get_last_proven_l2_height()
-        //     .await?
-        //     .unwrap();
-        // assert_eq!(proven_height.height, commitment_1.l2_end_block_number);
-
-        // // Now publish blocks up to the latest commitment height and sync full node to it
-        // for _ in commitment_1.l2_end_block_number + 1..=commitment_3.l2_end_block_number {
-        //     sequencer_client.send_publish_batch_request().await?;
-        // }
 
         // Start the sequencer so the full node can sync
         sequencer.start(None, None).await?;
