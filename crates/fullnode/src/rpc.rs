@@ -16,8 +16,8 @@ where
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct L2StatusHeightsByL1Height {
-    pub committed: u64,
-    pub proven: u64,
+    pub committed: L2HeightAndIndex,
+    pub proven: L2HeightAndIndex,
 }
 
 pub fn create_rpc_context<DB: NodeLedgerOps + Clone>(ledger_db: DB) -> RpcContext<DB> {
@@ -127,8 +127,8 @@ where
             })?;
 
         Ok(L2StatusHeightsByL1Height {
-            committed: committed.unwrap_or_default().height,
-            proven: proven.unwrap_or_default().height,
+            committed: committed.unwrap_or_default(),
+            proven: proven.unwrap_or_default(),
         })
     }
 }

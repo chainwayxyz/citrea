@@ -1,6 +1,7 @@
 pub(crate) use backup::*;
 use citrea_storage_ops::pruning::types::StorageNodeType;
 use clap::ValueEnum;
+pub(crate) use pending::*;
 pub(crate) use prune::*;
 pub(crate) use rollback::*;
 use sov_db::schema::tables::{
@@ -9,6 +10,7 @@ use sov_db::schema::tables::{
 };
 
 mod backup;
+mod pending;
 mod prune;
 mod rollback;
 
