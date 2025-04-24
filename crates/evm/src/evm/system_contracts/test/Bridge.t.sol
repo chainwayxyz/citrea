@@ -360,4 +360,39 @@ contract BridgeTest is Test {
         bridge.deposit(depositParams);
         vm.stopPrank();
     }
+
+    function testSecondDepositId() public {
+        doDeposit();
+        bytes2 flag2 = hex"0001";
+        bytes4 version2 = hex"03000000";
+        bytes memory vin2 = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
+        bytes memory vout2 = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        bytes4 locktime2 = hex"00000000";
+        bytes memory witness2 = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+
+        vm.startPrank(owner);
+        bytes memory depositPrefix2 = hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114";
+        bytes memory depositSuffix2 = hex"08000000003b9aca0068";
+        bridge.setDepositScript(depositPrefix2, depositSuffix2);
+        vm.stopPrank();
+
+        bytes memory intermediate_nodes2 = hex"7e3bfb74009ffaa87436e5af4229178bc9ff6a8a2c5e726854912b136dd214215066ac03deadb1a4694d24189d8bb4607d80cb74da5ce59995e7f2c51c0aa9df7661ddbe37aa5059282d818f51446a40d5bcfb5af24683f357d7f0faae0a1a92";
+        uint256 index2 = 5;
+        Bridge.TransactionParams memory secondParams = Bridge.TransactionParams(
+            version2, flag2, vin2, vout2, witness2, locktime2, intermediate_nodes2, INITIAL_BLOCK_NUMBER + 1, index2
+        );
+
+        vm.startPrank(SYSTEM_CALLER);
+        bytes32 witnessRoot2 = hex"2d12d1dac06d40bbf364be911d9dc2cf07538e2118c88fdba457a5e5fa59c851";
+        bytes32 mockBlockhash2 = keccak256("CITREA_TEST_2");
+        bitcoinLightClient.setBlockInfo(mockBlockhash2, witnessRoot2, 3);
+
+        vm.stopPrank();
+        vm.startPrank(operator);
+        vm.expectEmit();
+        emit Bridge.Deposit(hex"45957fe9a9bdb8e6c4a81bedbc55a0093105aa8eb6c3f2d8dc7bab6e9fd04fe9", hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929", receiver, block.timestamp, 1);
+
+        bridge.deposit(secondParams);
+        vm.stopPrank();
+    }
 }

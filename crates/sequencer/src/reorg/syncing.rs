@@ -98,18 +98,15 @@ where
                 .as_slice(),
         )
         .unwrap();
-        let sequencer_client_url = std::env::var("SEQUENCER_CLIENT_URL").unwrap_or_else(|_| {
-            panic!("Sequencer client url is not set. Please set SEQUENCER_CLIENT_URL")
-        });
+        let sequencer_client_url = std::env::var("SEQUENCER_CLIENT_URL")
+            .expect("Sequencer client url is not set. Please set SEQUENCER_CLIENT_URL");
         let sequencer_client = Arc::new(
             HttpClientBuilder::default()
                 .build(&sequencer_client_url)
                 .expect("Failed to create sequencer client"),
         );
         let sync_blocks_count = std::env::var("SYNC_BLOCKS_COUNT")
-            .unwrap_or_else(|_| {
-                panic!("Sync blocks count is not set. Please set SYNC_BLOCKS_COUNT")
-            })
+            .expect("Sync blocks count is not set. Please set SYNC_BLOCKS_COUNT")
             .parse::<u64>()
             .unwrap();
         let l1_block_cache = L1BlockCache::new();
