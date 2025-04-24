@@ -10,6 +10,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
+use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use reth_tasks::TaskManager;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
@@ -1689,7 +1690,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
             with_full_node: true,
             with_sequencer: true,
             with_batch_prover: true,
-            with_citrea_cli: true,
+            with_light_client_prover: true,
             ..Default::default()
         }
     }
@@ -1748,6 +1749,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
         let sequencer_da_service = spawn_bitcoin_da_service(
             task_executor.clone(),
@@ -2008,24 +2010,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         full_node.wait_for_l1_height(finalized_height, None).await?;
-        let committed_height = full_node
-            .client
-            .http_client()
-            .get_last_committed_l2_height()
-            .await?
-            .unwrap();
-        // Assert that the last committed height is now at the last commitment
-        assert_eq!(committed_height.height, commitment_3.l2_end_block_number);
 
-        // Assert that the last proven height is now at the last commitment
-        let proven_height = full_node
-            .client
-            .http_client()
-            .get_last_proven_l2_height()
-            .await?
-            .unwrap();
-        assert_eq!(proven_height.height, commitment_3.l2_end_block_number);
-        assert_eq!(proven_height.commitment_index, 3);
         // Assert that the proofs are now processed
         let proof_output_2_3 = wait_for_zkproofs(full_node, finalized_height, None, 1) // TODO: This should be proof_2_3_l1_height, update after fixing the bug
             .await
@@ -2046,6 +2031,53 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
                 .proof_output
                 .sequencer_commitment_index_range,
             (U32::from(3), U32::from(3))
+        );
+
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        // Assert that the last committed height is now at the last commitment
+        assert_eq!(committed_height.height, commitment_3.l2_end_block_number);
+
+        // Assert that the last proven height is now at the last commitment
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(proven_height.height, commitment_3.l2_end_block_number);
+        assert_eq!(proven_height.commitment_index, 3);
+
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(committed_height.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(committed_height.commitment_index)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height.commitment_index)
         );
 
         Ok(())
