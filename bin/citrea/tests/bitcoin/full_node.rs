@@ -140,8 +140,8 @@ impl TestCase for L2StatusTest {
         let initial_heights_by_l1 = full_node_http_client
             .get_l2_status_heights_by_l1_height(0)
             .await?;
-        assert_eq!(initial_heights_by_l1.committed, 0);
-        assert_eq!(initial_heights_by_l1.proven, 0);
+        assert_eq!(initial_heights_by_l1.committed.height, 0);
+        assert_eq!(initial_heights_by_l1.proven.height, 0);
 
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -172,10 +172,10 @@ impl TestCase for L2StatusTest {
             .get_l2_status_heights_by_l1_height(commitment_l1_height)
             .await?;
         assert_eq!(
-            status_at_commitment_l1_height.committed,
+            status_at_commitment_l1_height.committed.height,
             max_l2_blocks_per_commitment
         );
-        assert_eq!(status_at_commitment_l1_height.proven, 0);
+        assert_eq!(status_at_commitment_l1_height.proven.height, 0);
 
         batch_prover
             .wait_for_l1_height(commitment_l1_height, None)
@@ -209,11 +209,11 @@ impl TestCase for L2StatusTest {
             .get_l2_status_heights_by_l1_height(batch_proof_l1_height)
             .await?;
         assert_eq!(
-            status_at_proof_l1_height.committed,
+            status_at_proof_l1_height.committed.height,
             max_l2_blocks_per_commitment
         );
         assert_eq!(
-            status_at_proof_l1_height.proven,
+            status_at_proof_l1_height.proven.height,
             max_l2_blocks_per_commitment
         );
 
@@ -254,17 +254,17 @@ impl TestCase for L2StatusTest {
             .http_client()
             .get_l2_status_heights_by_l1_height(future_l1_height)
             .await?;
-        assert_eq!(status.committed, max_l2_blocks_per_commitment * 2);
-        assert_eq!(status.proven, max_l2_blocks_per_commitment);
+        assert_eq!(status.committed.height, max_l2_blocks_per_commitment * 2);
+        assert_eq!(status.proven.height, max_l2_blocks_per_commitment);
 
         let status_at_commitment_l1_height = full_node_http_client
             .get_l2_status_heights_by_l1_height(commitment_l1_height)
             .await?;
         assert_eq!(
-            status_at_commitment_l1_height.committed,
+            status_at_commitment_l1_height.committed.height,
             max_l2_blocks_per_commitment
         );
-        assert_eq!(status_at_commitment_l1_height.proven, 0);
+        assert_eq!(status_at_commitment_l1_height.proven.height, 0);
 
         full_node.wait_until_stopped().await?;
 
@@ -302,8 +302,8 @@ impl TestCase for L2StatusTest {
             .http_client()
             .get_l2_status_heights_by_l1_height(0)
             .await?;
-        assert_eq!(status_after_rollback.committed, 0);
-        assert_eq!(status_after_rollback.proven, 0);
+        assert_eq!(status_after_rollback.committed.height, 0);
+        assert_eq!(status_after_rollback.proven.height, 0);
 
         Ok(())
     }
