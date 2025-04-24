@@ -319,13 +319,8 @@ where
                     .store_pending_commitment(sequencer_commitment.clone())?;
                 return Ok(ProcessingResult::Pending);
             } else {
-                warn!("Found duplicate pending commitment with index: {}. Range: {}-{}, merkle root: {}",
-                    sequencer_commitment.index,
-                    start_l2_height,
-                    end_l2_height,
-                    hex::encode(sequencer_commitment.merkle_root)
-                );
-                return Ok(ProcessingResult::Discarded);
+                // This branch will be reached when we are processing pending commitments, and the commitment is still pending
+                return Ok(ProcessingResult::Pending);
             }
         }
 
@@ -452,16 +447,30 @@ where
         if proven_height > committed_height {
             panic!("Proven height {proven_height:?} above committed height {committed_height:?}");
         }
-
+        let mut proof_is_pending = false;
         // make sure init roots match <- TODO: with proposed changes in issues this will be unnecessary
         let previous_l2_end_block_number = match batch_proof_output.previous_commitment_index() {
             Some(idx) => {
-                let previous_sequencer_commitment = self
-                    .ledger_db
-                    // TODO: This works for now, but once we generate proofs by taking commitments from mempool
-                    // we will need to store the commitments earlier to process proofs, maybe just process commitments first for that
-                    .get_commitment_by_index(idx)?
-                    .ok_or(SyncError::SequencerCommitmentWithIndexNotFound(idx))?;
+                let previous_sequencer_commitment = if let Some(previous_sequencer_commitment) =
+                    self.ledger_db
+                        // TODO: This works for now, but once we generate proofs by taking commitments from mempool
+                        // we will need to store the commitments earlier to process proofs, maybe just process commitments first for that
+                        .get_commitment_by_index(idx)?
+                {
+                    previous_sequencer_commitment
+                } else if let Some(previous_sequencer_commitment) =
+                    self.ledger_db.get_pending_commitment_by_index(idx)?
+                {
+                    // If we have a pending commitment, we need to store the proof as pending
+                    info!(
+                        "Proof has a pending previous commitment with index: {}.",
+                        idx
+                    );
+                    proof_is_pending = true;
+                    previous_sequencer_commitment
+                } else {
+                    return Err(SyncError::SequencerCommitmentMissingForProof(idx));
+                };
 
                 // Check previous sequencer commitment hash
                 if previous_sequencer_commitment.serialize_and_calculate_sha_256()
@@ -480,27 +489,6 @@ where
             // If there is no previous seq comm hash then this must be the first post tangerine commitment
             None => get_tangerine_activation_height_non_zero() - 1,
         };
-
-        // Check that first commitment's state root matches initial_state_root
-        let start_state_root = self
-            .ledger_db
-            .get_l2_state_root(previous_l2_end_block_number)?
-            .ok_or_else(|| {
-                anyhow!(
-                    "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
-                    previous_l2_end_block_number
-                )
-            })?;
-
-        if start_state_root.as_ref() != initial_state_root.as_ref() {
-            return Err(anyhow!(
-                "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                hex::encode(initial_state_root),
-                hex::encode(start_state_root)
-            ).into());
-        }
-
-        let mut proof_is_pending = false;
 
         let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
         for (index, expected_hash) in (sequencer_commitment_index_range.0
@@ -546,6 +534,25 @@ where
                 raw_proof,
             )?;
             return Ok(ProcessingResult::Pending);
+        }
+
+        // Check that first commitment's state root matches initial_state_root
+        let start_state_root = self
+                .ledger_db
+                .get_l2_state_root(previous_l2_end_block_number)?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
+                        previous_l2_end_block_number
+                    )
+                })?;
+
+        if start_state_root.as_ref() != initial_state_root.as_ref() {
+            return Err(anyhow!(
+                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                    hex::encode(initial_state_root),
+                    hex::encode(start_state_root)
+                ).into());
         }
 
         if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
@@ -604,7 +611,7 @@ where
                         break;
                     }
                     Ok(ProcessingResult::Success) => {
-                        info!("Succesfully processed pending commitment {index}");
+                        info!("Successfully processed pending commitment {index}");
                         self.ledger_db.remove_pending_commitment(index)?;
                     }
                     Ok(ProcessingResult::Discarded) => {
