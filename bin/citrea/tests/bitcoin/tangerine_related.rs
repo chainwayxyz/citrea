@@ -7,7 +7,7 @@ use alloy_primitives::{Address, Bytes, U256, U64};
 use alloy_rpc_types::{Authorization, TransactionRequest};
 use anyhow::Result;
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -291,9 +291,11 @@ impl TestCase for PrecompilesAndEip7702 {
         // wait for the commitment to be published
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
-        let finalized_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
+        let finalized_height = da
+            .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+            .await?;
 
         // wait for batch prover to see commitments
         batch_prover

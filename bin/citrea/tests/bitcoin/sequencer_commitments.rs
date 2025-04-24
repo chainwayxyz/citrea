@@ -4,11 +4,11 @@ use alloy_primitives::{U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
+use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
-use citrea_e2e::bitcoin::BitcoinNode;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{FullNode, Sequencer};
@@ -83,7 +83,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         da.wait_mempool_len(2, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -158,7 +158,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         // Generate enough block to finalize
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         full_node
             .wait_for_l2_height(max_l2_blocks_per_commitment, None)
@@ -203,7 +203,7 @@ struct SequencerSendCommitmentsToDaTest;
 impl TestCase for SequencerSendCommitmentsToDaTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            max_l2_blocks_per_commitment: FINALITY_DEPTH * 2,
+            max_l2_blocks_per_commitment: DEFAULT_FINALITY_DEPTH * 2,
             ..Default::default()
         }
     }
@@ -229,7 +229,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         da.wait_mempool_len(2, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         tokio::time::sleep(Duration::from_millis(1)).await;
 
         let start_l2_block = 1;
@@ -245,7 +245,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let start_l2_block = end_l2_block + 1;
         let end_l2_block = end_l2_block + max_l2_blocks_per_commitment;

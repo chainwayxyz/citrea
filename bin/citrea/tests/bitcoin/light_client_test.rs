@@ -5,10 +5,10 @@ use std::time::Duration;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
     BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig,
@@ -92,7 +92,7 @@ impl TestCase for LightClientProvingTest {
         da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the commitment tx
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
@@ -116,7 +116,7 @@ impl TestCase for LightClientProvingTest {
         da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
         // Wait for light client prover to process batch proofs.
@@ -237,7 +237,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await?;
 
         // Finalize the DA block which contains the commitment txs
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
@@ -267,7 +267,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_eq!(response_2.commitments.len(), 1);
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
         // Wait for the full node to see all process verify and store all batch proofs
         full_node
@@ -399,7 +399,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the commitment txs
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
@@ -422,7 +422,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_eq!(response.commitments.len(), 1);
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
         // Wait for the full node to see all process verify and store all batch proofs
         full_node
@@ -580,7 +580,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the commitment tx
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
@@ -604,7 +604,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
@@ -652,7 +652,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the method id tx
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let method_id_l1_height = da.get_finalized_height(None).await?;
 
@@ -780,7 +780,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         )
         .await;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for light client prover to create light client proof.
@@ -869,7 +869,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         da.wait_mempool_len(8, None).await?;
 
         // Finalize the DA block which contains the seq comm txs
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
@@ -953,7 +953,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         da.wait_mempool_len(10, None).await?;
 
         // Finalize the DA block which contains the batch proof txs
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
@@ -1045,7 +1045,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         )
         .await;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_last_l2_height: u64 = 10;
 
         let fake_sequencer_commitment = SequencerCommitment {
@@ -1092,7 +1092,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         da.wait_mempool_len(6, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -1147,7 +1147,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         da.wait_mempool_len(8, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof txs
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
         let mempool = da.get_raw_mempool().await?;
@@ -1244,7 +1244,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         assert!(mempool.is_empty());
 
         // Finalize the DA block which contains the aggregate txs
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
@@ -1320,7 +1320,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         da.wait_mempool_len(8, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof txs
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
         let mempool = da.get_raw_mempool().await?;
@@ -1476,7 +1476,7 @@ impl TestCase for UnchainedBatchProofsTest {
 
         da.wait_mempool_len(8, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let start_l1_height = da.get_finalized_height(None).await?;
 
@@ -1577,16 +1577,16 @@ impl TestCase for UnchainedBatchProofsTest {
         )
         .await?;
 
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 
         light_client_prover
-            .wait_for_l1_height(start_l1_height + FINALITY_DEPTH, None)
+            .wait_for_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH, None)
             .await?;
 
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(start_l1_height + FINALITY_DEPTH)
+            .get_light_client_proof_by_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH)
             .await?
             .unwrap();
 
@@ -1603,16 +1603,16 @@ impl TestCase for UnchainedBatchProofsTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
-            .wait_for_l1_height(start_l1_height + 2 * FINALITY_DEPTH, None)
+            .wait_for_l1_height(start_l1_height + 2 * DEFAULT_FINALITY_DEPTH, None)
             .await?;
 
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(start_l1_height + 2 * FINALITY_DEPTH)
+            .get_light_client_proof_by_l1_height(start_l1_height + 2 * DEFAULT_FINALITY_DEPTH)
             .await?
             .unwrap();
 
@@ -1703,7 +1703,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
             .unwrap();
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let start_l1_height = da.get_finalized_height(None).await?;
 
@@ -1747,16 +1747,16 @@ impl TestCase for UnknownL1HashBatchProofTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
-            .wait_for_l1_height(start_l1_height + FINALITY_DEPTH, None)
+            .wait_for_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH, None)
             .await?;
 
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(start_l1_height + FINALITY_DEPTH)
+            .get_light_client_proof_by_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH)
             .await?
             .unwrap();
 
@@ -1835,7 +1835,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         )
         .await;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let fake_sequencer_commitment = SequencerCommitment {
             merkle_root: [1u8; 32],
@@ -1881,7 +1881,7 @@ impl TestCase for ChainProofByCommitmentIndex {
 
         da.wait_mempool_len(6, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -1953,7 +1953,7 @@ impl TestCase for ChainProofByCommitmentIndex {
 
         da.wait_mempool_len(4, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
         let mempool = da.get_raw_mempool().await?;
@@ -2041,7 +2041,7 @@ impl TestCase for ProofWithMissingCommitment {
         )
         .await;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let fake_sequencer_commitment = SequencerCommitment {
             merkle_root: [1u8; 32],
@@ -2049,7 +2049,7 @@ impl TestCase for ProofWithMissingCommitment {
             l2_end_block_number: 100,
         };
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -2099,7 +2099,7 @@ impl TestCase for ProofWithMissingCommitment {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         // Make sure all of them are in the block
         let mempool = da.get_raw_mempool().await?;
@@ -2221,7 +2221,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let start_l1_height = da.get_finalized_height(None).await?;
 
@@ -2272,16 +2272,16 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         )
         .await?;
 
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 
         light_client_prover
-            .wait_for_l1_height(start_l1_height + FINALITY_DEPTH, None)
+            .wait_for_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH, None)
             .await?;
 
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(start_l1_height + FINALITY_DEPTH)
+            .get_light_client_proof_by_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH)
             .await?
             .unwrap();
 
@@ -2303,7 +2303,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -2339,16 +2339,16 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         )
         .await?;
 
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 
         light_client_prover
-            .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
+            .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
             .await?;
 
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height + FINALITY_DEPTH)
+            .get_light_client_proof_by_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH)
             .await?
             .unwrap();
 
@@ -2377,7 +2377,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -2413,16 +2413,16 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         )
         .await?;
 
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 
         light_client_prover
-            .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
+            .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
             .await?;
 
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height + FINALITY_DEPTH)
+            .get_light_client_proof_by_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH)
             .await?
             .unwrap();
 
@@ -2450,7 +2450,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         )
         .await?;
 
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         light_client_prover

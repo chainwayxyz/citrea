@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use alloy_primitives::U64;
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -149,7 +149,7 @@ impl TestCase for L2StatusTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
         full_node
@@ -183,7 +183,7 @@ impl TestCase for L2StatusTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         full_node
@@ -223,7 +223,7 @@ impl TestCase for L2StatusTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let second_commitment_l1_height = da.get_finalized_height(None).await?;
 
         full_node
@@ -419,7 +419,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let second_batch_height = da.get_finalized_height(None).await?;
 
         full_node
@@ -446,7 +446,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(finalized_height, None).await?;
         // Process out of order seq on following block
@@ -575,7 +575,7 @@ impl TestCase for ConflictingCommitmentsTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let l1_height_a = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(l1_height_a, None).await?;
 
@@ -600,7 +600,7 @@ impl TestCase for ConflictingCommitmentsTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let l1_height_b = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(l1_height_b, None).await?;
 
@@ -648,7 +648,7 @@ impl TestCase for ConflictingCommitmentsTest {
             .unwrap();
 
         da.wait_mempool_len(4, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let l1_height_c = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(l1_height_c, None).await?;
 
@@ -747,7 +747,7 @@ impl TestCase for OutOfRangeProofTest {
         }
 
         da.wait_mempool_len(4, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -755,7 +755,7 @@ impl TestCase for OutOfRangeProofTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
 
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
@@ -799,14 +799,14 @@ impl TestCase for OutOfRangeProofTest {
         }
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         batch_prover
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
 
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
@@ -838,14 +838,14 @@ impl TestCase for OutOfRangeProofTest {
         }
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         batch_prover
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
 
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
@@ -917,7 +917,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
@@ -941,7 +941,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment1_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(commitment1_l1_height, None)
@@ -973,7 +973,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment2_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(commitment2_l1_height, None)
@@ -1057,7 +1057,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(4, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment2_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(commitment2_l1_height, None)
@@ -1080,7 +1080,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
@@ -1113,7 +1113,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(4, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment2_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(commitment2_l1_height, None)
@@ -1136,7 +1136,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
@@ -1158,7 +1158,7 @@ impl TestCase for OutOfRangeProofTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
@@ -1254,7 +1254,7 @@ impl TestCase for OverlappingProofRangesTest {
         }
 
         da.wait_mempool_len(6, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -1262,7 +1262,7 @@ impl TestCase for OverlappingProofRangesTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
 
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
@@ -1384,7 +1384,7 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
         full_node
@@ -1406,7 +1406,7 @@ impl TestCase for OverlappingProofRangesTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_l1_height = da.get_finalized_height(None).await?;
 
         full_node.wait_for_l1_height(proof_l1_height, None).await?;
@@ -1455,7 +1455,7 @@ impl TestCase for OverlappingProofRangesTest {
             index: 4,
         };
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(commitments_l1_height, None)
@@ -1476,7 +1476,7 @@ impl TestCase for OverlappingProofRangesTest {
             .await?;
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_b_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(proof_b_l1_height, None)
@@ -1559,7 +1559,7 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
 
         da.wait_mempool_len(8, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(commitments_l1_height, None)
@@ -1582,7 +1582,7 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_a_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(proof_a_l1_height, None)
@@ -1625,7 +1625,7 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proof_b_l1_height = da.get_finalized_height(None).await?;
         full_node
             .wait_for_l1_height(proof_b_l1_height, None)
