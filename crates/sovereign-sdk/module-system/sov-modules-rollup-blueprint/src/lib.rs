@@ -110,10 +110,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
         task_manager: TaskExecutor,
+        network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
-
-    /// Creates instance of [`BitcoinDaVerifier`]
-    fn create_da_verifier(&self) -> Self::DaVerifier;
 
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(

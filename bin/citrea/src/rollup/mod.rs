@@ -77,10 +77,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_da_wallet: bool,
+        network: Network,
     ) -> Result<Dependencies<Self>> {
         let task_manager = TaskManager::current();
         let da_service = self
-            .create_da_service(rollup_config, require_da_wallet, task_manager.executor())
+            .create_da_service(
+                rollup_config,
+                require_da_wallet,
+                task_manager.executor(),
+                network,
+            )
             .await?;
         let (l2_block_tx, l2_block_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None

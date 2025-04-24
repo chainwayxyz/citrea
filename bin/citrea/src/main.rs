@@ -201,6 +201,7 @@ where
             &rollup_config,
             matches!(node_type, NodeType::Sequencer(_))
                 || matches!(node_type, NodeType::BatchProver(_)),
+            network,
         )
         .await?;
 

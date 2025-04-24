@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
@@ -60,6 +61,15 @@ type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 const POLLING_INTERVAL: u64 = 10; // seconds
 
+pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
+    match network {
+        Network::Mainnet => bitcoin::Network::Bitcoin,
+        Network::Testnet => bitcoin::Network::Testnet4,
+        Network::Devnet => bitcoin::Network::Signet,
+        Network::Nightly | Network::TestNetworkWithForks => bitcoin::Network::Regtest,
+    }
+}
+
 /// Runtime configuration for the DA service
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BitcoinServiceConfig {
@@ -67,9 +77,6 @@ pub struct BitcoinServiceConfig {
     pub node_url: String,
     pub node_username: String,
     pub node_password: String,
-
-    // network of the bitcoin node
-    pub network: bitcoin::Network,
 
     // da private key of the sequencer
     pub da_private_key: Option<String>,
@@ -87,7 +94,6 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             node_url: std::env::var("NODE_URL")?,
             node_username: std::env::var("NODE_USERNAME")?,
             node_password: std::env::var("NODE_PASSWORD")?,
-            network: serde_json::from_str(&format!("\"{}\"", std::env::var("NETWORK")?))?,
             da_private_key: std::env::var("DA_PRIVATE_KEY").ok(),
             tx_backup_dir: std::env::var("TX_BACKUP_DIR")?,
             monitoring: MonitoringConfig::from_env().ok(),
@@ -147,17 +153,18 @@ impl BitcoinService {
                 .context("Failed to create tx backup directory")?;
         }
 
-        let network_constants = get_network_constants(&config.network);
+        let network = network_to_bitcoin_network(&chain_params.network);
+        let network_constants = get_network_constants(&network);
         let monitoring = Arc::new(MonitoringService::new(
             client.clone(),
             config.monitoring,
             network_constants.finality_depth,
         ));
-        let fee = FeeService::new(client.clone(), config.network, config.mempool_space_url);
+        let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
         Ok(Self {
             client,
             network_constants,
-            network: config.network,
+            network,
             da_private_key: private_key,
             reveal_tx_prefix: chain_params.reveal_tx_prefix,
             inscribes_queue: tx,
@@ -194,18 +201,19 @@ impl BitcoinService {
                 .context("Failed to create tx backup directory")?;
         }
 
-        let network_constants = get_network_constants(&config.network);
+        let network = network_to_bitcoin_network(&chain_params.network);
+        let network_constants = get_network_constants(&network);
         let monitoring = Arc::new(MonitoringService::new(
             client.clone(),
             config.monitoring,
             network_constants.finality_depth,
         ));
-        let fee = FeeService::new(client.clone(), config.network, config.mempool_space_url);
+        let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
 
         Ok(Self {
             client,
             network_constants,
-            network: config.network,
+            network,
             da_private_key,
             reveal_tx_prefix: chain_params.reveal_tx_prefix,
             inscribes_queue: tx,
