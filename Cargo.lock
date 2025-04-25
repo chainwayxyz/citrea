@@ -2427,7 +2427,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=27771a17c117589231b5e2197a16083a0d0672b9#27771a17c117589231b5e2197a16083a0d0672b9"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=c92d6df#c92d6dfb4791e7a08ace3a916b567ad11a279df1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
