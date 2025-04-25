@@ -18,7 +18,7 @@ mod network;
 mod node;
 /// Specs module
 pub mod spec;
-mod state_machine;
+pub mod state_machine;
 
 #[cfg(not(feature = "native"))]
 pub use std::rc::Rc as RefCount;
