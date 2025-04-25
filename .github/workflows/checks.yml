@@ -63,7 +63,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
-  TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:28.0"
+  TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:29.0"
   CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
   CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
 
