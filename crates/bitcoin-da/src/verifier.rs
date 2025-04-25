@@ -639,6 +639,7 @@ mod tests {
 
     use borsh::BorshDeserialize;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
+    use sov_rollup_interface::Network;
 
     use super::BitcoinVerifier;
     use crate::spec::header::{BitcoinHeaderWrapper, HeaderWrapper};
@@ -647,6 +648,7 @@ mod tests {
     fn get_verifier() -> BitcoinVerifier {
         BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: vec![],
+            network: Network::Nightly,
         })
     }
 

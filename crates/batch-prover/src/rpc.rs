@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::Path;
 use std::sync::Arc;
@@ -9,17 +10,26 @@ use std::{env, fs};
 use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use citrea_primitives::forks::fork_from_block_number;
+use citrea_stf::runtime::DefaultContext;
+use citrea_stf::verifier::get_last_l1_hash_on_contract;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
+use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::SlotNumber;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
+use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
-    JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
+    BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
+use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -35,38 +45,53 @@ pub struct ProverInputResponse {
     pub encoded_serialized_batch_proof_input: String,
 }
 
-pub struct RpcContext<DB>
+pub struct RpcContext<Da, DB, Vm>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone,
+    Vm: Zkvm + 'static,
 {
     pub ledger_db: DB,
     pub request_tx: mpsc::Sender<ProverRequest>,
+    pub da_service: Arc<Da>,
+    pub storage_manager: ProverStorageManager,
+    pub code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
 }
 
 /// Creates a shared RpcContext with all required data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn create_rpc_context<DB>(
+pub fn create_rpc_context<Da, DB, Vm>(
     ledger_db: DB,
     request_tx: mpsc::Sender<ProverRequest>,
-) -> RpcContext<DB>
+    da_service: Arc<Da>,
+    storage_manager: ProverStorageManager,
+    code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+) -> RpcContext<Da, DB, Vm>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone,
+    Vm: Zkvm,
 {
     RpcContext {
         ledger_db,
         request_tx,
+        da_service,
+        storage_manager,
+        code_commitments,
     }
 }
 
 /// Updates the given RpcModule with Prover methods.
-pub fn register_rpc_methods<DB>(
-    rpc_context: RpcContext<DB>,
+pub fn register_rpc_methods<Da, DB, Vm>(
+    rpc_context: RpcContext<Da, DB, Vm>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
+    Vm: Zkvm,
 {
-    let rpc = create_rpc_module::<DB>(rpc_context);
+    let rpc = create_rpc_module(rpc_context);
     rpc_methods.merge(rpc)?;
     Ok(rpc_methods)
 }
@@ -81,6 +106,14 @@ pub trait BatchProverRpc {
     /// Manually signal proving. This rpc triggers a proving signal with the difference that sampling will be ignored.
     #[method(name = "prove")]
     async fn prove(&self, mode: PartitionMode) -> RpcResult<Vec<Uuid>>;
+
+    /// Simulate proving by collecting output from the execution in native, and submit the fake proof to DA.
+    #[method(name = "submitFakeProof")]
+    async fn submit_fake_proof(
+        &self,
+        index_start: u32,
+        index_end: u32,
+    ) -> RpcResult<BatchProofResponse>;
 
     /// Stop further proving jobs to be spawned. Existing jobs will continue.
     #[method(name = "pauseProving")]
@@ -113,18 +146,22 @@ pub trait BatchProverRpc {
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
 }
 
-pub struct BatchProverRpcServerImpl<DB>
+pub struct BatchProverRpcServerImpl<Da, DB, Vm>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
-    context: Arc<RpcContext<DB>>,
+    context: Arc<RpcContext<Da, DB, Vm>>,
 }
 
-impl<DB> BatchProverRpcServerImpl<DB>
+impl<Da, DB, Vm> BatchProverRpcServerImpl<Da, DB, Vm>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
-    pub fn new(context: RpcContext<DB>) -> Self {
+    pub fn new(context: RpcContext<Da, DB, Vm>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -132,9 +169,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<DB> BatchProverRpcServer for BatchProverRpcServerImpl<DB>
+impl<Da, DB, Vm> BatchProverRpcServer for BatchProverRpcServerImpl<Da, DB, Vm>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
     async fn set_commitments(
         &self,
@@ -194,6 +233,135 @@ where
         };
 
         Ok(job_ids)
+    }
+
+    async fn submit_fake_proof(
+        &self,
+        index_start: u32,
+        index_end: u32,
+    ) -> RpcResult<BatchProofResponse> {
+        info!(
+            "Submitting fake proof for commitment index range [{},{}]",
+            index_start, index_end
+        );
+
+        let ledger_db = &self.context.ledger_db;
+
+        if index_start > index_end {
+            return Err(internal_rpc_error("Invalid index range"));
+        }
+        // don't allow first commitment index to be called through this rpc as it requires extra handling
+        if index_start <= 1 {
+            return Err(internal_rpc_error(
+                "submitFakeProof rpc supports only index_start > 1",
+            ));
+        }
+
+        let previous_commitment = ledger_db
+            .get_commitment_by_index(index_start - 1)
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .ok_or_else(|| internal_rpc_error("Missing previous commitment index"))?;
+
+        let commitments = ledger_db
+            .get_commitment_by_range(index_start..=index_end)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+        if commitments.len() as u32 != index_end - index_start + 1 {
+            return Err(internal_rpc_error(
+                "Missing some commitment indices from the range",
+            ));
+        }
+
+        let last_commitment = commitments.last().expect("Already ensured");
+        let last_l2_block = ledger_db
+            .get_l2_block_by_number(&L2BlockNumber(last_commitment.l2_end_block_number))
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .ok_or_else(|| internal_rpc_error("Not synced up to latest L2 block yet"))?;
+
+        let initial_state_root = ledger_db
+            .get_l2_state_root(previous_commitment.l2_end_block_number)
+            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .expect("Initial L2 state root must exist");
+
+        let mut start_l2_height = previous_commitment.l2_end_block_number + 1;
+        let mut sequencer_commitment_hashes = Vec::with_capacity(commitments.len());
+        let mut state_roots = Vec::with_capacity(commitments.len() + 1);
+        state_roots.push(initial_state_root);
+
+        let mut cumulative_state_diff = CumulativeStateDiff::new();
+        for commitment in commitments.iter() {
+            let end_l2_height = commitment.l2_end_block_number;
+
+            for l2_height in start_l2_height..=end_l2_height {
+                let state_diff = ledger_db
+                    .get_l2_state_diff(L2BlockNumber(l2_height))
+                    .map_err(|e| internal_rpc_error(e.to_string()))?
+                    .expect("L2 state diff must exist");
+                cumulative_state_diff.extend(state_diff);
+            }
+
+            sequencer_commitment_hashes.push(commitment.serialize_and_calculate_sha_256());
+
+            let end_state_root = ledger_db
+                .get_l2_state_root(end_l2_height)
+                .map_err(|e| internal_rpc_error(e.to_string()))?
+                .expect("L2 state root must exist");
+            state_roots.push(end_state_root);
+
+            start_l2_height = end_l2_height + 1;
+        }
+
+        let storage = self
+            .context
+            .storage_manager
+            .create_storage_for_l2_height(last_l2_block.height + 1);
+        let last_l1_hash_on_contract = get_last_l1_hash_on_contract::<DefaultContext>(
+            Default::default(),
+            storage,
+            &mut Default::default(),
+            [0; 32],
+        );
+
+        let output = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
+            state_roots,
+            final_l2_block_hash: last_l2_block.hash,
+            state_diff: cumulative_state_diff,
+            last_l2_height: last_l2_block.height,
+            sequencer_commitment_hashes,
+            sequencer_commitment_index_range: (index_start, index_end),
+            last_l1_hash_on_bitcoin_light_client_contract: last_l1_hash_on_contract,
+            previous_commitment_index: Some(previous_commitment.index),
+            previous_commitment_hash: Some(previous_commitment.serialize_and_calculate_sha_256()),
+        });
+
+        let output_serialized = borsh::to_vec(&output).expect("Output serialization cannot fail");
+
+        let spec_id = fork_from_block_number(last_l2_block.height).spec_id;
+        let method_id: [u32; 8] = self
+            .context
+            .code_commitments
+            .get(&spec_id)
+            .expect("Spec for L2 block must exist")
+            .clone()
+            .into();
+
+        let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized));
+        let fake_receipt = FakeReceipt::new(claim);
+        // Receipt with verifiable claim
+        let receipt = InnerReceipt::Fake(fake_receipt);
+        let proof = bincode::serialize(&receipt).expect("Receipt serialization cannot fail");
+
+        let tx_id = self
+            .context
+            .da_service
+            .send_transaction(DaTxRequest::ZKProof(proof.clone()))
+            .await
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+
+        Ok(BatchProofResponse {
+            l1_tx_id: Some(tx_id.into()),
+            proof,
+            proof_output: StoredBatchProofOutput::from(output).into(),
+        })
     }
 
     async fn pause_proving(&self) -> RpcResult<()> {
@@ -313,11 +481,13 @@ where
     }
 }
 
-pub fn create_rpc_module<DB>(
-    rpc_context: RpcContext<DB>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<DB>>
+pub fn create_rpc_module<Da, DB, Vm>(
+    rpc_context: RpcContext<Da, DB, Vm>,
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, DB, Vm>>
 where
+    Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
 

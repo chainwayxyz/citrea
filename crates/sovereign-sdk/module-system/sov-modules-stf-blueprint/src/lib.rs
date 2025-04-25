@@ -430,8 +430,10 @@ where
             let mut l2_block_hashes = Vec::with_capacity(state_change_count as usize);
 
             for _ in 0..state_change_count {
-                let l2_block_l2_height = guest.read_from_host::<u64>();
-                fork_manager.register_block(l2_block_l2_height).unwrap();
+                // there used to be a need for height to be passed before L2 block
+                // now this is not needed but deployed provers still have the same input generation in place
+                // so don't use this variable
+                let _l2_block_l2_height = guest.read_from_host::<u64>();
 
                 let (l2_block, state_witness, offchain_witness) =
                     guest.read_from_host::<(L2Block, Witness, Witness)>();
@@ -449,6 +451,8 @@ where
                         "L2 block previous hash must match the hash of the block before"
                     );
                 }
+
+                fork_manager.register_block(l2_height).unwrap();
 
                 let result = self
                     .apply_l2_block(

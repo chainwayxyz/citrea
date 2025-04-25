@@ -878,6 +878,13 @@ impl NodeLedgerOps for LedgerDB {
         Ok(())
     }
 
+    fn get_pending_commitment_by_index(
+        &self,
+        index: u32,
+    ) -> anyhow::Result<Option<SequencerCommitment>> {
+        self.db.get::<PendingSequencerCommitments>(&index)
+    }
+
     fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment)>> {
         let mut pending = Vec::new();
         let mut iter = self.db.iter::<PendingSequencerCommitments>()?;

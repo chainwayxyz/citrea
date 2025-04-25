@@ -147,6 +147,7 @@ pub async fn start_rollup(
         .setup_dependencies(
             &rollup_config,
             sequencer_config.is_some() || rollup_prover_config.is_some(),
+            network.unwrap_or(Network::Nightly),
         )
         .await
         .expect("Dependencies setup should work");
@@ -197,13 +198,14 @@ pub async fn start_rollup(
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_module = mock_demo_rollup
-        .setup_rpc(
+        .create_rpc_methods(
             rpc_storage,
-            ledger_db.clone(),
-            da_service.clone(),
+            &ledger_db,
+            &da_service,
             sequencer_client_url,
             l2_block_rx,
             &backup_manager,
+            rollup_config.rpc.clone(),
         )
         .expect("RPC module setup should work");
 
@@ -348,7 +350,7 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (rollup, l1_block_handler, pruner, rpc_module) =
+        let (mut l2_syncer, l1_block_handler, pruner, rpc_module) =
             CitreaRollupBlueprint::create_full_node(
                 &mock_demo_rollup,
                 genesis_config,
@@ -392,7 +394,7 @@ pub async fn start_rollup(
         task_executor.spawn_critical_with_graceful_shutdown_signal(
             "FullNode",
             |shutdown_signal| async move {
-                rollup.run(shutdown_signal).instrument(span).await.unwrap();
+                l2_syncer.run(shutdown_signal).instrument(span).await;
             },
         );
     }

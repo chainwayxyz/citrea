@@ -32,6 +32,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
 base64 = { workspace = true }
+bincode = { workspace = true }
 borsh = { workspace = true }
 faster-hex = { workspace = true }
 futures = { workspace = true }
@@ -45,6 +46,7 @@ parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-tasks = { workspace = true }
+risc0-zkvm = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }

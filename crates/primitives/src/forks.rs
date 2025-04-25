@@ -58,7 +58,7 @@ pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];
 pub const TESTNET_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 5546000), // will be reached Jan 24 2025 ~7 PM
-    Fork::new(SpecId::Tangerine, 5546000 * 4), // TODO: Update
+    Fork::new(SpecId::Tangerine, 9057000), // will be reaced Apr 18 2025 6.30 AM
 ];
 
 pub const DEVNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];

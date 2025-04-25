@@ -65,7 +65,13 @@ where
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
     let (request_tx, request_rx) = mpsc::channel(4);
 
-    let rpc_context = rpc::create_rpc_context(ledger_db.clone(), request_tx);
+    let rpc_context = rpc::create_rpc_context::<_, _, Vm>(
+        ledger_db.clone(),
+        request_tx,
+        da_service.clone(),
+        storage_manager.clone(),
+        code_commitments.clone(),
+    );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
     let l2_syncer = L2Syncer::new(

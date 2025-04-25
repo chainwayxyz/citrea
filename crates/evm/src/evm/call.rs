@@ -15,7 +15,7 @@ pub(crate) fn create_txn_env(
     block_env: &BlockEnv,
     request: TransactionRequest,
     cap_to_balance: Option<U256>,
-    nonce_if_req_has_no_nonce: Option<u64>,
+    nonce: u64,
     chain_id_to_set: u64,
 ) -> EthResult<TxEnv> {
     let tx_type = if request.authorization_list.is_some() {
@@ -39,7 +39,6 @@ pub(crate) fn create_txn_env(
         gas,
         value,
         input,
-        nonce,
         access_list,
         chain_id,
         authorization_list,
@@ -104,15 +103,6 @@ pub(crate) fn create_txn_env(
 
     let caller = from.unwrap_or_default();
 
-    let nonce = if let Some(nonce) = nonce {
-        if nonce_if_req_has_no_nonce.is_some() {
-            unreachable!("We never pass a nonce to this function if the request has a nonce")
-        }
-        nonce
-    } else {
-        nonce_if_req_has_no_nonce.expect("If req has no nonce, we must pass one")
-    };
-
     let chain_id = Some(chain_id.unwrap_or(chain_id_to_set));
     let env = TxEnv {
         tx_type,
@@ -165,9 +155,6 @@ pub(crate) fn prepare_call_env(
     // <https://github.com/ethereum/go-ethereum/blob/ee8e83fa5f6cb261dad2ed0a7bbcde4930c41e6c/internal/ethapi/api.go#L985>
     cfg_env.disable_base_fee = true;
 
-    // set nonce to None so that the correct nonce is chosen by the EVM
-    request.nonce = None;
-
     // TODO: write hardhat and unit tests for this
     if request.max_fee_per_gas == Some(0) {
         request.max_fee_per_gas = None;
@@ -183,7 +170,7 @@ pub(crate) fn prepare_call_env(
         block_env,
         request.clone(),
         Some(cap_to_balance),
-        Some(nonce),
+        nonce,
         chain_id_to_set,
     )
 }

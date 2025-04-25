@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 
 use citrea_e2e::config::BitcoinConfig;
@@ -41,7 +41,7 @@ impl TestCase for MempoolAcceptTest {
             .wait_for_l2_height(min_l2_block_per_commitment, None)
             .await;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         // TODO find the right assertions here
         // Should be either 2 or 0

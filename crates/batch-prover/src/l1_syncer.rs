@@ -177,6 +177,8 @@ where
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
             pending_l1_blocks.pop_front();
+
+            info!("Processed L1 block {}", l1_height);
         }
 
         if should_ping {

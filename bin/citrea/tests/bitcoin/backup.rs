@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
 use citrea_common::backup::BackupRpcClient;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -34,7 +34,7 @@ impl TestCase for BackupRestoreTest {
         }
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover

@@ -6,7 +6,7 @@ use std::time::Duration;
 use std::{env, fs};
 
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{SequencerConfig, SequencerMempoolConfig, TestCaseConfig, TestCaseEnv};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -113,10 +113,13 @@ impl TestCase for GenerateProofInput {
         sequencer.client.send_publish_batch_request().await.unwrap();
 
         da.wait_mempool_len(4, None).await?;
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         // passing in finality depth as this test should be run without testing feature
-        let finalized_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await.unwrap();
+        let finalized_height = da
+            .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+            .await
+            .unwrap();
 
         println!("Waiting batch prover l1 height: {finalized_height}");
         batch_prover

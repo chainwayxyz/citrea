@@ -6,32 +6,49 @@ pub const MAINNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_target: U256::from_be_hex(
         "00000000FFFF0000000000000000000000000000000000000000000000000000",
     ),
+    // TODO: TBD before mainnet
+    finality_depth: 8,
 };
 pub const TESTNET4_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1D00FFFF,
     max_target: U256::from_be_hex(
         "00000000FFFF0000000000000000000000000000000000000000000000000000",
     ),
+    finality_depth: 100,
 };
 pub const SIGNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1E0377AE,
     max_target: U256::from_be_hex(
         "00000377AE000000000000000000000000000000000000000000000000000000",
     ),
+    finality_depth: 5,
 };
 pub const REGTEST_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x207FFFFF,
     max_target: U256::from_be_hex(
         "7FFFFF0000000000000000000000000000000000000000000000000000000000",
     ),
+    finality_depth: 5,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+pub fn get_network_constants(network: &bitcoin::Network) -> NetworkConstants {
+    match network {
+        bitcoin::Network::Bitcoin => MAINNET_CONSTANTS,
+        bitcoin::Network::Testnet | bitcoin::Network::Testnet4 => TESTNET4_CONSTANTS,
+        bitcoin::Network::Signet => SIGNET_CONSTANTS,
+        bitcoin::Network::Regtest => REGTEST_CONSTANTS,
+        _ => unreachable!("Unsupport network"),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NetworkConstants {
     /// Maximum bits of the chain
     pub max_bits: u32,
     /// Maximum target of the chain
     pub max_target: U256,
+    /// Network finality depth
+    pub finality_depth: u64,
 }
 
 pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {
@@ -45,19 +62,19 @@ pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {
 
 pub const INITIAL_TESTNET4_STATE: LatestDaState = LatestDaState {
     block_hash: [
-        253, 141, 137, 197, 72, 182, 238, 141, 195, 224, 44, 112, 232, 183, 106, 255, 111, 137, 74,
-        189, 16, 223, 156, 44, 40, 109, 0, 0, 0, 0, 0, 0,
+        177, 30, 245, 240, 148, 228, 201, 10, 169, 117, 171, 23, 153, 213, 126, 0, 82, 34, 206,
+        105, 206, 59, 65, 158, 204, 24, 203, 208, 0, 0, 0, 0,
     ],
-    block_height: 72357,
+    block_height: 74246,
     total_work: [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 210, 125, 105, 23,
-        206, 165, 249, 85, 237,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 242, 121, 228, 216,
+        103, 138, 95, 229, 162,
     ],
-    current_target_bits: 0x190455c3,
-    epoch_start_time: 1739833936,
+    current_target_bits: 0x190461c8,
+    epoch_start_time: 1741056039,
     prev_11_timestamps: [
-        1740948525, 1740949726, 1740950927, 1740947325, 1740948526, 1740949727, 1740950928,
-        1740948527, 1740949728, 1740950929, 1740952130,
+        1742436071, 1742437272, 1742438473, 1742439674, 1742440875, 1742442076, 1742441609,
+        1742442810, 1742432468, 1742433669, 1742434870,
     ],
 };
 

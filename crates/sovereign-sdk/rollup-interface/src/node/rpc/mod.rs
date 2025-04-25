@@ -393,12 +393,6 @@ pub enum ItemOrHash<T> {
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
-    /// Get a list of l2 blocks by id. The IDs need not be ordered.
-    fn get_l2_blocks(
-        &self,
-        batch_ids: &[L2BlockIdentifier],
-    ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error>;
-
     /// Get l2 block
     fn get_l2_block(
         &self,

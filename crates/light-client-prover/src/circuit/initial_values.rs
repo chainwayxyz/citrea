@@ -24,7 +24,7 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
 
 pub mod mockda {
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"ae9a95a544a777e9df427f899c0f5ec30e9ccb2fa66fe20fea7b1e1435e992f0",
+        b"1857a148ae2f45e7d268b5abefc885379f63d2b2726597347de96353a9b40b11",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -67,7 +67,7 @@ pub mod bitcoinda {
     };
 
     pub const TESTNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"b7a7fdf56aa1725049704457596db552f2e975e37b2a786cfabedf987c2e7e08",
+        b"8292a2b07f40f9cee43fde4523567faab5261b1c1cf79ae56e1b4ef4b323735f",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -83,7 +83,7 @@ pub mod bitcoinda {
     pub const NIGHTLY_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "ae9a95a544a777e9df427f899c0f5ec30e9ccb2fa66fe20fea7b1e1435e992f0",
+            None => "1857a148ae2f45e7d268b5abefc885379f63d2b2726597347de96353a9b40b11",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -95,7 +95,7 @@ pub mod bitcoinda {
     pub const TEST_NETWORK_WITH_FORKS_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "ae9a95a544a777e9df427f899c0f5ec30e9ccb2fa66fe20fea7b1e1435e992f0",
+            None => "1857a148ae2f45e7d268b5abefc885379f63d2b2726597347de96353a9b40b11",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -106,16 +106,10 @@ pub mod bitcoinda {
 
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(0, [0; 8])];
 
-    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[
-        (
-            0,
-            decode_to_u32_array("3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f"),
-        ),
-        (
-            5546000,
-            decode_to_u32_array("670b7ef87e7fab2ff2d46f38f71be524d42cc0c62da41884d3d41928b8c967d1"),
-        ),
-    ];
+    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
+        0,
+        decode_to_u32_array("113facdcfff2cc03a50f74e462f568fa35c36fc405f9d49c58af98f62c2e5a20"),
+    )];
 
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
         0,

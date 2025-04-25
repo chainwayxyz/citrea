@@ -10,7 +10,7 @@ use citrea_common::{
     BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, SequencerConfig,
 };
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
-use citrea_fullnode::CitreaFullnode;
+use citrea_fullnode::L2Syncer as FullNodeL2Syncer;
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
@@ -36,7 +36,6 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
-use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 use tracing::{debug, info, instrument};
 
@@ -78,10 +77,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_da_wallet: bool,
+        network: Network,
     ) -> Result<Dependencies<Self>> {
         let task_manager = TaskManager::current();
         let da_service = self
-            .create_da_service(rollup_config, require_da_wallet, task_manager.executor())
+            .create_da_service(
+                rollup_config,
+                require_da_wallet,
+                task_manager.executor(),
+                network,
+            )
             .await?;
         let (l2_block_tx, l2_block_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -123,26 +128,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db,
             storage_manager,
         })
-    }
-
-    /// Setup the RPC server
-    fn setup_rpc(
-        &self,
-        prover_storage: ProverStorage,
-        ledger_db: LedgerDB,
-        da_service: Arc<<Self as RollupBlueprint>::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
-        backup_manager: &Arc<BackupManager>,
-    ) -> Result<RpcModule<()>> {
-        self.create_rpc_methods(
-            prover_storage,
-            &ledger_db,
-            &da_service,
-            sequencer_client_url,
-            l2_block_rx,
-            backup_manager,
-        )
     }
 
     /// Creates a new reorging sequencer
@@ -311,7 +296,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        CitreaFullnode<Self::DaService, LedgerDB>,
+        FullNodeL2Syncer<Self::DaService, LedgerDB>,
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
         RpcModule<()>,

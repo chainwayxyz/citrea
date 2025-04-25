@@ -83,6 +83,7 @@ pub fn main() {
 
     let da_verifier = BitcoinVerifier::new(RollupParams {
         reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+        network: NETWORK,
     });
 
     let input = guest.read_from_host();
