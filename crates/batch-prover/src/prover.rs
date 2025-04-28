@@ -986,6 +986,12 @@ mod tests {
         }
     }
 
+    fn put_commitments(ledger_db: &LedgerDB, commitments: &[SequencerCommitment]) {
+        for commitment in commitments {
+            ledger_db.put_commitment_by_index(commitment).unwrap();
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn simple_commitment_partition() {
         let MockProverData { mut prover, .. } = create_mock_prover();
@@ -1000,6 +1006,8 @@ mod tests {
                 index: 1,
                 l2_end_block_number: 3,
             }];
+            put_commitments(&prover.ledger_db, &commitments);
+
             let partitions = prover
                 .create_partitions(&mut commitments, PartitionMode::Normal)
                 .unwrap();
@@ -1008,6 +1016,29 @@ mod tests {
             assert_eq!(partition.start_height, 1);
             assert_eq!(partition.end_height, 3);
             assert_eq!(partition.commitments.len(), 1);
+        }
+
+        // 2 consecutive small commitments should produce 1 partition
+        {
+            let mut commitments = vec![SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 2,
+            }, SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 3,
+            }];
+            put_commitments(&prover.ledger_db, &commitments);
+
+            let partitions = prover
+                .create_partitions(&mut commitments, PartitionMode::Normal)
+                .unwrap();
+            assert_eq!(partitions.len(), 1);
+            let partition = &partitions[0];
+            assert_eq!(partition.start_height, 1);
+            assert_eq!(partition.end_height, 3);
+            assert_eq!(partition.commitments.len(), 2);
         }
 
         /*
