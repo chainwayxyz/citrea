@@ -21,7 +21,6 @@ backoff = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
 digest = { workspace = true }
-futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 metrics = { workspace = true }
@@ -70,15 +69,6 @@ citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer", features = ["native"] }
-
-# TODO: Remove these after testnet deployment
-# Reorg syncer deps
-ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
-schemars = { workspace = true, features = [] }
-serde = { workspace = true }
-sha2 = { workspace = true }
-sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core", default-features = false }
-thiserror = { workspace = true }
 
 [features]
 default = []

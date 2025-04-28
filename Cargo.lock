@@ -2645,8 +2645,6 @@ dependencies = [
  "citrea-primitives",
  "citrea-stf",
  "digest 0.10.7",
- "ed25519-dalek",
- "futures",
  "hex",
  "jsonrpsee",
  "l2-block-rule-enforcer",
@@ -2668,20 +2666,15 @@ dependencies = [
  "reth-trie",
  "revm",
  "rs_merkle",
- "schemars",
  "schnellru",
- "serde",
- "sha2 0.10.8",
  "sov-accounts",
  "sov-db",
  "sov-keys",
  "sov-modules-api",
- "sov-modules-core",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
- "thiserror 2.0.12",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.19",
@@ -3509,7 +3502,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8",
- "serde",
  "signature",
 ]
 
