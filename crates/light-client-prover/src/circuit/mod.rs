@@ -79,10 +79,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 Some(previous_commitment_index),
                 Some(batch_proof_output_previous_commitment_hash),
             ) => {
-                if previous_commitment_index == 0 {
-                    println!("Batch proofs Previous commitment index is 0, commitment index cannot be 0, skipping");
-                    return false;
-                }
                 let previous_commitment = match SequencerCommitmentAccessor::<S>::get(
                     previous_commitment_index,
                     working_set,
@@ -120,10 +116,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
 
         let (first_index, last_index) = batch_proof_output.sequencer_commitment_index_range();
-        if first_index == 0 {
-            println!("Batch proof sequencer commitment index range start is 0, commitment index cannot be 0, skipping");
-            return false;
-        }
         let batch_proof_output_sequencer_commitment_hashes =
             batch_proof_output.sequencer_commitment_hashes();
 
@@ -446,10 +438,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                             "Sequencer commitment sender is not sequencer, wtxid={:?}",
                             blob.wtxid()
                         );
-                        continue;
-                    }
-                    if commitment.index == 0 {
-                        println!("Commitment with index 0 detected, skipping");
                         continue;
                     }
                     if SequencerCommitmentAccessor::<S>::get(commitment.index, &mut working_set)
