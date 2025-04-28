@@ -1018,19 +1018,20 @@ mod tests {
             assert_eq!(partition.commitments.len(), 1);
         }
 
+        // override previous commitment index 1 here as well
+        let mut commitments = vec![SequencerCommitment {
+            merkle_root: [0; 32],
+            index: 1,
+            l2_end_block_number: 2,
+        }, SequencerCommitment {
+            merkle_root: [0; 32],
+            index: 2,
+            l2_end_block_number: 3,
+        }];
+        put_commitments(&prover.ledger_db, &commitments);
+
         // 2 consecutive small commitments should produce 1 partition
         {
-            let mut commitments = vec![SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 1,
-                l2_end_block_number: 2,
-            }, SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 2,
-                l2_end_block_number: 3,
-            }];
-            put_commitments(&prover.ledger_db, &commitments);
-
             let partitions = prover
                 .create_partitions(&mut commitments, PartitionMode::Normal)
                 .unwrap();
@@ -1039,6 +1040,24 @@ mod tests {
             assert_eq!(partition.start_height, 1);
             assert_eq!(partition.end_height, 3);
             assert_eq!(partition.commitments.len(), 2);
+        }
+
+        // test OneByOne partition mode
+        {
+            let partitions = prover
+                .create_partitions(&mut commitments, PartitionMode::OneByOne)
+                .unwrap();
+            assert_eq!(partitions.len(), 2);
+
+            let partition_1 = &partitions[0];
+            assert_eq!(partition_1.start_height, 1);
+            assert_eq!(partition_1.end_height, 2);
+            assert_eq!(partition_1.commitments.len(), 1);
+            
+            let partition_2 = &partitions[1];
+            assert_eq!(partition_2.start_height, 3);
+            assert_eq!(partition_2.end_height, 3);
+            assert_eq!(partition_2.commitments.len(), 1);
         }
 
         /*
