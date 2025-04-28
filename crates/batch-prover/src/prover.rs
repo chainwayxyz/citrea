@@ -891,16 +891,21 @@ mod tests {
 
     use citrea_common::BatchProverConfig;
     use prover_services::{ParallelProverService, ProofGenMode};
-    use sov_db::ledger_db::LedgerDB;
+    use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SharedLedgerOps};
     use sov_db::rocks_db_config::RocksdbConfig;
     use sov_db::schema::tables::BATCH_PROVER_LEDGER_TABLES;
+    use sov_db::schema::types::L2BlockNumber;
     use sov_mock_da::{MockAddress, MockDaService};
     use sov_mock_zkvm::MockZkvm;
+    use sov_modules_api::L2Block;
     use sov_prover_storage_manager::ProverStorageManager;
+    use sov_rollup_interface::block::{L2Header, SignedL2Header};
+    use sov_rollup_interface::da::SequencerCommitment;
     use tempfile::TempDir;
     use tokio::sync::{broadcast, mpsc};
 
     use super::{Prover, ProverRequest};
+    use crate::PartitionMode;
 
     struct MockProverData {
         prover: Prover<MockDaService, LedgerDB, MockZkvm>,
@@ -928,7 +933,7 @@ mod tests {
         })
         .unwrap();
         let da_service = Arc::new(MockDaService::new(
-            MockAddress::from([1; 32]),
+            MockAddress::from([2; 32]),
             tmpdir.path(),
         ));
         let vm = MockZkvm::new();
@@ -944,7 +949,7 @@ mod tests {
             ledger_db,
             storage_manager,
             prover_service,
-            vec![1; 32],
+            vec![2; 33],
             Default::default(),
             Default::default(),
             l1_signal_rx,
@@ -960,9 +965,50 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_commitment_partition() {
-        let MockProverData { prover, .. } = create_mock_prover();
+    fn put_l2_blocks(ledger_db: &LedgerDB, l2_block_data: Vec<(u64, usize)>) {
+        for (l2_height, diff_size) in l2_block_data {
+            let l2_block = L2Block::new(
+                SignedL2Header::new(
+                    L2Header::new(l2_height, [0; 32], [0; 32], 0, [0; 32], 0),
+                    [0; 32],
+                    vec![],
+                ),
+                vec![],
+            );
+            ledger_db.commit_l2_block(l2_block, vec![], None).unwrap();
+            // random key to ensure that with each block state size grows consistently
+            let state_key = Arc::from(rand::random::<u64>().to_le_bytes());
+            let state_value = Some(Arc::from(vec![1; diff_size]));
+            let state_diff = vec![(state_key, state_value)];
+            ledger_db
+                .set_l2_state_diff(L2BlockNumber(l2_height), state_diff)
+                .unwrap();
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn simple_commitment_partition() {
+        let MockProverData { mut prover, .. } = create_mock_prover();
+
+        // put 3 l2 blocks with 0 diff size
+        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0)]);
+
+        // 1 small commitment should produce 1 partition
+        {
+            let mut commitments = vec![SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 3,
+            }];
+            let partitions = prover
+                .create_partitions(&mut commitments, PartitionMode::Normal)
+                .unwrap();
+            assert_eq!(partitions.len(), 1);
+            let partition = &partitions[0];
+            assert_eq!(partition.start_height, 1);
+            assert_eq!(partition.end_height, 3);
+            assert_eq!(partition.commitments.len(), 1);
+        }
 
         /*
         1. 1 commitment -> 1 partition
