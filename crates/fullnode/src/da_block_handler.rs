@@ -140,6 +140,14 @@ where
         for commitment_or_proof in commitments_and_proofs {
             match commitment_or_proof {
                 ProofOrCommitment::Commitment(commitment) => {
+                    if commitment.index == 0 {
+                        // Skip the first commitment as it is not a sequencer commitment
+                        error!(
+                            "Detected sequencer commitment with index 0 at L1 height {}, skipping...",
+                            l1_block.header().height()
+                        );
+                        continue;
+                    }
                     if let Err(e) = self
                         .process_sequencer_commitment(l1_block, &commitment)
                         .await
