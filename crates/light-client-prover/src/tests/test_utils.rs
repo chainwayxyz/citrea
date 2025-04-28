@@ -42,7 +42,8 @@ pub(crate) fn create_mock_sequencer_commitment_blob(
     blob
 }
 
-pub(crate) fn create_mock_batch_proof(
+/// Used for testing batch proof with 0 prev index
+pub(crate) fn create_mock_batch_proof_with_0_prev_index(
     initial_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
@@ -58,6 +59,73 @@ pub(crate) fn create_mock_batch_proof(
         .map(|c| c.serialize_and_calculate_sha_256())
         .collect();
     let prev_index = if sequencer_commitments[0].index == 1 {
+        Some(0)
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
+
+    let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
+        state_roots,
+        final_l2_block_hash: [4; 32],
+        state_diff: BTreeMap::new(),
+        last_l2_height,
+        sequencer_commitment_hashes: commitment_hashes,
+        last_l1_hash_on_bitcoin_light_client_contract,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index: prev_index,
+        previous_commitment_hash: prev_commitment_hash,
+    });
+
+    let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
+
+    let serialized_journal =
+        borsh::to_vec(&MockJournal::Verifiable(bp_serialized.clone())).unwrap();
+
+    let mock_proof = MockProof {
+        program_id: batch_proof_method_id.clone(),
+        is_valid,
+        log: serialized_journal.clone(),
+    };
+
+    let mock_serialized = mock_proof.encode_to_vec();
+
+    let da_data = DataOnDa::Complete(mock_serialized);
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+
+    let blob = MockBlob::new(
+        da_data_ser,
+        MockAddress::new(batch_prover_da_pubkey),
+        [0u8; 32],
+        None,
+    );
+    blob.full_data();
+
+    blob
+}
+
+pub(crate) fn create_mock_batch_proof(
+    initial_state_root: [u8; 32],
+    last_l2_height: u64,
+    is_valid: bool,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    prev_commitment_hash: Option<[u8; 32]>,
+    batch_prover_da_pubkey: [u8; 32],
+) -> MockBlob {
+    let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
+
+    let commitment_hashes: Vec<[u8; 32]> = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect();
+    let prev_index = if sequencer_commitments[0].index <= 1 {
         None
     } else {
         Some(sequencer_commitments[0].index - 1)
