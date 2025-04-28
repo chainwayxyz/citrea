@@ -910,6 +910,13 @@ mod tests {
     use super::{Prover, ProverRequest};
     use crate::PartitionMode;
 
+    // This might be a bit problematic if another unit test in this crate wants
+    // to use different set of forks for any reason.
+    const TEST_FORKS: &'static [Fork] = &[
+        Fork::new(SpecId::Tangerine, 0),
+        Fork::new(SpecId::Fork3, 10),
+    ];
+
     struct MockProverData {
         prover: Prover<MockDaService, LedgerDB, MockZkvm>,
         _l1_signal_tx: mpsc::Sender<()>,
@@ -918,6 +925,8 @@ mod tests {
     }
 
     fn create_mock_prover() -> MockProverData {
+        let _ = FORKS.set(TEST_FORKS);
+
         let tmpdir = TempDir::new().unwrap();
         let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
             tmpdir.path(),
@@ -1160,31 +1169,31 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn commitment_partition_with_spec_change() {
-        const TEST_FORKS: &'static [Fork] = &[
-            Fork::new(SpecId::Tangerine, 0),
-            Fork::new(SpecId::Fork3, 2),
-        ];
-        FORKS.set(TEST_FORKS).unwrap();
-        
         let MockProverData { mut prover, .. } = create_mock_prover();
-        // put 3 l2 blocks
-        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0)]);
+        // put 4 l2 blocks where l2 blocks are switching to a new fork
+        put_l2_blocks(&prover.ledger_db, vec![(8, 0), (9, 0), (10, 0), (11, 0)]);
 
         let mut commitments = vec![
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 1,
-                l2_end_block_number: 1,
-            },
+            // index 2 is going to be filtered because index 1 is unknown
             SequencerCommitment {
                 merkle_root: [0; 32],
                 index: 2,
-                l2_end_block_number: 2,
+                l2_end_block_number: 7,
             },
             SequencerCommitment {
                 merkle_root: [0; 32],
                 index: 3,
-                l2_end_block_number: 3,
+                l2_end_block_number: 8,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 4,
+                l2_end_block_number: 10,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 5,
+                l2_end_block_number: 11,
             },
         ];
         put_commitments(&prover.ledger_db, &commitments);
@@ -1193,14 +1202,16 @@ mod tests {
             .create_partitions(&mut commitments, PartitionMode::Normal)
             .unwrap();
         assert_eq!(partitions.len(), 2);
+        // first partition is commitment index 3
         let partition_1 = &partitions[0];
-        assert_eq!(partition_1.start_height, 1);
-        assert_eq!(partition_1.end_height, 1);
+        assert_eq!(partition_1.start_height, 8);
+        assert_eq!(partition_1.end_height, 8);
         assert_eq!(partition_1.commitments.len(), 1);
 
+        // second partitions is commitment indices 4 and 5
         let partition_2 = &partitions[1];
-        assert_eq!(partition_2.start_height, 2);
-        assert_eq!(partition_2.end_height, 3);
+        assert_eq!(partition_2.start_height, 9);
+        assert_eq!(partition_2.end_height, 11);
         assert_eq!(partition_2.commitments.len(), 2);
     }
 }
