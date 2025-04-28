@@ -912,7 +912,7 @@ mod tests {
 
     // This might be a bit problematic if another unit test in this crate wants
     // to use different set of forks for any reason.
-    const TEST_FORKS: &'static [Fork] = &[
+    const TEST_FORKS: &[Fork] = &[
         Fork::new(SpecId::Tangerine, 0),
         Fork::new(SpecId::Fork3, 10),
     ];
