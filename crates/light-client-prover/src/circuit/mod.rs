@@ -60,17 +60,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_proof_output: &BatchProofCircuitOutput,
         working_set: &mut WorkingSet<S>,
     ) -> bool {
-        if !BlockHashAccessor::<S>::exists(
-            batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract(),
-            working_set,
-        ) {
-            println!(
-                "Block hash does not exist in the jmt state: {:?}",
-                batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract()
-            );
-            return false;
-        }
-
         match (
             batch_proof_output.previous_commitment_index(),
             batch_proof_output.previous_commitment_hash(),
