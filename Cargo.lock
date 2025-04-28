@@ -2430,7 +2430,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=27771a17c117589231b5e2197a16083a0d0672b9#27771a17c117589231b5e2197a16083a0d0672b9"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=2c84edf#2c84edf9c52305636c3095f923ca0eb8395ac086"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2648,8 +2648,6 @@ dependencies = [
  "citrea-primitives",
  "citrea-stf",
  "digest 0.10.7",
- "ed25519-dalek",
- "futures",
  "hex",
  "jsonrpsee",
  "l2-block-rule-enforcer",
@@ -2671,20 +2669,15 @@ dependencies = [
  "reth-trie",
  "revm",
  "rs_merkle",
- "schemars",
  "schnellru",
- "serde",
- "sha2 0.10.8",
  "sov-accounts",
  "sov-db",
  "sov-keys",
  "sov-modules-api",
- "sov-modules-core",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
- "thiserror 2.0.12",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.19",
@@ -3512,7 +3505,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8",
- "serde",
  "signature",
 ]
 

@@ -28,7 +28,6 @@ mod db_provider;
 mod deposit_data_mempool;
 mod mempool;
 mod metrics;
-pub mod reorg;
 pub mod rpc;
 mod runner;
 mod utils;
