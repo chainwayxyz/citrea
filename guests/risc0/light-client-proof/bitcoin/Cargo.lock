@@ -1527,6 +1527,7 @@ dependencies = [
  "citrea-primitives",
  "citrea-risc0-adapter",
  "citrea-risc0-batch-proof",
+ "risc0-bigint2",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-modules-api",
@@ -1864,9 +1865,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-bigint2"
-version = "1.4.1"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "936616ad8d3bd4d54b0c2f2f621652dc5ec630e3fc3dba32bcfcb1475c6af4f7"
+checksum = "921e2d3d07a327750f657c0d42cf9437024583b218ad05b24b91a557f5d01979"
 dependencies = [
  "include_bytes_aligned",
  "stability",
