@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 pub struct SequencerMetrics {
     #[metric(describe = "How many transactions are currently in the mempool")]
     pub mempool_txs: Gauge,
-    #[metric(describe = "How many transactions are currently in the mempool")]
+    #[metric(describe = "An ever increasing transactions count into the mempool")]
     pub mempool_txs_inc: Counter,
     #[metric(describe = "The duration of dry running transactions")]
     pub dry_run_execution: Histogram,
