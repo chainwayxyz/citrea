@@ -130,49 +130,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         })
     }
 
-    /// Creates a new reorging sequencer
-    #[instrument(level = "trace", skip_all)]
-    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-    fn create_reorg_sequencer(
-        &self,
-        genesis_config: GenesisParams<Self>,
-        sequencer_config: SequencerConfig,
-        da_service: Arc<<Self as RollupBlueprint>::DaService>,
-        ledger_db: LedgerDB,
-        storage_manager: ProverStorageManager,
-        rpc_module: RpcModule<()>,
-        l2_block_tx: broadcast::Sender<u64>,
-        task_executor: TaskExecutor,
-    ) -> Result<(
-        citrea_sequencer::reorg::syncing::CitreaReorgSequencer<Self::DaService, LedgerDB>,
-        RpcModule<()>,
-    )> {
-        let current_l2_height = ledger_db
-            .get_head_l2_block()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
-            .map(|(l2_height, _)| l2_height)
-            .unwrap_or(L2BlockNumber(0));
-
-        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
-        fork_manager.register_handler(Box::new(ledger_db.clone()));
-
-        let native_stf = StfBlueprint::new();
-        let init_params =
-            self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
-
-        citrea_sequencer::reorg::build_reorg_services(
-            sequencer_config,
-            init_params,
-            native_stf,
-            da_service,
-            ledger_db,
-            storage_manager,
-            rpc_module,
-            l2_block_tx,
-            task_executor,
-        )
-    }
-
     /// In case of an interrupt between l2 block commits of StateDB and LedgerDB,
     /// this function rollbacks dbs to the LedgerDB version.
     async fn sync_ledger_and_state_db(

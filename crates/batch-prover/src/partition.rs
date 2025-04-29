@@ -122,6 +122,7 @@ impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
 }
 
 /// Helper wrapper struct to hold start and end heights with the commitment partition
+#[derive(Debug)]
 pub struct Partition<'a> {
     pub commitments: &'a [SequencerCommitment],
     pub start_height: u64,
