@@ -64,6 +64,7 @@ contract Bridge is Ownable2StepUpgradeable {
     event ReplaceScriptUpdate(bytes replacePrefix, bytes replaceSuffix);
     event DepositReplaced(uint256 index, bytes32 oldTxId, bytes32 newTxId);
     event OperatorUpdated(address oldOperator, address newOperator);
+    event FailedDepositVaultUpdated(address oldVault, address newVault);
     event DepositTransferFailed(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
 
     modifier onlySystem() {
@@ -97,9 +98,12 @@ contract Bridge is Ownable2StepUpgradeable {
 
         // Set initial operator to SYSTEM_CALLER
         operator = SYSTEM_CALLER;
+        // Set initial failed deposit vault to pre-deployed vault
+        failedDepositVault = address(0x3100000000000000000000000000000000000007);
         
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
+        emit FailedDepositVaultUpdated(address(0), address(0x3100000000000000000000000000000000000007));
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
@@ -132,7 +136,9 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param _failedDepositVault The address of the failed deposit vault
     function setFailedDepositVault(address _failedDepositVault) external onlyOwner {
         require(_failedDepositVault != address(0), "Invalid address");
+        address oldVault = failedDepositVault;
         failedDepositVault = _failedDepositVault;
+        emit FailedDepositVaultUpdated(oldVault, _failedDepositVault);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
