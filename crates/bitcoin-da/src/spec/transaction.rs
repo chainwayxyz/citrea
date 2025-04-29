@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, PartialEq, Eq, Debug, Hash, Deserialize, Serialize)]
 #[repr(transparent)]
 #[serde(transparent)]
-pub struct TransactionWrapper(Transaction);
+pub struct TransactionWrapper(pub(crate) Transaction);
 
 impl TransactionWrapper {
     pub fn empty() -> Self {

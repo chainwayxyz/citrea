@@ -12,12 +12,19 @@ use anyhow::{anyhow, bail, Context};
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
+use bitcoin::absolute::LockTime;
 use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
-use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
+use bitcoin::transaction::Version;
+use bitcoin::{
+    Amount, BlockHash, CompactTarget, OutPoint, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
+    Wtxid,
+};
+use bitcoincore_rpc::json::{
+    GetRawTransactionResult, SignRawTransactionInput, TestMempoolAcceptResult,
+};
 use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
@@ -35,7 +42,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::error::BitcoinServiceError;
+use crate::error::{BitcoinServiceError, BitcoinTxConversionError};
 use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::builders::body_builders::{
     backup_chunked_txs, backup_complete_txs, create_light_client_transactions, DaTxs, RawTxData,
@@ -847,6 +854,7 @@ impl DaService for BitcoinService {
     ) -> Vec<(usize, Proof)> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
+        let mut chunks = std::collections::HashMap::new();
 
         for (i, tx) in block.txdata.iter().enumerate() {
             if !tx
@@ -893,7 +901,9 @@ impl DaService for BitcoinService {
                         }
                     }
                     ParsedTransaction::Chunk(_chunk) => {
-                        // we ignore them for now
+                        // This is stored so we can see which chunk has what index
+                        // This will help determine which comes first if in the same block aggregate or chunk
+                        chunks.insert(tx_id, i);
                     }
                     ParsedTransaction::BatchProverMethodId(_) => {
                         // ignore because these are not proofs
@@ -923,11 +933,11 @@ impl DaService for BitcoinService {
             }
             for chunk_id in chunk_ids {
                 let chunk_id = Txid::from_byte_array(chunk_id);
+                let exponential_backoff = ExponentialBackoff::default();
                 let tx_raw = {
-                    let exponential_backoff = ExponentialBackoff::default();
-                    let res = retry_backoff(exponential_backoff, || async move {
+                    let res = retry_backoff(exponential_backoff.clone(), || async move {
                         self.client
-                            .get_raw_transaction(&chunk_id, None)
+                            .get_raw_transaction_info(&chunk_id, None)
                             .await
                             .map_err(|e| match e {
                                 BitcoinError::Io(_) => backoff::Error::transient(e),
@@ -944,7 +954,57 @@ impl DaService for BitcoinService {
                     }
                 };
 
-                let wrapped: TransactionWrapper = tx_raw.into();
+                let tx_block_height = if let Some(tx_block_hash) = tx_raw.blockhash {
+                    let res = retry_backoff(exponential_backoff, || async move {
+                        self.client
+                            .get_block_info(&tx_block_hash)
+                            .await
+                            .map_err(|e| match e {
+                                BitcoinError::Io(_) => backoff::Error::transient(e),
+                                _ => backoff::Error::permanent(e),
+                            })
+                    })
+                    .await;
+                    match res {
+                        Ok(r) => r.height,
+                        Err(e) => {
+                            error!(
+                                "Failed to request block by block hash:{:?} Error: {e}",
+                                tx_block_hash
+                            );
+                            continue 'aggregate;
+                        }
+                    }
+                } else {
+                    continue 'aggregate;
+                };
+                if tx_block_height > block.header.height as usize {
+                    // This means the chunk comes after the aggregate in a future block
+                    // This is not a valid case because lcp expects all chunks to come before their aggregate
+                    error!("{}:{}: Chunk comes after aggregate", tx_id, chunk_id);
+                    continue 'aggregate;
+                }
+                if tx_block_height == block.header.height as usize {
+                    if let Some(chunk_idx) = chunks.get(&chunk_id) {
+                        if *chunk_idx >= i {
+                            // This means the chunk comes after the aggregate in the same block
+                            // This is not a valid case because lcp expects all chunks to come before their aggregate
+                            error!("{}:{}: Chunk comes after aggregate", tx_id, chunk_id);
+                            continue 'aggregate;
+                        }
+                    } else {
+                        // This means the block hashes are somehow different
+                        // Should be infallible
+                        unreachable!("{}:{}: Chunk not found in chunks map", tx_id, chunk_id);
+                    }
+                }
+                let wrapped: TransactionWrapper = match tx_raw.try_into() {
+                    Ok(tx) => tx,
+                    Err(e) => {
+                        error!("Failed to parse raw transaction of chunk with tx id: {} to wrapped transaction Error: {e}", tx_id);
+                        continue 'aggregate;
+                    }
+                };
                 let parsed = match parse_relevant_transaction(&wrapped) {
                     Ok(r) => r,
                     Err(e) => {
@@ -1396,4 +1456,62 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         })
         .collect();
     BitcoinMerkleTree::new(hashes).root()
+}
+
+impl TryFrom<GetRawTransactionResult> for TransactionWrapper {
+    type Error = BitcoinServiceError;
+
+    fn try_from(value: GetRawTransactionResult) -> Result<Self> {
+        let inputs: Result<Vec<_>> = value
+            .vin
+            .into_iter()
+            .map(|vin| {
+                Ok(TxIn {
+                    previous_output: OutPoint {
+                        txid: bitcoin::Txid::from_byte_array(
+                            vin.txid
+                                .ok_or(BitcoinServiceError::TxConversionError(
+                                    BitcoinTxConversionError::InputTxidNotFound,
+                                ))?
+                                .to_byte_array(),
+                        ),
+                        vout: vin.vout.unwrap_or_default(),
+                    },
+                    script_sig: vin
+                        .script_sig
+                        .ok_or(BitcoinServiceError::TxConversionError(
+                            BitcoinTxConversionError::ScriptSigNotFound,
+                        ))?
+                        .script()
+                        .expect("Infallible"),
+                    sequence: Sequence(vin.sequence),
+                    witness: Witness::from(vin.txinwitness.ok_or(
+                        BitcoinServiceError::TxConversionError(
+                            BitcoinTxConversionError::WitnessNotFound,
+                        ),
+                    )?),
+                })
+            })
+            .collect();
+
+        let outputs: Result<Vec<_>> = value
+            .vout
+            .into_iter()
+            .map(|vout| {
+                Ok(TxOut {
+                    value: vout.value,
+                    script_pubkey: vout.script_pub_key.script().expect("Infallible"),
+                })
+            })
+            .collect();
+
+        let res = Self(Transaction {
+            version: Version(value.version as i32),
+            lock_time: LockTime::from_consensus(value.locktime),
+            input: inputs?,
+            output: outputs?,
+        });
+
+        Ok(res)
+    }
 }
