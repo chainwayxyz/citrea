@@ -884,3 +884,334 @@ fn extract_proof_output<Vm: ZkvmHost>(
     debug!("circuit output: {:?}", output);
     output
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use citrea_common::BatchProverConfig;
+    use citrea_primitives::forks::FORKS;
+    use citrea_primitives::MAX_TXBODY_SIZE;
+    use prover_services::{ParallelProverService, ProofGenMode};
+    use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SharedLedgerOps};
+    use sov_db::rocks_db_config::RocksdbConfig;
+    use sov_db::schema::tables::BATCH_PROVER_LEDGER_TABLES;
+    use sov_db::schema::types::L2BlockNumber;
+    use sov_mock_da::{MockAddress, MockDaService};
+    use sov_mock_zkvm::MockZkvm;
+    use sov_modules_api::fork::Fork;
+    use sov_modules_api::{L2Block, SpecId};
+    use sov_prover_storage_manager::ProverStorageManager;
+    use sov_rollup_interface::block::{L2Header, SignedL2Header};
+    use sov_rollup_interface::da::SequencerCommitment;
+    use tempfile::TempDir;
+    use tokio::sync::{broadcast, mpsc};
+
+    use super::{Prover, ProverRequest};
+    use crate::PartitionMode;
+
+    // This might be a bit problematic if another unit test in this crate wants
+    // to use different set of forks for any reason.
+    const TEST_FORKS: &[Fork] = &[
+        Fork::new(SpecId::Tangerine, 0),
+        Fork::new(SpecId::Fork3, 10),
+    ];
+
+    struct MockProverData {
+        prover: Prover<MockDaService, LedgerDB, MockZkvm>,
+        _l1_signal_tx: mpsc::Sender<()>,
+        _l2_block_tx: broadcast::Sender<u64>,
+        _request_tx: mpsc::Sender<ProverRequest>,
+    }
+
+    fn create_mock_prover() -> MockProverData {
+        let _ = FORKS.set(TEST_FORKS);
+
+        let tmpdir = TempDir::new().unwrap();
+        let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
+            tmpdir.path(),
+            None,
+            Some(
+                BATCH_PROVER_LEDGER_TABLES
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+            ),
+        ))
+        .unwrap();
+        let storage_manager = ProverStorageManager::new(sov_state::Config {
+            path: tmpdir.path().to_path_buf(),
+            db_max_open_files: None,
+        })
+        .unwrap();
+        let da_service = Arc::new(MockDaService::new(
+            MockAddress::from([2; 32]),
+            tmpdir.path(),
+        ));
+        let vm = MockZkvm::new();
+        let prover_service =
+            Arc::new(ParallelProverService::new(da_service, vm, ProofGenMode::Execute, 1).unwrap());
+
+        let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);
+        let (l2_block_tx, l2_block_rx) = broadcast::channel(4);
+        let (request_tx, request_rx) = mpsc::channel(4);
+
+        let prover = Prover::new(
+            BatchProverConfig::default(),
+            ledger_db,
+            storage_manager,
+            prover_service,
+            vec![2; 33],
+            Default::default(),
+            Default::default(),
+            l1_signal_rx,
+            l2_block_rx,
+            request_rx,
+        );
+
+        MockProverData {
+            prover,
+            _l1_signal_tx: l1_signal_tx,
+            _l2_block_tx: l2_block_tx,
+            _request_tx: request_tx,
+        }
+    }
+
+    fn put_l2_blocks(ledger_db: &LedgerDB, l2_block_data: Vec<(u64, usize)>) {
+        for (l2_height, diff_size) in l2_block_data {
+            let l2_block = L2Block::new(
+                SignedL2Header::new(
+                    L2Header::new(l2_height, [0; 32], [0; 32], 0, [0; 32], 0),
+                    [0; 32],
+                    vec![],
+                ),
+                vec![],
+            );
+            ledger_db.commit_l2_block(l2_block, vec![], None).unwrap();
+            // random key to ensures that with each block state size grows consistently
+            let state_key = Arc::from(rand::random::<u64>().to_le_bytes());
+            // random value ensures that the borsh can not compress properly
+            let state_value = Some(Arc::from_iter(
+                vec![0; diff_size].into_iter().map(|_| rand::random::<u8>()),
+            ));
+            let state_diff = vec![(state_key, state_value)];
+            ledger_db
+                .set_l2_state_diff(L2BlockNumber(l2_height), state_diff)
+                .unwrap();
+        }
+    }
+
+    fn put_commitments(ledger_db: &LedgerDB, commitments: &[SequencerCommitment]) {
+        for commitment in commitments {
+            ledger_db.put_commitment_by_index(commitment).unwrap();
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn simple_commitment_partition() {
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        // put 3 l2 blocks with 0 diff size
+        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0)]);
+
+        // 1 small commitment should produce 1 partition
+        {
+            let mut commitments = vec![SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 3,
+            }];
+            put_commitments(&prover.ledger_db, &commitments);
+
+            let partitions = prover
+                .create_partitions(&mut commitments, PartitionMode::Normal)
+                .unwrap();
+            assert_eq!(partitions.len(), 1);
+            let partition = &partitions[0];
+            assert_eq!(partition.start_height, 1);
+            assert_eq!(partition.end_height, 3);
+            assert_eq!(partition.commitments.len(), 1);
+        }
+
+        // override previous commitment index 1 here as well
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 2,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 3,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        // 2 consecutive small commitments should produce 1 partition
+        {
+            let partitions = prover
+                .create_partitions(&mut commitments, PartitionMode::Normal)
+                .unwrap();
+            assert_eq!(partitions.len(), 1);
+            let partition = &partitions[0];
+            assert_eq!(partition.start_height, 1);
+            assert_eq!(partition.end_height, 3);
+            assert_eq!(partition.commitments.len(), 2);
+        }
+
+        // test OneByOne partition mode
+        {
+            let partitions = prover
+                .create_partitions(&mut commitments, PartitionMode::OneByOne)
+                .unwrap();
+            assert_eq!(partitions.len(), 2);
+
+            let partition_1 = &partitions[0];
+            assert_eq!(partition_1.start_height, 1);
+            assert_eq!(partition_1.end_height, 2);
+            assert_eq!(partition_1.commitments.len(), 1);
+
+            let partition_2 = &partitions[1];
+            assert_eq!(partition_2.start_height, 3);
+            assert_eq!(partition_2.end_height, 3);
+            assert_eq!(partition_2.commitments.len(), 1);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_partition_with_index_gap() {
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        // put 4 l2 blocks
+        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0), (4, 0)]);
+
+        // commitments with index gap should create 2 partitions
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 1,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 3,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 4,
+                l2_end_block_number: 4,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        let partition_1 = &partitions[0];
+        assert_eq!(partition_1.start_height, 1);
+        assert_eq!(partition_1.end_height, 1);
+        assert_eq!(partition_1.commitments.len(), 1);
+        // index 3 should be filtered due to prev missing, and index 4 should be the 2nd partition
+        let partition_2 = &partitions[1];
+        assert_eq!(partition_2.start_height, 4);
+        assert_eq!(partition_2.end_height, 4);
+        assert_eq!(partition_2.commitments.len(), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_partition_with_state_diff() {
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        // put 3 l2 blocks with total state diff of 1.33 * maxsize
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![
+                (1, 0),
+                (2, MAX_TXBODY_SIZE * 2 / 3),
+                (3, MAX_TXBODY_SIZE * 2 / 3),
+            ],
+        );
+
+        // commitments with big state diff will create partitions (block 2 and 3)
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 1,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 2,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 3,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        let partition_1 = &partitions[0];
+        assert_eq!(partition_1.start_height, 1);
+        assert_eq!(partition_1.end_height, 2);
+        assert_eq!(partition_1.commitments.len(), 2);
+
+        let partition_2 = &partitions[1];
+        assert_eq!(partition_2.start_height, 3);
+        assert_eq!(partition_2.end_height, 3);
+        assert_eq!(partition_2.commitments.len(), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_partition_with_spec_change() {
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        // put 4 l2 blocks where l2 blocks are switching to a new fork
+        put_l2_blocks(&prover.ledger_db, vec![(8, 0), (9, 0), (10, 0), (11, 0)]);
+
+        let mut commitments = vec![
+            // index 2 is going to be filtered because index 1 is unknown
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 7,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 8,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 4,
+                l2_end_block_number: 10,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 5,
+                l2_end_block_number: 11,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // first partition is commitment index 3
+        let partition_1 = &partitions[0];
+        assert_eq!(partition_1.start_height, 8);
+        assert_eq!(partition_1.end_height, 8);
+        assert_eq!(partition_1.commitments.len(), 1);
+
+        // second partitions is commitment indices 4 and 5
+        let partition_2 = &partitions[1];
+        assert_eq!(partition_2.start_height, 9);
+        assert_eq!(partition_2.end_height, 11);
+        assert_eq!(partition_2.commitments.len(), 2);
+    }
+}
