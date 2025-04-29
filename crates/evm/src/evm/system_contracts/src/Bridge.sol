@@ -143,6 +143,9 @@ contract Bridge is Ownable2StepUpgradeable {
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param moveTp Transaction parameters of the move transaction on Bitcoin
+    /// @param shaScriptPubkeys The SHA256 of spent output's, which is the sole input of the move tx, scriptPubKey (see BIP-341)
+    /// @dev `shaScriptPubkeys` is the only component of the P2TR message hash that cannot be derived solely on the transaction itself in our case,
+    /// as it requires knowledge of the previous transaction output that is being spent. Thus we calculate this component off-chain and pass it as a parameter.
     function deposit(
         TransactionParams calldata moveTp,
         bytes32 shaScriptPubkeys
@@ -150,26 +153,34 @@ contract Bridge is Ownable2StepUpgradeable {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
-        
+
+        // Validate that the move transaction is properly formatted and is included in a Bitcoin block
+        (bytes32 wtxId, uint256 nIns) = validateAndCheckInclusion(moveTp);
+        require(nIns == 1, "Only one input allowed");
+
+        // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = moveTp.vin.extractInputAtIndex(0);
         bytes memory output = moveTp.vout.slice(1, moveTp.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
+
+        // Verify the P2TR Schnorr signature from n-of-n which is included in move transaction
         verifySigInTx(input, output, witness0, moveTp.version, moveTp.locktime, shaScriptPubkeys);
 
-        (bytes32 wtxId, uint256 nIns) = validateAndCheckInclusion(moveTp);
-        require(nIns == 1, "Only one input allowed");
+        // Nullify the move transaction based on txId
         bytes32 txId = ValidateSPV.calculateTxId(moveTp.version, moveTp.vin, moveTp.vout, moveTp.locktime);
-
-        require(processedTxIds[txId] == false, "txId already spent");
+        require(!processedTxIds[txId], "txId already spent");
         processedTxIds[txId] = true;
         depositTxIds.push(txId);
         
+        // Our P2TR script path spend unlocking witness should have exactly 3 witness items
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
-        require(nItems == 3, "Invalid witness items"); // musig + script + witness script
+        require(nItems == 3, "Invalid witness items"); // musig signature + script + witness script
 
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig signature
+        // Unlocking witness script is consisted of a fixed prefix and suffix part with a variable receiver address in between
         uint256 prefixLen = depositPrefix.length;
         uint256 suffixLen = depositSuffix.length;
+        // Assert if the parsed script is of the correct length, and that it starts with the prefix and ends with the suffix
         require(script.length == prefixLen + 20 + suffixLen, "Invalid script length");
         bytes memory _depositPrefix = script.slice(0, prefixLen);
         require(isBytesEqual(_depositPrefix, depositPrefix), "Invalid deposit script");
@@ -236,34 +247,49 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
     /// @param replaceTp Transaction parameters of the replacement transaction on Bitcoin
     /// @param index The index of the deposit transaction to be replaced in the `depositTxIds` array
+    /// @param shaScriptPubkeys The SHA256 of spent outputs' scriptPubKey (see BIP-341)
+    /// @dev `shaScriptPubkeys` is the only component of the P2TR message hash that cannot be derived solely on the transaction itself in our case,
+    /// as it requires knowledge of the previous transaction output that is being spent. Thus we calculate this component off-chain and pass it as a parameter.
     function replaceDeposit(TransactionParams calldata replaceTp, uint256 index, bytes32 shaScriptPubkeys) external onlyOperator {
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
-        bytes memory input = replaceTp.vin.extractInputAtIndex(0);
-        bytes memory output = replaceTp.vout.slice(1, replaceTp.vout.length - 1);
-
-        verifySigInTx(input, output, witness0, replaceTp.version, replaceTp.locktime, shaScriptPubkeys);
-        validateAndCheckInclusion(replaceTp);
         require(index < depositTxIds.length, "Invalid index");
         require(replacePrefix.length != 0, "Replace script is not set");
+        
+        // Validate that the replace transaction is properly formatted and is included in a Bitcoin block
+        validateAndCheckInclusion(replaceTp);
 
+        // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
+        bytes memory input = replaceTp.vin.extractInputAtIndex(0);
+        bytes memory output = replaceTp.vout.slice(1, replaceTp.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTp.witness, 0);
+
+        // Verify the P2TR Schnorr signature from n-of-n which is included in replace transaction
+        verifySigInTx(input, output, witness0, replaceTp.version, replaceTp.locktime, shaScriptPubkeys);
+
+        // Nullify the replace transaction based on txId
+        bytes32 newTxId = ValidateSPV.calculateTxId(replaceTp.version, replaceTp.vin, replaceTp.vout, replaceTp.locktime);
+        require(!processedTxIds[newTxId], "txId already used to replace");
+        processedTxIds[newTxId] = true;
+        // Cache the existing txId to be replaced before overwriting it
         bytes32 txIdToReplace = depositTxIds[index];
-        (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
-        require(nItems == 3, "Invalid witness items"); // musig + script + witness script        
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
+        depositTxIds[index] = newTxId;
 
+        (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
+        // Our P2TR script path spend unlocking witness should have exactly 3 witness items
+        require(nItems == 3, "Invalid witness items"); // musig signature + script + witness script
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig signature
+
+        // Unlocking witness script is consisted of a fixed prefix and suffix part with a variable txId of the transaction to be replaced in between
         uint256 prefixLen = replacePrefix.length;
         uint256 suffixLen = replaceSuffix.length;
+        // Assert if the parsed script is of the correct length, and that it starts with the prefix and ends with the suffix
         require(script.length == prefixLen + 32 + suffixLen, "Invalid script length");
         bytes memory _replacePrefix = script.slice(0, prefixLen);
         require(isBytesEqual(_replacePrefix, replacePrefix), "Invalid replace script prefix");
         bytes memory _replaceSuffix = script.slice(script.length - suffixLen, suffixLen);
         require(isBytesEqual(_replaceSuffix, replaceSuffix), "Invalid replace script suffix");
+
         bytes32 txId = extractTxId(script);
         require(txId == txIdToReplace, "Invalid txId to replace provided");
-
-        bytes32 newTxId = ValidateSPV.calculateTxId(replaceTp.version, replaceTp.vin, replaceTp.vout, replaceTp.locktime);
-        depositTxIds[index] = newTxId;
-        processedTxIds[newTxId] = true;
 
         emit DepositReplaced(index, txId, newTxId);
     }
@@ -346,6 +372,7 @@ contract Bridge is Ownable2StepUpgradeable {
         }
     }
 
+    /// @notice Verifies a P2TR signature by reconstructing the message hash and checking it against the provided signature, see BIP-341
     function verifySigInTx(bytes memory input, bytes memory output, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) internal view {
         bytes32 shaPrevouts = sha256(input.extractOutpoint());
         bytes32 shaAmounts = sha256(abi.encodePacked(bytes8(BTCUtils.reverseUint64(uint64(depositAmount/(10**10)))))); // 1000000000 in LE
@@ -361,10 +388,11 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes memory signatureWithLen = witness0.extractItemFromWitness(0);
         bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
         bytes memory aggregatedKey = getAggregatedKey();
-        require(isP2TRSigValid(aggregatedKey, messageHash, signature), "Invalid signature");
+        require(isSchnorrSigValid(aggregatedKey, messageHash, signature), "Invalid signature");
     }
 
-    function isP2TRSigValid(bytes memory aggregatedKey, bytes32 messageHash, bytes memory signature) internal view returns (bool isValid) {
+    /// @notice Checks if a Schnorr signature is valid by calling Citrea's Schnorr signature verification precompile at 0x200
+    function isSchnorrSigValid(bytes memory aggregatedKey, bytes32 messageHash, bytes memory signature) internal view returns (bool isValid) {
         require(signature.length == 64, "Invalid signature length");
         (, bytes memory result) = address(0x200).staticcall(abi.encodePacked(aggregatedKey, messageHash, signature));
         isValid = abi.decode(result, (bool));
