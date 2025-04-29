@@ -55,6 +55,8 @@ contract Bridge is Ownable2StepUpgradeable {
     bytes32[] public depositTxIds;
 
     mapping(bytes32 => bool) public processedTxIds;
+
+    address public failedDepositVault;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -62,6 +64,7 @@ contract Bridge is Ownable2StepUpgradeable {
     event ReplaceScriptUpdate(bytes replacePrefix, bytes replaceSuffix);
     event DepositReplaced(uint256 index, bytes32 oldTxId, bytes32 newTxId);
     event OperatorUpdated(address oldOperator, address newOperator);
+    event DepositTransferFailed(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -125,6 +128,13 @@ contract Bridge is Ownable2StepUpgradeable {
         emit ReplaceScriptUpdate(_replacePrefix, _replaceSuffix);
     }
 
+    /// @notice Sets the address of the failed deposit vault
+    /// @param _failedDepositVault The address of the failed deposit vault
+    function setFailedDepositVault(address _failedDepositVault) external onlyOwner {
+        require(_failedDepositVault != address(0), "Invalid address");
+        failedDepositVault = _failedDepositVault;
+    }
+
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param moveTp Transaction parameters of the move transaction on Bitcoin
     function deposit(
@@ -161,10 +171,16 @@ contract Bridge is Ownable2StepUpgradeable {
         require(isBytesEqual(_depositSuffix, depositSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
-        emit Deposit(wtxId, txId, recipient, block.timestamp, depositTxIds.length - 1);
 
         (bool success, ) = recipient.call{value: depositAmount}("");
-        require(success, "Transfer failed");
+        if(!success) {
+            // If the transfer fails, we send the funds to the failed deposit vault
+            emit DepositTransferFailed(wtxId, txId, recipient, block.timestamp, depositTxIds.length - 1);
+            (success, ) = failedDepositVault.call{value: depositAmount}("");
+            require(success, "Failed to send to failed deposit vault");
+        } else {
+            emit Deposit(wtxId, txId, recipient, block.timestamp, depositTxIds.length - 1);
+        }
     }
 
     /// @notice Accepts 1 cBTC from the sender and inserts this withdrawal request of 1 BTC on Bitcoin into the withdrawals array so that later on can be processed by the operator 

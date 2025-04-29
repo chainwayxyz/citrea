@@ -8,13 +8,6 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
 
 import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
-
-
-import "../src/BitcoinLightClient.sol";
-import "../src/Bridge.sol";
-import "../src/BaseFeeVault.sol";
-import "../src/L1FeeVault.sol";
-import "../src/PriorityFeeVault.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 
 // Taken from Optimism
@@ -115,33 +108,24 @@ contract GenesisGenerator is Script {
     }
 
     function setProxyAdmin() internal {
-        address proxyAdminImpl = address(new ProxyAdmin());
-        vm.etch(proxyAdmin, proxyAdminImpl.code);
+        vm.etch(proxyAdmin, vm.getDeployedCode("ProxyAdmin"));
         vm.store(proxyAdmin, bytes32(0), bytes32(uint256(uint160(upgradeOwner))));
-        // Remove init proxy impl code from genesis state as it is already copied
-        vm.etch(proxyAdminImpl, "");
-        vm.resetNonce(proxyAdminImpl);
-        vm.store(proxyAdminImpl, bytes32(0), bytes32(0));
     }
 
     function setContracts() internal {
-        deployContract(address(new BitcoinLightClient()), 1);
-        deployContract(address(new Bridge()), 2);
-        deployContract(address(new BaseFeeVault()), 3);
-        deployContract(address(new L1FeeVault()), 4);
-        deployContract(address(new PriorityFeeVault()), 5);
+        deployContract("BitcoinLightClient.sol:BitcoinLightClient", 1);
+        deployContract("Bridge", 2);
+        deployContract("BaseFeeVault", 3);
+        deployContract("L1FeeVault", 4);
+        deployContract("PriorityFeeVault", 5);
         deployWCBTC();
+        deployContract("FailedDepositVault", 7);
     }
 
-    function deployContract(address initImpl, uint160 index) internal {
+    function deployContract(string memory contractName, uint160 index) internal {
         address namespacedProxy = address(uint160(0x3100000000000000000000000000000000000000) + index);
         address namespacedImpl = address(uint160(namespacedProxy) + PROXY_IMPL_OFFSET);
-        vm.etch(namespacedImpl, initImpl.code);
-
-        // Remove init impl code from genesis state as it is already copied
-        vm.etch(initImpl, "");
-        vm.resetNonce(initImpl);
-
+        vm.etch(namespacedImpl, vm.getDeployedCode(contractName));
         address initProxyImpl = address(new TransparentUpgradeableProxy(namespacedImpl, proxyAdmin, ""));
         vm.etch(namespacedProxy, initProxyImpl.code);
         vm.store(namespacedProxy, IMPLEMENTATION_SLOT, bytes32(uint256(uint160(namespacedImpl))));
@@ -153,7 +137,7 @@ contract GenesisGenerator is Script {
         }
 
         // Fee vault contracts have a fee recipient and min withdraw amount
-        if ((index >= 3) && (index <= 5)) {
+        if ((index >= 3) && (index <= 7)) {
             vm.store(namespacedProxy, OWNER_SLOT, bytes32(uint256(uint160(feeVaultOwner))));
             vm.store(namespacedProxy, FEE_RECIPIENT_SLOT, bytes32(uint256(uint160(feeRecipient))));
             vm.store(namespacedProxy, MIN_WITHDRAW_SLOT, bytes32(uint256(0.5 ether)));
