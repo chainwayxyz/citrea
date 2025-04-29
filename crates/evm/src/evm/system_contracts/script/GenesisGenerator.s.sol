@@ -108,13 +108,8 @@ contract GenesisGenerator is Script {
     }
 
     function setProxyAdmin() internal {
-        address proxyAdminImpl = address(new ProxyAdmin());
-        vm.etch(proxyAdmin, proxyAdminImpl.code);
+        vm.etch(proxyAdmin, vm.getDeployedCode("ProxyAdmin"));
         vm.store(proxyAdmin, bytes32(0), bytes32(uint256(uint160(upgradeOwner))));
-        // Remove init proxy impl code from genesis state as it is already copied
-        vm.etch(proxyAdminImpl, "");
-        vm.resetNonce(proxyAdminImpl);
-        vm.store(proxyAdminImpl, bytes32(0), bytes32(0));
     }
 
     function setContracts() internal {
