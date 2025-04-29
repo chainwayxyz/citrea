@@ -6,32 +6,49 @@ pub const MAINNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_target: U256::from_be_hex(
         "00000000FFFF0000000000000000000000000000000000000000000000000000",
     ),
+    // TODO: TBD before mainnet
+    finality_depth: 8,
 };
 pub const TESTNET4_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1D00FFFF,
     max_target: U256::from_be_hex(
         "00000000FFFF0000000000000000000000000000000000000000000000000000",
     ),
+    finality_depth: 100,
 };
 pub const SIGNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1E0377AE,
     max_target: U256::from_be_hex(
         "00000377AE000000000000000000000000000000000000000000000000000000",
     ),
+    finality_depth: 5,
 };
 pub const REGTEST_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x207FFFFF,
     max_target: U256::from_be_hex(
         "7FFFFF0000000000000000000000000000000000000000000000000000000000",
     ),
+    finality_depth: 5,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+pub fn get_network_constants(network: &bitcoin::Network) -> NetworkConstants {
+    match network {
+        bitcoin::Network::Bitcoin => MAINNET_CONSTANTS,
+        bitcoin::Network::Testnet | bitcoin::Network::Testnet4 => TESTNET4_CONSTANTS,
+        bitcoin::Network::Signet => SIGNET_CONSTANTS,
+        bitcoin::Network::Regtest => REGTEST_CONSTANTS,
+        _ => unreachable!("Unsupport network"),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NetworkConstants {
     /// Maximum bits of the chain
     pub max_bits: u32,
     /// Maximum target of the chain
     pub max_target: U256,
+    /// Network finality depth
+    pub finality_depth: u64,
 }
 
 pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {

@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::SequencerConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -88,7 +88,9 @@ impl TestCase for SequencerMissedDaBlocksTest {
         ))
         .await?;
 
-        let init_da_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
+        let init_da_height = da
+            .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+            .await?;
 
         // Create initial DA blocks
         da.generate(3).await?;

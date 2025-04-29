@@ -9,6 +9,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
+use citrea_common::utils::read_env;
 use citrea_common::FromEnv;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -20,7 +21,6 @@ use tokio::time::interval;
 use tracing::{debug, error, info, instrument};
 
 use crate::helpers::parsers::parse_relevant_transaction;
-use crate::service::FINALITY_DEPTH;
 use crate::spec::utxo::UTXO;
 
 type BlockHeight = u64;
@@ -166,11 +166,11 @@ impl Default for MonitoringConfig {
 impl FromEnv for MonitoringConfig {
     fn from_env() -> anyhow::Result<Self> {
         match (
-            std::env::var("DA_MONITORING_CHECK_INTERVAL"),
-            std::env::var("DA_MONITORING_HISTORY_LIMIT"),
-            std::env::var("DA_MONITORING_MAX_HISTORY_SIZE"),
+            read_env("DA_MONITORING_CHECK_INTERVAL"),
+            read_env("DA_MONITORING_HISTORY_LIMIT"),
+            read_env("DA_MONITORING_MAX_HISTORY_SIZE"),
         ) {
-            (Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
+            (Err(_), Err(_), Err(_)) => Err(anyhow!("At least one of the monitoring envs must exist: DA_MONITORING_CHECK_INTERVAL, DA_MONITORING_HISTORY_LIMIT, DA_MONITORING_MAX_HISTORY_SIZE")),
             (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
                 check_interval: check_interval.map_or_else(
                     |_| Ok(monitoring_defaults::check_interval()),
@@ -200,10 +200,11 @@ pub struct MonitoringService {
     // Keep track of total monitored transaction size
     // Only takes into account inner tx field from MonitoredTx
     total_size: AtomicUsize,
+    finality_depth: u64,
 }
 
 impl MonitoringService {
-    pub fn new(client: Arc<Client>, config: Option<MonitoringConfig>) -> Self {
+    pub fn new(client: Arc<Client>, config: Option<MonitoringConfig>, finality_depth: u64) -> Self {
         Self {
             client,
             monitored_txs: RwLock::new(HashMap::new()),
@@ -211,6 +212,7 @@ impl MonitoringService {
             config: config.unwrap_or_default(),
             last_tx: Mutex::new(None),
             total_size: AtomicUsize::new(0),
+            finality_depth,
         }
     }
 
@@ -223,10 +225,10 @@ impl MonitoringService {
         let current_height = self.client.get_block_count().await?;
         let current_tip = self.client.get_best_block_hash().await?;
 
-        let mut recent_blocks = Vec::with_capacity(FINALITY_DEPTH as usize);
+        let mut recent_blocks = Vec::with_capacity(self.finality_depth as usize);
         let mut current_hash: BlockHash;
 
-        for height in (0..FINALITY_DEPTH).map(|i| current_height.saturating_sub(i)) {
+        for height in (0..self.finality_depth).map(|i| current_height.saturating_sub(i)) {
             current_hash = self.client.get_block_hash(height).await?;
             recent_blocks.push((current_hash, height));
         }
@@ -241,11 +243,11 @@ impl MonitoringService {
         Ok(())
     }
 
-    // Restore TX chain from utxos using list_unspent in range [0..FINALITY_DEPTH] confirmations
+    // Restore TX chain from utxos using list_unspent in range [0..self.finality_depth] confirmations
     async fn restore_from_utxos(&self) -> Result<()> {
         let mut unspent = self
             .client
-            .list_unspent(None, Some(FINALITY_DEPTH as usize), None, None, None)
+            .list_unspent(None, Some(self.finality_depth as usize), None, None, None)
             .await?;
 
         unspent.sort_unstable_by_key(|utxo| {
@@ -457,7 +459,7 @@ impl MonitoringService {
             let mut reorg_detected = false;
             let mut reorg_depth = 0;
 
-            for i in 1..=FINALITY_DEPTH {
+            for i in 1..=self.finality_depth {
                 let height = new_height.saturating_sub(i);
                 current_hash = self.client.get_block_hash(height).await?;
                 new_blocks.push((current_hash, height));
@@ -547,7 +549,7 @@ impl MonitoringService {
                 .map(|header| header.height as u64)
                 .unwrap_or(0);
 
-            if confirmations >= FINALITY_DEPTH {
+            if confirmations >= self.finality_depth {
                 TxStatus::Finalized {
                     block_hash,
                     block_height,

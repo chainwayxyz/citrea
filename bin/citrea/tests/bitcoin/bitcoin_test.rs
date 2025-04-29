@@ -5,10 +5,9 @@ use async_trait::async_trait;
 use bitcoin::{Amount, Txid};
 use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_batch_prover::rpc::BatchProverRpcClient;
-use citrea_e2e::bitcoin::BitcoinNode;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -114,7 +113,7 @@ impl TestCase for BitcoinReorgTest {
         let block = da0.get_block(&hash).await?;
         assert_eq!(block.txdata.len(), 3); // Coinbase + seq commit/reveal txs
 
-        da1.generate(FINALITY_DEPTH - 1).await?;
+        da1.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
         let finalized_height = da1.get_finalized_height(None).await?;
 
         batch_prover
@@ -193,7 +192,7 @@ impl TestCase for DaMonitoringTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Confirmed { .. })));
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         sleep(Duration::from_secs(1)).await;
         let tx_status = sequencer
@@ -320,7 +319,7 @@ impl TestCase for CpfpFeeBumpingTest {
             &[reveal_tx.prev_txid.unwrap(), *parent_txid, cpfp_txid]
         );
 
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover

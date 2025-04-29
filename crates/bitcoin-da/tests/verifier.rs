@@ -17,6 +17,7 @@ use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::TaskManager;
 use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::Network;
 use test_utils::macros::assert_panic;
 use test_utils::{
     generate_mock_txs, get_citrea_path, get_default_service, get_mock_nonsegwit_block,
@@ -66,6 +67,7 @@ impl TestCase for BitcoinVerifierTest {
 
         let verifier = BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+            network: Network::Nightly,
         });
 
         // Can be verified

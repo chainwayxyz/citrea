@@ -3,6 +3,7 @@ use citrea_primitives::compression::decompress_blob;
 use serde::{Deserialize, Serialize};
 use short_proof::BitcoinHeaderShortProof;
 use sov_rollup_interface::da::{DaSpec, DecompressError};
+use sov_rollup_interface::Network;
 
 use self::address::AddressWrapper;
 use self::blob::BlobWithSender;
@@ -28,6 +29,7 @@ pub struct BitcoinSpec;
 
 pub struct RollupParams {
     pub reveal_tx_prefix: Vec<u8>,
+    pub network: Network,
 }
 
 impl DaSpec for BitcoinSpec {

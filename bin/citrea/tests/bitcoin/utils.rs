@@ -7,6 +7,7 @@ use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::TaskExecutor;
+use sov_rollup_interface::Network;
 
 pub(super) enum DaServiceKeyKind {
     #[allow(dead_code)]
@@ -39,7 +40,6 @@ pub(super) async fn spawn_bitcoin_da_service(
         ),
         node_username: da_config.rpc_user.clone(),
         node_password: da_config.rpc_password.clone(),
-        network: bitcoin::Network::Regtest,
         da_private_key: Some(da_private_key),
         tx_backup_dir: test_dir.join("tx_backup_dir").display().to_string(),
         monitoring: Default::default(),
@@ -52,6 +52,7 @@ pub(super) async fn spawn_bitcoin_da_service(
             bitcoin_da_service_config,
             RollupParams {
                 reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+                network: Network::Nightly,
             },
             tx,
         )

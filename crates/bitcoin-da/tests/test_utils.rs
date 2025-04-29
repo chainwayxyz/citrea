@@ -20,6 +20,7 @@ use citrea_primitives::{MAX_TXBODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::Network;
 
 pub const DEFAULT_DA_PRIVATE_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
@@ -51,7 +52,6 @@ pub async fn get_service(
         node_url,
         node_username: config.rpc_user.clone(),
         node_password: config.rpc_password.clone(),
-        network: bitcoin::Network::Regtest,
         da_private_key: Some(da_private_key),
         tx_backup_dir: get_tx_backup_dir(),
         monitoring: None,
@@ -62,7 +62,10 @@ pub async fn get_service(
 
     let da_service = BitcoinService::new_without_wallet_check(
         runtime_config,
-        RollupParams { reveal_tx_prefix },
+        RollupParams {
+            reveal_tx_prefix,
+            network: Network::Nightly,
+        },
         tx,
     )
     .await

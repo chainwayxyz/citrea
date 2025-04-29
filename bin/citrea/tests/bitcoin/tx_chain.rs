@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use bitcoin::{Amount, Transaction};
 use bitcoin_da::rpc::DaRpcClient;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoin_da::REVEAL_OUTPUT_AMOUNT;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::BitcoinNode;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::Sequencer;
@@ -290,7 +289,13 @@ impl TestSequencerTransactionChaining {
         // Assert that sequencer has odd number of utxo
         let seq_unspent = sequencer
             .da
-            .list_unspent(None, Some(FINALITY_DEPTH as usize), None, None, None)
+            .list_unspent(
+                None,
+                Some(DEFAULT_FINALITY_DEPTH as usize),
+                None,
+                None,
+                None,
+            )
             .await?;
         assert_eq!(seq_unspent.len(), 3);
 
@@ -463,7 +468,7 @@ impl TestCase for TestProverTransactionChaining {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            max_l2_blocks_per_commitment: FINALITY_DEPTH * 2,
+            max_l2_blocks_per_commitment: DEFAULT_FINALITY_DEPTH * 2,
             ..Default::default()
         }
     }
@@ -486,7 +491,7 @@ impl TestCase for TestProverTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -529,7 +534,7 @@ impl TestCase for TestProverTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -574,7 +579,7 @@ impl TestCase for TestProverTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover

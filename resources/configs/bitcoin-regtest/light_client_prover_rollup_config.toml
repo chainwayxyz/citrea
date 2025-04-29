@@ -10,7 +10,6 @@ node_url = ""
 node_username = ""
 # fill here
 node_password = ""
-network = "regtest"
 tx_backup_dir = "resources/bitcoin/inscription_txs"
 
 [storage]

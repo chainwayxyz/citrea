@@ -20,16 +20,6 @@ pub struct PublicKeyHex {
     hex: String,
 }
 
-impl PublicKeyHex {
-    pub fn new(hex: String) -> Self {
-        Self { hex }
-    }
-
-    pub fn hex(&self) -> &str {
-        &self.hex
-    }
-}
-
 impl TryFrom<&str> for PublicKeyHex {
     type Error = anyhow::Error;
 

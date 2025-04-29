@@ -83,15 +83,12 @@ impl RollupBlueprint for MockDemoRollup {
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         _require_wallet_check: bool,
         _task_manager: TaskExecutor,
+        _network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         Ok(Arc::new(MockDaService::new(
             rollup_config.da.sender_address.clone(),
             &rollup_config.da.db_path,
         )))
-    }
-
-    fn create_da_verifier(&self) -> Self::DaVerifier {
-        Default::default()
     }
 
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {

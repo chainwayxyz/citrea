@@ -10,7 +10,6 @@ node_url = ""
 node_username = ""
 # fill here
 node_password = ""
-network = "signet"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.

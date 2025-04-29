@@ -23,7 +23,6 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
@@ -114,6 +113,7 @@ impl RollupBlueprint for BitcoinRollup {
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
         task_executor: TaskExecutor,
+        network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
 
@@ -122,6 +122,7 @@ impl RollupBlueprint for BitcoinRollup {
                 rollup_config.da.clone(),
                 RollupParams {
                     reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+                    network,
                 },
                 tx,
             )
@@ -131,6 +132,7 @@ impl RollupBlueprint for BitcoinRollup {
                 rollup_config.da.clone(),
                 RollupParams {
                     reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+                    network,
                 },
                 tx,
             )
@@ -151,12 +153,6 @@ impl RollupBlueprint for BitcoinRollup {
         }
 
         Ok(service)
-    }
-
-    fn create_da_verifier(&self) -> Self::DaVerifier {
-        BitcoinVerifier::new(RollupParams {
-            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-        })
     }
 
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
