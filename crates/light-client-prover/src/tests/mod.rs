@@ -9,10 +9,9 @@ use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, ZkStorage};
 use tempfile::tempdir;
 use test_utils::{
-    create_mock_batch_proof,
-    create_mock_sequencer_commitment, create_mock_sequencer_commitment_blob,
-    create_new_method_id_tx, create_prev_lcp_serialized, create_random_state_diff,
-    create_serialized_mock_proof, NativeCircuitRunner,
+    create_mock_batch_proof, create_mock_sequencer_commitment,
+    create_mock_sequencer_commitment_blob, create_new_method_id_tx, create_prev_lcp_serialized,
+    create_random_state_diff, create_serialized_mock_proof, NativeCircuitRunner,
 };
 
 use crate::circuit::accessors::{
