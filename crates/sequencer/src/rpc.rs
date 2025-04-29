@@ -126,6 +126,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
             tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
         } else {
             SEQUENCER_METRICS.mempool_txs.increment(1);
+            SEQUENCER_METRICS.mempool_txs_inc.increment(1);
         }
 
         Ok(hash)

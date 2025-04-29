@@ -54,3 +54,11 @@ tower = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
+
+[dev-dependencies]
+citrea-primitives = { path = "../primitives", features = ["testing"] }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+
+tempfile = { workspace = true }

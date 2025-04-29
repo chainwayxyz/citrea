@@ -505,7 +505,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "rate(sequencer_mempool_txs[$__rate_interval])",
+          "expr": "rate(sequencer_mempool_txs_inc[1s])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
