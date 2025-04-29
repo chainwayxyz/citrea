@@ -23,6 +23,10 @@ pub(crate) mod accessors;
 /// Initial values that are used to initialize the light client proof circuit.
 pub mod initial_values;
 
+/// A macro for logging messages.
+#[macro_use]
+mod log;
+
 // L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
@@ -74,7 +78,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 ) {
                     Some(commitment) => commitment,
                     None => {
-                        println!(
+                        log!(
                             "Sequencer commitment with index {} does not exist in the jmt state",
                             previous_commitment_index
                         );
@@ -84,9 +88,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 let previous_commitment_hash =
                     previous_commitment.serialize_and_calculate_sha_256();
                 if previous_commitment_hash != batch_proof_output_previous_commitment_hash {
-                    println!(
+                    log!(
                         "Previous commitment hash mismatch, expected: {:?}, got: {:?}",
-                        previous_commitment_hash, batch_proof_output_previous_commitment_hash
+                        previous_commitment_hash,
+                        batch_proof_output_previous_commitment_hash
                     );
                     return false;
                 }
@@ -95,7 +100,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 // If there are no previous commitments then this should be the first batch proof
                 // The first batch proof's first commitment index should be 1
                 if batch_proof_output.sequencer_commitment_index_range().0 != 1 {
-                    println!(
+                    log!(
                         "Previous commitment index is not set, but sequencer commitment index range start is not 1: {}",
                         batch_proof_output.sequencer_commitment_index_range().0
                     );
@@ -112,7 +117,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         if (last_index - first_index + 1) as usize
             != batch_proof_output_sequencer_commitment_hashes.len()
         {
-            println!(
+            log!(
                 "Sequencer commitment index range length mismatch, expected: {}, got: {}",
                 (last_index - first_index + 1),
                 batch_proof_output_sequencer_commitment_hashes.len()
@@ -131,7 +136,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             ) {
                 Some(commitment) => commitment,
                 None => {
-                    println!(
+                    log!(
                         "Sequencer commitment with index {} does not exist in the jmt state",
                         batch_proof_sequencer_commitment_index
                     );
@@ -145,7 +150,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             if i as u32 == last_index - first_index
                 && jmt_commitment.l2_end_block_number != batch_proof_output.last_l2_height()
             {
-                println!(
+                log!(
                     "Last sequencer commitment l2 height mismatch, expected: {}, got: {}",
                     jmt_commitment.l2_end_block_number,
                     batch_proof_output.last_l2_height()
@@ -155,9 +160,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
             let jmt_commitment_hash = jmt_commitment.serialize_and_calculate_sha_256();
             if jmt_commitment_hash != batch_proof_sequencer_commitment_hash {
-                println!(
+                log!(
                     "Sequencer commitment hash mismatch, expected: {:?}, got: {:?}",
-                    jmt_commitment_hash, batch_proof_sequencer_commitment_hash
+                    jmt_commitment_hash,
+                    batch_proof_sequencer_commitment_hash
                 );
                 return false;
             }
@@ -216,7 +222,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             batch_proof_method_ids[idx].1
         };
 
-        println!("Using batch proof method id {:?}", batch_proof_method_id);
+        log!("Using batch proof method id {:?}", batch_proof_method_id);
 
         Z::verify(proof, &batch_proof_method_id.into()).map_err(|_| "Failed to verify proof")?;
 
@@ -306,14 +312,14 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         'blob_loop: for blob in da_txs {
             let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {
-                println!("Unparsable blob in da_data, wtxid={:?}", blob.wtxid());
+                log!("Unparsable blob in da_data, wtxid={:?}", blob.wtxid());
                 continue;
             };
 
             match data {
                 // No need to check sender for chunk
                 DataOnDa::Chunk(chunk) => {
-                    println!("Found chunk");
+                    log!("Found chunk");
 
                     ChunkAccessor::<S>::insert(
                         blob.wtxid().expect("Chunk should have wtxid"),
@@ -322,9 +328,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     );
                 }
                 DataOnDa::Complete(proof) => {
-                    println!("Found complete proof");
+                    log!("Found complete proof");
                     if blob.sender().as_ref() != batch_prover_da_public_key {
-                        println!(
+                        log!(
                             "Complete proof sender is not batch prover, wtxid={:?}",
                             blob.wtxid()
                         );
@@ -338,13 +344,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &mut working_set,
                     ) {
                         Ok(()) => {}
-                        Err(e) => println!("Error processing complete proof: {e}"),
+                        Err(e) => log!("Error processing complete proof: {e}"),
                     }
                 }
                 DataOnDa::Aggregate(_, wtxids) => {
-                    println!("Found aggregate proof");
+                    log!("Found aggregate proof");
                     if blob.sender().as_ref() != batch_prover_da_public_key {
-                        println!(
+                        log!(
                             "Aggregate proof sender is not batch prover, wtxid={:?}",
                             blob.wtxid()
                         );
@@ -358,7 +364,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         match ChunkAccessor::<S>::get(*wtxid, &mut working_set) {
                             Some(body) => complete_proof.extend_from_slice(body.as_ref()),
                             None => {
-                                println!(
+                                log!(
                                     "Unknown chunk in aggregate proof, wtxid={:?} skipping",
                                     wtxid
                                 );
@@ -367,10 +373,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         }
                     }
 
-                    println!("Aggregate has all needed chunks!");
+                    log!("Aggregate has all needed chunks!");
 
                     let Ok(complete_proof) = DS::decompress_chunks(&complete_proof) else {
-                        println!("Failed to decompress and deserialize completed chunks");
+                        log!("Failed to decompress and deserialize completed chunks");
                         continue;
                     };
 
@@ -387,7 +393,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         // or the resulting output was ZK-valid but included an L1 hash
                         // that was not know to the prover
                         Err(e) => {
-                            println!("Error processing aggregated proof: {e}");
+                            log!("Error processing aggregated proof: {e}");
                         }
                     }
                 }
@@ -395,9 +401,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     method_id,
                     activation_l2_height,
                 }) => {
-                    println!("Found batch proof method id");
+                    log!("Found batch proof method id");
                     if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
-                        println!(
+                        log!(
                             "Batch proof method id sender is not upgrade authority, wtxid={:?}",
                             blob.wtxid()
                         );
@@ -421,9 +427,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     }
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
-                    println!("Found sequencer commitment with index {}", commitment.index);
+                    log!("Found sequencer commitment with index {}", commitment.index);
                     if blob.sender().as_ref() != sequencer_da_public_key {
-                        println!(
+                        log!(
                             "Sequencer commitment sender is not sequencer, wtxid={:?}",
                             blob.wtxid()
                         );

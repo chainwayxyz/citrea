@@ -57,7 +57,7 @@ pub(crate) fn create_mock_batch_proof(
         .iter()
         .map(|c| c.serialize_and_calculate_sha_256())
         .collect();
-    let prev_index = if sequencer_commitments[0].index == 1 {
+    let prev_index = if sequencer_commitments[0].index <= 1 {
         None
     } else {
         Some(sequencer_commitments[0].index - 1)
