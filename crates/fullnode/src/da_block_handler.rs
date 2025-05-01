@@ -561,7 +561,17 @@ where
 
         for (index, commitment) in pending_commitments {
             // Check if we can process this commitment now
-            if self.ledger_db.get_commitment_by_index(index - 1)?.is_some() {
+            let processable = if index == 1 {
+                let head_l2_height = self
+                    .ledger_db
+                    .get_head_l2_block_height()?
+                    .unwrap_or_default();
+                let end_l2_height = commitment.l2_end_block_number;
+                end_l2_height <= head_l2_height
+            } else {
+                self.ledger_db.get_commitment_by_index(index - 1)?.is_some()
+            };
+            if processable {
                 match self
                     .process_sequencer_commitment(l1_block, &commitment)
                     .await
