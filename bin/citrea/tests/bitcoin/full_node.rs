@@ -2137,7 +2137,7 @@ impl TestCase for UnsyncedFirstCommitmentTest {
 
         Start full node
         Full node is unable to process commitments, assert last committed l2 is None
-    
+
         Start sequencer
         Full node sync 1-10
         Generate one l1 block
@@ -2149,12 +2149,12 @@ impl TestCase for UnsyncedFirstCommitmentTest {
 
         // stop the full node
         full_node.wait_until_stopped().await?;
-        
-        for _ in 1..=10{
+
+        for _ in 1..=10 {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer.client.wait_for_l2_block(10, None).await?;
-        
+
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -2166,7 +2166,11 @@ impl TestCase for UnsyncedFirstCommitmentTest {
         full_node.start(None, None).await?;
 
         full_node.wait_for_l1_height(finalized_height, None).await?;
-        let last_committed_l2 = full_node.client.http_client().get_last_committed_l2_height().await?;
+        let last_committed_l2 = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
         assert!(last_committed_l2.is_none());
 
         sequencer.start(None, None).await?;
@@ -2175,11 +2179,18 @@ impl TestCase for UnsyncedFirstCommitmentTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         full_node.wait_for_l1_height(finalized_height, None).await?;
-        let last_committed_l2 = full_node.client.http_client().get_last_committed_l2_height().await?;
-        assert_eq!(last_committed_l2, Some(L2HeightAndIndex{
-            height: 10,
-            commitment_index: 2,
-        }));
+        let last_committed_l2 = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+        assert_eq!(
+            last_committed_l2,
+            Some(L2HeightAndIndex {
+                height: 10,
+                commitment_index: 2,
+            })
+        );
         Ok(())
     }
 }
