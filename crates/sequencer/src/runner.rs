@@ -54,7 +54,7 @@ use sov_state::ProverStorage;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, span, trace, warn, Instrument, Level};
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment::service::CommitmentService;
@@ -300,7 +300,7 @@ where
     }
 
     fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) {
-        info!("Saving short header proofs to ledger db");
+        debug!("Saving short header proofs to ledger db");
         for da_block in da_blocks {
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
                 Da::block_to_short_header_proof(da_block.clone());
@@ -469,7 +469,7 @@ where
         let l2_block = L2Block::new(signed_header, txs);
 
         info!(
-            "Saving block #{}, Tx count: #{}",
+            "New block #{}, Tx count: #{}",
             l2_block.height(),
             evm_txs_count
         );
@@ -497,10 +497,7 @@ where
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
     ) -> anyhow::Result<StateDiff> {
-        debug!(
-            "Saving L2 block with hash: {:?}",
-            hex::encode(l2_block.hash()),
-        );
+        debug!("New L2 block with hash: {:?}", hex::encode(l2_block.hash()));
 
         let state_root_transition = l2_block_result.state_root_transition;
 
@@ -558,7 +555,6 @@ where
         Ok(())
     }
 
-    #[instrument(level = "trace", skip(self, shutdown_signal), err, ret)]
     pub async fn run(
         &mut self,
         mut shutdown_signal: GracefulShutdown,
@@ -607,18 +603,25 @@ where
             self.config.max_l2_blocks_per_commitment,
         );
 
-        tokio::spawn(commitment_service.run(
-            self.storage_manager.clone(),
-            self.l2_block_hash,
-            shutdown_signal.clone(),
-        ));
+        tokio::spawn(
+            commitment_service
+                .run(
+                    self.storage_manager.clone(),
+                    self.l2_block_hash,
+                    shutdown_signal.clone(),
+                )
+                .instrument(span!(Level::INFO, "CommitmentService")),
+        );
 
-        tokio::spawn(da_block_monitor(
-            self.da_service.clone(),
-            da_height_update_tx,
-            self.config.da_update_interval_ms,
-            shutdown_signal.clone(),
-        ));
+        tokio::spawn(
+            da_block_monitor(
+                self.da_service.clone(),
+                da_height_update_tx,
+                self.config.da_update_interval_ms,
+                shutdown_signal.clone(),
+            )
+            .instrument(span!(Level::INFO, "L1BlockMonitor")),
+        );
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
 
