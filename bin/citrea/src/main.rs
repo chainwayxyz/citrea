@@ -36,7 +36,7 @@ use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tokio::signal;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, info_span, instrument, Instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
 
@@ -259,7 +259,11 @@ where
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "sequencer",
                 |shutdown_signal| async move {
-                    if let Err(e) = sequencer.run(shutdown_signal).await {
+                    if let Err(e) = sequencer
+                        .run(shutdown_signal)
+                        .instrument(info_span!("Sequencer"))
+                        .await
+                    {
                         error!("Error: {}", e);
                     }
                 },
@@ -285,16 +289,27 @@ where
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
             task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-                l1_syncer.run(shutdown_signal).await
+                l1_syncer
+                    .run(shutdown_signal)
+                    .instrument(info_span!("L1Syncer"))
+                    .await
             });
 
             task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-                l2_syncer.run(shutdown_signal).await
+                l2_syncer
+                    .run(shutdown_signal)
+                    .instrument(info_span!("L2Syncer"))
+                    .await
             });
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "Prover",
-                |shutdown_signal| async move { prover.run(shutdown_signal).await },
+                |shutdown_signal| async move {
+                    prover
+                        .run(shutdown_signal)
+                        .instrument(info_span!("BatchProver"))
+                        .await
+                },
             );
         }
         NodeType::LightClientProver(light_client_prover_config) => {
@@ -325,12 +340,19 @@ where
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "LightClient",
                 |shutdown_signal| async move {
-                    l1_block_handler.run(starting_block, shutdown_signal).await
+                    l1_block_handler
+                        .run(starting_block, shutdown_signal)
+                        .instrument(info_span!("L1BlockHandler"))
+                        .await
                 },
             );
 
             task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-                if let Err(e) = prover.run(shutdown_signal).await {
+                if let Err(e) = prover
+                    .run(shutdown_signal)
+                    .instrument(info_span!("LightClientProver"))
+                    .await
+                {
                     error!("Error: {}", e);
                 }
             });
@@ -366,7 +388,10 @@ where
             };
 
             task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-                l1_block_handler.run(l1_start_height, shutdown_signal).await
+                l1_block_handler
+                    .run(l1_start_height, shutdown_signal)
+                    .instrument(info_span!("L1BlockHandler"))
+                    .await
             });
 
             // Spawn pruner if configs are set
@@ -374,13 +399,19 @@ where
                 task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                     pruner_service
                         .run(StorageNodeType::FullNode, shutdown_signal)
+                        .instrument(info_span!("PrunerService"))
                         .await
                 });
             }
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "FullNode",
-                |shutdown_signal| async move { l2_syncer.run(shutdown_signal).await },
+                |shutdown_signal| async move {
+                    l2_syncer
+                        .run(shutdown_signal)
+                        .instrument(info_span!("L2Syncer"))
+                        .await
+                },
             );
         }
     }
