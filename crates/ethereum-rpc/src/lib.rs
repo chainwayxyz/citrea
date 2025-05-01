@@ -5,15 +5,13 @@ mod trace;
 
 use std::sync::Arc;
 
-use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory,
-    Filter, Index, Transaction,
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, Transaction,
 };
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::Evm;
+use citrea_evm::{generate_eth_proof, Evm};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -29,7 +27,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
@@ -262,8 +260,6 @@ where
         keys: Vec<JsonStorageKey>,
         block_id: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
-        use sov_state::storage::{StateCodec, StorageKey};
-
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
 
         let evm = Evm::<C>::default();
@@ -281,120 +277,8 @@ where
                 .ok_or_else(|| EthApiError::EvmCustom("Block id overflow".into()))?
         };
 
-        let root_hash = working_set
-            .get_root_hash(version)
-            .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
-
-        let account = evm
-            .account_info(&address, &mut working_set)
-            .unwrap_or_default();
-        let balance = account.balance;
-        let nonce = account.nonce;
-        let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
-
-        fn generate_account_proof<C>(
-            evm: &Evm<C>,
-            account: &Address,
-            version: u64,
-            working_set: &mut WorkingSet<C::Storage>,
-        ) -> Vec<Bytes>
-        where
-            C: sov_modules_api::Context,
-            C::Storage: NativeStorage,
-        {
-            let index_key = StorageKey::new(
-                evm.account_idxs.prefix(),
-                account,
-                evm.account_idxs.codec().key_codec(),
-            );
-            let index_proof = working_set.get_with_proof(index_key, version);
-            let index_proof_exists = index_proof.value.is_some();
-            let index_proof =
-                borsh::to_vec(&index_proof.proof).expect("Serialization shouldn't fail");
-            let index_proof = Bytes::from(index_proof);
-
-            if index_proof_exists {
-                // we have to generate another proof for idx -> account
-                let index = evm
-                    .account_idxs
-                    .get(account, working_set)
-                    .expect("Account index exists");
-                let index_bytes = Bytes::from_iter(index.to_le_bytes());
-
-                let account_key = StorageKey::new(
-                    evm.accounts.prefix(),
-                    &index,
-                    evm.accounts.codec().key_codec(),
-                );
-
-                let account_proof = working_set.get_with_proof(account_key, version);
-                let account_exists = if account_proof.value.is_some() {
-                    Bytes::from("y")
-                } else {
-                    Bytes::from("n")
-                };
-                let account_proof =
-                    borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
-                let account_proof = Bytes::from(account_proof);
-                vec![index_proof, index_bytes, account_proof, account_exists]
-            } else {
-                let index_exists = Bytes::from("n");
-
-                vec![index_proof, index_exists]
-            }
-        }
-
-        fn generate_storage_proof<C>(
-            evm: &Evm<C>,
-            account: &Address,
-            key: JsonStorageKey,
-            version: u64,
-            working_set: &mut WorkingSet<C::Storage>,
-        ) -> EIP1186StorageProof
-        where
-            C: sov_modules_api::Context,
-            C::Storage: NativeStorage,
-        {
-            let key_b = key.as_b256().into();
-            let kaddr = Evm::<C>::get_storage_address(account, &key_b);
-            let storage_key = StorageKey::new(
-                evm.storage.prefix(),
-                &kaddr,
-                evm.storage.codec().key_codec(),
-            );
-            let value = evm.storage_get(account, &key_b, working_set);
-            let proof = working_set.get_with_proof(storage_key, version);
-            let value_exists = if proof.value.is_some() {
-                Bytes::from("y")
-            } else {
-                Bytes::from("n")
-            };
-            let value_proof = borsh::to_vec(&proof.proof).expect("Serialization shouldn't fail");
-            let value_proof = Bytes::from(value_proof);
-            EIP1186StorageProof {
-                key,
-                value: value.unwrap_or_default(),
-                proof: vec![value_proof, value_exists],
-            }
-        }
-
-        let account_proof = generate_account_proof(&evm, &address, version, &mut working_set);
-
-        let mut storage_proof = vec![];
-        for key in keys {
-            let proof = generate_storage_proof(&evm, &address, key, version, &mut working_set);
-            storage_proof.push(proof);
-        }
-
-        Ok(EIP1186AccountProofResponse {
-            address,
-            balance,
-            nonce,
-            code_hash,
-            storage_hash: root_hash.into(),
-            account_proof,
-            storage_proof,
-        })
+        let proof = generate_eth_proof(&evm, address, keys, version, &mut working_set);
+        Ok(proof)
     }
 
     fn debug_trace_block_by_hash(

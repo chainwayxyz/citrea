@@ -41,7 +41,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.7.0"
+version = "0.7.1-rc.1"
 edition = "2021"
 license = "GPL-3.0"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -119,12 +119,12 @@ tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4" }
-risc0-binfmt = "2.0.0"
-risc0-zkvm = { version = "2.0.1", default-features = false }
-risc0-zkvm-platform = "2.0.1"
-risc0-zkp = "2.0.0"
-risc0-circuit-rv32im = "2.0.2"
-risc0-build = "2.1.0"
+risc0-binfmt = "2.0.1"
+risc0-zkvm = { version = "2.0.2", default-features = false }
+risc0-zkvm-platform = "2.0.2"
+risc0-zkp = "2.0.1"
+risc0-circuit-rv32im = "2.0.3"
+risc0-build = "2.1.1"
 rzup = "0.4.1"
 
 # EVM dependencies
@@ -165,7 +165,7 @@ alloy-eips = { version = "0.13", default-features = false }
 alloy-consensus = { version = "0.13", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.13", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "27771a17c117589231b5e2197a16083a0d0672b9" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "224ade3" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "0fe8a8b" }

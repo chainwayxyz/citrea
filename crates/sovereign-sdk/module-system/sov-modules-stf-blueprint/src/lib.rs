@@ -374,6 +374,13 @@ where
         // and this should start from proving the first l2 block
         let (previous_commitment_index, previous_commitment_hash) =
             if let Some(previous_sequencer_commitment) = previous_sequencer_commitment {
+                // The only way there would be a 0 indexed commitment is if the previous commitment somehow has index 0
+                // This assertion will block that
+                assert!(
+                    previous_sequencer_commitment.index != 0,
+                    "Previous sequencer commitment index must be non-zero"
+                );
+
                 // The index of the previous commitment should be one less than the first commitment
                 assert_eq!(
                     previous_sequencer_commitment.index + 1,
