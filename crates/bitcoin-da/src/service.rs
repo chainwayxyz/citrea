@@ -761,6 +761,75 @@ impl BitcoinService {
 
         Ok(new_txid)
     }
+
+    async fn verify_chunk_order(
+        &self,
+        block_height: u64,
+        tx_id: &Txid,
+        chunk_id: &Txid,
+        chunk_index: usize,
+        tx_block_hash: Option<BlockHash>,
+        chunks: &HashMap<Txid, usize>,
+    ) -> anyhow::Result<()> {
+        // If chunk exists, it means it is in the same block as the aggregate
+        // Check the order
+        if let Some(chunk_idx) = chunks.get(chunk_id) {
+            if *chunk_idx >= chunk_index {
+                // This means the chunk comes after the aggregate in the same block
+                // This is not a valid case because lcp expects all chunks to come before their aggregate
+                return Err(anyhow!(
+                    "{}:{}: Chunk comes after aggregate. Block height: {}",
+                    tx_id,
+                    chunk_id,
+                    block_height,
+                ));
+            }
+        } else {
+            // If chunk does not exist, it means it is in a different block
+            // Check the block height
+            let exponential_backoff = ExponentialBackoff::default();
+            let tx_block_height = if let Some(tx_block_hash) = tx_block_hash {
+                let res = retry_backoff(exponential_backoff, || async move {
+                    self.client
+                        .get_block_info(&tx_block_hash)
+                        .await
+                        .map_err(|e| match e {
+                            BitcoinError::Io(_) => backoff::Error::transient(e),
+                            _ => backoff::Error::permanent(e),
+                        })
+                })
+                .await;
+                match res {
+                    Ok(r) => r.height,
+                    Err(e) => {
+                        return Err(anyhow!(
+                            "Failed to request block by block hash:{:?} Error: {e}",
+                            tx_block_hash
+                        ));
+                    }
+                }
+            } else {
+                return Err(anyhow!(
+                    "{}:{}: Failed to get block hash for chunk",
+                    tx_id,
+                    chunk_id
+                ));
+            };
+            if tx_block_height > block_height as usize {
+                // This means the chunk comes after the aggregate in a future block
+                // This is not a valid case because lcp expects all chunks to come before their aggregate
+                return Err(anyhow!(
+                    "{}:{}: Chunk comes after aggregate. Block height: {}, Chunk block height: {}",
+                    tx_id,
+                    chunk_id,
+                    block_height,
+                    tx_block_height
+                ));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -954,50 +1023,21 @@ impl DaService for BitcoinService {
                     }
                 };
 
-                let tx_block_height = if let Some(tx_block_hash) = tx_raw.blockhash {
-                    let res = retry_backoff(exponential_backoff, || async move {
-                        self.client
-                            .get_block_info(&tx_block_hash)
-                            .await
-                            .map_err(|e| match e {
-                                BitcoinError::Io(_) => backoff::Error::transient(e),
-                                _ => backoff::Error::permanent(e),
-                            })
-                    })
-                    .await;
-                    match res {
-                        Ok(r) => r.height,
-                        Err(e) => {
-                            error!(
-                                "Failed to request block by block hash:{:?} Error: {e}",
-                                tx_block_hash
-                            );
-                            continue 'aggregate;
-                        }
-                    }
-                } else {
+                if let Err(e) = self
+                    .verify_chunk_order(
+                        block.header.height,
+                        &tx_id,
+                        &chunk_id,
+                        i,
+                        tx_raw.blockhash,
+                        &chunks,
+                    )
+                    .await
+                {
+                    warn!("{}:{}: Failed to process chunk: {e}", tx_id, chunk_id);
                     continue 'aggregate;
                 };
-                if tx_block_height > block.header.height as usize {
-                    // This means the chunk comes after the aggregate in a future block
-                    // This is not a valid case because lcp expects all chunks to come before their aggregate
-                    error!("{}:{}: Chunk comes after aggregate", tx_id, chunk_id);
-                    continue 'aggregate;
-                }
-                if tx_block_height == block.header.height as usize {
-                    if let Some(chunk_idx) = chunks.get(&chunk_id) {
-                        if *chunk_idx >= i {
-                            // This means the chunk comes after the aggregate in the same block
-                            // This is not a valid case because lcp expects all chunks to come before their aggregate
-                            error!("{}:{}: Chunk comes after aggregate", tx_id, chunk_id);
-                            continue 'aggregate;
-                        }
-                    } else {
-                        // This means the block hashes are somehow different
-                        // Should be infallible
-                        unreachable!("{}:{}: Chunk not found in chunks map", tx_id, chunk_id);
-                    }
-                }
+
                 let wrapped: TransactionWrapper = match tx_raw.try_into() {
                     Ok(tx) => tx,
                     Err(e) => {
