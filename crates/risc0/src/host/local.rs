@@ -193,7 +193,7 @@ fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
 
     if version != r0vm_version {
         return Err(anyhow!(
-            "RISC0 version {} do not match r0vm version {}",
+            "RISC0 version {} does not match r0vm version {}",
             version,
             r0vm_version
         ));
