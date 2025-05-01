@@ -5,16 +5,6 @@ use tokio::task::JoinError;
 
 use crate::monitoring::{MonitorError, TxStatus};
 
-#[derive(Debug, Error)]
-pub enum BitcoinTxConversionError {
-    #[error("Input Txid not found")]
-    InputTxidNotFound,
-    #[error("Input script sig not found")]
-    ScriptSigNotFound,
-    #[error("Witness not found")]
-    WitnessNotFound,
-}
-
 #[derive(Error, Debug)]
 pub enum BitcoinServiceError {
     #[error("Fail to parse address: {0}")]
@@ -41,8 +31,6 @@ pub enum BitcoinServiceError {
     RpcError(#[from] BitcoinRpcError),
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
-    #[error("Cannot convert raw transaction result to Wrapped Transaction: {0:?}")]
-    TxConversionError(#[from] BitcoinTxConversionError),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }

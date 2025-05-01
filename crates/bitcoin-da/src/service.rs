@@ -12,19 +12,12 @@ use anyhow::{anyhow, bail, Context};
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
-use bitcoin::absolute::LockTime;
 use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::transaction::Version;
-use bitcoin::{
-    Amount, BlockHash, CompactTarget, OutPoint, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
-    Wtxid,
-};
-use bitcoincore_rpc::json::{
-    GetRawTransactionResult, SignRawTransactionInput, TestMempoolAcceptResult,
-};
+use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
 use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
@@ -42,7 +35,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::error::{BitcoinServiceError, BitcoinTxConversionError};
+use crate::error::BitcoinServiceError;
 use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::builders::body_builders::{
     backup_chunked_txs, backup_complete_txs, create_light_client_transactions, DaTxs, RawTxData,
@@ -1038,14 +1031,17 @@ impl DaService for BitcoinService {
                     continue 'aggregate;
                 };
 
-                let wrapped: TransactionWrapper = match tx_raw.try_into() {
+                let chunk_transaction = match tx_raw.transaction() {
                     Ok(tx) => tx,
                     Err(e) => {
-                        error!("Failed to parse raw transaction of chunk with tx id: {} to wrapped transaction Error: {e}", tx_id);
+                        error!(
+                            "{}:{}: Failed to get chunk transaction, decode error: {e}",
+                            tx_id, chunk_id
+                        );
                         continue 'aggregate;
                     }
                 };
-                let parsed = match parse_relevant_transaction(&wrapped) {
+                let parsed = match parse_relevant_transaction(&chunk_transaction) {
                     Ok(r) => r,
                     Err(e) => {
                         error!("{}:{}: Failed parse chunk: {e}", tx_id, chunk_id);
@@ -1496,62 +1492,4 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         })
         .collect();
     BitcoinMerkleTree::new(hashes).root()
-}
-
-impl TryFrom<GetRawTransactionResult> for TransactionWrapper {
-    type Error = BitcoinServiceError;
-
-    fn try_from(value: GetRawTransactionResult) -> Result<Self> {
-        let inputs: Result<Vec<_>> = value
-            .vin
-            .into_iter()
-            .map(|vin| {
-                Ok(TxIn {
-                    previous_output: OutPoint {
-                        txid: bitcoin::Txid::from_byte_array(
-                            vin.txid
-                                .ok_or(BitcoinServiceError::TxConversionError(
-                                    BitcoinTxConversionError::InputTxidNotFound,
-                                ))?
-                                .to_byte_array(),
-                        ),
-                        vout: vin.vout.unwrap_or_default(),
-                    },
-                    script_sig: vin
-                        .script_sig
-                        .ok_or(BitcoinServiceError::TxConversionError(
-                            BitcoinTxConversionError::ScriptSigNotFound,
-                        ))?
-                        .script()
-                        .expect("Infallible"),
-                    sequence: Sequence(vin.sequence),
-                    witness: Witness::from(vin.txinwitness.ok_or(
-                        BitcoinServiceError::TxConversionError(
-                            BitcoinTxConversionError::WitnessNotFound,
-                        ),
-                    )?),
-                })
-            })
-            .collect();
-
-        let outputs: Result<Vec<_>> = value
-            .vout
-            .into_iter()
-            .map(|vout| {
-                Ok(TxOut {
-                    value: vout.value,
-                    script_pubkey: vout.script_pub_key.script().expect("Infallible"),
-                })
-            })
-            .collect();
-
-        let res = Self(Transaction {
-            version: Version(value.version as i32),
-            lock_time: LockTime::from_consensus(value.locktime),
-            input: inputs?,
-            output: outputs?,
-        });
-
-        Ok(res)
-    }
 }
