@@ -194,7 +194,6 @@ jobs:
   coverage:
     needs:
       - docker-setup
-      - build-test
     runs-on: ubicloud-standard-30
     if: github.event.pull_request.draft == false
     steps:
@@ -224,16 +223,8 @@ jobs:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
       - name: Load Docker image
+        continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: citrea-test-build
-          path: target/debug
-      - name: Make citrea executable
-        run: chmod +x target/debug/citrea
-      - name: Make citrea-cli executable
-        run: chmod +x target/debug/citrea-cli
       - name: Run coverage
         run: make coverage-ci
         env:
@@ -242,6 +233,8 @@ jobs:
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
+          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea
+          CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea-cli
       - name: Upload e2e test dir
         if: always()
         uses: actions/upload-artifact@v4
@@ -396,6 +389,7 @@ jobs:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
       - name: Load Docker image
+        continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
       - name: Download artifact
         uses: actions/download-artifact@v4
