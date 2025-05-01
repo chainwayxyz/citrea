@@ -720,11 +720,8 @@ fn test_bridge() {
     // call deposit
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let txs = vec![deposit_system_tx(
-            deposit_data.clone(),
-            &evm,
-            &mut working_set,
-        )];
+        let deposit_data = deposit_data.clone();
+        let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
         evm.call(CallMessage { txs }, &context, &mut working_set)
             .unwrap();
     }
@@ -746,11 +743,8 @@ fn test_bridge() {
     // call deposit 2nd time with the exact same deposit data should fail
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let txs = vec![deposit_system_tx(
-            deposit_data.clone(),
-            &evm,
-            &mut working_set,
-        )];
+        let deposit_data = deposit_data.clone();
+        let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
         assert!(matches!(
             evm.call(CallMessage { txs }, &context, &mut working_set),
             Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful),
@@ -761,22 +755,18 @@ fn test_bridge() {
 
     l2_block_info.l2_height += 1;
 
-    // malform the input number from 2 as expected number of inputs is 1
-    let mut decoded = Bridge::TransactionParams::abi_decode(&deposit_data, true).unwrap();
-    let mut vin = BytesMut::from(&decoded.vin[..]);
-    vin[0] = 2;
-    decoded.vin.0 = vin.freeze();
-
-    let deposit_data = decoded.abi_encode();
-
-    // call deposit 2nd time with the exact same deposit data should fail
+    // call deposit with 2 inputs should fail
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let txs = vec![deposit_system_tx(
-            deposit_data.clone(),
-            &evm,
-            &mut working_set,
-        )];
+        // malform the input number from 2 as expected number of inputs is 1
+        let mut decoded = Bridge::TransactionParams::abi_decode(&deposit_data, true).unwrap();
+        let mut vin = BytesMut::from(&decoded.vin[..]);
+        vin[0] = 2;
+        decoded.vin.0 = vin.freeze();
+
+        let deposit_data = decoded.abi_encode();
+
+        let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
         assert!(matches!(
             evm.call(CallMessage { txs }, &context, &mut working_set),
             Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful),
