@@ -1,7 +1,7 @@
 use derive_more::Display;
 
 /// A hexadecimal representation of a PublicKey.
-use crate::default_signature::K256PublicKey;
+use crate::{default_signature::K256PublicKey, error::KeyError};
 
 #[derive(
     serde::Serialize,
@@ -21,7 +21,7 @@ pub struct PublicKeyHex {
 }
 
 impl TryFrom<&str> for PublicKeyHex {
-    type Error = crate::error::KeyError;
+    type Error = KeyError;
 
     fn try_from(hex: &str) -> Result<Self, Self::Error> {
         Self::try_from(hex.to_owned())
@@ -29,7 +29,7 @@ impl TryFrom<&str> for PublicKeyHex {
 }
 
 impl TryFrom<String> for PublicKeyHex {
-    type Error = crate::error::KeyError;
+    type Error = KeyError;
 
     fn try_from(hex: String) -> Result<Self, Self::Error> {
         if hex.len() & 1 != 0 {
@@ -62,7 +62,7 @@ impl From<&K256PublicKey> for PublicKeyHex {
 }
 
 impl TryFrom<&PublicKeyHex> for K256PublicKey {
-    type Error = crate::error::KeyError;
+    type Error = KeyError;
 
     fn try_from(pub_key: &PublicKeyHex) -> Result<Self, Self::Error> {
         let bytes = hex::decode(&pub_key.hex)?;
