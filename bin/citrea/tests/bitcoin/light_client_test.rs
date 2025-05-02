@@ -31,7 +31,7 @@ use super::get_citrea_path;
 use crate::bitcoin::batch_prover_test::wait_for_prover_job;
 use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
-const TEN_MINS: Duration = Duration::from_secs(10 * 60);
+pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
 struct LightClientProvingTest {}
 
@@ -2526,7 +2526,7 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
 }
 
 #[allow(clippy::too_many_arguments)]
-fn create_serialized_fake_receipt_batch_proof(
+pub fn create_serialized_fake_receipt_batch_proof(
     initial_state_root: [u8; 32],
     last_l2_height: u64,
     method_id: [u32; 8],

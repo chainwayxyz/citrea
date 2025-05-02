@@ -2,9 +2,11 @@ use std::time::Duration;
 
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
-use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
+use bitcoin::hashes::Hash;
+use bitcoin::Amount;
+use bitcoincore_rpc::{Client, RpcApi};
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
+use citrea_e2e::config::{BatchProverConfig, BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
@@ -15,7 +17,11 @@ use reth_tasks::TaskManager;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
+use tokio::time::sleep;
 
+use super::light_client_test::{
+    create_random_state_diff, create_serialized_fake_receipt_batch_proof, TEN_MINS,
+};
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::batch_prover_test::{
     wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs,
@@ -2087,6 +2093,391 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 #[tokio::test]
 async fn test_unsynced_commitment_l2_range_test() -> Result<()> {
     TestCaseRunner::new(UnsyncedCommitmentL2RangeTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .set_citrea_cli_path(get_citrea_cli_path())
+    .run()
+    .await
+}
+
+struct FullNodeLcpChunkProofTest {
+    task_manager: TaskManager,
+}
+
+impl FullNodeLcpChunkProofTest {
+    async fn drain_wallet(
+        &self,
+        da: &BitcoinNode,
+        client: &Client,
+        amount_to_keep: Amount,
+    ) -> Result<()> {
+        let balance = da.get_balance(None, None).await?;
+
+        let amount_to_send = balance - amount_to_keep;
+
+        if amount_to_send <= Amount::ZERO {
+            return Ok(());
+        }
+
+        let drain_address = da.get_new_address(None, None).await?.assume_checked();
+
+        client
+            .send_to_address(
+                &drain_address,
+                amount_to_send,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        da.generate(1).await?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TestCase for FullNodeLcpChunkProofTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_light_client_prover: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec![
+                "-persistmempool=0",
+                "-walletbroadcast=0",
+                "-fallbackfee=0.00001",
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            // prevent proving
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 10,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+        Sequencer max l2 blocks is 10000 so it does not publish commitments
+        Sequencer publish 1-40
+        Full node sync 1-40
+        Stop full node
+        Sequencer publish 1-10, 11-20, 21-30, 31-40
+        Create commitments 1..4
+        create fake proof over range [1,2] with 2 chunks
+        send to da
+        mine them in correct order chunk1 - chunk2 - aggregate
+        see the same results in lcp and full node
+        create fake proof over range [3,4] with 2 chunks
+        send to da
+        mine them with wrong order chunk1 - aggregate - chunk2
+        see that both full node and lcp did not process that proof
+         */
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
+
+        let sequencer_da_service = spawn_bitcoin_da_service(
+            task_executor.clone(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
+        )
+        .await;
+
+        let batch_prover_da_service = spawn_bitcoin_da_service(
+            task_executor,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        let genesis_state_root = lcp_output.l2_state_root;
+
+        let sequencer_client = sequencer.client.clone();
+
+        for _ in 1..=40 {
+            sequencer_client.send_publish_batch_request().await?;
+        }
+        sequencer_client.wait_for_l2_block(40, None).await?;
+        full_node.wait_for_l2_height(40, None).await?;
+
+        // Wait for 4 sequencer commitments
+        da.wait_mempool_len(8, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to process sequencer commitments
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let commitment_1 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+        let commitment_2 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(2))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+        let commitment_3 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(3))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+        let commitment_4 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(4))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+
+        let state_diff_50kb = create_random_state_diff(50);
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        // Create a 50kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 2 chunks and 1 aggregate transactions because 50kb/40kb = 2 chunks
+        let verifiable_50kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+            genesis_state_root,
+            20,
+            batch_proof_method_ids[0].method_id.into(),
+            Some(state_diff_50kb.clone()),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment_1.clone(), commitment_2.clone()],
+            None,
+        );
+
+        let _ = batch_prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_50kb_batch_proof), 1)
+            .await
+            .unwrap();
+
+        // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
+        da.wait_mempool_len(6, Some(TEN_MINS)).await?;
+
+        let mut txs = da.get_raw_mempool().await?;
+        assert_eq!(txs.len(), 6);
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to process proofs
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+        // Wait for lcp to process proofs
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Check that the proof was processed
+        let last_proven_l2_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(last_proven_l2_height.height, 20);
+        assert_eq!(last_proven_l2_height.commitment_index, 2);
+
+        // Expect the same results in lcp
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+        assert_eq!(
+            lcp_output.last_l2_height,
+            U64::from(last_proven_l2_height.height)
+        );
+        assert_eq!(
+            lcp_output.last_sequencer_commitment_index,
+            U32::from(last_proven_l2_height.commitment_index)
+        );
+
+        let last_state_root = lcp_output.l2_state_root;
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        // Create a 50kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 2 chunks and 1 aggregate transactions because 50kb/40kb = 2 chunks
+        let verifiable_50kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+            last_state_root,
+            40,
+            batch_proof_method_ids[0].method_id.into(),
+            Some(state_diff_50kb.clone()),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment_3.clone(), commitment_4.clone()],
+            None,
+        );
+
+        self.drain_wallet(da, &batch_prover.da, Amount::from_sat(80000000000000000))
+            .await?;
+        da.generate(1).await?;
+        let _ = batch_prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_50kb_batch_proof), 1)
+            .await
+            .unwrap();
+
+        sleep(Duration::from_secs(15)).await;
+
+        let mut txs = da.get_raw_mempool().await?;
+        println!("txs len after drainage: {}", txs.len());
+
+        // // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
+        // da.wait_mempool_len(6, Some(TEN_MINS)).await?;
+
+        // let mut txs = da.get_raw_mempool().await?;
+        // assert_eq!(txs.len(), 6);
+        // println!("YEAP");
+
+        // let chunk1 = txs[0..=1].to_vec();
+        // let chunk2 = txs[2..=3].to_vec();
+        // let aggregate = txs[4..].to_vec();
+
+        // let mut new_order_chunks = vec![];
+        // println!("YEAP2");
+        // new_order_chunks.extend(chunk1);
+        // new_order_chunks.extend(aggregate);
+        // new_order_chunks.extend(chunk2);
+        // let addr = da
+        //     .get_new_address(None, None)
+        //     .await?
+        //     .assume_checked()
+        //     .to_string();
+        // da.generate_block(
+        //     addr,
+        //     new_order_chunks.iter().map(|tx| tx.to_string()).collect(),
+        // )
+        // .await?;
+        // println!("YEAP3");
+        // da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        // println!("YEAP4");
+        // let finalized_height = da.get_finalized_height(None).await?;
+
+        // // Wait for full node to process proofs
+        // full_node.wait_for_l1_height(finalized_height, None).await?;
+        // println!("YEAP5");
+        // // Wait for lcp to process proofs
+        // light_client_prover
+        //     .wait_for_l1_height(finalized_height, None)
+        //     .await?;
+
+        // // Check that the proof was not processed and the last proven height is still the same
+        // let last_proven_l2_height = full_node
+        //     .client
+        //     .http_client()
+        //     .get_last_proven_l2_height()
+        //     .await?
+        //     .unwrap();
+        // assert_eq!(last_proven_l2_height.height, 20);
+        // assert_eq!(last_proven_l2_height.commitment_index, 2);
+
+        // // Expect the same results in lcp
+        // let lcp = light_client_prover
+        //     .client
+        //     .http_client()
+        //     .get_light_client_proof_by_l1_height(finalized_height)
+        //     .await?;
+        // let lcp_output = lcp.unwrap().light_client_proof_output;
+        // assert_eq!(
+        //     lcp_output.last_l2_height,
+        //     U64::from(last_proven_l2_height.height)
+        // );
+        // assert_eq!(
+        //     lcp_output.last_sequencer_commitment_index,
+        //     U32::from(last_proven_l2_height.commitment_index)
+        // );
+
+        Ok(())
+    }
+}
+#[tokio::test]
+async fn test_full_node_lcp_chunk_proof() -> Result<()> {
+    TestCaseRunner::new(FullNodeLcpChunkProofTest {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())
