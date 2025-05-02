@@ -8,13 +8,13 @@ use sov_db::schema::tables::{PendingSequencerCommitments, FULL_NODE_LEDGER_TABLE
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_schema_db::SchemaBatch;
 
-/// Table removal migration
-/// tables BatchByNumber and SlotByNumber are removed
-pub(crate) struct PendingCommitmentL1HeightFieldAdd {}
+/// Table value type change migration
+/// Value has one more u64 field added to it
+pub(crate) struct PendingCommitmentsL1HeightFieldAdd {}
 
-impl LedgerMigration for PendingCommitmentL1HeightFieldAdd {
+impl LedgerMigration for PendingCommitmentsL1HeightFieldAdd {
     fn identifier(&self) -> (MigrationName, MigrationVersion) {
-        ("PendingCommitmentL1HeightFieldAdd".to_owned(), 1)
+        ("PendingCommitmentsL1HeightFieldAdd".to_owned(), 1)
     }
 
     /// Pending commitments need l1 heights that they were found in.
