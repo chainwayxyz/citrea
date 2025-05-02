@@ -171,16 +171,20 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)>;
 
     /// Store an either out of order or l2 range not synced yet commitment by index for later processing
-    fn store_pending_commitment(&self, commitment: SequencerCommitment) -> Result<()>;
+    fn store_pending_commitment(
+        &self,
+        commitment: SequencerCommitment,
+        found_in_l1_height: u64,
+    ) -> Result<()>;
 
     /// Get a pending commitment by index
     fn get_pending_commitment_by_index(
         &self,
         index: u32,
-    ) -> anyhow::Result<Option<SequencerCommitment>>;
+    ) -> anyhow::Result<Option<(SequencerCommitment, u64)>>;
 
     /// Get all out of order or l2 range not synced yet commitments to process, sorted by index
-    fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment)>>;
+    fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment, u64)>>;
 
     /// Remove pending commitment by index
     fn remove_pending_commitment(&self, index: u32) -> Result<()>;

@@ -516,7 +516,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// Out of order sequencer commitments
-    (PendingSequencerCommitments) u32 => SequencerCommitment
+    (PendingSequencerCommitments) u32 => (SequencerCommitment, u64)
 );
 
 define_table_with_default_codec!(

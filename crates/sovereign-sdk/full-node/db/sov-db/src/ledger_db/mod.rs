@@ -870,9 +870,16 @@ impl NodeLedgerOps for LedgerDB {
         Ok(())
     }
 
-    fn store_pending_commitment(&self, commitment: SequencerCommitment) -> anyhow::Result<()> {
+    fn store_pending_commitment(
+        &self,
+        commitment: SequencerCommitment,
+        found_in_l1_height: u64,
+    ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<PendingSequencerCommitments>(&commitment.index, &commitment)?;
+        schema_batch.put::<PendingSequencerCommitments>(
+            &commitment.index.clone(),
+            &(commitment.clone(), found_in_l1_height),
+        )?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
@@ -881,22 +888,22 @@ impl NodeLedgerOps for LedgerDB {
     fn get_pending_commitment_by_index(
         &self,
         index: u32,
-    ) -> anyhow::Result<Option<SequencerCommitment>> {
+    ) -> anyhow::Result<Option<(SequencerCommitment, u64)>> {
         self.db.get::<PendingSequencerCommitments>(&index)
     }
 
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment)>> {
+    fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment, u64)>> {
         let mut pending = Vec::new();
         let mut iter = self.db.iter::<PendingSequencerCommitments>()?;
         iter.seek_to_first();
 
         while let Some(Ok(item)) = iter.next() {
-            let (index, commitment) = item.into_tuple();
-            pending.push((index, commitment));
+            let (index, (commitment, l1_height)) = item.into_tuple();
+            pending.push((index, commitment, l1_height));
         }
 
         // Sort by index to make sure we process pending commitments in order
-        pending.sort_by_key(|(index, _)| *index);
+        pending.sort_by_key(|(index, _, _)| *index);
 
         Ok(pending)
     }

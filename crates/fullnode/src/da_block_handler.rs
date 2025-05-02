@@ -150,7 +150,7 @@ where
                         continue;
                     }
                     if let Err(e) = self
-                        .process_sequencer_commitment(l1_block, &commitment)
+                        .process_sequencer_commitment(&l1_block.header().height(), &commitment)
                         .await
                     {
                         match e {
@@ -222,7 +222,7 @@ where
 
     async fn process_sequencer_commitment(
         &self,
-        l1_block: &Da::FilteredBlock,
+        l1_block_height: &u64,
         sequencer_commitment: &SequencerCommitment,
     ) -> Result<ProcessingResult, SyncError> {
         // Skip if we already processed commitment with same index
@@ -288,7 +288,7 @@ where
                             sequencer_commitment.index - 1
                         );
                     self.ledger_db
-                        .store_pending_commitment(sequencer_commitment.clone())?;
+                        .store_pending_commitment(sequencer_commitment.clone(), *l1_block_height)?;
                     return Ok(ProcessingResult::Pending);
                 }
             }
@@ -296,9 +296,7 @@ where
 
         info!(
             "Processing sequencer commitment for L2 Range = {}-{} at L1 height {}.",
-            start_l2_height,
-            end_l2_height,
-            l1_block.header().height(),
+            start_l2_height, end_l2_height, l1_block_height,
         );
 
         // Check first if the end l2 height is within the range of the last scanned l2 height
@@ -320,7 +318,7 @@ where
                     hex::encode(sequencer_commitment.merkle_root)
                 );
                 self.ledger_db
-                    .store_pending_commitment(sequencer_commitment.clone())?;
+                    .store_pending_commitment(sequencer_commitment.clone(), *l1_block_height)?;
                 return Ok(ProcessingResult::Pending);
             } else {
                 // This branch will be reached when we are processing pending commitments, and the commitment is still pending
@@ -355,10 +353,8 @@ where
             .into());
         }
 
-        self.ledger_db.update_commitments_on_da_slot(
-            l1_block.header().height(),
-            sequencer_commitment.clone(),
-        )?;
+        self.ledger_db
+            .update_commitments_on_da_slot(*l1_block_height, sequencer_commitment.clone())?;
 
         self.ledger_db.set_l2_range_by_commitment_merkle_root(
             sequencer_commitment.merkle_root,
@@ -370,7 +366,7 @@ where
 
         self.ledger_db.set_l2_height_status(
             L2HeightStatus::Committed,
-            l1_block.header().height(),
+            *l1_block_height,
             L2HeightAndIndex {
                 height: end_l2_height,
                 commitment_index: sequencer_commitment.index,
@@ -559,11 +555,11 @@ where
             return Ok(());
         }
 
-        for (index, commitment) in pending_commitments {
+        for (index, commitment, l1_height) in pending_commitments {
             // Check if we can process this commitment now
             if self.ledger_db.get_commitment_by_index(index - 1)?.is_some() {
                 match self
-                    .process_sequencer_commitment(l1_block, &commitment)
+                    .process_sequencer_commitment(&l1_height, &commitment)
                     .await
                 {
                     Err(e) => {
@@ -632,8 +628,10 @@ where
         let sequencer_commitment =
             if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(idx)? {
                 sequencer_commitment
-            } else if let Some(sequencer_commitment) =
-                self.ledger_db.get_pending_commitment_by_index(idx)?
+            } else if let Some(sequencer_commitment) = self
+                .ledger_db
+                .get_pending_commitment_by_index(idx)?
+                .map(|x| x.0)
             {
                 // If we have a pending commitment, we need to store the proof as pending
                 info!("Proof has a pending commitment with index: {}.", idx);
