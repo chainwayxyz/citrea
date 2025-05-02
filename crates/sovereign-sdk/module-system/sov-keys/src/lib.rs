@@ -6,6 +6,7 @@ use std::hash::Hash;
 use default_signature::SigVerificationError;
 
 pub mod default_signature;
+pub mod error;
 mod pub_key_hex;
 mod serde_pub_key;
 
@@ -14,7 +15,7 @@ pub use pub_key_hex::PublicKeyHex;
 pub trait Signature:
     borsh::BorshDeserialize
     + borsh::BorshSerialize
-    + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
+    + for<'a> TryFrom<&'a [u8], Error = crate::error::KeyError>
     + Eq
     + Clone
     + std::fmt::Debug
@@ -32,7 +33,7 @@ pub trait Signature:
 pub trait PublicKey:
     borsh::BorshDeserialize
     + borsh::BorshSerialize
-    + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
+    + for<'a> TryFrom<&'a [u8], Error = crate::error::KeyError>
     + Eq
     + Hash
     + Clone
@@ -49,7 +50,7 @@ pub trait PublicKey:
 /// A PrivateKey used in the Module System.
 #[cfg(feature = "native")]
 pub trait PrivateKey:
-    Debug + Send + Sync + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
+    Debug + Send + Sync + for<'a> TryFrom<&'a [u8], Error = crate::error::KeyError>
 {
     /// The public key associated with the key pair.
     type PublicKey: PublicKey;
