@@ -877,7 +877,7 @@ impl NodeLedgerOps for LedgerDB {
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<PendingSequencerCommitments>(
-            &commitment.index.clone(),
+            &commitment.index,
             &(commitment.clone(), found_in_l1_height),
         )?;
         self.db.write_schemas(schema_batch)?;
