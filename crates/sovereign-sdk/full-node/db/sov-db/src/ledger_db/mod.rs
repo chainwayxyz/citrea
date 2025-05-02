@@ -920,25 +920,29 @@ impl NodeLedgerOps for LedgerDB {
         min_commitment_index: u32,
         max_commitment_index: u32,
         proof: Proof,
+        found_in_l1_height: u64,
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<PendingProofs>(&(min_commitment_index, max_commitment_index), &proof)?;
+        schema_batch.put::<PendingProofs>(
+            &(min_commitment_index, max_commitment_index),
+            &(proof, found_in_l1_height),
+        )?;
         self.db.write_schemas(schema_batch)?;
         Ok(())
     }
 
-    fn get_pending_proofs(&self) -> anyhow::Result<Vec<((u32, u32), Proof)>> {
+    fn get_pending_proofs(&self) -> anyhow::Result<Vec<((u32, u32), Proof, u64)>> {
         let mut pending = Vec::new();
         let mut iter = self.db.iter::<PendingProofs>()?;
         iter.seek_to_first();
 
         while let Some(Ok(item)) = iter.next() {
-            let (index_range, proof) = item.into_tuple();
-            pending.push((index_range, proof));
+            let (index_range, (proof, found_in_l1_height)) = item.into_tuple();
+            pending.push((index_range, proof, found_in_l1_height));
         }
 
         // Sort by min commitment index to ensure we process in order
-        pending.sort_by_key(|((min_index, _), _)| *min_index);
+        pending.sort_by_key(|((min_index, _), _, _)| *min_index);
 
         Ok(pending)
     }

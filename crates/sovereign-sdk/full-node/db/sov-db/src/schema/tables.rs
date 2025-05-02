@@ -521,7 +521,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// Out of order proofs
-    (PendingProofs) (u32, u32) => Proof
+    (PendingProofs) (u32, u32) => (Proof, u64)
 );
 
 #[cfg(test)]

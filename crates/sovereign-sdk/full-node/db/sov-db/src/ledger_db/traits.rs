@@ -195,10 +195,11 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
         min_commitment_index: u32,
         max_commitment_index: u32,
         proof: Proof,
+        found_in_l1_height: u64,
     ) -> Result<()>;
 
     /// Get all out of order commitment to process sorted by commitment index range
-    fn get_pending_proofs(&self) -> Result<Vec<((u32, u32), Proof)>>;
+    fn get_pending_proofs(&self) -> Result<Vec<((u32, u32), Proof, u64)>>;
 
     /// Remove a pending proof by its commitment index range
     fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> Result<()>;
