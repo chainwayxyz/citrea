@@ -7,6 +7,7 @@ use sov_mock_da::{MockAddress, MockDaService, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use tokio::sync::oneshot;
+use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() {
@@ -187,7 +188,8 @@ async fn start_proof(
     header_hash: MockHash,
 ) -> oneshot::Receiver<Proof> {
     // Spawn mock proving in the background
-    let (_, rx) = prover_service
+    let id = Uuid::now_v7();
+    let rx = prover_service
         .start_proving(
             ProofData {
                 input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
@@ -195,6 +197,7 @@ async fn start_proof(
                 elf: vec![],
             },
             ReceiptType::Groth16,
+            id,
         )
         .await
         .unwrap();

@@ -7,7 +7,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
 use tracing::{debug, error, info, instrument, warn};
-use uuid::Uuid;
+use uuid::{uuid, Uuid};
 
 use crate::{ProofData, ProofGenMode};
 
@@ -90,19 +90,21 @@ where
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
     pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> anyhow::Result<Proof> {
-        let (_, rx) = self.start_proving(data, receipt_type).await?;
+        let id = uuid!("00000000-0000-0000-0000-000000000000");
+        let rx = self.start_proving(data, receipt_type, id).await?;
         Ok(rx.await.expect("Proof channel should not close"))
     }
 
     /// Starts the proving task in the background and returns a channel which will resolve
     /// once the proving is done. If there is not enough proving slots left, this function
     /// will block until it can get a slot and start the proof.
-    #[instrument(name = "ParallelProverService", skip_all)]
+    #[instrument(name = "ParallelProverService", skip_all, fields(uuid))]
     pub async fn start_proving(
         &self,
         data: ProofData,
         receipt_type: ReceiptType,
-    ) -> anyhow::Result<(Uuid, oneshot::Receiver<Proof>)> {
+        uuid: Uuid,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         self.reserve_proof_slot().await;
 
         let ProofData {
@@ -118,12 +120,10 @@ where
             vm.add_assumption(assumption);
         }
 
-        let id = Uuid::now_v7();
-
         // Start proof immediately
-        let proof_rx = make_proof(vm, id, elf, self.proof_mode, receipt_type)
+        let proof_rx = make_proof(vm, uuid, elf, self.proof_mode, receipt_type)
             .context("Failed to start proving")?;
-        debug!("Started proving job {}", id);
+        debug!("Started proving job");
 
         let ongoing_proof_count = self.ongoing_proof_count.clone();
         let notifier = self.proof_done_notifier.clone();
@@ -143,11 +143,11 @@ where
                 }
             }
 
-            debug!("Finished proving job {}", id);
+            debug!("Finished proving job");
             notifier.notify_one();
         });
 
-        Ok((id, rx))
+        Ok(rx)
     }
 
     async fn reserve_proof_slot(&self) {

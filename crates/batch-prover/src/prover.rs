@@ -31,7 +31,7 @@ use sov_state::Witness;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn, Instrument, Level};
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
 
@@ -223,11 +223,12 @@ where
 
         let mut proving_jobs = Vec::with_capacity(partitions.len());
         for partition in partitions {
-            let input = self
-                .create_circuit_input(&partition)
+            let id = Uuid::now_v7();
+            let input = tracing::span!(Level::DEBUG, "CreateProof", job_id = id.to_string())
+                .in_scope(|| self.create_circuit_input(&partition))
                 .context("Failed to create circuit input")?;
 
-            let (id, rx) = self.start_proving(input).await?;
+            let rx = self.start_proving(input, id).await?;
             proving_jobs.push((id, rx));
 
             let commitment_indices = partition
@@ -469,10 +470,12 @@ where
         })
     }
 
+    #[instrument(skip_all, fields(uuid))]
     async fn start_proving(
         &self,
         input: BatchProofCircuitInputV3,
-    ) -> anyhow::Result<(Uuid, oneshot::Receiver<Proof>)> {
+        uuid: Uuid,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         let end_l2_height = input
             .sequencer_commitments
             .last()
@@ -496,7 +499,7 @@ where
             elf,
         };
         self.prover_service
-            .start_proving(proof_data, ReceiptType::Groth16)
+            .start_proving(proof_data, ReceiptType::Groth16, uuid)
             .await
     }
 
@@ -528,6 +531,11 @@ where
 
                 let tx_id = prover_service
                     .submit_proof(proof)
+                    .instrument(tracing::span!(
+                        Level::DEBUG,
+                        "SubmitProof",
+                        job_id = job_id.to_string()
+                    ))
                     .await
                     .expect("Failed to submit proof");
 
