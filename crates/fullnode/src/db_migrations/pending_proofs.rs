@@ -1,10 +1,8 @@
-use std::path::Path;
 use std::sync::Arc;
 
 use sov_db::ledger_db::migrations::{LedgerMigration, MigrationName, MigrationVersion};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
-use sov_db::rocks_db_config::RocksdbConfig;
-use sov_db::schema::tables::{PendingProofs, FULL_NODE_LEDGER_TABLES};
+use sov_db::schema::tables::PendingProofs;
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 

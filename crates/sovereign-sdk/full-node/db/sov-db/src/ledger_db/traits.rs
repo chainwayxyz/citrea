@@ -14,7 +14,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus,
+    PendingProofsOutput, SlotNumber,
 };
 
 /// Shared ledger operations
@@ -199,7 +200,7 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<()>;
 
     /// Get all out of order commitment to process sorted by commitment index range
-    fn get_pending_proofs(&self) -> Result<Vec<((u32, u32), Proof, u64)>>;
+    fn get_pending_proofs(&self) -> Result<Vec<PendingProofsOutput>>;
 
     /// Remove a pending proof by its commitment index range
     fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> Result<()>;
