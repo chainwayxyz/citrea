@@ -590,7 +590,7 @@ where
             if self.ledger_db.get_commitment_by_index(index - 1)?.is_some() {
                 match self
                     .process_sequencer_commitment(
-                        &current_l1_block_height,
+                        current_l1_block_height,
                         &found_in_l1_height,
                         &commitment,
                     )
