@@ -45,6 +45,20 @@ pub struct ProverInputResponse {
     pub encoded_serialized_batch_proof_input: String,
 }
 
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProvingJobStatus {
+    Pending,
+    Finalized,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvingJobResponse {
+    pub job_id: Uuid,
+    pub status: ProvingJobStatus,
+}
+
 pub struct RpcContext<Da, DB, Vm>
 where
     Da: DaService,
@@ -135,7 +149,7 @@ pub trait BatchProverRpc {
 
     /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     #[method(name = "getProvingJobs")]
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>>;
 
     /// Gets proving job details of the commitment index.
     #[method(name = "getProvingJobOfCommitment")]
@@ -453,12 +467,24 @@ where
         }))
     }
 
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>> {
-        Ok(self
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>> {
+        let jobs = self
             .context
             .ledger_db
-            .get_latest_job_ids(count)
-            .map_err(|e| internal_rpc_error(e.to_string()))?)
+            .get_latest_jobs(count)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+        let jobs = jobs
+            .into_iter()
+            .map(|(id, is_pending)| ProvingJobResponse {
+                job_id: id,
+                status: if is_pending {
+                    ProvingJobStatus::Pending
+                } else {
+                    ProvingJobStatus::Finalized
+                },
+            })
+            .collect();
+        Ok(jobs)
     }
 
     async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>> {

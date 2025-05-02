@@ -247,14 +247,17 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
 
-    /// Get latest job ids with max count.
-    fn get_latest_job_ids(&self, count: usize) -> Result<Vec<Uuid>>;
+    /// Get latest (job id, is_pending) with max count.
+    fn get_latest_jobs(&self, count: usize) -> Result<Vec<(Uuid, bool)>>;
 
     /// Get commitment indices by l1 height
     fn get_prover_commitment_indices_by_l1(
         &self,
         l1_height: SlotNumber,
     ) -> Result<Option<Vec<u32>>>;
+
+    /// Check if job is pending (non-existent job IS NOT pending)
+    fn job_is_pending(&self, id: Uuid) -> bool;
 }
 
 /// Light client prover ledger operations

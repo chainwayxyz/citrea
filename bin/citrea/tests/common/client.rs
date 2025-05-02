@@ -17,7 +17,7 @@ use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Fi
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
-use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
@@ -819,7 +819,7 @@ impl TestClient {
         self.http_client.get_proving_job(id).await.unwrap()
     }
 
-    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<Uuid> {
+    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<ProvingJobResponse> {
         self.http_client.get_proving_jobs(count).await.unwrap()
     }
 

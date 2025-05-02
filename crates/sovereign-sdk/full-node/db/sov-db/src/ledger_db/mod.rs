@@ -625,7 +625,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_latest_job_ids(&self, count: usize) -> anyhow::Result<Vec<Uuid>> {
+    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, bool)>> {
         let mut read_opts = ReadOptions::default();
         // Do not fill the cache with garbage data just to read ids
         read_opts.fill_cache(false);
@@ -635,15 +635,17 @@ impl BatchProverLedgerOps for LedgerDB {
             .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
-        let mut job_ids = Vec::with_capacity(count);
+        let mut jobs = Vec::with_capacity(count);
         for el in iter {
-            if job_ids.len() == count {
+            if jobs.len() == count {
                 break;
             }
-            job_ids.push(el?.key);
+            let job_id = el?.key;
+            let is_pending = self.job_is_pending(job_id);
+            jobs.push((job_id, is_pending));
         }
 
-        Ok(job_ids)
+        Ok(jobs)
     }
 
     #[instrument(level = "trace", skip(self), err)]
@@ -652,6 +654,11 @@ impl BatchProverLedgerOps for LedgerDB {
         l1_height: SlotNumber,
     ) -> anyhow::Result<Option<Vec<u32>>> {
         self.db.get::<CommitmentIndicesByL1>(&l1_height)
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    fn job_is_pending(&self, id: Uuid) -> bool {
+        self.db.get::<PendingL1SubmissionJobs>(&id).is_ok()
     }
 }
 
