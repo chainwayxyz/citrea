@@ -2541,6 +2541,7 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
+ "sov-schema-db",
  "sov-state",
  "tokio",
  "tracing",
