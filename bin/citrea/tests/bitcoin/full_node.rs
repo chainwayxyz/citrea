@@ -1876,7 +1876,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let _proof_2_l1_height = da.get_finalized_height(None).await?;
+        let proof_2_l1_height = da.get_finalized_height(None).await?;
 
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
             .await
@@ -1921,7 +1921,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let _proof_3_l1_height = da.get_finalized_height(None).await?;
+        let proof_3_l1_height = da.get_finalized_height(None).await?;
 
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None)
             .await
@@ -2011,22 +2011,30 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 
         full_node.wait_for_l1_height(finalized_height, None).await?;
 
-        // Assert that the proofs are now processed
-        let proof_output_2_3 = wait_for_zkproofs(full_node, finalized_height, None, 1) // TODO: This should be proof_2_3_l1_height, update after fixing the bug
+        // The proofs should have been processed now
+        let proof_output_2 = wait_for_zkproofs(full_node, proof_2_l1_height, None, 1)
             .await
             .unwrap();
-        assert!(proof_output_2_3.len() == 2);
+
+        assert!(proof_output_2.len() == 1);
 
         assert_eq!(
-            proof_output_2_3[0]
+            proof_output_2[0]
                 .clone()
                 .proof_output
                 .sequencer_commitment_index_range,
             (U32::from(2), U32::from(2))
         );
 
+        // The proofs should have been processed now
+        let proof_output_3 = wait_for_zkproofs(full_node, proof_3_l1_height, None, 1)
+            .await
+            .unwrap();
+
+        assert!(proof_output_3.len() == 1);
+
         assert_eq!(
-            proof_output_2_3[1]
+            proof_output_3[0]
                 .clone()
                 .proof_output
                 .sequencer_commitment_index_range,
