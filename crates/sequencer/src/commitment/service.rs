@@ -64,6 +64,7 @@ where
         }
     }
 
+    #[instrument(name = "CommitmentService", skip_all)]
     pub async fn run(
         mut self,
         storage_manager: ProverStorageManager,

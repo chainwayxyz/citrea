@@ -90,7 +90,7 @@ where
         }
     }
 
-    #[instrument(name = "L1BlockHandler")]
+    #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(
         mut self,
         last_l1_height_scanned: StartVariant,

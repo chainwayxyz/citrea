@@ -93,7 +93,7 @@ where
     }
 
     /// Runs the L2Syncer in a blocking manner.
-    #[instrument(name = "L2Syncer")]
+    #[instrument(name = "L2Syncer", skip_all)]
     pub async fn run(&mut self, mut shutdown_signal: GracefulShutdown) {
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(

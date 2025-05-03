@@ -224,6 +224,7 @@ impl BitcoinService {
         })
     }
 
+    #[instrument(name = "BitcoinDA")]
     pub async fn run_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,

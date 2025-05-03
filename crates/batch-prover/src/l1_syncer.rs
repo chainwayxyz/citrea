@@ -61,7 +61,7 @@ where
         }
     }
 
-    #[instrument(name = "L1Syncer")]
+    #[instrument(name = "L1Syncer", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         let l1_start_height = self
             .ledger_db

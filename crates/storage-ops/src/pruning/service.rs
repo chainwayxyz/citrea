@@ -27,7 +27,7 @@ impl PrunerService {
         }
     }
 
-    #[instrument(name = "PrunerService")]
+    #[instrument(name = "PrunerService", skip(self))]
     pub async fn run(mut self, node_type: StorageNodeType, mut shutdown_signal: GracefulShutdown) {
         loop {
             select! {

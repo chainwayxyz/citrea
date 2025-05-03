@@ -4,7 +4,7 @@ use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
 use tokio::sync::oneshot;
-use tracing::{error, info, span, Instrument, Level};
+use tracing::{error, info, info_span, Instrument};
 
 use crate::RpcConfig;
 
@@ -76,6 +76,6 @@ pub fn start_rpc_server(
                 }
             }
         }
-        .instrument(span!(Level::INFO, "RPC"))
+        .instrument(info_span!("RPC"))
     });
 }

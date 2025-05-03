@@ -27,7 +27,7 @@ use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
-use tracing::{info_span, instrument, Instrument};
+use tracing::instrument;
 
 use crate::guests::{
     BATCH_PROOF_DEVNET_GUESTS, BATCH_PROOF_LATEST_BITCOIN_GUESTS, BATCH_PROOF_MAINNET_GUESTS,
@@ -146,9 +146,7 @@ impl RollupBlueprint for BitcoinRollup {
             service.monitoring.restore().await?;
 
             task_executor.spawn_with_graceful_shutdown_signal(|tk| {
-                Arc::clone(&service)
-                    .run_da_queue(rx, tk)
-                    .instrument(info_span!("BitcoinDA"))
+                Arc::clone(&service).run_da_queue(rx, tk)
             });
             task_executor
                 .spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));

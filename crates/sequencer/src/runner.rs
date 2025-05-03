@@ -54,7 +54,7 @@ use sov_state::ProverStorage;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, span, trace, warn, Instrument, Level};
+use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment::service::CommitmentService;
@@ -555,7 +555,7 @@ where
         Ok(())
     }
 
-    #[instrument(name = "Sequencer")]
+    #[instrument(name = "Sequencer", skip_all)]
     pub async fn run(
         &mut self,
         mut shutdown_signal: GracefulShutdown,
@@ -604,25 +604,18 @@ where
             self.config.max_l2_blocks_per_commitment,
         );
 
-        tokio::spawn(
-            commitment_service
-                .run(
-                    self.storage_manager.clone(),
-                    self.l2_block_hash,
-                    shutdown_signal.clone(),
-                )
-                .instrument(span!(Level::INFO, "CommitmentService")),
-        );
+        tokio::spawn(commitment_service.run(
+            self.storage_manager.clone(),
+            self.l2_block_hash,
+            shutdown_signal.clone(),
+        ));
 
-        tokio::spawn(
-            da_block_monitor(
-                self.da_service.clone(),
-                da_height_update_tx,
-                self.config.da_update_interval_ms,
-                shutdown_signal.clone(),
-            )
-            .instrument(span!(Level::INFO, "L1BlockMonitor")),
-        );
+        tokio::spawn(da_block_monitor(
+            self.da_service.clone(),
+            da_height_update_tx,
+            self.config.da_update_interval_ms,
+            shutdown_signal.clone(),
+        ));
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
 

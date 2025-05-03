@@ -36,7 +36,7 @@ use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tokio::signal;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::{debug, error, info, info_span, instrument, Instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
 
