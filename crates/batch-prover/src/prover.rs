@@ -103,6 +103,7 @@ where
         }
     }
 
+    #[instrument(name = "BatchProver")]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         self.recover_proving_sessions().await;
 

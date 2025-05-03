@@ -555,6 +555,7 @@ where
         Ok(())
     }
 
+    #[instrument(name = "Sequencer")]
     pub async fn run(
         &mut self,
         mut shutdown_signal: GracefulShutdown,

@@ -27,7 +27,7 @@ use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
-use tracing::{instrument, Instrument};
+use tracing::{info_span, instrument, Instrument};
 
 use crate::guests::{
     BATCH_PROOF_DEVNET_GUESTS, BATCH_PROOF_LATEST_BITCOIN_GUESTS, BATCH_PROOF_MAINNET_GUESTS,

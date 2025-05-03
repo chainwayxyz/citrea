@@ -77,6 +77,7 @@ where
         }
     }
 
+    #[instrument(name = "L1BlockHandler")]
     pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
