@@ -151,8 +151,8 @@ where
                     }
                     if let Err(e) = self
                         .process_sequencer_commitment(
-                            &l1_block.header().height(),
-                            &l1_block.header().height(),
+                            l1_block.header().height(),
+                            l1_block.header().height(),
                             &commitment,
                         )
                         .await
@@ -180,8 +180,8 @@ where
                 ProofOrCommitment::Proof(proof) => {
                     if let Err(e) = self
                         .process_zk_proof(
-                            &l1_block.header().height(),
-                            &l1_block.header().height(),
+                            l1_block.header().height(),
+                            l1_block.header().height(),
                             proof,
                         )
                         .await
@@ -209,14 +209,14 @@ where
         }
 
         if let Err(e) = self
-            .process_pending_commitments(&l1_block.header().height())
+            .process_pending_commitments(l1_block.header().height())
             .await
         {
             error!("Error processing pending commitments: {e:?}");
         }
 
         if let Err(e) = self
-            .process_pending_proofs(&l1_block.header().height())
+            .process_pending_proofs(l1_block.header().height())
             .await
         {
             error!("Error processing pending proofs: {e:?}");
@@ -239,8 +239,8 @@ where
 
     async fn process_sequencer_commitment(
         &self,
-        current_l1_block_height: &u64,
-        found_in_l1_block_height: &u64,
+        current_l1_block_height: u64,
+        found_in_l1_block_height: u64,
         sequencer_commitment: &SequencerCommitment,
     ) -> Result<ProcessingResult, SyncError> {
         // Skip if we already processed commitment with same index
@@ -307,7 +307,7 @@ where
                         );
                     self.ledger_db.store_pending_commitment(
                         sequencer_commitment.clone(),
-                        *found_in_l1_block_height,
+                        found_in_l1_block_height,
                     )?;
                     return Ok(ProcessingResult::Pending);
                 }
@@ -339,7 +339,7 @@ where
                 );
                 self.ledger_db.store_pending_commitment(
                     sequencer_commitment.clone(),
-                    *found_in_l1_block_height,
+                    found_in_l1_block_height,
                 )?;
                 return Ok(ProcessingResult::Pending);
             } else {
@@ -376,7 +376,7 @@ where
         }
 
         self.ledger_db.update_commitments_on_da_slot(
-            *found_in_l1_block_height,
+            found_in_l1_block_height,
             sequencer_commitment.clone(),
         )?;
 
@@ -390,7 +390,7 @@ where
 
         self.ledger_db.set_l2_height_status(
             L2HeightStatus::Committed,
-            *current_l1_block_height,
+            current_l1_block_height,
             L2HeightAndIndex {
                 height: end_l2_height,
                 commitment_index: sequencer_commitment.index,
@@ -402,8 +402,8 @@ where
 
     async fn process_zk_proof(
         &self,
-        current_l1_block_height: &u64,
-        found_in_l1_block_height: &u64,
+        current_l1_block_height: u64,
+        found_in_l1_block_height: u64,
         proof: Proof,
     ) -> Result<ProcessingResult, SyncError> {
         tracing::info!(
@@ -434,8 +434,8 @@ where
 
     async fn process_tangerine_zk_proof(
         &self,
-        current_l1_block_height: &u64,
-        found_in_l1_block_height: &u64,
+        current_l1_block_height: u64,
+        found_in_l1_block_height: u64,
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
@@ -516,7 +516,7 @@ where
                 sequencer_commitment_index_range.0,
                 sequencer_commitment_index_range.1,
                 raw_proof,
-                *found_in_l1_block_height,
+                found_in_l1_block_height,
             )?;
             return Ok(ProcessingResult::Pending);
         }
@@ -552,21 +552,21 @@ where
                 sequencer_commitment_index_range.0,
                 sequencer_commitment_index_range.1,
                 raw_proof,
-                *found_in_l1_block_height,
+                found_in_l1_block_height,
             )?;
             return Ok(ProcessingResult::Pending);
         }
 
         // store in ledger db
         self.ledger_db.update_verified_proof_data(
-            *found_in_l1_block_height,
+            found_in_l1_block_height,
             raw_proof,
             batch_proof_output.into(),
         )?;
 
         self.ledger_db.set_l2_height_status(
             L2HeightStatus::Proven,
-            *current_l1_block_height,
+            current_l1_block_height,
             L2HeightAndIndex {
                 height: end_l2_height,
                 commitment_index: sequencer_commitment_index_range.1,
@@ -578,7 +578,7 @@ where
 
     async fn process_pending_commitments(
         &self,
-        current_l1_block_height: &u64,
+        current_l1_block_height: u64,
     ) -> Result<(), SyncError> {
         let pending_commitments = self.ledger_db.get_pending_commitments()?;
         if pending_commitments.is_empty() {
@@ -591,7 +591,7 @@ where
                 match self
                     .process_sequencer_commitment(
                         current_l1_block_height,
-                        &found_in_l1_height,
+                        found_in_l1_height,
                         &commitment,
                     )
                     .await
@@ -621,7 +621,7 @@ where
         Ok(())
     }
 
-    async fn process_pending_proofs(&self, current_l1_block_height: &u64) -> Result<(), SyncError> {
+    async fn process_pending_proofs(&self, current_l1_block_height: u64) -> Result<(), SyncError> {
         let pending_proofs = self.ledger_db.get_pending_proofs()?;
         if pending_proofs.is_empty() {
             return Ok(());
@@ -629,7 +629,7 @@ where
 
         for ((min_index, max_index), proof, found_in_l1_height) in pending_proofs {
             match self
-                .process_zk_proof(current_l1_block_height, &found_in_l1_height, proof)
+                .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
             {
                 Err(e) => {
