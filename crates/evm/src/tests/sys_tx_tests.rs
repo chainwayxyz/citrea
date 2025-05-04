@@ -774,6 +774,36 @@ fn test_bridge() {
     }
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_block_info.l2_height += 1;
+
+    // call deposit with wrong tx nonce
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let deposit_data = deposit_data.clone();
+
+        let sys_tx = SystemEvent::BridgeDeposit(deposit_data);
+        let sys_signer_nonce = evm
+            .account_info(&SYSTEM_SIGNER, &mut working_set)
+            .unwrap_or_default()
+            .nonce;
+        // create tx with wrong nonce
+        let txs = create_system_transactions(vec![sys_tx], sys_signer_nonce + 1, 1);
+
+        let mut buf = vec![];
+        txs[0].encode_2718(&mut buf);
+
+        let tx = RlpEvmTransaction { rlp: buf };
+
+        let Err(L2BlockModuleCallError::EvmTransactionExecutionError(msg)) =
+            evm.call(CallMessage { txs: vec![tx] }, &context, &mut working_set)
+        else {
+            panic!("Expected EvmTransactionExecutionError in wrong nonce case");
+        };
+        assert!(msg.contains("transaction validation error: nonce"));
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 }
 
 #[test]
