@@ -1,7 +1,6 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
 EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
-CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
 TEST_FEATURES := --features testing
 BATCH_OUT_PATH := resources/guests/risc0/
@@ -54,13 +53,13 @@ test-legacy: ## Runs test suite with output from tests printed
 test-ci:
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
-coverage-ci:
+coverage-ci: $(EF_TESTS_DIR)
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
 
 test: build-test ## Runs test suite using next test
 	TEST_SKIP_GUEST_BUILD=1 $(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
 
-coverage: build-test coverage-ci ## Coverage in lcov format
+coverage: coverage-ci ## Coverage in lcov format
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
