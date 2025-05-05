@@ -98,126 +98,125 @@ where
                 }
                 _ = &mut l1_sync_worker => {},
                 _ = interval.tick() => {
-                    self.process_l1_block().await
+                    self.process_l1_blocks().await
                 },
             }
         }
     }
 
-    async fn process_l1_block(&mut self) {
+    async fn process_l1_blocks(&mut self) {
         let _l1_lock = self.backup_manager.start_l1_processing().await;
         let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
 
-        let Some(l1_block) = pending_l1_blocks.front() else {
-            return;
-        };
+        while let Some(l1_block) = pending_l1_blocks.front() {
+            let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
+                Da::block_to_short_header_proof(l1_block.clone());
+            self.ledger_db
+                .put_short_header_proof_by_l1_hash(
+                    &l1_block.header().hash().into(),
+                    borsh::to_vec(&short_header_proof)
+                        .expect("Should serialize short header proof"),
+                )
+                .expect("Should save short header proof to ledger db");
 
-        let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
-            Da::block_to_short_header_proof(l1_block.clone());
-        self.ledger_db
-            .put_short_header_proof_by_l1_hash(
-                &l1_block.header().hash().into(),
-                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            let l1_height = l1_block.header().height();
+            info!("Processing L1 block at height: {}", l1_height);
+
+            // Set the l1 height of the l1 hash
+            self.ledger_db
+                .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
+                .unwrap();
+
+            let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
+                self.da_service.clone(),
+                l1_block,
+                &self.prover_da_pub_key,
+                &self.sequencer_da_pub_key,
             )
-            .expect("Should save short header proof to ledger db");
+            .await;
 
-        let l1_height = l1_block.header().height();
-        info!("Processing L1 block at height: {}", l1_height);
-
-        // Set the l1 height of the l1 hash
-        self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
-            .unwrap();
-
-        let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
-            self.da_service.clone(),
-            l1_block,
-            &self.prover_da_pub_key,
-            &self.sequencer_da_pub_key,
-        )
-        .await;
-
-        for commitment_or_proof in commitments_and_proofs {
-            match commitment_or_proof {
-                ProofOrCommitment::Commitment(commitment) => {
-                    if commitment.index == 0 {
-                        // Skip the commitment if the index is 0 as the first commitment index is 1
-                        // and commitment index can never be 0
-                        error!(
+            for commitment_or_proof in commitments_and_proofs {
+                match commitment_or_proof {
+                    ProofOrCommitment::Commitment(commitment) => {
+                        if commitment.index == 0 {
+                            // Skip the commitment if the index is 0 as the first commitment index is 1
+                            // and commitment index can never be 0
+                            error!(
                             "Detected sequencer commitment with index 0 at L1 height {}, skipping...",
                             l1_block.header().height()
                         );
-                        continue;
-                    }
-                    if let Err(e) = self
-                        .process_sequencer_commitment(l1_block, &commitment)
-                        .await
-                    {
-                        match e {
-                            SyncError::Error(e) => {
-                                error!(
-                                    "Could not process sequencer commitments: {}... skipping",
-                                    e
-                                );
-                            }
-                            SyncError::SequencerCommitmentNotFound(_) => {
-                                unreachable!("Error irrelevant!")
-                            }
-                            SyncError::SequencerCommitmentWithIndexNotFound(_) => {
-                                unreachable!("Error irrelevant!")
-                            }
-                            SyncError::UnknownL1Hash => unreachable!("Error irrelevant!"),
-                            SyncError::SequencerCommitmentMissingForProof(_) => {
-                                unreachable!("Error irrelevant!")
+                            continue;
+                        }
+                        if let Err(e) = self
+                            .process_sequencer_commitment(l1_block, &commitment)
+                            .await
+                        {
+                            match e {
+                                SyncError::Error(e) => {
+                                    error!(
+                                        "Could not process sequencer commitments: {}... skipping",
+                                        e
+                                    );
+                                }
+                                SyncError::SequencerCommitmentNotFound(_) => {
+                                    unreachable!("Error irrelevant!")
+                                }
+                                SyncError::SequencerCommitmentWithIndexNotFound(_) => {
+                                    unreachable!("Error irrelevant!")
+                                }
+                                SyncError::UnknownL1Hash => unreachable!("Error irrelevant!"),
+                                SyncError::SequencerCommitmentMissingForProof(_) => {
+                                    unreachable!("Error irrelevant!")
+                                }
                             }
                         }
                     }
-                }
-                ProofOrCommitment::Proof(proof) => {
-                    if let Err(e) = self.process_zk_proof(l1_block, proof).await {
-                        match e {
-                            SyncError::Error(e) => {
-                                error!("Could not process ZK proofs: {}... skipping...", e);
-                            }
-                            SyncError::SequencerCommitmentNotFound(merkle_root) => {
-                                error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
-                            }
-                            SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
-                                error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
-                            }
-                            SyncError::UnknownL1Hash => {
-                                error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
-                            }
-                            SyncError::SequencerCommitmentMissingForProof(index) => {
-                                error!("Could not process ZK proofs: Commitment index {index} is missing for proof")
+                    ProofOrCommitment::Proof(proof) => {
+                        if let Err(e) = self.process_zk_proof(l1_block, proof).await {
+                            match e {
+                                SyncError::Error(e) => {
+                                    error!("Could not process ZK proofs: {}... skipping...", e);
+                                }
+                                SyncError::SequencerCommitmentNotFound(merkle_root) => {
+                                    error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
+                                }
+                                SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
+                                    error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
+                                }
+                                SyncError::UnknownL1Hash => {
+                                    error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
+                                }
+                                SyncError::SequencerCommitmentMissingForProof(index) => {
+                                    error!("Could not process ZK proofs: Commitment index {index} is missing for proof")
+                                }
                             }
                         }
                     }
                 }
             }
+
+            if let Err(e) = self.process_pending_commitments(l1_block).await {
+                error!("Error processing pending commitments: {e:?}");
+            }
+
+            if let Err(e) = self.process_pending_proofs(l1_block).await {
+                error!("Error processing pending proofs: {e:?}");
+            }
+
+            // We do not care about the result of writing this height to the ledger db
+            // So log and continue
+            // Worst case scenario is that we will reprocess the same block after a restart
+            let _ = self
+                .ledger_db
+                .set_last_scanned_l1_height(SlotNumber(l1_height))
+                .map_err(|e| {
+                    error!("Could not set last scanned l1 height: {}", e);
+                });
+
+            FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
+
+            pending_l1_blocks.pop_front();
         }
-
-        if let Err(e) = self.process_pending_commitments(l1_block).await {
-            error!("Error processing pending commitments: {e:?}");
-        }
-
-        if let Err(e) = self.process_pending_proofs(l1_block).await {
-            error!("Error processing pending proofs: {e:?}");
-        }
-
-        // We do not care about the result of writing this height to the ledger db
-        // So log and continue
-        // Worst case scenario is that we will reprocess the same block after a restart
-        let _ = self
-            .ledger_db
-            .set_last_scanned_l1_height(SlotNumber(l1_height))
-            .map_err(|e| {
-                error!("Could not set last scanned l1 height: {}", e);
-            });
-
-        FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
-
-        pending_l1_blocks.pop_front();
     }
 
     async fn process_sequencer_commitment(
