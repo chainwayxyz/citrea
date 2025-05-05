@@ -108,7 +108,7 @@ pub mod bitcoinda {
 
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
         0,
-        decode_to_u32_array("113facdcfff2cc03a50f74e462f568fa35c36fc405f9d49c58af98f62c2e5a20"),
+        decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
     )];
 
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
