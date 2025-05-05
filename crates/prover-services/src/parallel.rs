@@ -6,7 +6,7 @@ use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
 use crate::{ProofData, ProofGenMode};
@@ -97,6 +97,7 @@ where
     /// Starts the proving task in the background and returns a channel which will resolve
     /// once the proving is done. If there is not enough proving slots left, this function
     /// will block until it can get a slot and start the proof.
+    #[instrument(name = "ParallelProverService", skip_all)]
     pub async fn start_proving(
         &self,
         data: ProofData,
