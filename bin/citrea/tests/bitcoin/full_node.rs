@@ -2106,7 +2106,6 @@ impl TestCase for UnsyncedFirstCommitmentTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
-            with_light_client_prover: true,
             ..Default::default()
         }
     }
