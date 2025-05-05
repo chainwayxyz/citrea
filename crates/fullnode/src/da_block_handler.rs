@@ -665,10 +665,8 @@ where
         let sequencer_commitment =
             if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(idx)? {
                 sequencer_commitment
-            } else if let Some(sequencer_commitment) = self
-                .ledger_db
-                .get_pending_commitment_by_index(idx)?
-                .map(|x| x.0)
+            } else if let Some((sequencer_commitment, _)) =
+                self.ledger_db.get_pending_commitment_by_index(idx)?
             {
                 // If we have a pending commitment, we need to store the proof as pending
                 info!("Proof has a pending commitment with index: {}.", idx);
