@@ -795,12 +795,13 @@ fn test_bridge() {
 
         let tx = RlpEvmTransaction { rlp: buf };
 
-        let Err(L2BlockModuleCallError::EvmTransactionExecutionError(msg)) =
+        assert_eq!(
             evm.call(CallMessage { txs: vec![tx] }, &context, &mut working_set)
-        else {
-            panic!("Expected EvmTransactionExecutionError in wrong nonce case");
-        };
-        assert!(msg.contains("transaction validation error: nonce"));
+                .unwrap_err(),
+            L2BlockModuleCallError::EvmTransactionExecutionError(
+                "transaction validation error: nonce 5 too high, expected 4".to_string()
+            )
+        );
     }
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
