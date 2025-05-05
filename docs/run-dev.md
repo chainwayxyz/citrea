@@ -16,7 +16,7 @@ make build
 
 ### Run on Mock DA
 
-Run on a local da layer, sharable between nodes that run on your computer.
+Run on a local DA layer, sharable between nodes that run on your computer.
 
 Run sequencer on Mock DA:
 
@@ -54,7 +54,7 @@ docker compose -f docker/docker-compose.regtest.yml up
 
 Keep this terminal open.
 
-Create bitcoin wallet for Bitcoin DA adapter.
+Create a bitcoin wallet for Bitcoin DA adapter.
 
 ```sh
 bitcoin-cli -regtest createwallet citreatesting
@@ -69,7 +69,7 @@ bitcoin-cli -regtest -generate 201
 
 Edit `resources/configs/bitcoin-regtest/sequencer_config.toml` to adjust the sequencer settings.
 
-Edit `resources/configs/bitcoin-regtest/sequencer_rollup_config.toml` file and put in your rpc url, username and password:
+Edit `resources/configs/bitcoin-regtest/sequencer_rollup_config.toml` file and put in your RPC url, username and password:
 
 ```toml
 [da]
@@ -105,7 +105,7 @@ _Optional_: Run batch prover:
 ./target/debug/citrea --dev --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/batch_prover_rollup_config.toml --batch-prover resources/configs/bitcoin-regtest/batch_prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
 ```
 
-If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcoin-regtest/batch_prover_config.toml` to 0, and you can set the `max_l2_blocks_per_commitment` to a number between 5-50, as higher numbers than that takes too long even if you run the prover in execute mode.
+If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcoin-regtest/batch_prover_config.toml` to 0, and you can set the `max_l2_blocks_per_commitment` to a number between 5-50, as higher numbers than that take too long even if you run the prover in execute mode.
 
 To publish blocks on Bitcoin Regtest, run the sequencer with `test_mode` in sequencer config set to false and blocks will be published every two seconds.
 
@@ -115,7 +115,7 @@ _Optional_: Run light client prover:
 ./target/debug/citrea --dev --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/light_client_prover_rollup_config.toml --light-client-prover resources/configs/bitcoin-regtest/light_client_prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
 ```
 
-To delete sequencer or full nodes databases run:
+To delete the sequencer or full nodes databases, run:
 
 ```sh
 make clean-node
@@ -129,4 +129,4 @@ To run tests:
 make test
 ```
 
-This will run [`cargo nextest`](https://nexte.st).
+This will run the [`cargo nextest`](https://nexte.st).
