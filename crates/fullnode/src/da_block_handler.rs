@@ -45,7 +45,7 @@ where
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     backup_manager: Arc<BackupManager>,
 }
 
@@ -72,7 +72,7 @@ where
             prover_da_pub_key,
             code_commitments_by_spec,
             l1_block_cache,
-            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
         }
     }
@@ -84,7 +84,7 @@ where
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
-            self.pending_l1_blocks.clone(),
+            self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             FULLNODE_METRICS.scan_l1_block.clone(),
         );
@@ -98,40 +98,47 @@ where
                 }
                 _ = &mut l1_sync_worker => {},
                 _ = interval.tick() => {
-                    self.process_l1_block().await
+                    if let Err(e) = self.process_queued_l1_blocks().await {
+                        error!("{e}");
+                        return;
+                    }
                 },
             }
         }
     }
 
-    async fn process_l1_block(&mut self) {
-        let _l1_lock = self.backup_manager.start_l1_processing().await;
-        let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
+    async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
+        loop {
+            let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
+                break;
+            };
+            self.process_l1_block(l1_block).await?;
+            self.queued_l1_blocks.lock().await.pop_front();
+        }
 
-        let Some(l1_block) = pending_l1_blocks.front() else {
-            return;
-        };
+        Ok(())
+    }
+
+    async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
+        let _l1_lock = self.backup_manager.start_l1_processing().await;
 
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
             Da::block_to_short_header_proof(l1_block.clone());
-        self.ledger_db
-            .put_short_header_proof_by_l1_hash(
-                &l1_block.header().hash().into(),
-                borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
-            )
-            .expect("Should save short header proof to ledger db");
+        self.ledger_db.put_short_header_proof_by_l1_hash(
+            &l1_block.header().hash().into(),
+            borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+        )?;
 
         let l1_height = l1_block.header().height();
         info!("Processing L1 block at height: {}", l1_height);
 
         // Set the l1 height of the l1 hash
         self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
-            .unwrap();
+            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)?;
 
         let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
             self.da_service.clone(),
-            l1_block,
+            &l1_block,
             &self.prover_da_pub_key,
             &self.sequencer_da_pub_key,
         )
@@ -145,12 +152,12 @@ where
                         // and commitment index can never be 0
                         error!(
                             "Detected sequencer commitment with index 0 at L1 height {}, skipping...",
-                            l1_block.header().height()
+                            &l1_block.header().height()
                         );
                         continue;
                     }
                     if let Err(e) = self
-                        .process_sequencer_commitment(l1_block, &commitment)
+                        .process_sequencer_commitment(&l1_block, &commitment)
                         .await
                     {
                         match e {
@@ -174,7 +181,7 @@ where
                     }
                 }
                 ProofOrCommitment::Proof(proof) => {
-                    if let Err(e) = self.process_zk_proof(l1_block, proof).await {
+                    if let Err(e) = self.process_zk_proof(&l1_block, proof).await {
                         match e {
                             SyncError::Error(e) => {
                                 error!("Could not process ZK proofs: {}... skipping...", e);
@@ -197,11 +204,11 @@ where
             }
         }
 
-        if let Err(e) = self.process_pending_commitments(l1_block).await {
+        if let Err(e) = self.process_pending_commitments(&l1_block).await {
             error!("Error processing pending commitments: {e:?}");
         }
 
-        if let Err(e) = self.process_pending_proofs(l1_block).await {
+        if let Err(e) = self.process_pending_proofs(&l1_block).await {
             error!("Error processing pending proofs: {e:?}");
         }
 
@@ -217,7 +224,7 @@ where
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
-        pending_l1_blocks.pop_front();
+        Ok(())
     }
 
     async fn process_sequencer_commitment(
@@ -561,7 +568,17 @@ where
 
         for (index, commitment) in pending_commitments {
             // Check if we can process this commitment now
-            if self.ledger_db.get_commitment_by_index(index - 1)?.is_some() {
+            let processable = if index == 1 {
+                let head_l2_height = self
+                    .ledger_db
+                    .get_head_l2_block_height()?
+                    .unwrap_or_default();
+                let end_l2_height = commitment.l2_end_block_number;
+                end_l2_height <= head_l2_height
+            } else {
+                self.ledger_db.get_commitment_by_index(index - 1)?.is_some()
+            };
+            if processable {
                 match self
                     .process_sequencer_commitment(l1_block, &commitment)
                     .await

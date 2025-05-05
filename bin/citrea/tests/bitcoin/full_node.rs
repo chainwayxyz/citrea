@@ -12,6 +12,7 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use reth_tasks::TaskManager;
+use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
@@ -2087,6 +2088,115 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 #[tokio::test]
 async fn test_unsynced_commitment_l2_range_test() -> Result<()> {
     TestCaseRunner::new(UnsyncedCommitmentL2RangeTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .set_citrea_cli_path(get_citrea_cli_path())
+    .run()
+    .await
+}
+
+struct UnsyncedFirstCommitmentTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for UnsyncedFirstCommitmentTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 5,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(145)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+        Stop full node
+        Sequencer publish 1-10
+        Creates commitments 1-2
+        Stop sequencer (so full node can't sync)
+
+        Start full node
+        Full node is unable to process commitments, assert last committed l2 is None
+
+        Start sequencer
+        Full node sync 1-10
+        Generate one l1 block
+        Assert last committed l2 is 10 with commitment index 2
+        */
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+
+        // stop the full node
+        full_node.wait_until_stopped().await?;
+
+        for _ in 1..=10 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.client.wait_for_l2_block(10, None).await?;
+
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // stop sequencer so full node doesn't sync
+        sequencer.wait_until_stopped().await?;
+
+        // restart full node
+        full_node.start(None, None).await?;
+
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+        let last_committed_l2 = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+        assert!(last_committed_l2.is_none());
+
+        sequencer.start(None, None).await?;
+        full_node.wait_for_l2_height(10, None).await?; // let it sync
+        da.generate(1).await?; // trigger processing pending commitments
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+        let last_committed_l2 = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+        assert_eq!(
+            last_committed_l2,
+            Some(L2HeightAndIndex {
+                height: 10,
+                commitment_index: 2,
+            })
+        );
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_unsynced_first_commitment() -> Result<()> {
+    TestCaseRunner::new(UnsyncedFirstCommitmentTest {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())
