@@ -28,8 +28,11 @@ pub(crate) type StateKeyRef<'a> = &'a [u8];
 /// (start, end) inclusive
 pub type L2HeightRange = (L2BlockNumber, L2BlockNumber);
 
+/// L1 height
+pub type L1Height = u64;
+
 /// The output of the pending proofs table
-pub type PendingProofsOutput = ((u32, u32), Proof, u64);
+pub type PendingProofsOutput = ((u32, u32), Proof, L1Height);
 
 /// Height and index of a sequencer commitment
 #[derive(
