@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_rollup_interface::zk::ReceiptType;
+use sov_rollup_interface::zk::{Proof, ReceiptType};
 
 /// Batch proof related storage types
 pub mod batch_proof;
@@ -27,6 +27,12 @@ pub(crate) type StateKeyRef<'a> = &'a [u8];
 /// The range of L2 heights (l2 blocks) for a given L1 block
 /// (start, end) inclusive
 pub type L2HeightRange = (L2BlockNumber, L2BlockNumber);
+
+/// L1 height
+pub type L1Height = u64;
+
+/// The output of the pending proofs table
+pub type PendingProofsOutput = ((u32, u32), Proof, L1Height);
 
 /// Height and index of a sequencer commitment
 #[derive(
