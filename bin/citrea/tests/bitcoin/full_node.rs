@@ -2118,7 +2118,7 @@ impl TestCase for UnsyncedFirstCommitmentTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
+        Some(145)
     }
 
     async fn cleanup(self) -> Result<()> {
