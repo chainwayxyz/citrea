@@ -19,7 +19,7 @@ use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::storage::{NativeStorage, StateCodec, StorageKey};
 pub(crate) use tracing_utils::*;
 
-use crate::db::{DBError, EvmDb};
+use crate::db::EvmDb;
 use crate::Evm;
 
 /// Applies all instances [`AccountOverride`] to the [`EvmDb`].
