@@ -4,7 +4,7 @@ use components::{rollback_ledger_db, rollback_native_db, rollback_state_db};
 use futures::future;
 use tracing::info;
 
-use crate::pruning::types::StorageNodeType;
+use crate::types::StorageNodeType;
 
 mod components;
 pub mod service;

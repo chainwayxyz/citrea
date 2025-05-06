@@ -4,7 +4,7 @@ use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
 use super::Rollback;
-use crate::pruning::types::StorageNodeType;
+use crate::types::StorageNodeType;
 
 pub struct RollbackSignal {
     current_l2_height: u64,

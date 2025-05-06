@@ -2,7 +2,7 @@ use sov_db::schema::tables::L2BlockByNumber;
 use sov_db::schema::types::L2BlockNumber;
 use sov_schema_db::{ScanDirection, DB};
 
-use crate::pruning::types::StorageNodeType;
+use crate::types::StorageNodeType;
 use crate::utils::delete_l2_blocks_by_number;
 
 pub(crate) fn prune_l2_blocks(

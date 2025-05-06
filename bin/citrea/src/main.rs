@@ -15,7 +15,7 @@ use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
-use citrea_storage_ops::pruning::types::StorageNodeType;
+use citrea_storage_ops::types::StorageNodeType;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;

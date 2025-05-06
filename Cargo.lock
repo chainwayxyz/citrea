@@ -2708,6 +2708,7 @@ name = "citrea-storage-ops"
 version = "0.7.1"
 dependencies = [
  "anyhow",
+ "derive_more 1.0.0",
  "futures",
  "hex",
  "jmt",

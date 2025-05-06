@@ -4,7 +4,7 @@ use sov_db::schema::tables::{
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
 
-use crate::pruning::types::StorageNodeType;
+use crate::types::StorageNodeType;
 use crate::utils::delete_slots_by_number;
 
 pub(crate) fn prune_slots(

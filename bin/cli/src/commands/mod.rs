@@ -1,5 +1,5 @@
 pub(crate) use backup::*;
-use citrea_storage_ops::pruning::types::StorageNodeType;
+use citrea_storage_ops::types::StorageNodeType;
 use clap::ValueEnum;
 pub(crate) use pending::*;
 pub(crate) use prune::*;

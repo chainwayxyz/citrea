@@ -3,8 +3,8 @@ use tokio::select;
 use tokio::sync::broadcast;
 use tracing::{debug, error};
 
-use super::types::StorageNodeType;
 use super::Pruner;
+use crate::types::StorageNodeType;
 
 pub struct PrunerService {
     pruner: Pruner,

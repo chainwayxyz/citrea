@@ -19,6 +19,7 @@ sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 
 # 3rd-party dependencies
 anyhow = { workspace = true }
+derive_more = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 reth-tasks = { workspace = true }
