@@ -2,12 +2,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 
 use alloy_eips::BlockNumberOrTag;
+use alloy_primitives::map::AddressMap;
 use alloy_primitives::{address, Address, Bytes, TxKind, B256};
 use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::{BlockId, BlockOverrides, TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
-use revm::bytecode;
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -638,32 +638,44 @@ fn test_call_with_state_overrides() {
     // This deployed bytecode belongs to a smart contract that has a single function when called returns 42 and that's it.
     let deployed_byte_code_of_contract = "6080604052348015600e575f80fd5b50600436106026575f3560e01c80639c16667c14602a575b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f602a905090565b5f819050919050565b605c81604c565b82525050565b5f60208201905060735f8301846055565b9291505056fea2646970667358221220d797c79afd038e2209602cede489acc7a3cf5706d7a37a2840c134bc6761327f64736f6c634300081a0033";
 
-    let bytecode =
-        bytecode::Bytecode::new_raw(hex::decode(deployed_byte_code_of_contract).unwrap().into());
-
     // Function selector
-    let input = hex::decode("9c16667c").unwrap().into();
+    let input: Bytes = hex::decode("9c16667c").unwrap().into();
 
     let random_eoa_address = Address::random();
 
     // Override the code of that random address with the deployed bytecode of the contract
     // Then call the contract with the function selector
-    let mut state_override: HashMap<
-        Address,
-        AccountOverride,
-        alloy_primitives::map::FbBuildHasher<20>,
-    > = HashMap::with_hasher(alloy_primitives::map::FbBuildHasher::default());
+    let mut state_override = AddressMap::<AccountOverride>::default();
     state_override.insert(
         random_eoa_address,
         AccountOverride {
             balance: None,
             nonce: None,
-            code: Some(bytecode.clone().original_bytes()),
+            code: Some(hex::decode(deployed_byte_code_of_contract).unwrap().into()),
             state: None,
             state_diff: None,
             move_precompile_to: None,
         },
     );
+
+    let call_result_without_state_override = evm
+        .get_call_inner(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(random_eoa_address)),
+                input: TransactionInput::new(input.clone()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+            get_fork_fn_only_tangerine(),
+        )
+        .unwrap();
+
+    // Assert that the call without state override returns empty
+    assert_eq!(call_result_without_state_override, Bytes::default());
 
     let call_result_with_state_override = evm
         .get_call_inner(

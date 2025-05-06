@@ -36,6 +36,7 @@ pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
 }
 
 /// Applies a single [`AccountOverride`] to the [`EvmDb`].
+/// Ref https://github.com/paradigmxyz/reth/blob/cbdb81069ff9c6d9e3680ad802878c5f0a5bc97f/crates/rpc/rpc-eth-types/src/revm_utils.rs#L276
 pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
     account: Address,
     account_override: AccountOverride,
@@ -51,7 +52,6 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
     if let Some(code) = account_override.code {
         let code_hash = keccak256(&code);
         let evm = Evm::<C>::default();
-        // Changes taken form https://github.com/paradigmxyz/reth/blob/cbdb81069ff9c6d9e3680ad802878c5f0a5bc97f/crates/rpc/rpc-eth-types/src/revm_utils.rs#L276
         evm.offchain_code.set(
             &code_hash,
             &revm::bytecode::Bytecode::new_raw_checked(code)
@@ -81,7 +81,6 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
         (None, None) => {
             // nothing to do
         }
-        // Changes taken form https://github.com/paradigmxyz/reth/blob/cbdb81069ff9c6d9e3680ad802878c5f0a5bc97f/crates/rpc/rpc-eth-types/src/revm_utils.rs#L276
         (Some(new_account_state), None) => {
             // Destroy the account to ensure that its storage is cleared
             db.commit(HashMap::from_iter([(
