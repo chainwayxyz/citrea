@@ -53,7 +53,8 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
         let evm = Evm::<C>::default();
         evm.offchain_code.set(
             &code_hash,
-            &revm::bytecode::Bytecode::new_raw(code),
+            &revm::bytecode::Bytecode::new_raw_checked(code)
+                .map_err(|err| EthApiError::InvalidBytecode(err.to_string()))?,
             &mut db.working_set.offchain_state(),
         );
         account_info.code_hash = code_hash;
