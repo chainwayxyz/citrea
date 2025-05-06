@@ -20,7 +20,7 @@ build: ## Build the project
 	@cargo build
 
 .PHONY: build-test
-build-test: $(EF_TESTS_DIR) ## Build the project
+build-test: ## Build the project
 	@cargo build --locked $(TEST_FEATURES)
 
 build-reproducible: build-sp1 ## Build the project in release mode with reproducible guest builds
@@ -56,8 +56,8 @@ test-ci:
 coverage-ci: $(EF_TESTS_DIR)
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
 
-test: build-test ## Runs test suite using next test
-	TEST_SKIP_GUEST_BUILD=1 $(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
+test: $(EF_TESTS_DIR) ## Runs test suite using next test
+	$(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: coverage-ci ## Coverage in lcov format
 

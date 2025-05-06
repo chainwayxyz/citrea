@@ -352,7 +352,6 @@ jobs:
   nextest:
     needs:
       - docker-setup
-      - build-test
     name: nextest
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
@@ -391,15 +390,6 @@ jobs:
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: citrea-test-build
-          path: target/debug
-      - name: Make citrea executable
-        run: chmod +x target/debug/citrea
-      - name: Make citrea-cli executable
-        run: chmod +x target/debug/citrea-cli
       - name: Run nextest
         run: make test-ci
         env:
@@ -418,7 +408,6 @@ jobs:
   system-contracts:
     strategy:
       fail-fast: true
-
     name: Foundry project
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
@@ -447,7 +436,6 @@ jobs:
   check_genesis_files:
     strategy:
       fail-fast: true
-
     name: Check Genesis Files
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
