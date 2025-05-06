@@ -19,10 +19,6 @@ build-sp1:
 build: ## Build the project
 	@cargo build
 
-.PHONY: build-test
-build-test: ## Build the project
-	@cargo build --locked $(TEST_FEATURES)
-
 build-reproducible: build-sp1 ## Build the project in release mode with reproducible guest builds
 	REPR_GUEST_BUILD=1 cargo build --release --locked
 
