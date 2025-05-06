@@ -224,7 +224,7 @@ jobs:
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
       - name: Run coverage
-        run: make coverage-ci
+        run: make coverage
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
@@ -389,7 +389,7 @@ jobs:
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
       - name: Run nextest
-        run: make test-ci
+        run: make test
         env:
           RUST_BACKTRACE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
