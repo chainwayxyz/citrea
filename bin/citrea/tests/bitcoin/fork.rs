@@ -5,8 +5,7 @@ use std::time::Duration;
 use alloy::signers::SignerSync;
 use alloy_primitives::{Address, Bytes, U64};
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
-use citrea_e2e::bitcoin::BitcoinNode;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{CitreaMode, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::Sequencer;
@@ -410,7 +409,7 @@ impl ForkActivationTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -419,7 +418,7 @@ impl ForkActivationTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
 
         full_node
