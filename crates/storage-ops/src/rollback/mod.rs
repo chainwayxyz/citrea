@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use components::{rollback_ledger_db, rollback_native_db, rollback_state_db};
+use components::{rollback_native_db, rollback_state_db};
 use futures::future;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::types::StorageNodeType;
 
 mod components;
+mod node;
 pub mod service;
 
 pub struct Rollback {
@@ -41,20 +42,43 @@ impl Rollback {
         l1_target: u64,
         last_sequencer_commitment_index: u32,
     ) -> anyhow::Result<()> {
-        info!("Rolling back until L2 {}, L1 {}", l2_target, l1_target);
+        info!(
+            "Rolling back {} node until L2 {}, L1 {}",
+            node_type, l2_target, l1_target
+        );
 
         let ledger_db = self.ledger_db.clone();
         let native_db = self.native_db.clone();
         let state_db = self.state_db.clone();
 
         let ledger_rollback_handle = tokio::task::spawn_blocking(move || {
-            rollback_ledger_db(
-                node_type,
-                ledger_db,
-                l2_target,
-                l1_target,
-                last_sequencer_commitment_index,
-            )
+            debug!(
+                "Rolling back {}, down to L2 block {}, L1 block {}",
+                node_type, l2_target, l1_target
+            );
+            match node_type {
+                StorageNodeType::Sequencer => node::rollback_sequencer(
+                    ledger_db,
+                    l2_target,
+                    l1_target,
+                    last_sequencer_commitment_index,
+                ),
+                StorageNodeType::FullNode => node::rollback_fullnode(
+                    ledger_db,
+                    l2_target,
+                    l1_target,
+                    last_sequencer_commitment_index,
+                ),
+                StorageNodeType::BatchProver => node::rollback_batch_prover(
+                    ledger_db,
+                    l2_target,
+                    l1_target,
+                    last_sequencer_commitment_index,
+                ),
+                StorageNodeType::LightClient => {
+                    node::rollback_light_client(ledger_db, l2_target, l1_target)
+                }
+            }
         });
 
         let state_db_rollback_handle =

@@ -1,18 +1,22 @@
 use sov_db::schema::tables::{
-    CommitmentIndicesByL1, CommitmentsByNumber, L2StatusHeights, LightClientProofBySlotNumber,
-    ProverLastScannedSlot, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
+    CommitmentIndicesByL1, CommitmentsByNumber, LightClientProofBySlotNumber,
+    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
-use sov_db::schema::types::{L2HeightStatus, SlotNumber};
+use sov_db::schema::types::SlotNumber;
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::types::StorageNodeType;
 use crate::utils::delete_slots_by_number;
 
-pub(crate) fn rollback_slots(
+pub(crate) fn rollback_slots<F>(
     node_type: StorageNodeType,
     ledger_db: &DB,
     target_l1: u64,
-) -> anyhow::Result<u64> {
+    callback: F,
+) -> anyhow::Result<u64>
+where
+    F: Fn(&DB, SlotNumber) -> anyhow::Result<()>,
+{
     let mut commitments_by_number = ledger_db
         .iter_with_direction::<CommitmentsByNumber>(Default::default(), ScanDirection::Backward)?;
     commitments_by_number.seek_to_last();
@@ -31,25 +35,9 @@ pub(crate) fn rollback_slots(
 
         delete_slots_by_number(node_type, ledger_db, slot_height)?;
 
-        if !matches!(node_type, StorageNodeType::Sequencer) {
-            rollback_slot_by_hash(node_type, ledger_db, slot_height)?;
-        }
-
-        if matches!(node_type, StorageNodeType::FullNode) {
-            rollback_verified_proofs_by_slot_number(ledger_db, slot_height)?;
-        }
+        callback(ledger_db, slot_height)?;
 
         deleted += 1;
-    }
-
-    if matches!(node_type, StorageNodeType::FullNode) {
-        let last_scanned_l1_height = ledger_db
-            .get::<ProverLastScannedSlot>(&())?
-            .unwrap_or_default();
-        for l1_height in (target_l1..=last_scanned_l1_height.0).rev() {
-            ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l1_height))?;
-            ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Proven, l1_height))?;
-        }
     }
 
     Ok(deleted)
@@ -84,11 +72,7 @@ pub(crate) fn rollback_batch_prover_slots(
     Ok(deleted)
 }
 
-pub(crate) fn rollback_light_client_slots(
-    node_type: StorageNodeType,
-    ledger_db: &DB,
-    target_l1: u64,
-) -> anyhow::Result<u64> {
+pub(crate) fn rollback_light_client_slots(ledger_db: &DB, target_l1: u64) -> anyhow::Result<u64> {
     let mut proof_by_slot_number = ledger_db.iter_with_direction::<LightClientProofBySlotNumber>(
         Default::default(),
         ScanDirection::Backward,
@@ -107,7 +91,7 @@ pub(crate) fn rollback_light_client_slots(
             break;
         }
 
-        delete_slots_by_number(node_type, ledger_db, slot_height)?;
+        delete_slots_by_number(StorageNodeType::LightClient, ledger_db, slot_height)?;
 
         deleted += 1;
     }
@@ -115,7 +99,7 @@ pub(crate) fn rollback_light_client_slots(
     Ok(deleted)
 }
 
-fn rollback_slot_by_hash(
+pub(crate) fn rollback_slot_by_hash(
     node_type: StorageNodeType,
     ledger_db: &DB,
     slot_number: SlotNumber,
@@ -146,7 +130,7 @@ fn rollback_slot_by_hash(
     Ok(deleted)
 }
 
-fn rollback_verified_proofs_by_slot_number(
+pub(crate) fn rollback_verified_proofs_by_slot_number(
     ledger_db: &DB,
     slot_number: SlotNumber,
 ) -> anyhow::Result<()> {

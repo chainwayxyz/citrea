@@ -1,18 +1,15 @@
-use sov_db::schema::tables::{
-    JobIdOfCommitment, L2BlockByNumber, ProverPendingCommitments, SequencerCommitmentByIndex,
-};
-use sov_db::schema::types::L2BlockNumber;
+use sov_db::schema::tables::L2BlockByNumber;
+use sov_db::schema::types::{DbHash, L2BlockNumber};
 use sov_schema_db::{ScanDirection, DB};
 
-use crate::pruning::types::StorageNodeType;
-use crate::utils::delete_l2_blocks_by_number;
-
-pub(crate) fn rollback_l2_blocks(
-    node_type: StorageNodeType,
+pub(crate) fn rollback_l2_blocks<F>(
     ledger_db: &DB,
     target_l2: u64,
-    last_sequencer_commitment_index: u32,
-) -> anyhow::Result<u64> {
+    callback: F,
+) -> anyhow::Result<u64>
+where
+    F: Fn(&DB, L2BlockNumber, DbHash) -> anyhow::Result<()>,
+{
     let mut l2_blocks = ledger_db
         .iter_with_direction::<L2BlockByNumber>(Default::default(), ScanDirection::Backward)?;
     l2_blocks.seek_to_last();
@@ -26,33 +23,11 @@ pub(crate) fn rollback_l2_blocks(
             break;
         }
 
-        delete_l2_blocks_by_number(node_type, ledger_db, l2_block_number, record.value.hash)?;
+        ledger_db.delete::<L2BlockByNumber>(&l2_block_number)?;
+
+        callback(ledger_db, l2_block_number, record.value.hash)?;
 
         deleted += 1;
-    }
-
-    if matches!(node_type, StorageNodeType::LightClient) {
-        return Ok(deleted);
-    }
-
-    let mut comm_iter = ledger_db.iter_with_direction::<SequencerCommitmentByIndex>(
-        Default::default(),
-        ScanDirection::Backward,
-    )?;
-    comm_iter.seek_to_last();
-
-    for record in comm_iter {
-        let comm_idx = record?.key;
-        if comm_idx <= last_sequencer_commitment_index {
-            break;
-        }
-
-        ledger_db.delete::<SequencerCommitmentByIndex>(&comm_idx)?;
-
-        if matches!(node_type, StorageNodeType::BatchProver) {
-            ledger_db.delete::<JobIdOfCommitment>(&comm_idx)?;
-            ledger_db.delete::<ProverPendingCommitments>(&comm_idx)?;
-        }
     }
 
     Ok(deleted)

@@ -1,9 +1,8 @@
-use sov_db::schema::tables::L2BlockByNumber;
-use sov_db::schema::types::L2BlockNumber;
+use sov_db::schema::tables::{L2BlockByHash, L2BlockByNumber, L2StatusHeights, ProverStateDiffs};
+use sov_db::schema::types::{L2BlockNumber, L2HeightStatus};
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::types::StorageNodeType;
-use crate::utils::delete_l2_blocks_by_number;
 
 pub(crate) fn prune_l2_blocks(
     node_type: StorageNodeType,
@@ -26,7 +25,21 @@ pub(crate) fn prune_l2_blocks(
             break;
         }
 
-        delete_l2_blocks_by_number(node_type, ledger_db, l2_block_number, record.value.hash)?;
+        ledger_db.delete::<L2BlockByNumber>(&l2_block_number)?;
+
+        if matches!(node_type, StorageNodeType::LightClient) {
+            return Ok(deleted);
+        }
+
+        ledger_db.delete::<L2BlockByHash>(&record.value.hash)?;
+
+        if matches!(node_type, StorageNodeType::BatchProver) {
+            ledger_db.delete::<ProverStateDiffs>(&l2_block_number)?;
+        }
+
+        if matches!(node_type, StorageNodeType::FullNode) {
+            ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l2_block_number.0))?;
+        }
 
         deleted += 1;
     }
