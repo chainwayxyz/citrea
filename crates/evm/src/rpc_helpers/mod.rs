@@ -49,7 +49,7 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
         account_info.nonce = nonce;
     }
     if let Some(code) = account_override.code {
-        let code_hash = keccak256(code.clone());
+        let code_hash = keccak256(&code);
         let evm = Evm::<C>::default();
         evm.offchain_code.set(
             &code_hash,
