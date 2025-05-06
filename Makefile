@@ -50,7 +50,11 @@ test: $(EF_TESTS_DIR) ## Runs test suite using nextest
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
+	CITREA_CLI_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea-cli \
+	CITREA_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea \
+	RISC0_DEV_MODE=1 \
+	PARALLEL_PROOF_LIMIT=1 \
+	cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
