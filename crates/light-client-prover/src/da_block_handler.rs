@@ -169,8 +169,7 @@ where
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
         {
             Some(data) => {
-                let db_output = data.light_client_proof_output;
-                let output = LightClientCircuitOutput::from(db_output);
+                let output = LightClientCircuitOutput::from(data.light_client_proof_output);
                 (Some(data.proof), output.last_l2_height, Some(output))
             }
             None => {
