@@ -199,7 +199,7 @@ where
         let result = self.circuit.run_l1_block(
             storage,
             Default::default(),
-            da_data.clone(),
+            da_data,
             l1_block.header().clone(),
             light_client_proof_output,
             self.network.get_l2_genesis_root(),
