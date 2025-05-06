@@ -19,7 +19,7 @@ use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::storage::{NativeStorage, StateCodec, StorageKey};
 pub(crate) use tracing_utils::*;
 
-use crate::db::EvmDb;
+use crate::db::{DBError, EvmDb};
 use crate::Evm;
 
 /// Applies all instances [`AccountOverride`] to the [`EvmDb`].
@@ -48,7 +48,19 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
         account_info.nonce = nonce;
     }
     if let Some(code) = account_override.code {
-        account_info.code_hash = keccak256(code);
+        let code_hash = keccak256(code);
+        match db.code_by_hash(code_hash.clone()) {
+            Ok(_) => {
+                // code already exists, do nothing
+            }
+            Err(DBError::CodeHashMismatch) => {
+                // code doesn't exist, add it to the database
+                db.evm
+                    .offchain_code
+                    .set(&code_hash, &code, &mut db.working_set.offchain_state());
+            }
+        }
+        account_info.code_hash = code_hash;
     }
     if let Some(balance) = account_override.balance {
         account_info.balance = balance;
