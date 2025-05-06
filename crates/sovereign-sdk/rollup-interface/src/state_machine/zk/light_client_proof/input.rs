@@ -14,9 +14,9 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     pub da_block_header: Da::BlockHeader,
     /// Light client proof method id
     pub light_client_proof_method_id: [u32; 8],
-    /// Light client proof output
+    /// Previous light client proof
     /// Optional because the first light client proof doesn't have a previous proof
-    pub previous_light_client_proof_journal: Option<Vec<u8>>,
+    pub previous_light_client_proof: Option<Vec<u8>>,
     /// Witness for the light client state
     pub witness: Witness,
 }
