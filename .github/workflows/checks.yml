@@ -248,7 +248,7 @@ jobs:
 
   uniswap:
     runs-on: ubicloud-standard-2
-    needs: build-
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -290,7 +290,7 @@ jobs:
 
   web3_py:
     runs-on: ubicloud-standard-2
-    needs: build-
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -319,7 +319,7 @@ jobs:
 
   ethers_js:
     runs-on: ubicloud-standard-2
-    needs: build-
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
