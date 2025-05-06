@@ -277,13 +277,11 @@ where
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
     ) -> Result<Proof, anyhow::Error> {
-        let prover_service = self.prover_service.as_ref();
         let data = ProofData {
             input: borsh::to_vec(&circuit_input)?,
             assumptions,
             elf: light_client_elf,
         };
-
-        prover_service.prove(data, ReceiptType::Succinct).await
+        self.prover_service.prove(data, ReceiptType::Groth16).await
     }
 }
