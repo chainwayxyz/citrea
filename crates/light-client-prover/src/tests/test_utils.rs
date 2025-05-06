@@ -178,8 +178,8 @@ pub(crate) fn create_prev_lcp_serialized(
         is_valid,
         log: mock_journal,
     };
-    let proof = mock_proof.encode_to_vec();
-    proof
+
+    mock_proof.encode_to_vec()
 }
 
 pub(crate) fn create_new_method_id_tx(
@@ -276,13 +276,10 @@ impl NativeCircuitRunner {
             .prover_storage_manager
             .create_storage_for_next_l2_height();
 
-        let prev_lcp_output = input
-            .previous_light_client_proof
-            .clone()
-            .map(|proof| {
-                let journal = MockZkvm::extract_raw_output(&proof).unwrap();
-                MockZkvm::deserialize_output(&journal).unwrap()
-            });
+        let prev_lcp_output = input.previous_light_client_proof.clone().map(|proof| {
+            let journal = MockZkvm::extract_raw_output(&proof).unwrap();
+            MockZkvm::deserialize_output(&journal).unwrap()
+        });
 
         let da_verifier = MockDaVerifier {};
 
