@@ -270,7 +270,7 @@ impl NativeCircuitRunner {
             .create_storage_for_next_l2_height();
 
         let prev_lcp_output = input
-            .previous_light_client_proof_journal
+            .previous_light_client_proof
             .clone()
             .map(|j| MockZkvm::deserialize_output(&j).unwrap());
 
