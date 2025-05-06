@@ -48,18 +48,13 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
         account_info.nonce = nonce;
     }
     if let Some(code) = account_override.code {
-        let code_hash = keccak256(code);
-        match db.code_by_hash(code_hash.clone()) {
-            Ok(_) => {
-                // code already exists, do nothing
-            }
-            Err(DBError::CodeHashMismatch) => {
-                // code doesn't exist, add it to the database
-                db.evm
-                    .offchain_code
-                    .set(&code_hash, &code, &mut db.working_set.offchain_state());
-            }
-        }
+        let code_hash = keccak256(code.clone());
+        let evm = Evm::<C>::default();
+        evm.offchain_code.set(
+            &code_hash,
+            &revm::bytecode::Bytecode::new_raw(code),
+            &mut db.working_set.offchain_state(),
+        );
         account_info.code_hash = code_hash;
     }
     if let Some(balance) = account_override.balance {
