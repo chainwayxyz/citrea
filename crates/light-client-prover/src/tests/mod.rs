@@ -892,7 +892,7 @@ fn test_unverifiable_batch_proofs() {
 }
 
 #[test]
-#[should_panic = "Assumption proof verification failed!"]
+#[should_panic = "Previous light client proof is invalid"]
 fn test_unverifiable_prev_light_client_proof() {
     let db_dir = tempdir().unwrap();
     let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
