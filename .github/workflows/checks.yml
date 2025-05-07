@@ -64,8 +64,6 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:29.0"
-  CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
-  CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -76,8 +74,8 @@ concurrency:
   cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/devnet-freeze') && (github.ref != 'refs/heads/main') }}
 
 jobs:
-  build-test:
-    name: build-tests
+  build:
+    name: build
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
@@ -103,11 +101,11 @@ jobs:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Build citrea
-        run: make build-test
+        run: make build
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: |
             target/debug/citrea
             target/debug/citrea-cli
@@ -226,7 +224,7 @@ jobs:
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
       - name: Run coverage
-        run: make coverage-ci
+        run: make coverage
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
@@ -250,7 +248,7 @@ jobs:
 
   uniswap:
     runs-on: ubicloud-standard-2
-    needs: build-test
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -260,7 +258,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -292,7 +290,7 @@ jobs:
 
   web3_py:
     runs-on: ubicloud-standard-2
-    needs: build-test
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -303,7 +301,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -321,7 +319,7 @@ jobs:
 
   ethers_js:
     runs-on: ubicloud-standard-2
-    needs: build-test
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -331,7 +329,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -352,7 +350,6 @@ jobs:
   nextest:
     needs:
       - docker-setup
-      - build-test
     name: nextest
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
@@ -391,23 +388,16 @@ jobs:
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: citrea-test-build
-          path: target/debug
-      - name: Make citrea executable
-        run: chmod +x target/debug/citrea
-      - name: Make citrea-cli executable
-        run: chmod +x target/debug/citrea-cli
       - name: Run nextest
-        run: make test-ci
+        run: make test
         env:
           RUST_BACKTRACE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test
+          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+          CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
       - name: Upload e2e test dir
         if: always()
         uses: actions/upload-artifact@v4
@@ -418,7 +408,6 @@ jobs:
   system-contracts:
     strategy:
       fail-fast: true
-
     name: Foundry project
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
@@ -447,7 +436,6 @@ jobs:
   check_genesis_files:
     strategy:
       fail-fast: true
-
     name: Check Genesis Files
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false

@@ -6,6 +6,7 @@ use std::str::FromStr;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sha2::Digest;
 
+use crate::error::KeyError;
 use crate::{PublicKey, Signature};
 
 /// Representation of a signature verification error.
@@ -31,6 +32,7 @@ pub mod k256_private_key {
     use rand::rngs::OsRng;
 
     use super::{K256PublicKey, K256Signature};
+    use crate::error::KeyError;
     use crate::PrivateKey;
 
     #[derive(Clone)]
@@ -41,7 +43,7 @@ pub mod k256_private_key {
     // TODO: Should we implement try_from_keypair? We can set private_key_length, public_key_length and keypair_length as constants which are 32,33,65 respectively
 
     impl TryFrom<&[u8]> for K256PrivateKey {
-        type Error = anyhow::Error;
+        type Error = KeyError;
 
         fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
             let key_pair = SigningKey::from_slice(value)?;
@@ -89,7 +91,7 @@ pub mod k256_private_key {
             hex::encode(self.key_pair.to_bytes())
         }
 
-        pub fn from_hex(hex: &str) -> anyhow::Result<Self> {
+        pub fn from_hex(hex: &str) -> Result<Self, KeyError> {
             let bytes = hex::decode(hex)?;
             Self::try_from(&bytes[..])
         }
@@ -129,7 +131,7 @@ impl BorshSerialize for K256PublicKey {
 }
 
 impl TryFrom<&[u8]> for K256PublicKey {
-    type Error = anyhow::Error;
+    type Error = KeyError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -171,11 +173,11 @@ impl std::fmt::Display for K256PublicKey {
 }
 
 impl TryFrom<&[u8]> for K256Signature {
-    type Error = anyhow::Error;
+    type Error = KeyError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Ok(Self {
-            msg_sig: k256::ecdsa::Signature::from_slice(value).map_err(anyhow::Error::msg)?,
+            msg_sig: k256::ecdsa::Signature::from_slice(value)?,
         })
     }
 }
@@ -214,7 +216,7 @@ fn map_error_k256(_e: k256::ecdsa::signature::Error) -> std::io::Error {
 
 #[cfg(feature = "native")]
 impl FromStr for K256PublicKey {
-    type Err = anyhow::Error;
+    type Err = KeyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let pk_hex = &crate::pub_key_hex::PublicKeyHex::try_from(s)?;
@@ -224,18 +226,16 @@ impl FromStr for K256PublicKey {
 
 #[cfg(feature = "native")]
 impl FromStr for K256Signature {
-    type Err = anyhow::Error;
+    type Err = KeyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = hex::decode(s)?;
 
-        let bytes: [u8; 64] = bytes
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid signature"))?;
+        let bytes: [u8; 64] = bytes.try_into().map_err(|_| Self::Err::InvalidSignature)?;
 
         Ok(K256Signature {
             msg_sig: k256::ecdsa::Signature::from_slice(&bytes)
-                .map_err(|_| anyhow::anyhow!("Invalid signature"))?,
+                .map_err(|_| Self::Err::InvalidSignature)?,
         })
     }
 }
