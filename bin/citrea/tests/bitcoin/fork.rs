@@ -313,19 +313,18 @@ impl ForkActivationTest {
     ) -> Result<()> {
         let height = sequencer.client.ledger_get_head_l2_block_height().await?;
         println!("Running test_tangerine_features at height {height}");
+
+        client.sync_nonce().await;
+
         // Test that SCHNORR_VERIFY is available post Tangerine
         {
             let schnorr_input = Bytes::from_str(SCHNORR_INPUT).unwrap();
-            let nonce = client
-                .eth_get_transaction_count(client.from_addr, None)
-                .await
-                .unwrap();
             let schnorr_tx = client
                 .contract_transaction(
                     contracts.schnorr_caller,
                     SchnorrVerifyCallerContract::default()
                         .call_schnorr_verify(schnorr_input.clone()),
-                    Some(nonce),
+                    None,
                 )
                 .await;
             sequencer.client.send_publish_batch_request().await.unwrap();
@@ -355,15 +354,11 @@ impl ForkActivationTest {
         // Test that P256_VERIFY is available post Tangerine
         {
             let p256_input = Bytes::from_str(P256_INPUT).unwrap();
-            let nonce = client
-                .eth_get_transaction_count(client.from_addr, None)
-                .await
-                .unwrap();
             let p256_tx = client
                 .contract_transaction(
                     contracts.p256_caller,
                     P256VerifyCallerContract::default().call_p256_verify(p256_input.clone()),
-                    Some(nonce),
+                    None,
                 )
                 .await;
             sequencer.client.send_publish_batch_request().await.unwrap();
@@ -392,15 +387,11 @@ impl ForkActivationTest {
 
         {
             let g1_add_input = Bytes::from_str(G1_ADD_INPUT).unwrap();
-            let nonce = client
-                .eth_get_transaction_count(client.from_addr, None)
-                .await
-                .unwrap();
             let g1_add_tx = client
                 .contract_transaction(
                     contracts.g1_add_caller,
                     G1AddCallerContract::default().call_g1_add(g1_add_input.clone()),
-                    Some(nonce),
+                    None,
                 )
                 .await;
             sequencer.client.send_publish_batch_request().await.unwrap();
@@ -459,15 +450,11 @@ impl ForkActivationTest {
 
         let signed_authorization = authorization.into_signed(signature);
 
-        let nonce = client
-            .eth_get_transaction_count(client.from_addr, None)
-            .await
-            .unwrap();
         let tx = client
             .send_eip7702_transaction(
                 alloy_primitives::Address::ZERO,
                 vec![],
-                Some(nonce),
+                None,
                 vec![signed_authorization],
             )
             .await?;
