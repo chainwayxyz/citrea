@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
-use components::{rollback_native_db, rollback_state_db};
 use futures::future;
+use native::rollback_native_db;
+use state::rollback_state_db;
 use tracing::{debug, info};
 
 use crate::types::StorageNodeType;
 
-mod components;
+mod ledger;
+mod native;
 mod node;
 pub mod service;
+mod state;
 
 pub struct Rollback {
     /// Access to ledger tables.

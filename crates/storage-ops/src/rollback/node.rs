@@ -8,13 +8,13 @@ use sov_db::schema::types::{L2HeightStatus, SlotNumber};
 use sov_schema_db::DB;
 use tracing::{debug, error};
 
-use crate::log_result_or_error;
-use crate::rollback::components::commitments::rollback_commitments;
-use crate::rollback::components::l2_blocks::rollback_l2_blocks;
-use crate::rollback::components::slots::{
+use super::ledger::commitments::rollback_commitments;
+use super::ledger::l2_blocks::rollback_l2_blocks;
+use super::ledger::slots::{
     rollback_batch_prover_slots, rollback_light_client_slots, rollback_slot_by_hash,
     rollback_slots, rollback_verified_proofs_by_slot_number,
 };
+use crate::log_result_or_error;
 use crate::types::StorageNodeType;
 
 pub(crate) fn rollback_sequencer(
