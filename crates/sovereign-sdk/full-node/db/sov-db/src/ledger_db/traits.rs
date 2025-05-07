@@ -14,7 +14,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus,
+    PendingProofsOutput, SlotNumber,
 };
 
 /// Shared ledger operations
@@ -171,16 +172,20 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)>;
 
     /// Store an either out of order or l2 range not synced yet commitment by index for later processing
-    fn store_pending_commitment(&self, commitment: SequencerCommitment) -> Result<()>;
+    fn store_pending_commitment(
+        &self,
+        commitment: SequencerCommitment,
+        found_in_l1_height: u64,
+    ) -> Result<()>;
 
     /// Get a pending commitment by index
     fn get_pending_commitment_by_index(
         &self,
         index: u32,
-    ) -> anyhow::Result<Option<SequencerCommitment>>;
+    ) -> anyhow::Result<Option<(SequencerCommitment, u64)>>;
 
     /// Get all out of order or l2 range not synced yet commitments to process, sorted by index
-    fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment)>>;
+    fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment, u64)>>;
 
     /// Remove pending commitment by index
     fn remove_pending_commitment(&self, index: u32) -> Result<()>;
@@ -191,10 +196,11 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
         min_commitment_index: u32,
         max_commitment_index: u32,
         proof: Proof,
+        found_in_l1_height: u64,
     ) -> Result<()>;
 
     /// Get all out of order commitment to process sorted by commitment index range
-    fn get_pending_proofs(&self) -> Result<Vec<((u32, u32), Proof)>>;
+    fn get_pending_proofs(&self) -> Result<Vec<PendingProofsOutput>>;
 
     /// Remove a pending proof by its commitment index range
     fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> Result<()>;
