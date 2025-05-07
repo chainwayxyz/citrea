@@ -5,6 +5,8 @@ use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::{BlockNumberOrTag, Encodable2718};
 use alloy_primitives::{address, b256, hex, FixedBytes, LogData, TxKind, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use alloy_sol_types::SolValue;
+use bytes::BytesMut;
 use reth_primitives::Log;
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
@@ -22,7 +24,7 @@ use crate::evm::primitive_types::CitreaReceiptWithBloom;
 use crate::evm::system_contracts::BitcoinLightClient;
 use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
-use crate::system_contracts::{BridgeWrapper, ProxyAdmin, WCBTC};
+use crate::system_contracts::{Bridge, BridgeWrapper, ProxyAdmin, WCBTC};
 use crate::system_events::{create_system_transactions, SystemEvent};
 use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
@@ -638,11 +640,11 @@ fn test_bridge() {
     let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
 
     let l1_fee_rate = 1;
-    let mut l2_height = 1;
+    let l2_height = 1;
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
-    let l2_block_info = HookL2BlockInfo {
+    let mut l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
@@ -672,16 +674,7 @@ fn test_bridge() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    l2_height += 1;
-
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [11u8; 32],
-        current_spec: SpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
-        l1_fee_rate: 1,
-        timestamp: 0,
-    };
+    l2_block_info.l2_height += 1;
 
     let deposit_data = vec![
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -724,25 +717,94 @@ fn test_bridge() {
         229, 212, 121, 74, 52, 180, 88, 100, 172, 192, 227, 205,
     ];
 
+    // call deposit
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
+        let deposit_data = deposit_data.clone();
         let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
-        // deploy logs contract
         evm.call(CallMessage { txs }, &context, &mut working_set)
             .unwrap();
     }
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
+    l2_block_info.l2_height += 1;
+
     let recipient_address = address!("0101010101010101010101010101010101010101");
     let recipient_account = evm
         .account_info(&recipient_address, &mut working_set)
         .unwrap();
-
+    // deposit should succeed
     assert_eq!(
         recipient_account.balance,
         U256::from_str("0x8ac7230489e80000").unwrap(),
     );
+
+    // call deposit 2nd time with the exact same deposit data should fail
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let deposit_data = deposit_data.clone();
+        let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
+        assert!(matches!(
+            evm.call(CallMessage { txs }, &context, &mut working_set),
+            Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful),
+        ));
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_block_info.l2_height += 1;
+
+    // call deposit with 2 inputs should fail
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        // malform the input number from 2 as expected number of inputs is 1
+        let mut decoded = Bridge::TransactionParams::abi_decode(&deposit_data, true).unwrap();
+        let mut vin = BytesMut::from(&decoded.vin[..]);
+        vin[0] = 2;
+        decoded.vin.0 = vin.freeze();
+
+        let deposit_data = decoded.abi_encode();
+
+        let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
+        assert!(matches!(
+            evm.call(CallMessage { txs }, &context, &mut working_set),
+            Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful),
+        ));
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_block_info.l2_height += 1;
+
+    // call deposit with wrong tx nonce
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let deposit_data = deposit_data.clone();
+
+        let sys_tx = SystemEvent::BridgeDeposit(deposit_data);
+        let sys_signer_nonce = evm
+            .account_info(&SYSTEM_SIGNER, &mut working_set)
+            .unwrap_or_default()
+            .nonce;
+        // create tx with wrong nonce
+        let txs = create_system_transactions(vec![sys_tx], sys_signer_nonce + 1, 1);
+
+        let mut buf = vec![];
+        txs[0].encode_2718(&mut buf);
+
+        let tx = RlpEvmTransaction { rlp: buf };
+
+        assert_eq!(
+            evm.call(CallMessage { txs: vec![tx] }, &context, &mut working_set)
+                .unwrap_err(),
+            L2BlockModuleCallError::EvmTransactionExecutionError(
+                "transaction validation error: nonce 5 too high, expected 4".to_string()
+            )
+        );
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 }
 
 #[test]

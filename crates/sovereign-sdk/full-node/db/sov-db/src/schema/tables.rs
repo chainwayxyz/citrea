@@ -24,7 +24,7 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L2BlockNumber,
+    AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L1Height, L2BlockNumber,
     L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
@@ -516,12 +516,12 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// Out of order sequencer commitments
-    (PendingSequencerCommitments) u32 => SequencerCommitment
+    (PendingSequencerCommitments) u32 => (SequencerCommitment, L1Height)
 );
 
 define_table_with_default_codec!(
     /// Out of order proofs
-    (PendingProofs) (u32, u32) => Proof
+    (PendingProofs) (u32, u32) => (Proof, L1Height)
 );
 
 #[cfg(test)]
