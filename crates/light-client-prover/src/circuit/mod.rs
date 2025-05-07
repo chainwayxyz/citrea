@@ -522,15 +522,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     {
         // from input, parse previous light client proof output
         let previous_light_client_proof_output =
-            if let Some(journal) = input.previous_light_client_proof_journal {
-                // previous LCP is verified with the assumption API
-                // this would panic if the prev LCP cant be verified
-                Z::verify_with_assumptions(&journal, &input.light_client_proof_method_id.into());
-
-                let prev_output: LightClientCircuitOutput = Z::deserialize_output(&journal)
-                    .map_err(|_| {
-                        LightClientVerificationError::<DaV>::InvalidPreviousLightClientProof
-                    })?;
+            if let Some(proof) = input.previous_light_client_proof {
+                // previous LCP is verified with the host verify API
+                let prev_output = Z::verify_and_deserialize_output::<LightClientCircuitOutput>(
+                    &proof,
+                    &input.light_client_proof_method_id.into(),
+                )
+                .expect("Previous light client proof is invalid");
 
                 // Ensure method IDs match
                 assert_eq!(

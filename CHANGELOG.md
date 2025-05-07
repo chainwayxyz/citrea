@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.1 (2025-05-2)
+Release for risc0 v2.0.2 fix for heap corruption bug.
+
+Node operators need to rescan L1:
+
+```sh
+# use citrea-cli v0.7.1
+citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
+
+citrea-cli --clear-pending --db-path path/to/dbs 
+```
+
+## v0.7.0 (2025-04-18)
+Release for Citrea Tangerine upgrade. Full nodes needs to be resynced.
+- EVM Pectra support (except eip-2935)
+- p256r1 precompile.
+- Schnorr Verify precompile.
+- Rewrite of EVM storage layout, resulting smaller state diffs.
+- Rewrite of L2 block and transaction structures.
+- Increased block gas limit to 10 million gas.
+- Constant sized light client proof.
+
+
 ## v0.6.1 (2025-1-21)
 - Fix LedgerDB migration process ([#1730](https://github.com/chainwayxyz/citrea/pull/1730))
 
