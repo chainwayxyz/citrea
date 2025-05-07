@@ -389,9 +389,7 @@ impl ForkActivationTest {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         client.send_publish_batch_request().await;
 
-        Ok(client
-            .eth_get_code(authority_signer.address(), None)
-            .await?)
+        client.eth_get_code(authority_signer.address(), None).await
     }
 
     async fn verify_sequencer_commitment(
