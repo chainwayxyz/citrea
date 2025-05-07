@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::signers::SignerSync;
-use alloy_primitives::{Address, Bytes, U64};
+use alloy_primitives::{Address, Bytes, U256, U64};
 use async_trait::async_trait;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{CitreaMode, TestCaseConfig};
@@ -301,54 +301,110 @@ impl ForkActivationTest {
         println!("Running test_tangerine_features at height {height}");
         // Test that SCHNORR_VERIFY is available post Tangerine
         {
-            let input = Bytes::from_str(SCHNORR_INPUT).unwrap();
-            let schnorr_result = client
-                .contract_call::<String>(
+            let schnorr_input = Bytes::from_str(SCHNORR_INPUT).unwrap();
+            let schnorr_tx = client
+                .contract_transaction(
                     contracts.schnorr_caller,
-                    SchnorrVerifyCallerContract::default().call_schnorr_verify(input),
+                    SchnorrVerifyCallerContract::default()
+                        .call_schnorr_verify(schnorr_input.clone()),
                     None,
                 )
                 .await;
+            sequencer.client.send_publish_batch_request().await.unwrap();
+            let receipt = schnorr_tx.get_receipt().await.unwrap();
+            assert!(receipt.status());
 
+            let storage = client
+                .eth_get_storage_at(contracts.schnorr_caller, U256::ZERO, None)
+                .await
+                .unwrap();
+            assert_eq!(storage, U256::from(1));
+
+            let schnorr_call = client
+                .contract_call::<String>(
+                    Address::from_str("0x0200").unwrap(),
+                    schnorr_input.to_vec(),
+                    None,
+                )
+                .await
+                .unwrap();
             assert_eq!(
-                schnorr_result.unwrap(),
-                "0x0000000000000000000000000000000000000000000000000000000000000001",
-                "SCHNORR_VERIFY should be available after Tangerine fork"
+                schnorr_call,
+                "0x0000000000000000000000000000000000000000000000000000000000000001"
             );
         }
 
         // Test that P256_VERIFY is available post Tangerine
         {
-            let input = Bytes::from_str(P256_INPUT).unwrap();
-            let p256_result = client
-                .contract_call::<String>(
+            let p256_input = Bytes::from_str(P256_INPUT).unwrap();
+            let p256_tx = client
+                .contract_transaction(
                     contracts.p256_caller,
-                    P256VerifyCallerContract::default().call_p256_verify(input),
+                    P256VerifyCallerContract::default().call_p256_verify(p256_input.clone()),
                     None,
                 )
                 .await;
+            sequencer.client.send_publish_batch_request().await.unwrap();
+            let receipt = p256_tx.get_receipt().await.unwrap();
+            assert!(receipt.status(), "P256 tx should succeed in Tangerine");
 
+            let p256_storage = client
+                .eth_get_storage_at(contracts.p256_caller, U256::ZERO, None)
+                .await
+                .unwrap();
+            assert_eq!(p256_storage, U256::from(1), "P256 storage should be 1");
+
+            let p256_call = client
+                .contract_call::<String>(
+                    Address::from_str("0x0100").unwrap(),
+                    p256_input.to_vec(),
+                    None,
+                )
+                .await
+                .unwrap();
             assert_eq!(
-                p256_result.unwrap(),
-                "0x0000000000000000000000000000000000000000000000000000000000000001",
-                "P256_VERIFY should be available after Tangerine fork"
+                p256_call,
+                "0x0000000000000000000000000000000000000000000000000000000000000001"
             );
         }
 
         {
-            let g1_add = Bytes::from_str(G1_ADD_INPUT).unwrap();
-            let g1_add_result = client
-                .contract_call::<String>(
+            let g1_add_input = Bytes::from_str(G1_ADD_INPUT).unwrap();
+            let g1_add_tx = client
+                .contract_transaction(
                     contracts.g1_add_caller,
-                    G1AddCallerContract::default().call_g1_add(g1_add),
+                    G1AddCallerContract::default().call_g1_add(g1_add_input.clone()),
                     None,
                 )
                 .await;
+            sequencer.client.send_publish_batch_request().await.unwrap();
+            let receipt = g1_add_tx.get_receipt().await.unwrap();
+            assert!(receipt.status(), "G1Add tx should succeed in Tangerine");
 
+            let g1_add_result = client
+                .contract_call::<String>(
+                    contracts.g1_add_caller,
+                    G1AddCallerContract::default().get_result(),
+                    None,
+                )
+                .await
+                .unwrap();
             assert_eq!(
-                g1_add_result.unwrap(),
-                "0x0000000000000000000000000000000000000000000000000000000000000001",
-                "G1_ADD should be available after Tangerine fork"
+                g1_add_result,
+                "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000a40300ce2dec9888b60690e9a41d3004fda4886854573974fab73b046d3147ba5b7a5bde85279ffede1b45b3918d82d0000000000000000000000000000000006d3d887e9f53b9ec4eb6cedf5607226754b07c01ace7834f57f3e7315faefb739e59018e22c492006190fba4a870025"
+            );
+
+            let g1_add_call = client
+                .contract_call::<String>(
+                    Address::from_str("0x0b").unwrap(),
+                    g1_add_input.to_vec(),
+                    None,
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                g1_add_call,
+                "0x0000000000000000000000000000000000000000000000000000000000000001"
             );
         }
 
