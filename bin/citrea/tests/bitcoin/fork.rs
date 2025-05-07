@@ -6,7 +6,7 @@ use alloy::signers::SignerSync;
 use alloy_primitives::{Address, Bytes, U256, U64};
 use async_trait::async_trait;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
-use citrea_e2e::config::{CitreaMode, TestCaseConfig};
+use citrea_e2e::config::{CitreaMode, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -14,6 +14,7 @@ use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_evm::smart_contracts::{
     G1AddCallerContract, P256VerifyCallerContract, SchnorrVerifyCallerContract,
+    SimpleStorageContract,
 };
 use citrea_primitives::forks::{get_forks, use_network_forks};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -37,6 +38,13 @@ impl TestCase for ForkActivationTest {
             with_batch_prover: true,
             with_full_node: true,
             mode: CitreaMode::DevAllForks,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 15,
             ..Default::default()
         }
     }
@@ -107,23 +115,29 @@ impl ForkActivationTest {
         sequencer: &Sequencer,
         client: &TestClient,
     ) -> Result<TestContracts> {
+        // Deploy simple storage contract
+        let _deploy_tx = client
+            .deploy_contract(SimpleStorageContract::default().byte_code(), None)
+            .await
+            .unwrap();
+
         let _ = client
             .deploy_contract(SchnorrVerifyCallerContract::default().byte_code(), None)
             .await
             .unwrap();
-        let schnorr_caller = client.from_addr.create(0);
+        let schnorr_caller = client.from_addr.create(1);
 
         let _ = client
             .deploy_contract(P256VerifyCallerContract::default().byte_code(), None)
             .await
             .unwrap();
-        let p256_caller = client.from_addr.create(1);
+        let p256_caller = client.from_addr.create(2);
 
         let _ = client
             .deploy_contract(G1AddCallerContract::default().byte_code(), None)
             .await
             .unwrap();
-        let g1_add_caller = client.from_addr.create(2);
+        let g1_add_caller = client.from_addr.create(3);
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         sequencer.client.send_publish_batch_request().await?;
@@ -420,11 +434,11 @@ impl ForkActivationTest {
             );
         }
 
-        // let eip7702_result = self.send_eip7702_transaction_and_get_code(client).await;
-        // assert!(
-        //     eip7702_result.is_ok(),
-        //     "eip7702 tx should succeed after Tangerine"
-        // );
+        let eip7702_result = self.send_eip7702_transaction_and_get_code(client).await;
+        assert!(
+            eip7702_result.is_ok(),
+            "eip7702 tx should succeed after Tangerine"
+        );
 
         Ok(())
     }
@@ -445,11 +459,15 @@ impl ForkActivationTest {
 
         let signed_authorization = authorization.into_signed(signature);
 
+        let nonce = client
+            .eth_get_transaction_count(client.from_addr, None)
+            .await
+            .unwrap();
         let _ = client
             .send_eip7702_transaction(
                 alloy_primitives::Address::ZERO,
                 vec![],
-                None,
+                Some(nonce),
                 vec![signed_authorization],
             )
             .await?;
