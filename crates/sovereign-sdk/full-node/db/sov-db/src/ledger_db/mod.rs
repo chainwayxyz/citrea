@@ -641,8 +641,8 @@ impl BatchProverLedgerOps for LedgerDB {
                 break;
             }
             let job_id = el?.key;
-            let is_pending = self.job_is_pending(job_id);
-            jobs.push((job_id, is_pending));
+            let is_running = self.job_is_running(job_id);
+            jobs.push((job_id, is_running));
         }
 
         Ok(jobs)
@@ -657,8 +657,11 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self))]
-    fn job_is_pending(&self, id: Uuid) -> bool {
-        self.db.get::<PendingL1SubmissionJobs>(&id).is_ok()
+    fn job_is_running(&self, id: Uuid) -> bool {
+        self.db
+            .get::<PendingL1SubmissionJobs>(&id)
+            .unwrap_or_default()
+            .is_some()
     }
 }
 

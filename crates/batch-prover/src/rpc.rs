@@ -48,8 +48,8 @@ pub struct ProverInputResponse {
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ProvingJobStatus {
-    Pending,
-    Finalized,
+    Running,
+    Finished,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
@@ -475,12 +475,12 @@ where
             .map_err(|e| internal_rpc_error(e.to_string()))?;
         let jobs = jobs
             .into_iter()
-            .map(|(id, is_pending)| ProvingJobResponse {
+            .map(|(id, is_running)| ProvingJobResponse {
                 job_id: id,
-                status: if is_pending {
-                    ProvingJobStatus::Pending
+                status: if is_running {
+                    ProvingJobStatus::Running
                 } else {
-                    ProvingJobStatus::Finalized
+                    ProvingJobStatus::Finished
                 },
             })
             .collect();
