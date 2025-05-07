@@ -463,7 +463,7 @@ impl ForkActivationTest {
             .eth_get_transaction_count(client.from_addr, None)
             .await
             .unwrap();
-        let _ = client
+        let tx = client
             .send_eip7702_transaction(
                 alloy_primitives::Address::ZERO,
                 vec![],
@@ -474,6 +474,9 @@ impl ForkActivationTest {
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         client.send_publish_batch_request().await;
+
+        let receipt = tx.get_receipt().await.unwrap();
+        assert!(receipt.status());
 
         client.eth_get_code(authority_signer.address(), None).await
     }
