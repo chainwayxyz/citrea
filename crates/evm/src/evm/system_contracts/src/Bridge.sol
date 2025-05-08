@@ -64,6 +64,7 @@ contract Bridge is Ownable2StepUpgradeable {
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
+    event SafeWithdrawal(Transaction payoutTx, UTXO spentUtxo, uint256 index);
     event DepositScriptUpdate(bytes depositPrefix, bytes depositSuffix);
     event ReplaceScriptUpdate(bytes replacePrefix, bytes replaceSuffix);
     event DepositReplaced(uint256 index, bytes32 oldTxId, bytes32 newTxId);
@@ -226,11 +227,13 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param blockHeader Block header of the associated Bitcoin block
     /// @param scriptPubKey The script pubkey of the user, included for extra validation
     function safeWithdraw(Transaction calldata prepareTx, MerkleProof calldata prepareProof, Transaction calldata payoutTx, bytes calldata blockHeader, bytes memory scriptPubKey) external payable {
+        // Validate format and inclusion of the prepare transaction
         require(BTCUtils.validateVin(prepareTx.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(prepareTx.vout), "Vout is not properly formatted");
         bytes32 txId = ValidateSPV.calculateTxId(prepareTx.version, prepareTx.vin, prepareTx.vout, prepareTx.locktime);
         require(LIGHT_CLIENT.verifyInclusionByTxId(prepareProof.blockHeight, txId, blockHeader, prepareProof.intermediateNodes, prepareProof.index), "Transaction is not in block");
 
+        // Validate format of payout transaction, as this transaction is not mined in this format (it's a PSBT meaning that additional inputs will be added later) its inclusion cannot be checked
         require(BTCUtils.validateVin(payoutTx.vin), "Payout vin is not properly formatted");
         (, uint256 nIns) = BTCUtils.parseVarInt(payoutTx.vin);
         require(nIns == 1, "Payout vin should have exactly one input");
@@ -241,9 +244,11 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes memory payoutOutput = payoutTx.vout.slice(1, payoutTx.vout.length - 1);
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
 
+        // Payout tx should spend the prepare tx, so we need to check if the txId of the input matches the txId of the prepare transaction
         bytes32 spentTxId = payoutInput.extractInputTxIdLE();
         require(spentTxId == txId, "Invalid spent txId");
 
+        // Assert that the spent output is a P2TR output and that the script pubkey is the same as the one provided in parameters
         bytes4 spentIndex = payoutInput.extractTxIndexLE();
         bytes memory spentOutput = prepareTx.vout.extractOutputAtIndex(uint32(spentIndex));
         require(spentOutput.length == 43, "Invalid spent output length"); // 8 bytes for amount + 1 byte for script pub key length + 2 bytes for OP_1 OP_PUSHBYTES32 + 32 bytes for the hash
@@ -254,12 +259,19 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes4 sequence = payoutInput.extractSequenceLEWitness();
         bytes32 shaSingleOutput = sha256(abi.encodePacked(payoutOutput));
 
+        // Construct the message hash for the P2TR signature according to BIP-341
         bytes memory message = abi.encodePacked(EPOCH, SIGHASH_SINGLE_ANYONECANPAY_HASH_TYPE, payoutTx.version, payoutTx.locktime, SPEND_TYPE_NO_EXT, spentTxId, spentIndex, spentOutput, sequence, shaSingleOutput);
         bytes32 messageHash = taggedHash("TapSighash", message);
         bytes memory signatureWithLen = payoutWitness.extractItemFromWitness(0);
         bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
         
         require(isSchnorrSigValid(pubKey, messageHash, signature), "Invalid signature");
+        
+        UTXO memory spentUtxo = UTXO({
+            txId: spentTxId,
+            outputId: spentIndex
+        });
+        emit SafeWithdrawal(payoutTx, spentUtxo, withdrawalUTXOs.length);
 
         withdraw(spentTxId, spentIndex);
     }
