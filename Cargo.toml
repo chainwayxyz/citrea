@@ -112,6 +112,7 @@ tempfile = "3.8"
 tokio = { version = "1.44.2", features = ["full"] }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
+zerocopy = "0.8"
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4" }

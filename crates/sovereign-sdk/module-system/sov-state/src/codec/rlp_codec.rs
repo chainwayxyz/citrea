@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use alloy_rlp::{Decodable, Encodable, Error};
 
 use super::{StateCodec, StateKeyCodec};
@@ -11,10 +13,10 @@ impl<K> StateKeyCodec<K> for RlpCodec
 where
     K: Encodable,
 {
-    fn encode_key(&self, key: &K) -> Vec<u8> {
+    fn encode_key<'k>(&self, key: &'k K) -> Cow<'k, [u8]> {
         let mut buf = vec![];
         key.encode(&mut buf);
-        buf
+        Cow::Owned(buf)
     }
 }
 
