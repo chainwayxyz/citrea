@@ -290,7 +290,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee = 768133932;
+    let second_block_base_fee = 768304046;
 
     let _pending = seq_test_client
         .send_eth(
@@ -387,7 +387,7 @@ async fn test_gas_limit_too_high() {
 
     let target_gas_limit: u64 = 30_000_000;
     let transfer_gas_limit = 21_000;
-    let system_txs_gas_used = 324379;
+    let system_txs_gas_used = 345619;
     let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -562,15 +562,15 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
-    // sys tx use L1BlockHash(50759 + 80626 + 21770) + Bridge(169134) = 322289 gas
+    // sys tx use L1BlockHash(50759 + 80626 + 21770) + Bridge(192464) = 345619 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
-    // 1500000 - 322289 = 1_177_711 gas left in block
-    // 1_177_711 / 21000 =~ 56.08... so 56 ether transfer transactions can be included in the block
+    // 1500000 - 345619 = 1_154_381 gas left in block
+    // 1_154_381 / 21000 =~ 54.97... so 54 ether transfer transactions can be included in the block
 
-    // send 55 ether transfer transactions
+    // send 53 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..55 {
+    for _ in 0..53 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
