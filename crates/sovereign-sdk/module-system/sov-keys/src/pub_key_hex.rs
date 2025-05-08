@@ -1,7 +1,7 @@
 use derive_more::Display;
 
 /// A hexadecimal representation of a PublicKey.
-use crate::default_signature::K256PublicKey;
+use crate::{default_signature::K256PublicKey, error::KeyError};
 
 #[derive(
     serde::Serialize,
@@ -21,7 +21,7 @@ pub struct PublicKeyHex {
 }
 
 impl TryFrom<&str> for PublicKeyHex {
-    type Error = anyhow::Error;
+    type Error = KeyError;
 
     fn try_from(hex: &str) -> Result<Self, Self::Error> {
         Self::try_from(hex.to_owned())
@@ -29,21 +29,19 @@ impl TryFrom<&str> for PublicKeyHex {
 }
 
 impl TryFrom<String> for PublicKeyHex {
-    type Error = anyhow::Error;
+    type Error = KeyError;
 
     fn try_from(hex: String) -> Result<Self, Self::Error> {
         if hex.len() & 1 != 0 {
-            anyhow::bail!("Bad hex conversion: odd input length")
+            return Err(Self::Error::HexConversion("odd input length".to_string()));
         }
 
         if let Some((index, c)) = hex.chars().enumerate().find(|(_, c)| {
             !(matches!(c, '0'..='9' | 'a'..='f') || matches!(c, '0'..='9' | 'A'..='F'))
         }) {
-            anyhow::bail!(
-                "Bad hex conversion: wrong character `{}` at index {}",
-                c,
-                index
-            )
+            return Err(Self::Error::HexConversion(format!(
+                "wrong character `{c}` at index {index}"
+            )));
         }
 
         Ok(Self { hex })
@@ -64,17 +62,17 @@ impl From<&K256PublicKey> for PublicKeyHex {
 }
 
 impl TryFrom<&PublicKeyHex> for K256PublicKey {
-    type Error = anyhow::Error;
+    type Error = KeyError;
 
     fn try_from(pub_key: &PublicKeyHex) -> Result<Self, Self::Error> {
         let bytes = hex::decode(&pub_key.hex)?;
 
         let bytes: [u8; 33] = bytes
             .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid public key size"))?;
+            .map_err(|_| Self::Error::InvalidPublicKey)?;
 
         let pub_key = k256::ecdsa::VerifyingKey::from_sec1_bytes(bytes.as_ref())
-            .map_err(|_| anyhow::anyhow!("Invalid public key"))?;
+            .map_err(|_| Self::Error::InvalidPublicKey)?;
 
         Ok(K256PublicKey { pub_key })
     }

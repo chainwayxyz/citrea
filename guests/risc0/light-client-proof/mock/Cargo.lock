@@ -2232,7 +2232,6 @@ dependencies = [
 name = "sov-keys"
 version = "0.7.1"
 dependencies = [
- "anyhow",
  "borsh",
  "derive_more 1.0.0",
  "digest",

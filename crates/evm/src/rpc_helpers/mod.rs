@@ -9,7 +9,8 @@ pub use filter::*;
 pub use log_utils::*;
 use reth_rpc_eth_types::{EthApiError, EthResult};
 use revm::context::BlockEnv;
-use revm::Database;
+use revm::state::{Account, AccountStatus};
+use revm::{Database, DatabaseCommit};
 
 mod filter;
 mod log_utils;
@@ -35,6 +36,7 @@ pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
 }
 
 /// Applies a single [`AccountOverride`] to the [`EvmDb`].
+/// Ref https://github.com/paradigmxyz/reth/blob/cbdb81069ff9c6d9e3680ad802878c5f0a5bc97f/crates/rpc/rpc-eth-types/src/revm_utils.rs#L276
 pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
     account: Address,
     account_override: AccountOverride,
@@ -48,13 +50,28 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
         account_info.nonce = nonce;
     }
     if let Some(code) = account_override.code {
-        account_info.code_hash = keccak256(code);
+        let code_hash = keccak256(&code);
+        let evm = Evm::<C>::default();
+        evm.offchain_code.set(
+            &code_hash,
+            &revm::bytecode::Bytecode::new_raw_checked(code)
+                .map_err(|err| EthApiError::InvalidBytecode(err.to_string()))?,
+            &mut db.working_set.offchain_state(),
+        );
+        account_info.code_hash = code_hash;
     }
     if let Some(balance) = account_override.balance {
         account_info.balance = balance;
     }
 
-    db.override_account(&account, account_info.into());
+    db.override_account(&account, account_info.clone().into());
+
+    // Create a new account marked as touched
+    let mut acc = revm::state::Account {
+        info: account_info,
+        status: AccountStatus::Touched,
+        storage: HashMap::default(),
+    };
 
     // We ensure that not both state and state_diff are set.
     // If state is set, we must mark the account as "NewlyCreated", so that the old storage
@@ -65,12 +82,24 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
             // nothing to do
         }
         (Some(new_account_state), None) => {
+            // Destroy the account to ensure that its storage is cleared
+            db.commit(HashMap::from_iter([(
+                account,
+                Account {
+                    status: AccountStatus::SelfDestructed | AccountStatus::Touched,
+                    ..Default::default()
+                },
+            )]));
+            // Mark the account as created to ensure that old storage is not read
+            acc.mark_created();
             db.override_set_account_storage(&account, new_account_state);
         }
         (None, Some(account_state_diff)) => {
             db.override_set_account_storage(&account, account_state_diff);
         }
     };
+
+    db.commit(HashMap::from_iter([(account, acc)]));
 
     Ok(())
 }

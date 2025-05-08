@@ -19,10 +19,6 @@ build-sp1:
 build: ## Build the project
 	@cargo build
 
-.PHONY: build-test
-build-test: $(EF_TESTS_DIR) ## Build the project
-	@cargo build --locked $(TEST_FEATURES)
-
 build-reproducible: build-sp1 ## Build the project in release mode with reproducible guest builds
 	REPR_GUEST_BUILD=1 cargo build --release --locked
 
@@ -50,16 +46,15 @@ clean-all: clean clean-node clean-txs
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test-ci:
+test: $(EF_TESTS_DIR) ## Runs test suite using nextest
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
-coverage-ci: $(EF_TESTS_DIR)
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
-
-test: build-test ## Runs test suite using next test
-	TEST_SKIP_GUEST_BUILD=1 $(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
-
-coverage: coverage-ci ## Coverage in lcov format
+coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
+	CITREA_CLI_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea-cli \
+	CITREA_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea \
+	RISC0_DEV_MODE=1 \
+	PARALLEL_PROOF_LIMIT=1 \
+	cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
