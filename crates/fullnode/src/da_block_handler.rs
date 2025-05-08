@@ -164,7 +164,7 @@ where
                         )
                         .await
                     {
-                        error!("Could not process sequencer commitments: {}... skipping", e);
+                        error!("Could not process sequencer commitments: {e}... skipping");
                     }
                 }
                 ProofOrCommitment::Proof(proof) => {
@@ -176,7 +176,7 @@ where
                         )
                         .await
                     {
-                        error!("Could not process ZK proofs: {}... skipping...", e);
+                        error!("Could not process ZK proofs: {e}... skipping...");
                     }
                 }
             }
@@ -186,19 +186,19 @@ where
             .process_pending_commitments(l1_block.header().height())
             .await
         {
-            error!("Error processing pending commitments: {e:?}");
+            error!("Error processing pending commitments: {e}");
         }
 
         if let Err(e) = self
             .process_pending_proofs(l1_block.header().height())
             .await
         {
-            error!("Error processing pending proofs: {e:?}");
+            error!("Error processing pending proofs: {e}");
         }
 
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_height))
-            .map_err(|e| anyhow!("Could not set last scanned l1 height: {}", e))?;
+            .map_err(|e| anyhow!("Could not set last scanned l1 height: {e}"))?;
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
