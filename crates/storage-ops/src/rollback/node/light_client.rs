@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2BlockByNumber, L2RangeByL1Height, LightClientProofBySlotNumber,
-    ProverLastScannedSlot,
+    L2BlockByNumber, LightClientProofBySlotNumber, ProverLastScannedSlot,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};

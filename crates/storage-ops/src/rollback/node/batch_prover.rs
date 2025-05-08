@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
@@ -88,11 +89,9 @@ impl BatchProverLedgerRollback {
         Ok(rollback_result)
     }
 
-    fn rollback_slots_by_number(
-        &self,
-        l1_target: u64,
-        mut rollback_result: RollbackResult,
-    ) -> Result {
+    fn rollback_slots(&self, l1_target: u64, mut rollback_result: RollbackResult) -> Result {
+        let l1_cache = self.construct_l1_cache()?;
+
         let mut commitment_indices_by_l1 = self
             .ledger_db
             .iter_with_direction::<CommitmentIndicesByL1>(
@@ -114,38 +113,36 @@ impl BatchProverLedgerRollback {
             increment_table_counter!("ProofsBySlotNumber", rollback_result);
             self.ledger_db.delete::<ProofsBySlotNumberV2>(&l1_height)?;
             increment_table_counter!("ProofsBySlotNumberV2", rollback_result);
+
+            if let Some(slot_hash) = l1_cache.get(&l1_height.0) {
+                self.ledger_db
+                    .delete::<ShortHeaderProofBySlotHash>(slot_hash)?;
+                increment_table_counter!("ShortHeaderProofBySlotHash", rollback_result);
+                self.ledger_db.delete::<SlotByHash>(slot_hash)?;
+                increment_table_counter!("SlotByHash", rollback_result);
+            }
         }
 
         Ok(rollback_result)
     }
 
-    fn rollback_slots_by_hash(
-        &self,
-        l1_target: u64,
-        mut rollback_result: RollbackResult,
-    ) -> Result {
+    fn construct_l1_cache(&self) -> anyhow::Result<HashMap<u64, [u8; 32]>> {
+        let mut cache = HashMap::new();
         let mut slots = self
             .ledger_db
-            .iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Backward)?;
-        slots.seek_to_last();
+            .iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Forward)?;
+        slots.seek_to_first();
 
+        // Cache L1 hash by L1 block number
         for record in slots {
             let Ok(record) = record else {
                 continue;
             };
 
-            if record.value <= SlotNumber(l1_target) {
-                break;
-            }
-
-            self.ledger_db
-                .delete::<ShortHeaderProofBySlotHash>(&record.key)?;
-            increment_table_counter!("ShortHeaderProofBySlotHash", rollback_result);
-            self.ledger_db.delete::<SlotByHash>(&record.key)?;
-            increment_table_counter!("SlotByHash", rollback_result);
+            cache.insert(record.value.0, record.key);
         }
 
-        Ok(rollback_result)
+        Ok(cache)
     }
 }
 
@@ -155,8 +152,7 @@ impl LedgerNodeRollback for BatchProverLedgerRollback {
         rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;
         rollback_result =
             self.rollback_commitments(context.last_sequencer_commitment_index, rollback_result)?;
-        rollback_result = self.rollback_slots_by_hash(context.l1_target, rollback_result)?;
-        rollback_result = self.rollback_slots_by_number(context.l1_target, rollback_result)?;
+        rollback_result = self.rollback_slots(context.l1_target, rollback_result)?;
 
         let _ = self
             .ledger_db
