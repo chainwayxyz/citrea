@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2RangeByL1Height, LightClientProofBySlotNumber, ProverLastScannedSlot,
+    CommitmentsByNumber, L2BlockByNumber, L2RangeByL1Height, LightClientProofBySlotNumber,
+    ProverLastScannedSlot,
 };
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::increment_table_counter;
@@ -16,6 +17,28 @@ pub struct LightClientLedgerRollback {
 impl LightClientLedgerRollback {
     pub fn new(ledger_db: Arc<DB>) -> Self {
         Self { ledger_db }
+    }
+
+    fn rollback_l2(&self, l2_target: u64, mut rollback_result: RollbackResult) -> Result {
+        // Begin rollback for L2 tables
+        let mut l2_blocks = self
+            .ledger_db
+            .iter_with_direction::<L2BlockByNumber>(Default::default(), ScanDirection::Backward)?;
+        l2_blocks.seek_to_last();
+
+        for record in l2_blocks {
+            let record = record?;
+            let l2_block_number = record.key;
+
+            if l2_block_number <= L2BlockNumber(l2_target) {
+                break;
+            }
+
+            self.ledger_db.delete::<L2BlockByNumber>(&l2_block_number)?;
+            increment_table_counter!("L2BlockByNumber", rollback_result);
+        }
+
+        Ok(rollback_result)
     }
 
     fn rollback_slots_by_number(
@@ -42,10 +65,6 @@ impl LightClientLedgerRollback {
                 break;
             }
 
-            self.ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
-            increment_table_counter!("L2RangeByL1Height", rollback_result);
-            self.ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
-            increment_table_counter!("CommitmentsByNumber", rollback_result);
             self.ledger_db
                 .delete::<LightClientProofBySlotNumber>(&slot_height)?;
             increment_table_counter!("LightClientProofBySlotNumber", rollback_result);
@@ -58,6 +77,7 @@ impl LightClientLedgerRollback {
 impl LedgerNodeRollback for LightClientLedgerRollback {
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
+        rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;
         rollback_result = self.rollback_slots_by_number(context.l1_target, rollback_result)?;
 
         let _ = self
