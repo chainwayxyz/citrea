@@ -3,6 +3,8 @@ use sov_rollup_interface::zk::{Proof, ReceiptType};
 
 /// Batch proof related storage types
 pub mod batch_proof;
+/// Job status
+pub mod job_status;
 /// L2 block related storage types
 pub mod l2_block;
 /// Light client proof related storage types

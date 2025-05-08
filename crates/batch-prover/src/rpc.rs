@@ -21,6 +21,7 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
+use sov_db::schema::types::job_status::JobStatus;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -47,16 +48,9 @@ pub struct ProverInputResponse {
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum ProvingJobStatus {
-    Running,
-    Finished,
-}
-
-#[derive(Clone, Copy, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ProvingJobResponse {
     pub job_id: Uuid,
-    pub status: ProvingJobStatus,
+    pub status: JobStatus,
 }
 
 pub struct RpcContext<Da, DB, Vm>
@@ -475,14 +469,7 @@ where
             .map_err(|e| internal_rpc_error(e.to_string()))?;
         let jobs = jobs
             .into_iter()
-            .map(|(id, is_running)| ProvingJobResponse {
-                job_id: id,
-                status: if is_running {
-                    ProvingJobStatus::Running
-                } else {
-                    ProvingJobStatus::Finished
-                },
-            })
+            .map(|(id, status)| ProvingJobResponse { job_id: id, status })
             .collect();
         Ok(jobs)
     }

@@ -9,6 +9,7 @@ use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use uuid::Uuid;
 
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
@@ -253,8 +254,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
 
-    /// Get latest (job id, is_running) with max count.
-    fn get_latest_jobs(&self, count: usize) -> Result<Vec<(Uuid, bool)>>;
+    /// Get latest (job id, status) with max count.
+    fn get_latest_jobs(&self, count: usize) -> Result<Vec<(Uuid, JobStatus)>>;
 
     /// Get commitment indices by l1 height
     fn get_prover_commitment_indices_by_l1(
@@ -262,8 +263,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         l1_height: SlotNumber,
     ) -> Result<Option<Vec<u32>>>;
 
-    /// Check if job is running (non-existent job IS NOT running)
-    fn job_is_running(&self, id: Uuid) -> bool;
+    /// Get job status (non-existent job IS RUNNING)
+    fn job_status(&self, id: Uuid) -> JobStatus;
 }
 
 /// Light client prover ledger operations

@@ -27,6 +27,7 @@ use crate::schema::tables::{
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
+use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
@@ -625,14 +626,14 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, bool)>> {
+    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
         let mut read_opts = ReadOptions::default();
         // Do not fill the cache with garbage data just to read ids
         read_opts.fill_cache(false);
 
         let mut iter = self
             .db
-            .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
+            .iter_with_direction::<JobIdOfCommitment>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
         let mut jobs = Vec::with_capacity(count);
@@ -640,9 +641,9 @@ impl BatchProverLedgerOps for LedgerDB {
             if jobs.len() == count {
                 break;
             }
-            let job_id = el?.key;
-            let is_running = self.job_is_running(job_id);
-            jobs.push((job_id, is_running));
+            let job_id = el?.value;
+            let status = self.job_status(job_id);
+            jobs.push((job_id, status));
         }
 
         Ok(jobs)
@@ -657,11 +658,16 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self))]
-    fn job_is_running(&self, id: Uuid) -> bool {
-        self.db
-            .get::<PendingL1SubmissionJobs>(&id)
-            .unwrap_or_default()
-            .is_some()
+    fn job_status(&self, id: Uuid) -> JobStatus {
+        if let Some(el) = self.db.get::<ProofByJobId>(&id).unwrap() {
+            if el.l1_tx_id.is_some() {
+                JobStatus::Finished
+            } else {
+                JobStatus::Sending
+            }
+        } else {
+            JobStatus::Proving
+        }
     }
 }
 
