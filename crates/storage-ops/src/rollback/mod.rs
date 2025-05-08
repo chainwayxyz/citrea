@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use futures::future;
+use ledger::rollback_ledger;
 use native::rollback_native_db;
 use state::rollback_state_db;
-use tracing::{debug, info};
+use tracing::info;
+use types::RollbackContext;
 
 use crate::types::StorageNodeType;
 
@@ -12,6 +14,7 @@ mod native;
 mod node;
 pub mod service;
 mod state;
+mod types;
 
 pub struct Rollback {
     /// Access to ledger tables.
@@ -55,33 +58,12 @@ impl Rollback {
         let state_db = self.state_db.clone();
 
         let ledger_rollback_handle = tokio::task::spawn_blocking(move || {
-            debug!(
-                "Rolling back {}, down to L2 block {}, L1 block {}",
-                node_type, l2_target, l1_target
-            );
-            match node_type {
-                StorageNodeType::Sequencer => node::rollback_sequencer(
-                    ledger_db,
-                    l2_target,
-                    l1_target,
-                    last_sequencer_commitment_index,
-                ),
-                StorageNodeType::FullNode => node::rollback_fullnode(
-                    ledger_db,
-                    l2_target,
-                    l1_target,
-                    last_sequencer_commitment_index,
-                ),
-                StorageNodeType::BatchProver => node::rollback_batch_prover(
-                    ledger_db,
-                    l2_target,
-                    l1_target,
-                    last_sequencer_commitment_index,
-                ),
-                StorageNodeType::LightClient => {
-                    node::rollback_light_client(ledger_db, l2_target, l1_target)
-                }
-            }
+            let context = RollbackContext {
+                l2_target,
+                l1_target,
+                last_sequencer_commitment_index,
+            };
+            rollback_ledger(node_type, ledger_db, context);
         });
 
         let state_db_rollback_handle =
