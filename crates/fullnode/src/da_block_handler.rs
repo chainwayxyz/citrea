@@ -176,17 +176,7 @@ where
                         )
                         .await
                     {
-                        match e {
-                            ProofError::Error(e) => {
-                                error!("Could not process ZK proofs: {}... skipping...", e);
-                            }
-                            ProofError::UnknownL1Hash => {
-                                error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
-                            }
-                            ProofError::SequencerCommitmentMissingForProof(index) => {
-                                error!("Could not process ZK proofs: Commitment index {index} is missing for proof")
-                            }
-                        }
+                        error!("Could not process ZK proofs: {}... skipping...", e);
                     }
                 }
             }
@@ -206,15 +196,9 @@ where
             error!("Error processing pending proofs: {e:?}");
         }
 
-        // We do not care about the result of writing this height to the ledger db
-        // So log and continue
-        // Worst case scenario is that we will reprocess the same block after a restart
-        let _ = self
-            .ledger_db
+        self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_height))
-            .map_err(|e| {
-                error!("Could not set last scanned l1 height: {}", e);
-            });
+            .map_err(|e| anyhow!("Could not set last scanned l1 height: {}", e))?;
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
@@ -355,8 +339,7 @@ where
                         .ok_or(anyhow!("Could not calculate l2 block tree root"))?
                 ),
                 hex::encode(sequencer_commitment.merkle_root)
-            )
-            .into());
+            ));
         }
 
         self.ledger_db.update_commitments_on_da_slot(

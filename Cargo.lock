@@ -2542,6 +2542,7 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]

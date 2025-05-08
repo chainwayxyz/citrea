@@ -1,12 +1,11 @@
-#[derive(Debug)]
-pub enum ProofError {
-    SequencerCommitmentMissingForProof(u32),
-    UnknownL1Hash,
-    Error(anyhow::Error),
-}
+use thiserror::Error;
 
-impl From<anyhow::Error> for ProofError {
-    fn from(e: anyhow::Error) -> Self {
-        Self::Error(e)
-    }
+#[derive(Error, Debug)]
+pub enum ProofError {
+    #[error("Commitment index {0} is missing for proof")]
+    SequencerCommitmentMissingForProof(u32),
+    #[error("Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")]
+    UnknownL1Hash,
+    #[error("{0}")]
+    Other(#[from] anyhow::Error),
 }
