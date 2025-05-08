@@ -37,6 +37,7 @@ contract Bridge is Ownable2StepUpgradeable {
 
     BitcoinLightClient public constant LIGHT_CLIENT = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
+    address public constant SCHNORR_VERIFIER_PRECOMPILE = address(0x200);
 
     bytes public constant EPOCH = hex"00";
     bytes public constant SIGHASH_ALL_HASH_TYPE = hex"00";
@@ -445,7 +446,7 @@ contract Bridge is Ownable2StepUpgradeable {
     function isSchnorrSigValid(bytes memory pubKey, bytes32 messageHash, bytes memory signature) internal view returns (bool isValid) {
         require(signature.length == 64 || signature.length == 65, "Invalid signature length");
         signature = signature.slice(0, 64);
-        (, bytes memory result) = address(0x200).staticcall(abi.encodePacked(pubKey, messageHash, signature));
+        (, bytes memory result) = address(SCHNORR_VERIFIER_PRECOMPILE).staticcall(abi.encodePacked(pubKey, messageHash, signature));
         isValid = abi.decode(result, (bool));
     }
 
