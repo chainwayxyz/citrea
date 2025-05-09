@@ -151,7 +151,6 @@ impl LedgerNodeRollback for BatchProverLedgerRollback {
             "L2GenesisStateRoot",
             "ProverLastScannedSlot",
             "LastPrunedBlock",
-            "",
             "ProofByJobId",
             "JobIdOfCommitment",
             "CommitmentIndicesByJobId",
