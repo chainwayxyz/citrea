@@ -768,12 +768,9 @@ fn test_bridge() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         // malform the input number from 2 as expected number of inputs is 1
-        let mut decoded = Bridge::TransactionParams::abi_decode(&deposit_data, true).unwrap();
-        let mut vin = BytesMut::from(&decoded.vin[..]);
-        vin[0] = 2;
-        decoded.vin.0 = vin.freeze();
+        let mut deposit_data = deposit_data.clone();
 
-        let deposit_data = decoded.abi_encode();
+        deposit_data[0] = 2;
 
         let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
         assert!(matches!(
