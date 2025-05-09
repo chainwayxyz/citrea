@@ -1,4 +1,4 @@
-use metrics::{Gauge, Histogram};
+use metrics::{Counter, Gauge, Histogram};
 use metrics_derive::Metrics;
 use once_cell::sync::Lazy;
 
@@ -7,6 +7,8 @@ use once_cell::sync::Lazy;
 pub struct SequencerMetrics {
     #[metric(describe = "How many transactions are currently in the mempool")]
     pub mempool_txs: Gauge,
+    #[metric(describe = "An ever increasing transactions count into the mempool")]
+    pub mempool_txs_inc: Counter,
     #[metric(describe = "The duration of dry running transactions")]
     pub dry_run_execution: Histogram,
     #[metric(describe = "The duration of executing block transactions")]

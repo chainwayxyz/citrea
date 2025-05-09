@@ -13,7 +13,6 @@ resolver = "2"
 borsh = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror = { workspace = true }
-anyhow = { workspace = true }
 schemars = { workspace = true, optional = true, features = [] }
 rand = { workspace = true, optional = true }
 derive_more = { workspace = true, features = ["display"] }

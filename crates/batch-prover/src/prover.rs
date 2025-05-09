@@ -215,6 +215,10 @@ where
         info!("Got {} pending commitment(s)", commitments.len());
 
         let partitions = self.create_partitions(&mut commitments, mode)?;
+        if partitions.is_empty() {
+            debug!("No provable commitments found");
+            return Ok(vec![]);
+        }
 
         let mut proving_jobs = Vec::with_capacity(partitions.len());
         for partition in partitions {

@@ -72,7 +72,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -136,7 +136,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
     let input_2 = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(mock_output_1_serialized),
+            previous_light_client_proof: Some(mock_output_1_serialized),
             da_block_header: block_header_2,
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
@@ -221,7 +221,7 @@ fn test_light_client_circuit_commitment_chaining() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -307,7 +307,7 @@ fn test_previous_commitment_not_set_should_not_transition() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -371,7 +371,7 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -448,7 +448,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -527,7 +527,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -612,7 +612,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     let input_2 = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(mock_output_1_ser),
+            previous_light_client_proof: Some(mock_output_1_ser),
             light_client_proof_method_id,
             da_block_header: block_header_2,
             inclusion_proof: [1u8; 32],
@@ -690,7 +690,7 @@ fn test_header_chain_proof_height_and_hash() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -755,7 +755,7 @@ fn test_header_chain_proof_height_and_hash() {
 
     let input_2 = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(prev_lcp_out),
+            previous_light_client_proof: Some(prev_lcp_out),
             da_block_header: block_header_2,
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
@@ -844,7 +844,7 @@ fn test_unverifiable_batch_proofs() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -892,7 +892,7 @@ fn test_unverifiable_batch_proofs() {
 }
 
 #[test]
-#[should_panic = "Assumption proof verification failed!"]
+#[should_panic = "Previous light client proof is invalid"]
 fn test_unverifiable_prev_light_client_proof() {
     let db_dir = tempdir().unwrap();
     let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
@@ -936,7 +936,7 @@ fn test_unverifiable_prev_light_client_proof() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -988,7 +988,7 @@ fn test_unverifiable_prev_light_client_proof() {
 
     let input_2 = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(prev_lcp_out),
+            previous_light_client_proof: Some(prev_lcp_out),
             da_block_header: block_header_2,
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
@@ -1050,7 +1050,7 @@ fn test_new_method_id_txs() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -1097,7 +1097,7 @@ fn test_new_method_id_txs() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_1, true)),
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
             light_client_proof_method_id,
             da_block_header: block_header_2,
             inclusion_proof: [1u8; 32],
@@ -1142,7 +1142,7 @@ fn test_new_method_id_txs() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_2, true)),
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_2, true)),
             light_client_proof_method_id,
             da_block_header: block_header_3,
             inclusion_proof: [1u8; 32],
@@ -1229,7 +1229,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -1358,7 +1358,7 @@ fn test_light_client_circuit_verify_chunks() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             inclusion_proof: [1u8; 32],
@@ -1490,7 +1490,7 @@ fn test_missing_chunk() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1,
             // Blob2 is not present
@@ -1584,7 +1584,7 @@ fn test_malicious_aggregate_should_not_work() {
     // First block has the two chunks
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -1636,7 +1636,7 @@ fn test_malicious_aggregate_should_not_work() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output, true)),
             light_client_proof_method_id,
             da_block_header: block_header_2,
             inclusion_proof: [1u8; 32],
@@ -1709,7 +1709,7 @@ fn test_malicious_aggregate_should_not_work() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output, true)),
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output, true)),
             light_client_proof_method_id,
             da_block_header: block_header_3,
             inclusion_proof: [1u8; 32],
@@ -1795,7 +1795,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -1867,7 +1867,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
 
     let input_2 = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(mock_output_1_serialized),
+            previous_light_client_proof: Some(mock_output_1_serialized),
             da_block_header: block_header_2,
             light_client_proof_method_id,
             inclusion_proof: [1u8; 32],
@@ -1936,7 +1936,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -1986,7 +1986,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
 
     let input2 = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(mock_output_1_serialized),
+            previous_light_client_proof: Some(mock_output_1_serialized),
             light_client_proof_method_id,
             da_block_header: block_header_2,
             inclusion_proof: [1u8; 32],
@@ -2062,7 +2062,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: None,
+            previous_light_client_proof: None,
             light_client_proof_method_id,
             da_block_header: block_header_1.clone(),
             inclusion_proof: [1u8; 32],
@@ -2112,7 +2112,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
 
     let input2: LightClientCircuitInput<MockDaSpec> = native_circuit_runner.run(
         LightClientCircuitInput {
-            previous_light_client_proof_journal: Some(mock_output_1_serialized),
+            previous_light_client_proof: Some(mock_output_1_serialized),
             light_client_proof_method_id,
             da_block_header: block_header_2,
             inclusion_proof: [1u8; 32],

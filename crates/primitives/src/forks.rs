@@ -65,11 +65,10 @@ pub const DEVNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];
 
-pub const ALL_FORKS: [Fork; 1] = [
-    // Fork::new(SpecId::Genesis, 0),
-    // So this doesn't mean anything, it will act like Tangerine
-    // Fork::new(SpecId::Kumquat, 100),
-    Fork::new(SpecId::Tangerine, 0),
+pub const ALL_FORKS: [Fork; 3] = [
+    Fork::new(SpecId::Genesis, 0),
+    Fork::new(SpecId::Kumquat, 100),
+    Fork::new(SpecId::Tangerine, 200),
 ];
 
 const _CHECK_FORKS: () = {

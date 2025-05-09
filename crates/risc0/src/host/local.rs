@@ -30,6 +30,14 @@ impl LocalProver {
         let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
         let r0vm_path = get_r0vm_path().expect("Could not get r0vm path");
 
+        // Check if the version of the r0vm matches the version of the risc0 crate
+        // the `get_r0vm_path` function will return the path to the r0vm binary with the correct version
+        // IF the version is installed
+        // else the function will just return "r0vm" as path
+        // then we'd be defaulting to the system default
+        // so we need to check if the version is correct
+        compare_risc0_versions(&r0vm_path).expect("Something is wrong with system r0vm");
+
         Self {
             dev_mode,
             r0vm_path,
@@ -158,4 +166,38 @@ fn get_r0vm_path() -> anyhow::Result<PathBuf> {
     }
 
     Ok("r0vm".into())
+}
+
+fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
+    let version = risc0_zkvm::get_version()?.to_string();
+
+    let output = std::process::Command::new(r0vm_path)
+        .arg("--version")
+        .output()
+        .map_err(|e| anyhow!("Failed to execute r0vm: {}", e))?;
+
+    if !output.status.success() {
+        return Err(anyhow!(
+            "Failed to get version from r0vm: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let output = String::from_utf8(output.stdout)
+        .map_err(|e| anyhow!("Failed to parse r0vm version output: {}", e))?;
+
+    let r0vm_version = output
+        .trim()
+        .strip_prefix("risc0-r0vm ")
+        .expect("r0vm must return version string in this format");
+
+    if version != r0vm_version {
+        return Err(anyhow!(
+            "RISC0 version {} does not match r0vm version {}",
+            version,
+            r0vm_version
+        ));
+    }
+
+    Ok(())
 }
