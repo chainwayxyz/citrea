@@ -145,19 +145,6 @@ impl BatchProverLedgerRollback {
 }
 
 impl LedgerNodeRollback for BatchProverLedgerRollback {
-    fn ignored_tables(&self) -> Vec<&'static str> {
-        vec![
-            "ExecutedMigrations",
-            "L2GenesisStateRoot",
-            "ProverLastScannedSlot",
-            "LastPrunedBlock",
-            "ProofByJobId",
-            "JobIdOfCommitment",
-            "CommitmentIndicesByJobId",
-            "PendingL1SubmissionJobs",
-        ]
-    }
-
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
         rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;

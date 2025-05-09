@@ -15,5 +15,4 @@ pub struct RollbackContext {
 
 pub trait LedgerNodeRollback {
     fn execute(&self, context: RollbackContext) -> Result;
-    fn ignored_tables(&self) -> Vec<&'static str>;
 }

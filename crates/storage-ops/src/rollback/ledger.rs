@@ -20,40 +20,26 @@ pub fn rollback_ledger(node_type: StorageNodeType, ledger_db: Arc<DB>, context: 
         "Rolling back {}, down to L2 block {}, L1 block {}",
         node_type, context.l2_target, context.l1_target
     );
-    let (tables, ignored_tables, rollback_result) = match node_type {
+    let (tables, rollback_result) = match node_type {
         StorageNodeType::Sequencer => {
             let sequencer_rollback = SequencerLedgerRollback::new(ledger_db);
-            let ignored_tables = sequencer_rollback.ignored_tables();
-            (
-                SEQUENCER_LEDGER_TABLES,
-                ignored_tables,
-                sequencer_rollback.execute(context),
-            )
+            (SEQUENCER_LEDGER_TABLES, sequencer_rollback.execute(context))
         }
         StorageNodeType::FullNode => {
             let fullnode_rollback = FullNodeLedgerRollback::new(ledger_db);
-            let ignored_tables = fullnode_rollback.ignored_tables();
-            (
-                FULL_NODE_LEDGER_TABLES,
-                ignored_tables,
-                fullnode_rollback.execute(context),
-            )
+            (FULL_NODE_LEDGER_TABLES, fullnode_rollback.execute(context))
         }
         StorageNodeType::BatchProver => {
             let batch_prover_rollback = BatchProverLedgerRollback::new(ledger_db);
-            let ignored_tables = batch_prover_rollback.ignored_tables();
             (
                 BATCH_PROVER_LEDGER_TABLES,
-                ignored_tables,
                 batch_prover_rollback.execute(context),
             )
         }
         StorageNodeType::LightClient => {
             let light_client_rollback = LightClientLedgerRollback::new(ledger_db);
-            let ignored_tables = light_client_rollback.ignored_tables();
             (
                 LIGHT_CLIENT_PROVER_LEDGER_TABLES,
-                ignored_tables,
                 light_client_rollback.execute(context),
             )
         }
@@ -68,9 +54,6 @@ pub fn rollback_ledger(node_type: StorageNodeType, ledger_db: Arc<DB>, context: 
     };
 
     for table in tables {
-        if ignored_tables.contains(table) {
-            continue;
-        }
         if let Some(table_result) = rollback_result.processed_tables.get(table) {
             info!("Deleted {} records from {}", table_result, table);
         } else {

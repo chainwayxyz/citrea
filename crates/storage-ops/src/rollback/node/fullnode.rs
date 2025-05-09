@@ -168,17 +168,6 @@ impl FullNodeLedgerRollback {
 }
 
 impl LedgerNodeRollback for FullNodeLedgerRollback {
-    fn ignored_tables(&self) -> Vec<&'static str> {
-        vec![
-            "Table ExecutedMigrations",
-            "L2GenesisStateRoot",
-            "ProverLastScannedSlot",
-            "LastPrunedBlock",
-            "PendingSequencerCommitments",
-            "PendingProofs",
-        ]
-    }
-
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
         rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;

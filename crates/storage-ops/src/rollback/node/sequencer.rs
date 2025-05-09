@@ -112,30 +112,6 @@ impl SequencerLedgerRollback {
 }
 
 impl LedgerNodeRollback for SequencerLedgerRollback {
-    fn ignored_tables(&self) -> Vec<&'static str> {
-        vec![
-            "ExecutedMigrations",
-            "L2GenesisStateRoot",
-            "PendingSequencerCommitment",
-            "MempoolTxs",
-            "LastPrunedBlock",
-            "ProverLastScannedSlot",
-            // Unprunable
-            "ShortHeaderProofBySlotHash",
-            // The following tables are here for a reason,
-            // see SEQUENCER_LEDGER_TABLES comment
-            "VerifiedBatchProofsBySlotNumber",
-            "ProverLastScannedSlot",
-            "SlotByHash",
-            "ShortHeaderProofBySlotHash",
-            "CommitmentMerkleRoots",
-            "SequencerCommitmentByIndex",
-            "L2StatusHeights",
-            "PendingSequencerCommitments",
-            "PendingProofs",
-        ]
-    }
-
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
         rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;

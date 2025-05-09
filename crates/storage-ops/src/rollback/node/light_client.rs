@@ -50,10 +50,6 @@ impl LightClientLedgerRollback {
 }
 
 impl LedgerNodeRollback for LightClientLedgerRollback {
-    fn ignored_tables(&self) -> Vec<&'static str> {
-        vec!["ExecutedMigrations", "ProverLastScannedSlot"]
-    }
-
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
         rollback_result = self.rollback_slots_by_number(context.l1_target, rollback_result)?;
