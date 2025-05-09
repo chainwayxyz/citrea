@@ -66,7 +66,7 @@ pub struct L2HeightAndIndex {
 )]
 #[repr(u8)]
 #[borsh(use_discriminant = true)]
-pub enum L2HeightStatus {
+pub enum L2CommitmentStatus {
     /// Commmited sequencer commitment
     Committed = 0,
     /// Proven sequencer commitment

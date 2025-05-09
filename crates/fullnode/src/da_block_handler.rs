@@ -13,7 +13,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::l2_block::StoredL2Block;
-use sov_db::schema::types::{L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber};
+use sov_db::schema::types::{L2BlockNumber, L2CommitmentStatus, L2HeightAndIndex, SlotNumber};
 use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -277,7 +277,7 @@ where
         let end_l2_height = sequencer_commitment.l2_end_block_number;
         if let Some(committed_height) = self
             .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
+            .get_highest_l2_height_for_status(L2CommitmentStatus::Committed, None)?
         {
             // Only proceed if the commitment height and index are higher than the stored one
             if end_l2_height <= committed_height.height {
@@ -396,7 +396,7 @@ where
             .put_commitment_by_index(sequencer_commitment)?;
 
         self.ledger_db.set_l2_height_status(
-            L2HeightStatus::Committed,
+            L2CommitmentStatus::Committed,
             current_l1_block_height,
             L2HeightAndIndex {
                 height: end_l2_height,
@@ -462,7 +462,7 @@ where
 
         let proven_height = self
             .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)?
+            .get_highest_l2_height_for_status(L2CommitmentStatus::Proven, None)?
             .unwrap_or_default();
 
         let end_l2_height = batch_proof_output.last_l2_height();
@@ -482,7 +482,7 @@ where
 
         let committed_height = self
             .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
+            .get_highest_l2_height_for_status(L2CommitmentStatus::Committed, None)?
             .unwrap_or_default();
 
         if proven_height > committed_height {
@@ -572,7 +572,7 @@ where
         )?;
 
         self.ledger_db.set_l2_height_status(
-            L2HeightStatus::Proven,
+            L2CommitmentStatus::Proven,
             current_l1_block_height,
             L2HeightAndIndex {
                 height: end_l2_height,

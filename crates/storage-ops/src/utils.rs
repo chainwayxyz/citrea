@@ -2,7 +2,7 @@ use sov_db::schema::tables::{
     CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2StatusHeights,
     LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs,
 };
-use sov_db::schema::types::{DbHash, L2BlockNumber, L2HeightStatus, SlotNumber};
+use sov_db::schema::types::{DbHash, L2BlockNumber, L2CommitmentStatus, SlotNumber};
 use sov_schema_db::DB;
 
 use crate::pruning::types::StorageNodeType;
@@ -26,7 +26,7 @@ pub(crate) fn delete_l2_blocks_by_number(
     }
 
     if matches!(node_type, StorageNodeType::FullNode) {
-        ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l2_block_number.0))?;
+        ledger_db.delete::<L2StatusHeights>(&(L2CommitmentStatus::Committed, l2_block_number.0))?;
     }
 
     Ok(())

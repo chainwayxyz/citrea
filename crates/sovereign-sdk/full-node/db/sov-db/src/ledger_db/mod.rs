@@ -32,7 +32,7 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, L2BlockNumber, L2CommitmentStatus, L2HeightAndIndex, L2HeightRange, SlotNumber,
 };
 
 /// Implementation of database migrator
@@ -840,7 +840,7 @@ impl NodeLedgerOps for LedgerDB {
 
     fn get_highest_l2_height_for_status(
         &self,
-        status: L2HeightStatus,
+        status: L2CommitmentStatus,
         l1_height: Option<u64>,
     ) -> anyhow::Result<Option<L2HeightAndIndex>> {
         let mut iter = self
@@ -860,7 +860,7 @@ impl NodeLedgerOps for LedgerDB {
 
     fn set_l2_height_status(
         &self,
-        status: L2HeightStatus,
+        status: L2CommitmentStatus,
         l1_height: u64,
         val: L2HeightAndIndex,
     ) -> anyhow::Result<()> {
@@ -959,9 +959,9 @@ impl NodeLedgerOps for LedgerDB {
         l1_height: u64,
     ) -> anyhow::Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)> {
         let committed_height =
-            self.get_highest_l2_height_for_status(L2HeightStatus::Committed, Some(l1_height))?;
+            self.get_highest_l2_height_for_status(L2CommitmentStatus::Committed, Some(l1_height))?;
         let proven_height =
-            self.get_highest_l2_height_for_status(L2HeightStatus::Proven, Some(l1_height))?;
+            self.get_highest_l2_height_for_status(L2CommitmentStatus::Proven, Some(l1_height))?;
 
         Ok((committed_height, proven_height))
     }

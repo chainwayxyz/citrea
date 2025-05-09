@@ -14,7 +14,7 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus,
+    BonsaiSession, L2BlockNumber, L2CommitmentStatus, L2HeightAndIndex, L2HeightRange,
     PendingProofsOutput, SlotNumber,
 };
 
@@ -153,14 +153,14 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get L2 height by status
     fn get_highest_l2_height_for_status(
         &self,
-        status: L2HeightStatus,
+        status: L2CommitmentStatus,
         height: Option<u64>,
     ) -> Result<Option<L2HeightAndIndex>>;
 
     /// Set L2 height by status
     fn set_l2_height_status(
         &self,
-        status: L2HeightStatus,
+        status: L2CommitmentStatus,
         l1_height: u64,
         l2_height_and_index: L2HeightAndIndex,
     ) -> Result<()>;

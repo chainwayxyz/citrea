@@ -5,7 +5,7 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use sov_db::ledger_db::NodeLedgerOps;
-use sov_db::schema::types::{L2HeightAndIndex, L2HeightStatus};
+use sov_db::schema::types::{L2CommitmentStatus, L2HeightAndIndex};
 
 pub struct RpcContext<DB>
 where
@@ -87,7 +87,7 @@ where
     async fn get_last_committed_l2_height(&self) -> RpcResult<Option<L2HeightAndIndex>> {
         self.context
             .ledger
-            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
+            .get_highest_l2_height_for_status(L2CommitmentStatus::Committed, None)
             .map_err(|e| {
                 ErrorObjectOwned::owned(
                     INTERNAL_ERROR_CODE,
@@ -100,7 +100,7 @@ where
     async fn get_last_proven_l2_height(&self) -> RpcResult<Option<L2HeightAndIndex>> {
         self.context
             .ledger
-            .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
+            .get_highest_l2_height_for_status(L2CommitmentStatus::Proven, None)
             .map_err(|e| {
                 ErrorObjectOwned::owned(
                     INTERNAL_ERROR_CODE,
