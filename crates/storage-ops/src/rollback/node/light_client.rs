@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use sov_db::schema::tables::{
-    L2BlockByNumber, LightClientProofBySlotNumber, ProverLastScannedSlot,
-};
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_db::schema::tables::{LightClientProofBySlotNumber, ProverLastScannedSlot};
+use sov_db::schema::types::SlotNumber;
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::increment_table_counter;
