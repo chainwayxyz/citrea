@@ -633,7 +633,7 @@ impl BatchProverLedgerOps for LedgerDB {
 
         let mut iter = self
             .db
-            .iter_with_direction::<JobIdOfCommitment>(read_opts, ScanDirection::Backward)?;
+            .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
         let mut jobs = Vec::with_capacity(count);
@@ -641,7 +641,7 @@ impl BatchProverLedgerOps for LedgerDB {
             if jobs.len() == count {
                 break;
             }
-            let job_id = el?.value;
+            let job_id = el?.key;
             let status = self.job_status(job_id);
             jobs.push((job_id, status));
         }
