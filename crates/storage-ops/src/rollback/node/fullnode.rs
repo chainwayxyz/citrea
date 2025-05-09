@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use sov_db::schema::tables::{
     CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2StatusHeights,
-    ProverLastScannedSlot, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
-    VerifiedBatchProofsBySlotNumber,
+    PendingSequencerCommitments, ProverLastScannedSlot, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, L2HeightStatus, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
@@ -69,6 +69,10 @@ impl FullNodeLedgerRollback {
             self.ledger_db
                 .delete::<SequencerCommitmentByIndex>(&comm_idx)?;
             increment_table_counter!("SequencerCommitmentByIndex", rollback_result);
+
+            self.ledger_db
+                .delete::<PendingSequencerCommitments>(&comm_idx)?;
+            increment_table_counter!("PendingSequencerCommitments", rollback_result);
         }
 
         Ok(rollback_result)
