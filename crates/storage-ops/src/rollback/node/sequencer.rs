@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sov_db::schema::tables::{
     CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, ProverLastScannedSlot,
-    SequencerCommitmentByIndex,
+    SequencerCommitmentByIndex, StateDiffByBlockNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
@@ -40,6 +40,10 @@ impl SequencerLedgerRollback {
 
             self.ledger_db.delete::<L2BlockByHash>(&l2_block_hash)?;
             increment_table_counter!("L2BlockByHash", rollback_result);
+
+            self.ledger_db
+                .delete::<StateDiffByBlockNumber>(&l2_block_number)?;
+            increment_table_counter!("StateDiffByBlockNumber", rollback_result);
         }
 
         Ok(rollback_result)
@@ -91,7 +95,7 @@ impl SequencerLedgerRollback {
             }
 
             self.ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
-            increment_table_counter!("L2RangeByl1Height", rollback_result);
+            increment_table_counter!("L2RangeByL1Height", rollback_result);
 
             self.ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
             increment_table_counter!("CommitmentsByNumber", rollback_result);
@@ -102,6 +106,30 @@ impl SequencerLedgerRollback {
 }
 
 impl LedgerNodeRollback for SequencerLedgerRollback {
+    fn ignored_tables(&self) -> Vec<&'static str> {
+        vec![
+            "ExecutedMigrations",
+            "L2GenesisStateRoot",
+            "PendingSequencerCommitment",
+            "MempoolTxs",
+            "LastPrunedBlock",
+            "ProverLastScannedSlot",
+            // Unprunable
+            "ShortHeaderProofBySlotHash",
+            // The following tables are here for a reason,
+            // see SEQUENCER_LEDGER_TABLES comment
+            "VerifiedBatchProofsBySlotNumber",
+            "ProverLastScannedSlot",
+            "SlotByHash",
+            "ShortHeaderProofBySlotHash",
+            "CommitmentMerkleRoots",
+            "SequencerCommitmentByIndex",
+            "L2StatusHeights",
+            "PendingSequencerCommitments",
+            "PendingProofs",
+        ]
+    }
+
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
         rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;

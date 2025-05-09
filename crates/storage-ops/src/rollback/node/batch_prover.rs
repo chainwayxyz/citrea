@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentIndicesByL1, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2StatusHeights,
-    ProofsBySlotNumber, ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments,
-    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+    CommitmentIndicesByL1, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber,
+    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash,
 };
-use sov_db::schema::types::{L2BlockNumber, L2HeightStatus, SlotNumber};
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
 
 use crate::increment_table_counter;
@@ -46,10 +46,6 @@ impl BatchProverLedgerRollback {
 
             self.ledger_db.delete::<L2BlockByHash>(&l2_block_hash)?;
             increment_table_counter!("L2BlockByHash", rollback_result);
-
-            self.ledger_db
-                .delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l2_block_number.0))?;
-            increment_table_counter!("L2StatusHeights", rollback_result);
         }
 
         Ok(rollback_result)
@@ -109,10 +105,6 @@ impl BatchProverLedgerRollback {
 
             self.ledger_db.delete::<CommitmentIndicesByL1>(&l1_height)?;
             increment_table_counter!("CommitmentIndicesByl1", rollback_result);
-            self.ledger_db.delete::<ProofsBySlotNumber>(&l1_height)?;
-            increment_table_counter!("ProofsBySlotNumber", rollback_result);
-            self.ledger_db.delete::<ProofsBySlotNumberV2>(&l1_height)?;
-            increment_table_counter!("ProofsBySlotNumberV2", rollback_result);
 
             if let Some(slot_hash) = l1_cache.get(&l1_height.0) {
                 self.ledger_db
@@ -147,6 +139,20 @@ impl BatchProverLedgerRollback {
 }
 
 impl LedgerNodeRollback for BatchProverLedgerRollback {
+    fn ignored_tables(&self) -> Vec<&'static str> {
+        vec![
+            "ExecutedMigrations",
+            "L2GenesisStateRoot",
+            "ProverLastScannedSlot",
+            "LastPrunedBlock",
+            "",
+            "ProofByJobId",
+            "JobIdOfCommitment",
+            "CommitmentIndicesByJobId",
+            "PendingL1SubmissionJobs",
+        ]
+    }
+
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
         rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;

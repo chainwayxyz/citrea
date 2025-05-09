@@ -99,7 +99,7 @@ impl FullNodeLedgerRollback {
             }
 
             self.ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
-            increment_table_counter!("L2RangeByl1Height", rollback_result);
+            increment_table_counter!("L2RangeByL1Height", rollback_result);
 
             self.ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
             increment_table_counter!("CommitmentsByNumber", rollback_result);
@@ -161,6 +161,17 @@ impl FullNodeLedgerRollback {
 }
 
 impl LedgerNodeRollback for FullNodeLedgerRollback {
+    fn ignored_tables(&self) -> Vec<&'static str> {
+        vec![
+            "Table ExecutedMigrations",
+            "L2GenesisStateRoot",
+            "ProverLastScannedSlot",
+            "LastPrunedBlock",
+            "PendingSequencerCommitments",
+            "PendingProofs",
+        ]
+    }
+
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
         rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;
