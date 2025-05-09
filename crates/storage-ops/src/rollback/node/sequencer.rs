@@ -83,6 +83,7 @@ impl SequencerLedgerRollback {
         )?;
         commitments_by_number.seek_to_last();
 
+        let mut last_deleted_slot = None;
         for record in commitments_by_number {
             let Ok(record) = record else {
                 continue;
@@ -94,11 +95,16 @@ impl SequencerLedgerRollback {
                 break;
             }
 
-            self.ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
-            increment_table_counter!("L2RangeByL1Height", rollback_result);
+            let iter_end = last_deleted_slot.unwrap_or(slot_height.0);
+            for i in slot_height.0..=iter_end {
+                self.ledger_db.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
+                increment_table_counter!("L2RangeByL1Height", rollback_result);
 
-            self.ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
-            increment_table_counter!("CommitmentsByNumber", rollback_result);
+                self.ledger_db
+                    .delete::<CommitmentsByNumber>(&SlotNumber(i))?;
+                increment_table_counter!("CommitmentsByNumber", rollback_result);
+            }
+            last_deleted_slot = Some(slot_height.0);
         }
 
         Ok(rollback_result)

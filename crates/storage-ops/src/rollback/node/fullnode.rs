@@ -87,6 +87,7 @@ impl FullNodeLedgerRollback {
         )?;
         commitments_by_number.seek_to_last();
 
+        let mut last_deleted_slot = None;
         for record in commitments_by_number {
             let Ok(record) = record else {
                 continue;
@@ -98,23 +99,29 @@ impl FullNodeLedgerRollback {
                 break;
             }
 
-            self.ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
-            increment_table_counter!("L2RangeByL1Height", rollback_result);
+            let iter_end = last_deleted_slot.unwrap_or(slot_height.0);
+            for i in slot_height.0..=iter_end {
+                self.ledger_db.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
+                increment_table_counter!("L2RangeByL1Height", rollback_result);
 
-            self.ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
-            increment_table_counter!("CommitmentsByNumber", rollback_result);
-
-            self.ledger_db
-                .delete::<VerifiedBatchProofsBySlotNumber>(&slot_height)?;
-            increment_table_counter!("VerifiedBatchProofsBySlotNumber", rollback_result);
-
-            if let Some(slot_hash) = l1_cache.get(&slot_height.0) {
                 self.ledger_db
-                    .delete::<ShortHeaderProofBySlotHash>(slot_hash)?;
-                increment_table_counter!("ShortHeaderProofBySlotHash", rollback_result);
-                self.ledger_db.delete::<SlotByHash>(slot_hash)?;
-                increment_table_counter!("SlotByHash", rollback_result);
+                    .delete::<CommitmentsByNumber>(&SlotNumber(i))?;
+                increment_table_counter!("CommitmentsByNumber", rollback_result);
+
+                self.ledger_db
+                    .delete::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(i))?;
+                increment_table_counter!("VerifiedBatchProofsBySlotNumber", rollback_result);
+
+                if let Some(slot_hash) = l1_cache.get(&i) {
+                    self.ledger_db
+                        .delete::<ShortHeaderProofBySlotHash>(slot_hash)?;
+                    increment_table_counter!("ShortHeaderProofBySlotHash", rollback_result);
+                    self.ledger_db.delete::<SlotByHash>(slot_hash)?;
+                    increment_table_counter!("SlotByHash", rollback_result);
+                }
             }
+
+            last_deleted_slot = Some(slot_height.0);
         }
 
         Ok(rollback_result)

@@ -96,6 +96,7 @@ impl BatchProverLedgerRollback {
             )?;
         commitment_indices_by_l1.seek_to_last();
 
+        let mut last_deleted_slot = None;
         for record in commitment_indices_by_l1 {
             let l1_height = record?.key;
 
@@ -103,16 +104,21 @@ impl BatchProverLedgerRollback {
                 break;
             }
 
-            self.ledger_db.delete::<CommitmentIndicesByL1>(&l1_height)?;
-            increment_table_counter!("CommitmentIndicesByl1", rollback_result);
-
-            if let Some(slot_hash) = l1_cache.get(&l1_height.0) {
+            let iter_end = last_deleted_slot.unwrap_or(l1_height.0);
+            for i in l1_height.0..=iter_end {
                 self.ledger_db
-                    .delete::<ShortHeaderProofBySlotHash>(slot_hash)?;
-                increment_table_counter!("ShortHeaderProofBySlotHash", rollback_result);
-                self.ledger_db.delete::<SlotByHash>(slot_hash)?;
-                increment_table_counter!("SlotByHash", rollback_result);
+                    .delete::<CommitmentIndicesByL1>(&SlotNumber(i))?;
+                increment_table_counter!("CommitmentIndicesByl1", rollback_result);
+
+                if let Some(slot_hash) = l1_cache.get(&i) {
+                    self.ledger_db
+                        .delete::<ShortHeaderProofBySlotHash>(slot_hash)?;
+                    increment_table_counter!("ShortHeaderProofBySlotHash", rollback_result);
+                    self.ledger_db.delete::<SlotByHash>(slot_hash)?;
+                    increment_table_counter!("SlotByHash", rollback_result);
+                }
             }
+            last_deleted_slot = Some(l1_height.0);
         }
 
         Ok(rollback_result)
