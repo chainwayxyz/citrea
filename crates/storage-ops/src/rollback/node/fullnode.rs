@@ -42,10 +42,6 @@ impl FullNodeLedgerRollback {
 
             self.ledger_db.delete::<L2BlockByHash>(&l2_block_hash)?;
             increment_table_counter!("L2BlockByHash", rollback_result);
-
-            self.ledger_db
-                .delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l2_block_number.0))?;
-            increment_table_counter!("L2StatusHeights", rollback_result);
         }
 
         Ok(rollback_result)
