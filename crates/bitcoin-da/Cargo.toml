@@ -26,6 +26,7 @@ hex = { workspace = true, features = ["serde"] }
 itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
 k256 = { workspace = true }
+lru = { workspace = true, optional = true }
 metrics = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
 reqwest = { workspace = true, optional = true }
@@ -51,6 +52,7 @@ native = [
   "dep:async-trait",
   "dep:backoff",
   "dep:futures",
+  "dep:lru",
   "dep:tokio",
   "dep:metrics",
   "dep:pin-project",

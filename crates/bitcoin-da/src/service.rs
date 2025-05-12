@@ -5,6 +5,7 @@ use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -23,6 +24,7 @@ use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
+use lru::LruCache;
 use metrics::histogram;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
@@ -33,6 +35,7 @@ use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
+use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::error::BitcoinServiceError;
@@ -115,6 +118,7 @@ pub struct BitcoinService {
     pub(crate) tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
+    l1_block_hash_to_map: Arc<Mutex<LruCache<BlockHash, usize>>>,
 }
 
 impl BitcoinService {
@@ -162,6 +166,8 @@ impl BitcoinService {
             network_constants.finality_depth,
         ));
         let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
+        let l1_block_hash_to_map =
+            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
         Ok(Self {
             client,
             network_constants,
@@ -172,6 +178,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            l1_block_hash_to_map,
         })
     }
 
@@ -210,6 +217,8 @@ impl BitcoinService {
             network_constants.finality_depth,
         ));
         let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
+        let l1_block_hash_to_map =
+            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
 
         Ok(Self {
             client,
@@ -221,6 +230,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            l1_block_hash_to_map,
         })
     }
 
@@ -782,23 +792,33 @@ impl BitcoinService {
             // Check the block height
             let exponential_backoff = ExponentialBackoff::default();
             let tx_block_height = if let Some(tx_block_hash) = tx_block_hash {
-                let res = retry_backoff(exponential_backoff, || async move {
-                    self.client
-                        .get_block_info(&tx_block_hash)
-                        .await
-                        .map_err(|e| match e {
-                            BitcoinError::Io(_) => backoff::Error::transient(e),
-                            _ => backoff::Error::permanent(e),
-                        })
-                })
-                .await;
-                match res {
-                    Ok(r) => r.height,
-                    Err(e) => {
-                        return Err(anyhow!(
-                            "Failed to request block by block hash:{:?} Error: {e}",
-                            tx_block_hash
-                        ));
+                if let Some(height) = self.l1_block_hash_to_map.lock().await.get(&tx_block_hash) {
+                    *height
+                } else {
+                    let res = retry_backoff(exponential_backoff, || async move {
+                        self.client
+                            .get_block_info(&tx_block_hash)
+                            .await
+                            .map_err(|e| match e {
+                                BitcoinError::Io(_) => backoff::Error::transient(e),
+                                _ => backoff::Error::permanent(e),
+                            })
+                    })
+                    .await;
+                    match res {
+                        Ok(r) => {
+                            self.l1_block_hash_to_map
+                                .lock()
+                                .await
+                                .put(tx_block_hash, r.height);
+                            r.height
+                        }
+                        Err(e) => {
+                            return Err(anyhow!(
+                                "Failed to request block by block hash:{:?} Error: {e}",
+                                tx_block_hash
+                            ));
+                        }
                     }
                 }
             } else {
