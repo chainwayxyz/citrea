@@ -31,9 +31,9 @@ use sov_state::Witness;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, instrument, warn, Instrument, Level};
+use tracing::{debug, error, info, instrument, warn};
 use tracing_subscriber::layer::SubscriberExt;
-use uuid::Uuid;
+use uuid::{uuid, Uuid};
 
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
@@ -172,8 +172,9 @@ where
                             };
 
                             let mut raw_inputs = Vec::with_capacity(partitions.len());
+                            let id = uuid!("00000000-0000-0000-0000-000000000000");
                             for partition in partitions {
-                                match self.create_circuit_input(&partition) {
+                                match self.create_circuit_input(&partition, id) {
                                     Ok(input) => {
                                         let raw_input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
                                         raw_inputs.push(raw_input);
@@ -224,8 +225,8 @@ where
         let mut proving_jobs = Vec::with_capacity(partitions.len());
         for partition in partitions {
             let id = Uuid::now_v7();
-            let input = tracing::span!(Level::DEBUG, "CreateProof", job_id = id.to_string())
-                .in_scope(|| self.create_circuit_input(&partition))
+            let input = self
+                .create_circuit_input(&partition, id)
                 .context("Failed to create circuit input")?;
 
             let rx = self.start_proving(input, id).await?;
@@ -418,9 +419,11 @@ where
         Ok(state.into_inner())
     }
 
+    #[instrument(name = "CreateInput", skip_all, fields(_uuid))]
     fn create_circuit_input(
         &self,
         partition: &Partition<'_>,
+        _uuid: Uuid,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
         let initial_state_root = self
             .ledger_db
@@ -530,12 +533,7 @@ where
                     .expect("Should put proof to db");
 
                 let tx_id = prover_service
-                    .submit_proof(proof)
-                    .instrument(tracing::span!(
-                        Level::DEBUG,
-                        "SubmitProof",
-                        job_id = job_id.to_string()
-                    ))
+                    .submit_proof(proof, job_id)
                     .await
                     .expect("Failed to submit proof");
 
@@ -606,7 +604,7 @@ where
         for (job_id, proof) in proofs {
             let tx_id = self
                 .prover_service
-                .submit_proof(proof)
+                .submit_proof(proof, job_id)
                 .await
                 .expect("Failed to submit transaction");
             info!("Job {} proof sent to DA", job_id);

@@ -173,9 +173,11 @@ where
         }
     }
 
+    #[instrument(name = "SubmitProof", skip_all, fields(_uuid))]
     pub async fn submit_proof(
         &self,
         proof: Proof,
+        _uuid: Uuid,
     ) -> anyhow::Result<<Da as DaService>::TransactionId> {
         let tx_request = DaTxRequest::ZKProof(proof);
         self.da_service
@@ -184,13 +186,15 @@ where
             .map_err(|e| anyhow::anyhow!(e))
     }
 
+    // Only used in tests
     pub async fn submit_proofs(
         &self,
         proofs: Vec<Proof>,
     ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
         let mut tx_and_proof = Vec::with_capacity(proofs.len());
+        let id = uuid!("00000000-0000-0000-0000-000000000000");
         for proof in proofs {
-            let tx_id = self.submit_proof(proof.clone()).await?;
+            let tx_id = self.submit_proof(proof.clone(), id).await?;
             tx_and_proof.push((tx_id, proof));
         }
         Ok(tx_and_proof)
