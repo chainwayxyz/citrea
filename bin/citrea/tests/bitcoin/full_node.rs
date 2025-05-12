@@ -2391,7 +2391,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
-        // Create a 50kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 2 chunks and 1 aggregate transactions because 50kb/40kb = 2 chunks
+        // Create a 50kb (compressed size) batch proof this batch proof will consist of 2 chunks and 1 aggregate transactions because 50kb/40kb = 2 chunks
         let verifiable_50kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             last_state_root,
             40,
@@ -2403,82 +2403,77 @@ impl TestCase for FullNodeLcpChunkProofTest {
             None,
         );
 
-        self.drain_wallet(da, &batch_prover.da, Amount::from_sat(80000000000000000))
-            .await?;
-        da.generate(1).await?;
         let _ = batch_prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_50kb_batch_proof), 1)
+            .test_send_separate_chunk_transaction_with_fee_rate(
+                DaTxRequest::ZKProof(verifiable_50kb_batch_proof),
+                1,
+            )
             .await
             .unwrap();
 
-        sleep(Duration::from_secs(15)).await;
+        // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
+        da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
         let mut txs = da.get_raw_mempool().await?;
-        println!("txs len after drainage: {}", txs.len());
+        assert_eq!(txs.len(), 6);
 
-        // // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
-        // da.wait_mempool_len(6, Some(TEN_MINS)).await?;
+        let chunk1 = txs[0..=1].to_vec();
+        let chunk2 = txs[2..=3].to_vec();
+        let aggregate = txs[4..].to_vec();
 
-        // let mut txs = da.get_raw_mempool().await?;
-        // assert_eq!(txs.len(), 6);
+        let mut new_order_chunks = vec![];
 
-        // let chunk1 = txs[0..=1].to_vec();
-        // let chunk2 = txs[2..=3].to_vec();
-        // let aggregate = txs[4..].to_vec();
+        new_order_chunks.extend(chunk1);
+        new_order_chunks.extend(aggregate);
+        new_order_chunks.extend(chunk2);
+        let addr = da
+            .get_new_address(None, None)
+            .await?
+            .assume_checked()
+            .to_string();
+        da.generate_block(
+            addr,
+            new_order_chunks.iter().map(|tx| tx.to_string()).collect(),
+        )
+        .await?;
 
-        // let mut new_order_chunks = vec![];
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 
-        // new_order_chunks.extend(chunk1);
-        // new_order_chunks.extend(aggregate);
-        // new_order_chunks.extend(chunk2);
-        // let addr = da
-        //     .get_new_address(None, None)
-        //     .await?
-        //     .assume_checked()
-        //     .to_string();
-        // da.generate_block(
-        //     addr,
-        //     new_order_chunks.iter().map(|tx| tx.to_string()).collect(),
-        // )
-        // .await?;
+        let finalized_height = da.get_finalized_height(None).await?;
 
-        // da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        // Wait for full node to process proofs
+        full_node.wait_for_l1_height(finalized_height, None).await?;
 
-        // let finalized_height = da.get_finalized_height(None).await?;
+        // Wait for lcp to process proofs
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
 
-        // // Wait for full node to process proofs
-        // full_node.wait_for_l1_height(finalized_height, None).await?;
+        // Check that the proof was not processed and the last proven height is still the same
+        let last_proven_l2_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(last_proven_l2_height.height, 20);
+        assert_eq!(last_proven_l2_height.commitment_index, 2);
 
-        // // Wait for lcp to process proofs
-        // light_client_prover
-        //     .wait_for_l1_height(finalized_height, None)
-        //     .await?;
-
-        // // Check that the proof was not processed and the last proven height is still the same
-        // let last_proven_l2_height = full_node
-        //     .client
-        //     .http_client()
-        //     .get_last_proven_l2_height()
-        //     .await?
-        //     .unwrap();
-        // assert_eq!(last_proven_l2_height.height, 20);
-        // assert_eq!(last_proven_l2_height.commitment_index, 2);
-
-        // // Expect the same results in lcp
-        // let lcp = light_client_prover
-        //     .client
-        //     .http_client()
-        //     .get_light_client_proof_by_l1_height(finalized_height)
-        //     .await?;
-        // let lcp_output = lcp.unwrap().light_client_proof_output;
-        // assert_eq!(
-        //     lcp_output.last_l2_height,
-        //     U64::from(last_proven_l2_height.height)
-        // );
-        // assert_eq!(
-        //     lcp_output.last_sequencer_commitment_index,
-        //     U32::from(last_proven_l2_height.commitment_index)
-        // );
+        // Expect the same results in lcp
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+        assert_eq!(
+            lcp_output.last_l2_height,
+            U64::from(last_proven_l2_height.height)
+        );
+        assert_eq!(
+            lcp_output.last_sequencer_commitment_index,
+            U32::from(last_proven_l2_height.commitment_index)
+        );
 
         Ok(())
     }

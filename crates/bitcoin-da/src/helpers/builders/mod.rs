@@ -1,4 +1,5 @@
 pub mod body_builders;
+pub mod test_utils;
 
 #[cfg(test)]
 mod tests;

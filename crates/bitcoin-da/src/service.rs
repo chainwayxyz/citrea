@@ -58,7 +58,7 @@ use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
-type Result<T> = std::result::Result<T, BitcoinServiceError>;
+pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 const POLLING_INTERVAL: u64 = 10; // seconds
 
@@ -107,12 +107,12 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
 #[derive(Debug)]
 pub struct BitcoinService {
     client: Arc<Client>,
-    network: bitcoin::Network,
+    pub(crate) network: bitcoin::Network,
     network_constants: NetworkConstants,
-    da_private_key: Option<SecretKey>,
-    reveal_tx_prefix: Vec<u8>,
+    pub(crate) da_private_key: Option<SecretKey>,
+    pub(crate) reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
-    tx_backup_dir: PathBuf,
+    pub(crate) tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
 }
@@ -291,7 +291,7 @@ impl BitcoinService {
 
     /// Retrieves the most recent spendable UTXO from the transaction chain on startup.
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_prev_utxo(&self) -> Option<UTXO> {
+    pub(crate) async fn get_prev_utxo(&self) -> Option<UTXO> {
         let (txid, tx) = self.monitoring.get_last_tx().await?;
 
         let utxos = tx.to_utxos()?;
@@ -305,7 +305,7 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_utxos(&self) -> Result<Vec<UTXO>> {
+    pub(crate) async fn get_utxos(&self) -> Result<Vec<UTXO>> {
         let utxos = self
             .client
             .list_unspent(Some(0), None, None, None, None)
@@ -604,7 +604,7 @@ impl BitcoinService {
         Ok(txids)
     }
 
-    async fn send_complete_transaction(
+    pub(crate) async fn send_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
@@ -1442,7 +1442,7 @@ impl From<TxidWrapper> for [u8; 32] {
 ///   let compressed = compress(borsh(Proof))
 ///   let chunks = compressed.chunks(MAX_TXBODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
-fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
+pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
     let original_compressed = compress_blob(&original_blob)?;
 
