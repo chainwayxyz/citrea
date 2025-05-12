@@ -83,7 +83,7 @@ pub mod bitcoinda {
     pub const NIGHTLY_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "8b98ac0e52b57b585a42d9e015c3f0bfdd52e98b0bf41b15837bb6824db9fcec",
+            None => "906226f9b55c540d029e8a5fd30465b3c84c3d75b92d16add15c74142e79d01f",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -95,7 +95,7 @@ pub mod bitcoinda {
     pub const TEST_NETWORK_WITH_FORKS_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "8b98ac0e52b57b585a42d9e015c3f0bfdd52e98b0bf41b15837bb6824db9fcec",
+            None => "906226f9b55c540d029e8a5fd30465b3c84c3d75b92d16add15c74142e79d01f",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
