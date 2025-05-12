@@ -101,10 +101,10 @@ pub fn test_create_single_chunk(
             commit_fee_rate,
         )?;
 
-        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+        let input_to_reveal = unsigned_commit_tx.output[0].clone();
 
         let mut reveal_tx = build_reveal_transaction(
-            output_to_reveal.clone(),
+            input_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
             change_address.clone(),
@@ -253,10 +253,10 @@ pub fn test_create_single_aggregate(
             commit_fee_rate,
         )?;
 
-        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+        let input_to_reveal = unsigned_commit_tx.output[0].clone();
 
         let mut reveal_tx = build_reveal_transaction(
-            output_to_reveal.clone(),
+            input_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
             change_address,

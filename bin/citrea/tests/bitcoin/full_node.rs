@@ -3,6 +3,8 @@ use std::time::Duration;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin::Txid;
+use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{BatchProverConfig, BitcoinConfig, SequencerConfig, TestCaseConfig};
@@ -2308,38 +2310,52 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         let mut txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
-        println!("txs before: {:?}", txs);
 
-        let mut min_tx_size = usize::MAX;
-        // The aggr index is the smallest tx size
-        let mut aggr_index = 0;
-        for (i, tx_group) in txs.chunks(2).enumerate() {
+        let mut reveals = Vec::with_capacity(3);
+        reveals.push(Txid::all_zeros());
+        reveals.push(Txid::all_zeros());
+        reveals.push(Txid::all_zeros());
+        let mut commits = Vec::with_capacity(3);
+
+        for txid in txs {
             let tx = da
-                .get_transaction(&tx_group[1], None)
+                .get_transaction(&txid, None)
                 .await?
                 .transaction()
                 .unwrap();
-            // Check reveal tx size
-            println!("tx size: {}", tx.total_size());
-            if tx.total_size() < min_tx_size {
-                min_tx_size = tx.total_size();
-                aggr_index = i;
+
+            let parsed = parse_relevant_transaction(&tx);
+            match parsed {
+                Ok(ParsedTransaction::Aggregate(aggr)) => {
+                    // Make sure the aggregate tx is the last one
+                    reveals[2] = txid;
+                }
+                Ok(ParsedTransaction::Chunk(chunk)) => {
+                    if reveals[0] == Txid::all_zeros() {
+                        reveals[0] = txid;
+                    } else if reveals[1] == Txid::all_zeros() {
+                        reveals[1] = txid;
+                    }
+                }
+                Err(e) => commits.push(txid),
+                _ => {}
             }
         }
-        // aggr_index * 2 and aggr_index * 2 + 1 are the aggregate commit and reveal txs
-        // Swap i*2 with index 4 and i*2 + 1 with index 5
-        txs.swap(aggr_index * 2, 4);
-        txs.swap(aggr_index * 2 + 1, 5);
 
-        println!("txs after: {:?}", txs);
+        // Make sure commits are before reveals
+        commits.extend(reveals);
+        let tx_ids_in_order = commits.clone();
 
         let addr = da
             .get_new_address(None, None)
             .await?
             .assume_checked()
             .to_string();
-        da.generate_block(addr, txs.iter().map(|tx| tx.to_string()).collect())
-            .await?;
+        da.generate_block(
+            addr,
+            tx_ids_in_order.iter().map(|tx| tx.to_string()).collect(),
+        )
+        .await?;
 
         da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -2407,32 +2423,55 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let mut txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let mut min_tx_size = usize::MAX;
-        // The aggr index is the smallest tx size
-        let mut aggr_index = 0;
-        for (i, tx_group) in txs.chunks(2).enumerate() {
+        let mut reveals = Vec::with_capacity(3);
+        reveals.push(Txid::all_zeros());
+        reveals.push(Txid::all_zeros());
+        reveals.push(Txid::all_zeros());
+        let mut commits = Vec::with_capacity(3);
+
+        for txid in txs {
             let tx = da
-                .get_transaction(&tx_group[1], None)
+                .get_transaction(&txid, None)
                 .await?
                 .transaction()
                 .unwrap();
-            // Check reveal tx size
-            if tx.total_size() < min_tx_size {
-                min_tx_size = tx.total_size();
-                aggr_index = i;
+
+            let parsed = parse_relevant_transaction(&tx);
+            match parsed {
+                Ok(ParsedTransaction::Aggregate(aggr)) => {
+                    // Make sure the aggregate tx is the last one
+                    reveals[1] = txid;
+                }
+                Ok(ParsedTransaction::Chunk(chunk)) => {
+                    if reveals[0] == Txid::all_zeros() {
+                        reveals[0] = txid;
+                        // Put one reveal in wrong order (after aggregate)
+                    } else if reveals[2] == Txid::all_zeros() {
+                        reveals[2] = txid;
+                    }
+                }
+                Err(e) => commits.push(txid),
+                _ => {}
             }
         }
-        // aggr_index * 2 and aggr_index * 2 + 1 are the aggregate commit and reveal txs
-        // Swap i*2 with index 2 and i*2 + 1 with index 3 so the aggregate tx is in the middle
-        txs.swap(aggr_index * 2, 2);
-        txs.swap(aggr_index * 2 + 1, 3);
+
+        // Make sure commits are before reveals
+        commits.extend(reveals);
+        let tx_ids_in_wrong_order = commits.clone();
+
         let addr = da
             .get_new_address(None, None)
             .await?
             .assume_checked()
             .to_string();
-        da.generate_block(addr, txs.iter().map(|tx| tx.to_string()).collect())
-            .await?;
+        da.generate_block(
+            addr,
+            tx_ids_in_wrong_order
+                .iter()
+                .map(|tx| tx.to_string())
+                .collect(),
+        )
+        .await?;
 
         da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 
