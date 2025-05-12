@@ -331,6 +331,7 @@ pub trait CitreaBuilder {
     fn build_citrea(self) -> CitreaEvm<Self::Context, ()>;
 
     /// Build citrea with an inspector.
+    #[cfg(feature = "native")]
     fn build_citrea_with_inspector<INSP>(self, inspector: INSP) -> CitreaEvm<Self::Context, INSP>;
 }
 
@@ -348,6 +349,7 @@ where
         CitreaEvm::new(self, ())
     }
 
+    #[cfg(feature = "native")]
     fn build_citrea_with_inspector<INSP>(self, inspector: INSP) -> CitreaEvm<Self::Context, INSP> {
         CitreaEvm::new(self, inspector)
     }
