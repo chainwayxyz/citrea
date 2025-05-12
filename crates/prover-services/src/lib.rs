@@ -32,6 +32,7 @@ pub type Assumptions = Vec<Vec<u8>>;
 pub type Elf = Vec<u8>;
 
 /// Data used for generating a proof.
+#[derive(Debug)]
 pub struct ProofData {
     /// The input data to be processed
     pub input: Input,

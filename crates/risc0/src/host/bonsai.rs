@@ -158,10 +158,11 @@ impl BonsaiProver {
 
         histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
         tracing::info!(
-            "Execution Stats: total_cycles{} user_cycles={} segments={}",
+            "Execution Stats for job_id={}: total_cycles={} user_cycles={} segments={}",
+            job_id,
             stats.total_cycles,
             stats.cycles,
-            stats.segments
+            stats.segments,
         );
 
         if matches!(receipt_type, ReceiptType::Succinct) {

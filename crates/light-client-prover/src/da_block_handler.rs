@@ -23,7 +23,7 @@ use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
-use tracing::error;
+use tracing::{error, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
@@ -90,6 +90,7 @@ where
         }
     }
 
+    #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(
         mut self,
         last_l1_height_scanned: StartVariant,
