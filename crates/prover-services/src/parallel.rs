@@ -173,7 +173,7 @@ where
         }
     }
 
-    #[instrument(name = "ParallelProverService", skip_all, fields(_uuid = _uuid.to_string()))]
+    #[instrument(name = "ParallelProverService", skip_all, fields(uuid = _uuid.to_string()))]
     pub async fn submit_proof(
         &self,
         proof: Proof,

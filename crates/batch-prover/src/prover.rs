@@ -419,7 +419,7 @@ where
         Ok(state.into_inner())
     }
 
-    #[instrument(skip_all, fields(_uuid = _uuid.to_string()))]
+    #[instrument(skip_all, fields(uuid = _uuid.to_string()))]
     fn create_circuit_input(
         &self,
         partition: &Partition<'_>,
