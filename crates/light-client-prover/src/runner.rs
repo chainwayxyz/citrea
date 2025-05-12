@@ -15,7 +15,7 @@ impl CitreaLightClientProver {
     }
 
     /// Runs the rollup.
-    #[instrument(level = "trace", skip_all, err)]
+    #[instrument(name = "LightClientProver", skip_all)]
     pub async fn run(&mut self, shutdown_signal: GracefulShutdown) -> Result<(), anyhow::Error> {
         let _ = shutdown_signal.await;
 

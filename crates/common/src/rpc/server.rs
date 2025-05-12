@@ -4,7 +4,7 @@ use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
 use tokio::sync::oneshot;
-use tracing::{error, info};
+use tracing::{error, info, info_span, Instrument};
 
 use crate::RpcConfig;
 
@@ -38,41 +38,44 @@ pub fn start_rpc_server(
         .layer_fn(move |s| super::auth::Auth::new(s, rpc_config.api_key.clone()))
         .layer_fn(super::Logger);
 
-    task_executor.spawn_with_signal(move |cancellation_token| async move {
-        let server = ServerBuilder::default()
-            .max_connections(max_connections)
-            .max_subscriptions_per_connection(max_subscriptions_per_connection)
-            .max_request_body_size(max_request_body_size)
-            .max_response_body_size(max_response_body_size)
-            .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
-            .set_http_middleware(middleware)
-            .set_rpc_middleware(rpc_middleware)
-            .build([listen_address].as_ref())
-            .await;
+    task_executor.spawn_with_signal(move |cancellation_token| {
+        async move {
+            let server = ServerBuilder::default()
+                .max_connections(max_connections)
+                .max_subscriptions_per_connection(max_subscriptions_per_connection)
+                .max_request_body_size(max_request_body_size)
+                .max_response_body_size(max_response_body_size)
+                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
+                .set_http_middleware(middleware)
+                .set_rpc_middleware(rpc_middleware)
+                .build([listen_address].as_ref())
+                .await;
 
-        match server {
-            Ok(server) => {
-                let bound_address = match server.local_addr() {
-                    Ok(address) => address,
-                    Err(e) => {
-                        error!("{}", e);
-                        return;
+            match server {
+                Ok(server) => {
+                    let bound_address = match server.local_addr() {
+                        Ok(address) => address,
+                        Err(e) => {
+                            error!("{}", e);
+                            return;
+                        }
+                    };
+                    if let Some(channel) = channel {
+                        if let Err(e) = channel.send(bound_address) {
+                            error!("Could not send bound_address {}: {}", bound_address, e);
+                            return;
+                        }
                     }
-                };
-                if let Some(channel) = channel {
-                    if let Err(e) = channel.send(bound_address) {
-                        error!("Could not send bound_address {}: {}", bound_address, e);
-                        return;
-                    }
+                    info!("Starting RPC server at {} ", &bound_address);
+
+                    let _server_handle = server.start(methods);
+                    cancellation_token.await;
                 }
-                info!("Starting RPC server at {} ", &bound_address);
-
-                let _server_handle = server.start(methods);
-                cancellation_token.await;
-            }
-            Err(e) => {
-                error!("Could not start RPC server: {}", e);
+                Err(e) => {
+                    error!("Could not start RPC server: {}", e);
+                }
             }
         }
+        .instrument(info_span!("RPC"))
     });
 }

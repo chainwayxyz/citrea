@@ -6,7 +6,7 @@ use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
 use crate::{ProofData, ProofGenMode};
@@ -90,18 +90,21 @@ where
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
     pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> anyhow::Result<Proof> {
-        let (_, rx) = self.start_proving(data, receipt_type).await?;
+        let job_id = Uuid::nil();
+        let rx = self.start_proving(data, receipt_type, job_id).await?;
         Ok(rx.await.expect("Proof channel should not close"))
     }
 
     /// Starts the proving task in the background and returns a channel which will resolve
     /// once the proving is done. If there is not enough proving slots left, this function
     /// will block until it can get a slot and start the proof.
+    #[instrument(name = "ParallelProverService", skip_all)]
     pub async fn start_proving(
         &self,
         data: ProofData,
         receipt_type: ReceiptType,
-    ) -> anyhow::Result<(Uuid, oneshot::Receiver<Proof>)> {
+        job_id: Uuid,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         self.reserve_proof_slot().await;
 
         let ProofData {
@@ -117,12 +120,10 @@ where
             vm.add_assumption(assumption);
         }
 
-        let id = Uuid::now_v7();
-
         // Start proof immediately
-        let proof_rx = make_proof(vm, id, elf, self.proof_mode, receipt_type)
+        let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
             .context("Failed to start proving")?;
-        debug!("Started proving job {}", id);
+        debug!("Started proving job");
 
         let ongoing_proof_count = self.ongoing_proof_count.clone();
         let notifier = self.proof_done_notifier.clone();
@@ -142,11 +143,11 @@ where
                 }
             }
 
-            debug!("Finished proving job {}", id);
+            debug!("Finished proving job");
             notifier.notify_one();
         });
 
-        Ok((id, rx))
+        Ok(rx)
     }
 
     async fn reserve_proof_slot(&self) {
@@ -172,24 +173,29 @@ where
         }
     }
 
+    #[instrument(name = "ParallelProverService", skip_all, fields(job_id = _job_id.to_string()))]
     pub async fn submit_proof(
         &self,
         proof: Proof,
+        _job_id: Uuid,
     ) -> anyhow::Result<<Da as DaService>::TransactionId> {
         let tx_request = DaTxRequest::ZKProof(proof);
+        info!("Submitting proof to DA service");
         self.da_service
             .send_transaction(tx_request)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
 
+    // Only used in tests
     pub async fn submit_proofs(
         &self,
         proofs: Vec<Proof>,
     ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
         let mut tx_and_proof = Vec::with_capacity(proofs.len());
+        let job_id = Uuid::nil();
         for proof in proofs {
-            let tx_id = self.submit_proof(proof.clone()).await?;
+            let tx_id = self.submit_proof(proof.clone(), job_id).await?;
             tx_and_proof.push((tx_id, proof));
         }
         Ok(tx_and_proof)

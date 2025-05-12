@@ -1,7 +1,7 @@
 use reth_tasks::shutdown::GracefulShutdown;
 use tokio::select;
 use tokio::sync::broadcast;
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
 use super::types::StorageNodeType;
 use super::Pruner;
@@ -27,6 +27,7 @@ impl PrunerService {
         }
     }
 
+    #[instrument(name = "PrunerService", skip(self))]
     pub async fn run(mut self, node_type: StorageNodeType, mut shutdown_signal: GracefulShutdown) {
         loop {
             select! {
