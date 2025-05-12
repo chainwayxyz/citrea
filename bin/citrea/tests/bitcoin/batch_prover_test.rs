@@ -16,13 +16,18 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::NodeT;
+use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use prover_services::{ParallelProverService, ProofData};
+use citrea_risc0_adapter::host::Risc0Host;
+use risc0_zkvm::Digest;
+use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
-use sov_rollup_interface::zk::ReceiptType;
+use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
+use sov_rollup_interface::Network;
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -1302,14 +1307,13 @@ impl TestCase for BatchProverCreateInputTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_batch_prover: true,
-            with_full_node: true,
             ..Default::default()
         }
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let batch_prover = f.batch_prover.as_ref().unwrap();
-        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
         // Generate commitments to create input for proving
@@ -1337,22 +1341,30 @@ impl TestCase for BatchProverCreateInputTest {
             .create_circuit_input(0, 1, PartitionMode::Normal)
             .await?;
 
-        // Start a proving session using the generated input
-        let job_id = batch_prover
-            .client
-            .http_client()
-            .prove_with_input(input)
-            .await?;
+        sequencer.wait_until_stopped().await?;
+        batch_prover.wait_until_stopped().await?;
 
-        // Wait for the proving job to finish
-        let response = wait_for_prover_job(batch_prover, job_id, None).await?;
-        let proof = response.proof.unwrap();
+        let code_commitment = Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID);
 
-        // Validate the proof output
-        assert!(
-            proof.proof_output.final_state_root().len() > 0,
-            "Proof output is invalid"
-        );
+        // Instantiate Risc0Host
+        let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
+        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
+        let network = Network::TestNetworkWithForks;
+        let mut risc0_host = Risc0Host::new(ledger_db, network);
+
+        // Add input to Risc0Host
+        risc0_host.add_hint(borsh::to_vec(&input).expect("Input serialization cannot fail"));
+
+        // Run the proof generation
+        let proof = risc0_host
+            .run(Uuid::new_v4(), vec![], ReceiptType::Groth16, true)
+            .expect("Proof generation failed")
+            .await
+            .expect("Proof channel should not close");
+
+        // Verify the proof
+        Risc0Host::verify(&proof.proof.as_slice(), &code_commitment)
+            .expect("Proof verification failed");
 
         Ok(())
     }
@@ -1361,84 +1373,6 @@ impl TestCase for BatchProverCreateInputTest {
 #[tokio::test]
 async fn batch_prover_create_input_test() -> Result<()> {
     TestCaseRunner::new(BatchProverCreateInputTest)
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
-}
-
-struct ParallelProvingServiceTest;
-
-#[async_trait]
-impl TestCase for ParallelProvingServiceTest {
-    fn test_config() -> TestCaseConfig {
-        TestCaseConfig {
-            with_batch_prover: true,
-            with_full_node: true,
-            ..Default::default()
-        }
-    }
-
-    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let batch_prover = f.batch_prover.as_ref().unwrap();
-        let sequencer = f.sequencer.as_ref().unwrap();
-        let da = f.bitcoin_nodes.get(0).unwrap();
-
-        // Generate commitments to create input for proving
-        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-        for _ in 0..max_l2_blocks_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
-        }
-
-        // Wait for commitment transactions to hit the mempool
-        da.wait_mempool_len(2, None).await?;
-
-        // Finalize the commitments
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
-
-        // Ensure the batch prover sees the finalized commitments
-        batch_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await?;
-
-        // Call batchProver_createInput to generate input for proving
-        let input = batch_prover
-            .client
-            .http_client()
-            .create_circuit_input(0, 1, PartitionMode::Normal)
-            .await?;
-
-        // Start a proving session using the ParallelProverService
-        let proof_data = ProofData {
-            input: borsh::to_vec(&input).expect("Input serialization cannot fail"),
-            assumptions: vec![],
-            elf: vec![], // Provide the appropriate ELF binary here
-        };
-
-        let job_id = Uuid::new_v4();
-        // Instantiate the ParallelProverService directly
-        let parallel_prover_service =
-            ParallelProverService::new(da_service, vm, proof_mode, thread_pool_size).unwrap();
-
-        let proof_receiver = parallel_prover_service
-            .start_proving(proof_data, ReceiptType::Groth16)
-            .await?;
-
-        // Wait for the proving job to finish
-        let proof = proof_receiver
-            .await
-            .expect("Proof channel should not close");
-
-        // Validate the proof output
-        assert!(proof.final_state_root.len() > 0, "Proof output is invalid");
-
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn parallel_proving_service_test() -> Result<()> {
-    TestCaseRunner::new(ParallelProvingServiceTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
