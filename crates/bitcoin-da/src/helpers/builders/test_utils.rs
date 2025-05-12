@@ -1,10 +1,5 @@
 use core::result::Result::Ok;
-use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::path::PathBuf;
-use std::time::Instant;
 
-use anyhow::anyhow;
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
@@ -13,22 +8,19 @@ use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
-use bitcoin::{consensus, Address, Amount, Network, Transaction};
-use itertools::Itertools;
-use metrics::histogram;
+use bitcoin::{Address, Amount, Network, Transaction};
 use secp256k1::SECP256K1;
-use serde::Serialize;
-use sov_rollup_interface::da::DataOnDa;
-use tracing::{instrument, trace, warn};
+use tracing::{trace, warn};
 
 use super::{
     build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
-    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
+    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
 };
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 // Returns (chunk commit tx, chunk reveal tx)
+#[allow(clippy::too_many_arguments)]
 pub fn test_create_single_chunk(
     body: Vec<u8>,
     da_private_key: &SecretKey,
@@ -63,7 +55,7 @@ pub fn test_create_single_chunk(
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
     let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
-    'mine_chunk: loop {
+    loop {
         if nonce % 1000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce for chunk");
             if nonce > 16384 {
@@ -170,6 +162,7 @@ pub fn test_create_single_chunk(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn test_create_single_aggregate(
     reveal_body: Vec<u8>,
     da_private_key: &SecretKey,

@@ -3,9 +3,8 @@ use std::time::Duration;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin::Amount;
-use bitcoincore_rpc::{Client, RpcApi};
-use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
+use bitcoincore_rpc::RpcApi;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{BatchProverConfig, BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -18,7 +17,6 @@ use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
-use tokio::time::sleep;
 
 use super::light_client_test::{
     create_random_state_diff, create_serialized_fake_receipt_batch_proof, TEN_MINS,
@@ -2114,41 +2112,6 @@ struct FullNodeLcpChunkProofTest {
     task_manager: TaskManager,
 }
 
-impl FullNodeLcpChunkProofTest {
-    async fn drain_wallet(
-        &self,
-        da: &BitcoinNode,
-        client: &Client,
-        amount_to_keep: Amount,
-    ) -> Result<()> {
-        let balance = da.get_balance(None, None).await?;
-
-        let amount_to_send = balance - amount_to_keep;
-
-        if amount_to_send <= Amount::ZERO {
-            return Ok(());
-        }
-
-        let drain_address = da.get_new_address(None, None).await?.assume_checked();
-
-        client
-            .send_to_address(
-                &drain_address,
-                amount_to_send,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-            .await?;
-        da.generate(1).await?;
-
-        Ok(())
-    }
-}
-
 #[async_trait]
 impl TestCase for FullNodeLcpChunkProofTest {
     fn test_config() -> TestCaseConfig {
@@ -2218,17 +2181,9 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
-        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let _batch_prover = f.batch_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
-
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
 
         let batch_prover_da_service = spawn_bitcoin_da_service(
             task_executor,
@@ -2348,7 +2303,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let mut txs = da.get_raw_mempool().await?;
+        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -2414,7 +2369,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let mut txs = da.get_raw_mempool().await?;
+        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
         let chunk1 = txs[0..=1].to_vec();

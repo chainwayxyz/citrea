@@ -1,63 +1,17 @@
 use core::result::Result::Ok;
-use core::str::FromStr;
-use core::time::Duration;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context};
-use async_trait::async_trait;
-use backoff::future::retry as retry_backoff;
-use backoff::ExponentialBackoff;
-use bitcoin::block::Header;
-use bitcoin::consensus::{encode, Decodable};
+use anyhow::Context;
 use bitcoin::hashes::Hash;
-use bitcoin::secp256k1::SecretKey;
-use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
-use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
-use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcError};
-use borsh::BorshDeserialize;
-use citrea_common::utils::read_env;
-use citrea_primitives::compression::{compress_blob, decompress_blob};
-use citrea_primitives::MAX_TXBODY_SIZE;
-use metrics::histogram;
-use reth_tasks::shutdown::GracefulShutdown;
-use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
-use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
-use sov_rollup_interface::zk::Proof;
-use sov_rollup_interface::Network;
-use tokio::select;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::oneshot::channel as oneshot_channel;
-use tracing::{debug, error, info, instrument, trace, warn};
+use bitcoin::Txid;
+use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 
 use crate::error::BitcoinServiceError;
-use crate::fee::{BumpFeeMethod, FeeService};
-use crate::helpers::builders::body_builders::{
-    backup_chunked_txs, backup_complete_txs, create_light_client_transactions, DaTxs, RawTxData,
-};
+use crate::helpers::builders::body_builders::RawTxData;
 use crate::helpers::builders::test_utils::{
     test_create_single_aggregate, test_create_single_chunk,
 };
 use crate::helpers::builders::TxWithId;
-use crate::helpers::merkle_tree;
-use crate::helpers::merkle_tree::BitcoinMerkleTree;
-use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
-use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
-use crate::network_constants::{get_network_constants, NetworkConstants};
 use crate::service::{split_proof, BitcoinService, Result};
-use crate::spec::blob::BlobWithSender;
-use crate::spec::block::BitcoinBlock;
-use crate::spec::header::HeaderWrapper;
-use crate::spec::header_stream::BitcoinHeaderStream;
-use crate::spec::proof::InclusionMultiProof;
-use crate::spec::short_proof::BitcoinHeaderShortProof;
-use crate::spec::transaction::TransactionWrapper;
-use crate::spec::utxo::UTXO;
-use crate::spec::{BitcoinSpec, RollupParams};
-use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
-use crate::REVEAL_OUTPUT_AMOUNT;
 
 impl BitcoinService {
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(
@@ -84,7 +38,7 @@ impl BitcoinService {
                             let utxos = self.get_utxos().await?;
                             let utxos = utxos
                                 .into_iter()
-                                .filter(|utxo| utxo.amount >= 50 * (10 as u64).pow(8))
+                                .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))
                                 .collect::<Vec<_>>();
 
                             let prev_utxo = self.get_prev_utxo().await;
@@ -142,7 +96,7 @@ impl BitcoinService {
                         let utxos = self.get_utxos().await?;
                         let utxos = utxos
                             .into_iter()
-                            .filter(|utxo| utxo.amount >= 50 * (10 as u64).pow(8))
+                            .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))
                             .collect::<Vec<_>>();
                         let prev_utxo = self.get_prev_utxo().await;
 
