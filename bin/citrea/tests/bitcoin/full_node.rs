@@ -2308,13 +2308,11 @@ impl TestCase for FullNodeLcpChunkProofTest {
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let mut txs = da.get_raw_mempool().await?;
+        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let mut reveals = Vec::with_capacity(3);
-        reveals.push(Txid::all_zeros());
-        reveals.push(Txid::all_zeros());
-        reveals.push(Txid::all_zeros());
+        let mut reveals = vec![Txid::all_zeros(), Txid::all_zeros(), Txid::all_zeros()];
+
         let mut commits = Vec::with_capacity(3);
 
         for txid in txs {
@@ -2326,18 +2324,18 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
             let parsed = parse_relevant_transaction(&tx);
             match parsed {
-                Ok(ParsedTransaction::Aggregate(aggr)) => {
+                Ok(ParsedTransaction::Aggregate(_)) => {
                     // Make sure the aggregate tx is the last one
                     reveals[2] = txid;
                 }
-                Ok(ParsedTransaction::Chunk(chunk)) => {
+                Ok(ParsedTransaction::Chunk(_)) => {
                     if reveals[0] == Txid::all_zeros() {
                         reveals[0] = txid;
                     } else if reveals[1] == Txid::all_zeros() {
                         reveals[1] = txid;
                     }
                 }
-                Err(e) => commits.push(txid),
+                Err(_) => commits.push(txid),
                 _ => {}
             }
         }
@@ -2420,13 +2418,11 @@ impl TestCase for FullNodeLcpChunkProofTest {
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let mut txs = da.get_raw_mempool().await?;
+        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let mut reveals = Vec::with_capacity(3);
-        reveals.push(Txid::all_zeros());
-        reveals.push(Txid::all_zeros());
-        reveals.push(Txid::all_zeros());
+        let mut reveals = vec![Txid::all_zeros(), Txid::all_zeros(), Txid::all_zeros()];
+
         let mut commits = Vec::with_capacity(3);
 
         for txid in txs {
@@ -2438,11 +2434,11 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
             let parsed = parse_relevant_transaction(&tx);
             match parsed {
-                Ok(ParsedTransaction::Aggregate(aggr)) => {
+                Ok(ParsedTransaction::Aggregate(_)) => {
                     // Make sure the aggregate tx is the last one
                     reveals[1] = txid;
                 }
-                Ok(ParsedTransaction::Chunk(chunk)) => {
+                Ok(ParsedTransaction::Chunk(_)) => {
                     if reveals[0] == Txid::all_zeros() {
                         reveals[0] = txid;
                         // Put one reveal in wrong order (after aggregate)
@@ -2450,7 +2446,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
                         reveals[2] = txid;
                     }
                 }
-                Err(e) => commits.push(txid),
+                Err(_) => commits.push(txid),
                 _ => {}
             }
         }
