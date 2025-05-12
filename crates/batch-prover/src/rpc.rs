@@ -21,6 +21,7 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
+use sov_db::schema::types::job_status::JobStatus;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -43,6 +44,13 @@ pub struct ProverInputResponse {
     pub commitment_range: (U32, U32),
     pub l1_block_height: U64,
     pub encoded_serialized_batch_proof_input: String,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvingJobResponse {
+    pub job_id: Uuid,
+    pub status: JobStatus,
 }
 
 pub struct RpcContext<Da, DB, Vm>
@@ -135,7 +143,7 @@ pub trait BatchProverRpc {
 
     /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     #[method(name = "getProvingJobs")]
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>>;
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>>;
 
     /// Gets proving job details of the commitment index.
     #[method(name = "getProvingJobOfCommitment")]
@@ -453,12 +461,17 @@ where
         }))
     }
 
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<Uuid>> {
-        Ok(self
+    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>> {
+        let jobs = self
             .context
             .ledger_db
-            .get_latest_job_ids(count)
-            .map_err(|e| internal_rpc_error(e.to_string()))?)
+            .get_latest_jobs(count)
+            .map_err(|e| internal_rpc_error(e.to_string()))?;
+        let jobs = jobs
+            .into_iter()
+            .map(|(id, status)| ProvingJobResponse { job_id: id, status })
+            .collect();
+        Ok(jobs)
     }
 
     async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>> {

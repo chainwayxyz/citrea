@@ -6,7 +6,6 @@ use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
-use citrea_common::error::SyncError;
 use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
@@ -25,6 +24,7 @@ use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tracing::{debug, error, info, warn};
 
+use crate::error::ProofError;
 use crate::metrics::FULLNODE_METRICS;
 
 enum ProcessingResult {
@@ -164,24 +164,7 @@ where
                         )
                         .await
                     {
-                        match e {
-                            SyncError::Error(e) => {
-                                error!(
-                                    "Could not process sequencer commitments: {}... skipping",
-                                    e
-                                );
-                            }
-                            SyncError::SequencerCommitmentNotFound(_) => {
-                                unreachable!("Error irrelevant!")
-                            }
-                            SyncError::SequencerCommitmentWithIndexNotFound(_) => {
-                                unreachable!("Error irrelevant!")
-                            }
-                            SyncError::UnknownL1Hash => unreachable!("Error irrelevant!"),
-                            SyncError::SequencerCommitmentMissingForProof(_) => {
-                                unreachable!("Error irrelevant!")
-                            }
-                        }
+                        error!("Could not process sequencer commitments: {e}... skipping");
                     }
                 }
                 ProofOrCommitment::Proof(proof) => {
@@ -193,23 +176,7 @@ where
                         )
                         .await
                     {
-                        match e {
-                            SyncError::Error(e) => {
-                                error!("Could not process ZK proofs: {}... skipping...", e);
-                            }
-                            SyncError::SequencerCommitmentNotFound(merkle_root) => {
-                                error!("Could not process ZK proofs: Sequencer commitment not found for merkle root: 0x{}... skipping...", hex::encode(merkle_root));
-                            }
-                            SyncError::SequencerCommitmentWithIndexNotFound(idx) => {
-                                error!("Could not process ZK proofs: Sequencer commitment with index {} not found... skipping...", idx);
-                            }
-                            SyncError::UnknownL1Hash => {
-                                error!("Could not process ZK proofs: Batch proof output last_l1_hash_on_bitcoin_light_client_contract isn't known")
-                            }
-                            SyncError::SequencerCommitmentMissingForProof(index) => {
-                                error!("Could not process ZK proofs: Commitment index {index} is missing for proof")
-                            }
-                        }
+                        error!("Could not process ZK proofs: {e}... skipping...");
                     }
                 }
             }
@@ -219,25 +186,19 @@ where
             .process_pending_commitments(l1_block.header().height())
             .await
         {
-            error!("Error processing pending commitments: {e:?}");
+            error!("Error processing pending commitments: {e}");
         }
 
         if let Err(e) = self
             .process_pending_proofs(l1_block.header().height())
             .await
         {
-            error!("Error processing pending proofs: {e:?}");
+            error!("Error processing pending proofs: {e}");
         }
 
-        // We do not care about the result of writing this height to the ledger db
-        // So log and continue
-        // Worst case scenario is that we will reprocess the same block after a restart
-        let _ = self
-            .ledger_db
+        self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_height))
-            .map_err(|e| {
-                error!("Could not set last scanned l1 height: {}", e);
-            });
+            .map_err(|e| anyhow!("Could not set last scanned l1 height: {e}"))?;
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
@@ -249,7 +210,7 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         sequencer_commitment: &SequencerCommitment,
-    ) -> Result<ProcessingResult, SyncError> {
+    ) -> anyhow::Result<ProcessingResult> {
         // Skip if we already processed commitment with same index
         if let Some(existing_commitment) = self
             .ledger_db
@@ -378,8 +339,7 @@ where
                         .ok_or(anyhow!("Could not calculate l2 block tree root"))?
                 ),
                 hex::encode(sequencer_commitment.merkle_root)
-            )
-            .into());
+            ));
         }
 
         self.ledger_db.update_commitments_on_da_slot(
@@ -412,7 +372,7 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         proof: Proof,
-    ) -> Result<ProcessingResult, SyncError> {
+    ) -> Result<ProcessingResult, ProofError> {
         tracing::info!(
             "Processing zk proof at height: {}",
             found_in_l1_block_height
@@ -446,7 +406,7 @@ where
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
-    ) -> Result<ProcessingResult, SyncError> {
+    ) -> Result<ProcessingResult, ProofError> {
         let last_l1_hash_on_bitcoin_light_client_contract =
             batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
         if self
@@ -454,7 +414,7 @@ where
             .get_l1_height_of_l1_hash(last_l1_hash_on_bitcoin_light_client_contract)?
             .is_none()
         {
-            return Err(SyncError::UnknownL1Hash);
+            return Err(ProofError::UnknownL1Hash);
         }
 
         let sequencer_commitment_index_range =
@@ -586,7 +546,7 @@ where
     async fn process_pending_commitments(
         &self,
         current_l1_block_height: u64,
-    ) -> Result<(), SyncError> {
+    ) -> Result<(), ProofError> {
         let pending_commitments = self.ledger_db.get_pending_commitments()?;
         if pending_commitments.is_empty() {
             return Ok(());
@@ -638,7 +598,7 @@ where
         Ok(())
     }
 
-    async fn process_pending_proofs(&self, current_l1_block_height: u64) -> Result<(), SyncError> {
+    async fn process_pending_proofs(&self, current_l1_block_height: u64) -> Result<(), ProofError> {
         let pending_proofs = self.ledger_db.get_pending_proofs()?;
         if pending_proofs.is_empty() {
             return Ok(());
@@ -678,7 +638,7 @@ where
         idx: u32,
         expected_hash: [u8; 32],
         proof_is_pending: &mut bool,
-    ) -> Result<u64, SyncError> {
+    ) -> Result<u64, ProofError> {
         let sequencer_commitment =
             if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(idx)? {
                 sequencer_commitment
@@ -690,7 +650,7 @@ where
                 *proof_is_pending = true;
                 sequencer_commitment
             } else {
-                return Err(SyncError::SequencerCommitmentMissingForProof(idx));
+                return Err(ProofError::SequencerCommitmentMissingForProof(idx));
             };
 
         // Check if hash matches

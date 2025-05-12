@@ -2430,7 +2430,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=224ade3#224ade34c2cd80eaccfd9a9a8c0c76c52c14fd3b"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=921899d#921899daee7b42a345f8822520d99a01ca8b5767"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2542,6 +2542,7 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -9915,7 +9916,6 @@ dependencies = [
 name = "sov-keys"
 version = "0.7.1"
 dependencies = [
- "anyhow",
  "borsh",
  "derive_more 1.0.0",
  "digest 0.10.7",

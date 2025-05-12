@@ -17,7 +17,7 @@ use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Fi
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
-use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
@@ -292,7 +292,7 @@ impl TestClient {
             .nonce(nonce)
             .with_authorization_list(authorization_list);
 
-        let gas = self.client.estimate_gas(req.clone()).await.unwrap();
+        let gas = self.client.estimate_gas(req.clone()).await?;
 
         let req = req
             .gas_limit(gas)
@@ -375,7 +375,7 @@ impl TestClient {
         &self,
         address: Address,
         block_id: Option<BlockId>,
-    ) -> Result<Bytes, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<Bytes> {
         self.http_client
             .request("eth_getCode", rpc_params![address, block_id])
             .await
@@ -819,7 +819,7 @@ impl TestClient {
         self.http_client.get_proving_job(id).await.unwrap()
     }
 
-    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<Uuid> {
+    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<ProvingJobResponse> {
         self.http_client.get_proving_jobs(count).await.unwrap()
     }
 

@@ -8,5 +8,8 @@ optimizer_runs = 200
 # Following options strips the metadata from contracts, this is done to ensure a more stable compilation
 bytecode_hash = "none"
 cbor_metadata = false
-
+additional_compiler_profiles = [ { name = "via-ir", via_ir = true } ]
+compilation_restrictions = [
+    { paths = "src/Bridge.sol", via_ir = true },
+]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
