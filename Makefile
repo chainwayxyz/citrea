@@ -87,7 +87,7 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	dprint check
 	cargo +nightly fmt --all --check
 	cargo check --all-targets --all-features
-	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
+	cargo clippy --all-targets --all-features
 
 lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
 	dprint fmt
