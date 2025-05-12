@@ -88,9 +88,12 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use sov_mock_da::{verifier::MockShortHeaderProof, MockDaSpec};
     use std::collections::VecDeque;
+
+    use sov_mock_da::verifier::MockShortHeaderProof;
+    use sov_mock_da::MockDaSpec;
+
+    use super::*;
 
     #[test]
     fn test_successful_short_header_proof_verification() {
@@ -204,12 +207,7 @@ mod tests {
 
         service
             .get_and_verify_short_header_proof_by_l1_hash(
-                [1u8; 32],
-                [2u8; 32],
-                100,
-                [3u8; 32],
-                1,
-                50,
+                [1u8; 32], [2u8; 32], 100, [3u8; 32], 1, 50,
             )
             .unwrap();
     }
@@ -233,12 +231,7 @@ mod tests {
 
         service
             .get_and_verify_short_header_proof_by_l1_hash(
-                block_hash,
-                [2u8; 32],
-                100,
-                [3u8; 32],
-                1,
-                50,
+                block_hash, [2u8; 32], 100, [3u8; 32], 1, 50,
             )
             .unwrap();
 
