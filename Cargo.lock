@@ -9771,8 +9771,10 @@ dependencies = [
  "futures",
  "once_cell",
  "sov-db",
+ "sov-mock-da",
  "sov-modules-api",
  "sov-rollup-interface",
+ "tempfile",
  "thiserror 2.0.12",
 ]
 
