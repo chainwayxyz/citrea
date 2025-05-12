@@ -98,7 +98,7 @@ where
     /// Starts the proving task in the background and returns a channel which will resolve
     /// once the proving is done. If there is not enough proving slots left, this function
     /// will block until it can get a slot and start the proof.
-    #[instrument(name = "ParallelProverService", skip_all, fields(uuid))]
+    #[instrument(name = "ParallelProverService", skip_all)]
     pub async fn start_proving(
         &self,
         data: ProofData,
@@ -173,13 +173,14 @@ where
         }
     }
 
-    #[instrument(name = "SubmitProof", skip_all, fields(_uuid))]
+    #[instrument(name = "ParallelProverService", skip_all, fields(_uuid = _uuid.to_string()))]
     pub async fn submit_proof(
         &self,
         proof: Proof,
         _uuid: Uuid,
     ) -> anyhow::Result<<Da as DaService>::TransactionId> {
         let tx_request = DaTxRequest::ZKProof(proof);
+        info!("Submitting proof to DA service");
         self.da_service
             .send_transaction(tx_request)
             .await

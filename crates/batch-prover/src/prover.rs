@@ -419,7 +419,7 @@ where
         Ok(state.into_inner())
     }
 
-    #[instrument(name = "CreateInput", skip_all, fields(_uuid))]
+    #[instrument(skip_all, fields(_uuid = _uuid.to_string()))]
     fn create_circuit_input(
         &self,
         partition: &Partition<'_>,
@@ -473,7 +473,7 @@ where
         })
     }
 
-    #[instrument(skip_all, fields(uuid))]
+    #[instrument(skip_all, fields(uuid = uuid.to_string()))]
     async fn start_proving(
         &self,
         input: BatchProofCircuitInputV3,
@@ -506,6 +506,7 @@ where
             .await
     }
 
+    #[instrument(skip_all)]
     fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, oneshot::Receiver<Proof>)>) {
         assert!(!proving_jobs.is_empty(), "received empty jobs list");
 
@@ -525,7 +526,7 @@ where
             while let Some((job_id, proof)) = proving_jobs.next().await {
                 info!("Proving job finished {}", job_id);
 
-                let output = extract_proof_output::<Vm>(&proof, &code_commitments_by_spec);
+                let output = extract_proof_output::<Vm>(&job_id, &proof, &code_commitments_by_spec);
 
                 // stores proof and marks job as waiting for da
                 ledger_db
@@ -565,7 +566,8 @@ where
         while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
             info!("Proving job finished {}", job_id);
 
-            let output = extract_proof_output::<Vm>(&proof, &self.code_commitments_by_spec);
+            let output =
+                extract_proof_output::<Vm>(&job_id, &proof, &self.code_commitments_by_spec);
 
             // stores proof and marks job as waiting for da
             self.ledger_db
@@ -873,6 +875,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
 }
 
 fn extract_proof_output<Vm: ZkvmHost>(
+    job_id: &Uuid,
     proof: &Proof,
     code_commitments_by_spec: &HashMap<SpecId, Vm::CodeCommitment>,
 ) -> BatchProofCircuitOutput {
@@ -888,9 +891,13 @@ fn extract_proof_output<Vm: ZkvmHost>(
         .get(&spec)
         .expect("Proof public input must contain valid spec id");
 
-    info!("Verifying proof with image ID: {:?}", code_commitment);
+    info!(
+        "Verifying proof with job_id={} using image ID: {:?}",
+        job_id, code_commitment
+    );
 
-    Vm::verify(proof.as_slice(), code_commitment).expect("Failed to verify proof");
+    Vm::verify(proof.as_slice(), code_commitment)
+        .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={}", job_id));
 
     debug!("circuit output: {:?}", output);
     output
