@@ -4,6 +4,8 @@ use std::time::{Duration, Instant};
 use alloy_primitives::{Address, U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bitcoin::hashes::Hash;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
@@ -1311,6 +1313,14 @@ impl TestCase for BatchProverCreateInputTest {
         }
     }
 
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            // TODO: Change to ProveWithFakes
+            proving_mode: ProverGuestRunConfig::Simulate,
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
@@ -1335,7 +1345,7 @@ impl TestCase for BatchProverCreateInputTest {
             .await?;
 
         // Call batchProver_createInput to generate input for proving
-        let input = batch_prover
+        let inputs = batch_prover
             .client
             .http_client()
             .create_circuit_input(0, 1, PartitionMode::Normal)
@@ -1348,23 +1358,35 @@ impl TestCase for BatchProverCreateInputTest {
 
         // Instantiate Risc0Host
         let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
-        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
         let network = Network::TestNetworkWithForks;
+
+        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
         let mut risc0_host = Risc0Host::new(ledger_db, network);
 
-        // Add input to Risc0Host
-        risc0_host.add_hint(borsh::to_vec(&input).expect("Input serialization cannot fail"));
+        for input in inputs {
+            // Decode raw circuit input
+            let raw_input = BASE64_STANDARD.decode(input).unwrap();
 
-        // Run the proof generation
-        let proof = risc0_host
-            .run(Uuid::new_v4(), vec![], ReceiptType::Groth16, true)
-            .expect("Proof generation failed")
-            .await
-            .expect("Proof channel should not close");
+            // Add input to Risc0Host
+            risc0_host
+                .add_hint(borsh::to_vec(&raw_input).expect("Input serialization cannot fail"));
 
-        // Verify the proof
-        Risc0Host::verify(&proof.proof.as_slice(), &code_commitment)
-            .expect("Proof verification failed");
+            // Run the proof generation
+            let proof = risc0_host
+                .run(
+                    Uuid::new_v4(),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                    ReceiptType::Groth16,
+                    false,
+                )
+                .expect("Proof generation failed")
+                .await
+                .expect("Proof channel should not close");
+
+            // Verify the proof
+            Risc0Host::verify(&proof.proof.as_slice(), &code_commitment)
+                .expect("Proof verification failed");
+        }
 
         Ok(())
     }
