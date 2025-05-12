@@ -2279,16 +2279,16 @@ impl TestCase for FullNodeLcpChunkProofTest {
             })
             .unwrap();
 
-        let state_diff_50kb = create_random_state_diff(50);
+        let state_diff_60kb = create_random_state_diff(60);
 
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
-        // Create a 50kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 2 chunks and 1 aggregate transactions because 50kb/40kb = 2 chunks
-        let verifiable_50kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+        // Create a 60kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 2 chunks and 1 aggregate transactions because 60kb/40kb = 2 chunks
+        let verifiable_60kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
             20,
             batch_proof_method_ids[0].method_id.into(),
-            Some(state_diff_50kb.clone()),
+            Some(state_diff_60kb.clone()),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
             vec![commitment_1.clone(), commitment_2.clone()],
@@ -2296,17 +2296,52 @@ impl TestCase for FullNodeLcpChunkProofTest {
         );
 
         let _ = batch_prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_50kb_batch_proof), 1)
+            .test_send_separate_chunk_transaction_with_fee_rate(
+                DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
+                1,
+            )
             .await
             .unwrap();
 
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let txs = da.get_raw_mempool().await?;
+        let mut txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
+        println!("txs before: {:?}", txs);
 
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let mut min_tx_size = usize::MAX;
+        // The aggr index is the smallest tx size
+        let mut aggr_index = 0;
+        for (i, tx_group) in txs.chunks(2).enumerate() {
+            let tx = da
+                .get_transaction(&tx_group[1], None)
+                .await?
+                .transaction()
+                .unwrap();
+            // Check reveal tx size
+            println!("tx size: {}", tx.total_size());
+            if tx.total_size() < min_tx_size {
+                min_tx_size = tx.total_size();
+                aggr_index = i;
+            }
+        }
+        // aggr_index * 2 and aggr_index * 2 + 1 are the aggregate commit and reveal txs
+        // Swap i*2 with index 4 and i*2 + 1 with index 5
+        txs.swap(aggr_index * 2, 4);
+        txs.swap(aggr_index * 2 + 1, 5);
+
+        println!("txs after: {:?}", txs);
+
+        let addr = da
+            .get_new_address(None, None)
+            .await?
+            .assume_checked()
+            .to_string();
+        da.generate_block(addr, txs.iter().map(|tx| tx.to_string()).collect())
+            .await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for full node to process proofs
@@ -2346,12 +2381,12 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
-        // Create a 50kb (compressed size) batch proof this batch proof will consist of 2 chunks and 1 aggregate transactions because 50kb/40kb = 2 chunks
-        let verifiable_50kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+        // Create a 60kb (compressed size) batch proof this batch proof will consist of 2 chunks and 1 aggregate transactions because 60kb/40kb = 2 chunks
+        let verifiable_60kb_batch_proof = create_serialized_fake_receipt_batch_proof(
             last_state_root,
             40,
             batch_proof_method_ids[0].method_id.into(),
-            Some(state_diff_50kb.clone()),
+            Some(state_diff_60kb.clone()),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
             vec![commitment_3.clone(), commitment_4.clone()],
@@ -2360,7 +2395,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_50kb_batch_proof),
+                DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
                 1,
             )
             .await
@@ -2369,28 +2404,35 @@ impl TestCase for FullNodeLcpChunkProofTest {
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let txs = da.get_raw_mempool().await?;
+        let mut txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let chunk1 = txs[0..=1].to_vec();
-        let chunk2 = txs[2..=3].to_vec();
-        let aggregate = txs[4..].to_vec();
-
-        let mut new_order_chunks = vec![];
-
-        new_order_chunks.extend(chunk1);
-        new_order_chunks.extend(aggregate);
-        new_order_chunks.extend(chunk2);
+        let mut min_tx_size = usize::MAX;
+        // The aggr index is the smallest tx size
+        let mut aggr_index = 0;
+        for (i, tx_group) in txs.chunks(2).enumerate() {
+            let tx = da
+                .get_transaction(&tx_group[1], None)
+                .await?
+                .transaction()
+                .unwrap();
+            // Check reveal tx size
+            if tx.total_size() < min_tx_size {
+                min_tx_size = tx.total_size();
+                aggr_index = i;
+            }
+        }
+        // aggr_index * 2 and aggr_index * 2 + 1 are the aggregate commit and reveal txs
+        // Swap i*2 with index 2 and i*2 + 1 with index 3 so the aggregate tx is in the middle
+        txs.swap(aggr_index * 2, 2);
+        txs.swap(aggr_index * 2 + 1, 3);
         let addr = da
             .get_new_address(None, None)
             .await?
             .assume_checked()
             .to_string();
-        da.generate_block(
-            addr,
-            new_order_chunks.iter().map(|tx| tx.to_string()).collect(),
-        )
-        .await?;
+        da.generate_block(addr, txs.iter().map(|tx| tx.to_string()).collect())
+            .await?;
 
         da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
 

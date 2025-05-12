@@ -38,7 +38,11 @@ impl BitcoinService {
                             let utxos = self.get_utxos().await?;
                             let utxos = utxos
                                 .into_iter()
-                                .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))
+                                .filter(|utxo| {
+                                    utxo.amount == 50 * 10_u64.pow(8)
+                                        && utxo.spendable
+                                        && utxo.solvable
+                                })
                                 .collect::<Vec<_>>();
 
                             let prev_utxo = self.get_prev_utxo().await;
