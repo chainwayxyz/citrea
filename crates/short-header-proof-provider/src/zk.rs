@@ -85,3 +85,216 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
         self.last_queried_and_verified_hash.borrow_mut().take()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sov_mock_da::{verifier::MockShortHeaderProof, MockDaSpec};
+    use std::collections::VecDeque;
+
+    #[test]
+    fn test_successful_short_header_proof_verification() {
+        let block_hash = [1u8; 32];
+        let prev_block_hash = [2u8; 32];
+        let txs_commitment = [3u8; 32];
+        let l1_height = 100;
+        let coinbase_depth = 1;
+
+        let mock_proof = MockShortHeaderProof {
+            header_hash: block_hash,
+            prev_header_hash: prev_block_hash,
+            txs_commitment,
+            height: l1_height,
+        };
+        let proof_bytes = borsh::to_vec(&mock_proof).unwrap();
+        let mut proofs = VecDeque::new();
+        proofs.push_back(proof_bytes);
+
+        let service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(proofs);
+
+        let ok = service
+            .get_and_verify_short_header_proof_by_l1_hash(
+                block_hash,
+                prev_block_hash,
+                l1_height,
+                txs_commitment,
+                coinbase_depth,
+                50,
+            )
+            .unwrap();
+
+        assert!(ok);
+        assert_eq!(service.take_last_queried_hash(), Some(block_hash));
+    }
+
+    #[test]
+    fn test_first_block_verification() {
+        let block_hash = [1u8; 32];
+        let prev_block_hash = [0u8; 32];
+        let txs_commitment = [3u8; 32];
+        let l1_height = 1;
+        let coinbase_depth = 1;
+
+        let mock_proof = MockShortHeaderProof {
+            header_hash: block_hash,
+            prev_header_hash: [4u8; 32],
+            txs_commitment,
+            height: l1_height,
+        };
+        let proof_bytes = borsh::to_vec(&mock_proof).unwrap();
+        let mut proofs = VecDeque::new();
+        proofs.push_back(proof_bytes);
+
+        let service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(proofs);
+
+        let ok = service
+            .get_and_verify_short_header_proof_by_l1_hash(
+                block_hash,
+                prev_block_hash,
+                l1_height,
+                txs_commitment,
+                coinbase_depth,
+                1,
+            )
+            .unwrap();
+
+        assert!(ok);
+        assert_eq!(service.take_last_queried_hash(), Some(block_hash));
+    }
+
+    #[test]
+    fn test_invalid_proof_verification() {
+        let block_hash = [1u8; 32];
+        let prev_block_hash = [2u8; 32];
+        let txs_commitment = [3u8; 32];
+        let l1_height = 100;
+        let coinbase_depth = 1;
+
+        let mock_proof = MockShortHeaderProof {
+            header_hash: block_hash,
+            prev_header_hash: [5u8; 32],
+            txs_commitment: [6u8; 32],
+            height: l1_height,
+        };
+        let proof_bytes = borsh::to_vec(&mock_proof).unwrap();
+        let mut proofs = VecDeque::new();
+        proofs.push_back(proof_bytes);
+
+        let service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(proofs);
+
+        let ok = service
+            .get_and_verify_short_header_proof_by_l1_hash(
+                block_hash,
+                prev_block_hash,
+                l1_height + 1,
+                txs_commitment,
+                coinbase_depth,
+                50,
+            )
+            .unwrap();
+
+        assert!(!ok);
+        assert_eq!(service.take_last_queried_hash(), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "Should have short header proof for l1 hash")]
+    fn test_no_proof_available() {
+        let service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(VecDeque::new());
+
+        service
+            .get_and_verify_short_header_proof_by_l1_hash(
+                [1u8; 32],
+                [2u8; 32],
+                100,
+                [3u8; 32],
+                1,
+                50,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn test_take_last_queried_hash() {
+        let block_hash = [1u8; 32];
+        let mock_proof = MockShortHeaderProof {
+            header_hash: block_hash,
+            prev_header_hash: [2u8; 32],
+            txs_commitment: [3u8; 32],
+            height: 100,
+        };
+        let proof_bytes = borsh::to_vec(&mock_proof).unwrap();
+        let mut proofs = VecDeque::new();
+        proofs.push_back(proof_bytes);
+
+        let service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(proofs);
+
+        assert_eq!(service.take_last_queried_hash(), None);
+
+        service
+            .get_and_verify_short_header_proof_by_l1_hash(
+                block_hash,
+                [2u8; 32],
+                100,
+                [3u8; 32],
+                1,
+                50,
+            )
+            .unwrap();
+
+        assert_eq!(service.take_last_queried_hash(), Some(block_hash));
+        assert_eq!(service.take_last_queried_hash(), None);
+    }
+
+    #[test]
+    fn test_multiple_proofs() {
+        let block_hash1 = [1u8; 32];
+        let block_hash2 = [2u8; 32];
+
+        let mock_proof1 = MockShortHeaderProof {
+            header_hash: block_hash1,
+            prev_header_hash: [3u8; 32],
+            txs_commitment: [4u8; 32],
+            height: 100,
+        };
+        let mock_proof2 = MockShortHeaderProof {
+            header_hash: block_hash2,
+            prev_header_hash: block_hash1,
+            txs_commitment: [5u8; 32],
+            height: 101,
+        };
+
+        let mut proofs = VecDeque::new();
+        proofs.push_back(borsh::to_vec(&mock_proof1).unwrap());
+        proofs.push_back(borsh::to_vec(&mock_proof2).unwrap());
+
+        let service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(proofs);
+
+        let ok1 = service
+            .get_and_verify_short_header_proof_by_l1_hash(
+                block_hash1,
+                [3u8; 32],
+                100,
+                [4u8; 32],
+                1,
+                50,
+            )
+            .unwrap();
+        assert!(ok1);
+        assert_eq!(service.take_last_queried_hash(), Some(block_hash1));
+
+        let ok2 = service
+            .get_and_verify_short_header_proof_by_l1_hash(
+                block_hash2,
+                block_hash1,
+                101,
+                [5u8; 32],
+                1,
+                51,
+            )
+            .unwrap();
+        assert!(ok2);
+        assert_eq!(service.take_last_queried_hash(), Some(block_hash2));
+        assert_eq!(service.take_last_queried_hash(), None);
+    }
+}
