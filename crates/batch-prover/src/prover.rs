@@ -33,7 +33,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, instrument, warn};
 use tracing_subscriber::layer::SubscriberExt;
-use uuid::{uuid, Uuid};
+use uuid::Uuid;
 
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
@@ -172,9 +172,9 @@ where
                             };
 
                             let mut raw_inputs = Vec::with_capacity(partitions.len());
-                            let id = uuid!("00000000-0000-0000-0000-000000000000");
+                            let job_id = Uuid::nil();
                             for partition in partitions {
-                                match self.create_circuit_input(&partition, id) {
+                                match self.create_circuit_input(&partition, job_id) {
                                     Ok(input) => {
                                         let raw_input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
                                         raw_inputs.push(raw_input);
@@ -419,11 +419,11 @@ where
         Ok(state.into_inner())
     }
 
-    #[instrument(skip_all, fields(uuid = _uuid.to_string()))]
+    #[instrument(skip_all, fields(job_id = _job_id.to_string()))]
     fn create_circuit_input(
         &self,
         partition: &Partition<'_>,
-        _uuid: Uuid,
+        _job_id: Uuid,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
         let initial_state_root = self
             .ledger_db
@@ -473,11 +473,11 @@ where
         })
     }
 
-    #[instrument(skip_all, fields(uuid = uuid.to_string()))]
+    #[instrument(skip_all, fields(job_id = job_id.to_string()))]
     async fn start_proving(
         &self,
         input: BatchProofCircuitInputV3,
-        uuid: Uuid,
+        job_id: Uuid,
     ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         let end_l2_height = input
             .sequencer_commitments
@@ -502,7 +502,7 @@ where
             elf,
         };
         self.prover_service
-            .start_proving(proof_data, ReceiptType::Groth16, uuid)
+            .start_proving(proof_data, ReceiptType::Groth16, job_id)
             .await
     }
 

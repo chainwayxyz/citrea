@@ -7,7 +7,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, Mutex, Notify};
 use tracing::{debug, error, info, instrument, warn};
-use uuid::{uuid, Uuid};
+use uuid::Uuid;
 
 use crate::{ProofData, ProofGenMode};
 
@@ -90,8 +90,8 @@ where
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
     pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> anyhow::Result<Proof> {
-        let id = uuid!("00000000-0000-0000-0000-000000000000");
-        let rx = self.start_proving(data, receipt_type, id).await?;
+        let job_id = Uuid::nil();
+        let rx = self.start_proving(data, receipt_type, job_id).await?;
         Ok(rx.await.expect("Proof channel should not close"))
     }
 
@@ -103,7 +103,7 @@ where
         &self,
         data: ProofData,
         receipt_type: ReceiptType,
-        uuid: Uuid,
+        job_id: Uuid,
     ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         self.reserve_proof_slot().await;
 
@@ -121,7 +121,7 @@ where
         }
 
         // Start proof immediately
-        let proof_rx = make_proof(vm, uuid, elf, self.proof_mode, receipt_type)
+        let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
             .context("Failed to start proving")?;
         debug!("Started proving job");
 
@@ -173,11 +173,11 @@ where
         }
     }
 
-    #[instrument(name = "ParallelProverService", skip_all, fields(uuid = _uuid.to_string()))]
+    #[instrument(name = "ParallelProverService", skip_all, fields(job_id = _job_id.to_string()))]
     pub async fn submit_proof(
         &self,
         proof: Proof,
-        _uuid: Uuid,
+        _job_id: Uuid,
     ) -> anyhow::Result<<Da as DaService>::TransactionId> {
         let tx_request = DaTxRequest::ZKProof(proof);
         info!("Submitting proof to DA service");
@@ -193,9 +193,9 @@ where
         proofs: Vec<Proof>,
     ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
         let mut tx_and_proof = Vec::with_capacity(proofs.len());
-        let id = uuid!("00000000-0000-0000-0000-000000000000");
+        let job_id = Uuid::nil();
         for proof in proofs {
-            let tx_id = self.submit_proof(proof.clone(), id).await?;
+            let tx_id = self.submit_proof(proof.clone(), job_id).await?;
             tx_and_proof.push((tx_id, proof));
         }
         Ok(tx_and_proof)
