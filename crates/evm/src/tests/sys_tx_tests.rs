@@ -21,7 +21,7 @@ use crate::call::CallMessage;
 use crate::evm::primitive_types::CitreaReceiptWithBloom;
 use crate::evm::system_contracts::BitcoinLightClient;
 use crate::handler::L1_FEE_OVERHEAD;
-use crate::smart_contracts::{BlockHashContract, LogsContract};
+use crate::smart_contracts::{BlockHashContract, LogsContract, SimpleStorageContract};
 use crate::system_contracts::{BridgeWrapper, ProxyAdmin, WCBTC};
 use crate::system_events::{create_system_transactions, SystemEvent};
 use crate::tests::get_test_seq_pub_key;
@@ -1252,3 +1252,89 @@ const BRIDGE_INITIALIZE_PARAMS: &[u8; 256] = &[
     0, 0, 0, 59, 154, 202, 0, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0,
 ];
+
+#[test]
+fn test_system_tx_after_user_tx_should_error_out() {
+    let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
+
+    // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
+    // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
+    let (mut config, dev_signer, contract_addr) = get_evm_config_starting_base_fee(
+        U256::from_str("100000000000000000000").unwrap(),
+        Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
+        1,
+    );
+
+    config_push_contracts(&mut config, None);
+
+    let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
+    let l1_fee_rate = 0;
+    let mut l2_height = 1;
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 1,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let mut txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
+        txs.push(create_contract_message(
+            &dev_signer,
+            0,
+            SimpleStorageContract::default(),
+        ));
+        // deploy logs contract
+        evm.call(CallMessage { txs }, &context, &mut working_set)
+            .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let mut working_set = working_set.checkpoint().to_revertable();
+    l2_height += 1;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let cont = SimpleStorageContract::default();
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let call_tx = dev_signer
+            .sign_default_transaction(
+                TxKind::Call(contract_addr),
+                cont.set_call_data(5).to_vec(),
+                1,
+                0,
+            )
+            .unwrap();
+        let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
+
+        let res = evm.call(
+            CallMessage {
+                txs: vec![call_tx, sys_tx],
+            },
+            &context,
+            &mut working_set,
+        );
+        matches!(
+            res,
+            Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx)
+        );
+    }
+}
