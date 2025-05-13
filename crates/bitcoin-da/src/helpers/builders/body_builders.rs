@@ -42,7 +42,7 @@ pub(crate) enum RawTxData {
 
 /// This is a list of txs we need to send to DA
 #[derive(Serialize, Clone)]
-pub(crate) enum DaTxs {
+pub enum DaTxs {
     Complete {
         commit: Transaction, // unsigned
         reveal: TxWithId,

@@ -5,12 +5,13 @@ use std::time::Duration;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
-    BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
+    BatchProverConfig, BitcoinConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig,
 };
 use citrea_e2e::framework::TestFramework;
@@ -18,6 +19,8 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use citrea_primitives::compression::decompress_blob;
+use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
@@ -29,7 +32,9 @@ use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, Cum
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
 use crate::bitcoin::batch_prover_test::wait_for_prover_job;
-use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
+use crate::bitcoin::utils::{
+    create_complete_tx_with_prefix, spawn_bitcoin_da_service, DaServiceKeyKind,
+};
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
@@ -2813,4 +2818,107 @@ pub fn create_serialized_fake_receipt_batch_proof(
     // Receipt with verifiable claim
     let receipt = InnerReceipt::Fake(fake_receipt);
     bincode::serialize(&receipt).unwrap()
+}
+
+struct UndecompressableBlobTest;
+
+#[async_trait]
+impl TestCase for UndecompressableBlobTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-fallbackfee=0.00001"],
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob inscribe tx to be in mempool and the fake reveal tx
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Send a complete tx with wrong body
+        let (commit_tx, reveal_tx) =
+            create_complete_tx_with_prefix(&batch_prover.da, vec![1u8; 64], REVEAL_TX_PREFIX)
+                .await?;
+        batch_prover.da.send_raw_transaction(&commit_tx).await?;
+        batch_prover.da.send_raw_transaction(&reveal_tx).await?;
+
+        // // Wait for batch prover tx and the test reveal tx to be in mempool
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        let block = da
+            .get_block(&da.get_block_hash(finalized_height).await?)
+            .await?;
+
+        let txs: Vec<_> = block
+            .txdata
+            .iter()
+            .filter(|tx| tx.input[0].witness.len() == 3)
+            .collect();
+
+        assert!(verify_is_non_decompressable(txs[0])); // First tx has `vec![1u8; 64]` body and should be undecompressable
+        assert!(!verify_is_non_decompressable(txs[1])); // Second tx is correct batch prover reveal tx
+
+        // LCP should be able to process it and tick along
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_undecompressable_blob() -> Result<()> {
+    TestCaseRunner::new(UndecompressableBlobTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+fn verify_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
+    if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
+        decompress_blob(&complete.body).is_err()
+    } else {
+        false
+    }
 }
