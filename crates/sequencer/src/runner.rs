@@ -300,7 +300,7 @@ where
     }
 
     fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) {
-        info!("Saving short header proofs to ledger db");
+        debug!("Saving short header proofs to ledger db");
         for da_block in da_blocks {
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
                 Da::block_to_short_header_proof(da_block.clone());
@@ -469,7 +469,7 @@ where
         let l2_block = L2Block::new(signed_header, txs);
 
         info!(
-            "Saving block #{}, Tx count: #{}",
+            "New block #{}, Tx count: #{}",
             l2_block.height(),
             evm_txs_count
         );
@@ -497,10 +497,7 @@ where
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
     ) -> anyhow::Result<StateDiff> {
-        debug!(
-            "Saving L2 block with hash: {:?}",
-            hex::encode(l2_block.hash()),
-        );
+        debug!("New L2 block with hash: {:?}", hex::encode(l2_block.hash()));
 
         let state_root_transition = l2_block_result.state_root_transition;
 
@@ -558,7 +555,7 @@ where
         Ok(())
     }
 
-    #[instrument(level = "trace", skip(self, shutdown_signal), err, ret)]
+    #[instrument(name = "Sequencer", skip_all)]
     pub async fn run(
         &mut self,
         mut shutdown_signal: GracefulShutdown,

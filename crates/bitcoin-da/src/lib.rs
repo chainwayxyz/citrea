@@ -15,6 +15,9 @@ pub mod fee;
 #[cfg(feature = "native")]
 pub mod rpc;
 
+#[cfg(feature = "testing")]
+pub mod test_utils;
+
 pub mod network_constants;
 
 pub mod verifier;

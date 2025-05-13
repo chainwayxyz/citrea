@@ -1602,6 +1602,7 @@ dependencies = [
  "itertools 0.13.0",
  "jsonrpsee",
  "k256",
+ "lru 0.13.0",
  "metrics 0.23.0",
  "pin-project",
  "rand 0.8.5",
@@ -2431,7 +2432,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=224ade3#224ade34c2cd80eaccfd9a9a8c0c76c52c14fd3b"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=bfc2086#bfc20866178f9220371dfcac5bbc3e668db1ba9f"
 dependencies = [
  "alloy-primitives",
  "anyhow",

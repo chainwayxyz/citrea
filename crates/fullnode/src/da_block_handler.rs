@@ -22,7 +22,7 @@ use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::error::ProofError;
 use crate::metrics::FULLNODE_METRICS;
@@ -77,6 +77,7 @@ where
         }
     }
 
+    #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;

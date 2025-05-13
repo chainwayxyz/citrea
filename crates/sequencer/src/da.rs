@@ -7,13 +7,14 @@ use sov_modules_api::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
 /// Represents information about the current DA state.
 ///
 /// Contains latest finalized block and fee rate.
 pub(crate) type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
+#[instrument(name = "L1BlockMonitor", skip_all)]
 pub(crate) async fn da_block_monitor<Da>(
     da_service: Arc<Da>,
     sender: mpsc::Sender<L1Data<Da>>,
