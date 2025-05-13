@@ -1313,14 +1313,6 @@ impl TestCase for BatchProverCreateInputTest {
         }
     }
 
-    fn batch_prover_config() -> BatchProverConfig {
-        BatchProverConfig {
-            // TODO: Change to ProveWithFakes
-            proving_mode: ProverGuestRunConfig::Simulate,
-            ..Default::default()
-        }
-    }
-
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
@@ -1358,7 +1350,7 @@ impl TestCase for BatchProverCreateInputTest {
 
         // Instantiate Risc0Host
         let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
-        let network = Network::TestNetworkWithForks;
+        let network = Network::Nightly;
 
         let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
         let mut risc0_host = Risc0Host::new(ledger_db, network);
@@ -1368,8 +1360,7 @@ impl TestCase for BatchProverCreateInputTest {
             let raw_input = BASE64_STANDARD.decode(input).unwrap();
 
             // Add input to Risc0Host
-            risc0_host
-                .add_hint(borsh::to_vec(&raw_input).expect("Input serialization cannot fail"));
+            risc0_host.add_hint(raw_input);
 
             // Run the proof generation
             let proof = risc0_host
