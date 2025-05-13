@@ -27,8 +27,7 @@ use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::DaVerifier;
-use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, DaVerifier, SequencerCommitment};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
@@ -2962,9 +2961,10 @@ pub async fn create_complete_tx_with_prefix(
     client: &Client,
     body: Vec<u8>,
 ) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+    use std::str::FromStr;
+
     use bitcoin::secp256k1::SecretKey;
     use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_0, DaTxs};
-    use std::str::FromStr;
 
     let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
     let change_address = client.get_new_address(None, None).await?.assume_checked();
