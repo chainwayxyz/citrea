@@ -2863,7 +2863,7 @@ impl TestCase for UndecompressableBlobTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        // Wait for blob inscribe tx to be in mempool and the fake reveal tx
+        // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
@@ -2873,7 +2873,7 @@ impl TestCase for UndecompressableBlobTest {
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        // Send a complete tx with wrong body
+        // Send a complete tx with dummy body
         let (commit_tx, reveal_tx) =
             create_complete_tx_with_prefix(&batch_prover.da, vec![1u8; 64], REVEAL_TX_PREFIX)
                 .await?;
