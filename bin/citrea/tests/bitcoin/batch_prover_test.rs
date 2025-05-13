@@ -1346,9 +1346,6 @@ impl TestCase for BatchProverCreateInputTest {
 
         assert_eq!(inputs.len(), 1);
 
-        sequencer.wait_until_stopped().await?;
-        batch_prover.wait_until_stopped().await?;
-
         let code_commitment = Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID);
 
         // Instantiate Risc0Host
@@ -1386,7 +1383,25 @@ impl TestCase for BatchProverCreateInputTest {
 
             assert_eq!(output.last_l2_height(), max_l2_blocks_per_commitment);
             assert_eq!(output.sequencer_commitment_index_range(), (1, 1));
+
+            let commitment = sequencer
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(1))
+                .await?
+                .unwrap();
+            let l2_block = sequencer
+                .client
+                .http_client()
+                .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+                .await?
+                .unwrap();
+            let state_roots = output.state_roots().clone();
+            assert_eq!(state_roots[1], l2_block.header.state_root);
         }
+
+        sequencer.wait_until_stopped().await?;
+        batch_prover.wait_until_stopped().await?;
 
         Ok(())
     }
