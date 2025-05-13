@@ -1,13 +1,14 @@
 #![cfg(feature = "native")]
 use std::collections::VecDeque;
 
-use sov_db::{ledger_db::SharedLedgerOps, rocks_db_config::RocksdbConfig};
+use short_header_proof_provider::{
+    NativeShortHeaderProofProviderService, ShortHeaderProofProvider, ShortHeaderProofProviderError,
+    ZkShortHeaderProofProviderService,
+};
+use sov_db::ledger_db::SharedLedgerOps;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::verifier::MockShortHeaderProof;
 use sov_mock_da::MockDaSpec;
-use short_header_proof_provider::{
-    NativeShortHeaderProofProviderService, ShortHeaderProofProvider, ZkShortHeaderProofProviderService,
-    ShortHeaderProofProviderError,
-};
 use tempfile::TempDir;
 
 fn setup_test_db() -> (TempDir, sov_db::ledger_db::LedgerDB) {
@@ -24,9 +25,8 @@ fn test_proof_not_found() {
     let native_service = NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db);
 
     let block_hash = [1u8; 32];
-    let result = native_service.get_and_verify_short_header_proof_by_l1_hash(
-        block_hash, [2u8; 32], 100, [3u8; 32], 1, 50,
-    );
+    let result = native_service
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash, [2u8; 32], 100, [3u8; 32], 1, 50);
     assert!(matches!(
         result.unwrap_err(),
         ShortHeaderProofProviderError::ShortHeaderProofNotFound
@@ -34,15 +34,15 @@ fn test_proof_not_found() {
 
     // for zk this should panic
     let zk_service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(VecDeque::new());
-    let _ = zk_service.get_and_verify_short_header_proof_by_l1_hash(
-        block_hash, [2u8; 32], 100, [3u8; 32], 1, 50,
-    );
+    let _ = zk_service
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash, [2u8; 32], 100, [3u8; 32], 1, 50);
 }
 
 #[test]
 fn test_native_clear_and_take_queried_hashes() {
     let (_temp_dir, ledger_db) = setup_test_db();
-    let native_service = NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+    let native_service =
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
 
     let block_hash = [1u8; 32];
     let mock_proof = MockShortHeaderProof {
@@ -52,24 +52,32 @@ fn test_native_clear_and_take_queried_hashes() {
         height: 100,
     };
     let proof_bytes = borsh::to_vec(&mock_proof).unwrap();
-    ledger_db.put_short_header_proof_by_l1_hash(&block_hash, proof_bytes).unwrap();
-
-    native_service
-        .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash, [2u8; 32], 100, [3u8; 32], 1, 50,
-        )
+    ledger_db
+        .put_short_header_proof_by_l1_hash(&block_hash, proof_bytes)
         .unwrap();
 
-    assert!(!native_service.queried_and_verified_hashes.lock().unwrap().is_empty());
+    native_service
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash, [2u8; 32], 100, [3u8; 32], 1, 50)
+        .unwrap();
+
+    assert!(!native_service
+        .queried_and_verified_hashes
+        .lock()
+        .unwrap()
+        .is_empty());
 
     native_service.clear_queried_hashes();
 
-    assert!(native_service.queried_and_verified_hashes.lock().unwrap().is_empty());
+    assert!(native_service
+        .queried_and_verified_hashes
+        .lock()
+        .unwrap()
+        .is_empty());
 
     // test with multiple hashes
     let block_hash1 = [1u8; 32];
     let block_hash2 = [2u8; 32];
-    
+
     let mock_proof1 = MockShortHeaderProof {
         header_hash: block_hash1,
         prev_header_hash: [3u8; 32],
@@ -77,12 +85,12 @@ fn test_native_clear_and_take_queried_hashes() {
         height: 100,
     };
     let proof_bytes = borsh::to_vec(&mock_proof1).unwrap();
-    ledger_db.put_short_header_proof_by_l1_hash(&block_hash1, proof_bytes).unwrap();
+    ledger_db
+        .put_short_header_proof_by_l1_hash(&block_hash1, proof_bytes)
+        .unwrap();
 
     native_service
-        .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash1, [3u8; 32], 100, [4u8; 32], 1, 50,
-        )
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash1, [3u8; 32], 100, [4u8; 32], 1, 50)
         .unwrap();
 
     let mock_proof2 = MockShortHeaderProof {
@@ -92,12 +100,12 @@ fn test_native_clear_and_take_queried_hashes() {
         height: 101,
     };
     let proof_bytes = borsh::to_vec(&mock_proof2).unwrap();
-    ledger_db.put_short_header_proof_by_l1_hash(&block_hash2, proof_bytes).unwrap();
+    ledger_db
+        .put_short_header_proof_by_l1_hash(&block_hash2, proof_bytes)
+        .unwrap();
 
     native_service
-        .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash2, [5u8; 32], 101, [6u8; 32], 1, 51,
-        )
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash2, [5u8; 32], 101, [6u8; 32], 1, 51)
         .unwrap();
 
     let hashes = native_service.take_queried_hashes(50..=51);
@@ -128,9 +136,7 @@ fn test_zk_take_last_queried_hash() {
     assert_eq!(zk_service.take_last_queried_hash(), None);
 
     zk_service
-        .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash, [2u8; 32], 100, [3u8; 32], 1, 50,
-        )
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash, [2u8; 32], 100, [3u8; 32], 1, 50)
         .unwrap();
 
     assert_eq!(zk_service.take_last_queried_hash(), Some(block_hash));
@@ -140,7 +146,8 @@ fn test_zk_take_last_queried_hash() {
 #[test]
 fn test_native_to_zk_proof_flow() {
     let (_temp_dir, ledger_db) = setup_test_db();
-    let native_service = NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+    let native_service =
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
 
     let block_hashes = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
     let mut proofs = Vec::new();
@@ -216,7 +223,8 @@ fn test_native_to_zk_proof_flow() {
 #[test]
 fn test_native_to_zk_invalid_proof_flow() {
     let (_temp_dir, ledger_db) = setup_test_db();
-    let native_service = NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+    let native_service =
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
 
     // create and store an invalid proof
     let block_hash = [1u8; 32];
@@ -233,12 +241,10 @@ fn test_native_to_zk_invalid_proof_flow() {
 
     let ok = native_service
         .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash,
-            [5u8; 32], // different prev_block_hash
+            block_hash, [5u8; 32], // different prev_block_hash
             101,       // different height
             [6u8; 32], // different txs_commitment
-            1,
-            50,
+            1, 50,
         )
         .unwrap();
     assert!(!ok);
@@ -252,12 +258,10 @@ fn test_native_to_zk_invalid_proof_flow() {
 
     let ok = zk_service
         .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash,
-            [5u8; 32], // different prev_block_hash
+            block_hash, [5u8; 32], // different prev_block_hash
             101,       // different height
             [6u8; 32], // different txs_commitment
-            1,
-            50,
+            1, 50,
         )
         .unwrap();
     assert!(!ok);
@@ -268,7 +272,8 @@ fn test_native_to_zk_invalid_proof_flow() {
 #[test]
 fn test_native_to_zk_first_block_flow() {
     let (_temp_dir, ledger_db) = setup_test_db();
-    let native_service = NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+    let native_service =
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
 
     let block_hash = [1u8; 32];
     let mock_proof = MockShortHeaderProof {
@@ -284,12 +289,8 @@ fn test_native_to_zk_first_block_flow() {
 
     let ok = native_service
         .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash,
-            [0u8; 32], // zero for first block
-            1,
-            [3u8; 32],
-            1,
-            1,
+            block_hash, [0u8; 32], // zero for first block
+            1, [3u8; 32], 1, 1,
         )
         .unwrap();
     assert!(ok);
@@ -302,17 +303,10 @@ fn test_native_to_zk_first_block_flow() {
     let zk_service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(proofs_queue);
 
     let ok = zk_service
-        .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash,
-            [0u8; 32],
-            1,
-            [3u8; 32],
-            1,
-            1,
-        )
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash, [0u8; 32], 1, [3u8; 32], 1, 1)
         .unwrap();
     assert!(ok);
 
     assert_eq!(zk_service.take_last_queried_hash(), Some(block_hash));
     assert_eq!(zk_service.take_last_queried_hash(), None);
-} 
+}
