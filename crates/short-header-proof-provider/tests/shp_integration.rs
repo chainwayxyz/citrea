@@ -257,8 +257,7 @@ fn test_native_to_zk_invalid_proof_flow() {
 
     let ok = native_service
         .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash, [2u8; 32], 100,       // different height
-            [4u8; 32], // different txs commitment
+            block_hash, [2u8; 32], 100, [4u8; 32], // different txs commitment
             1, 50,
         )
         .unwrap();
@@ -288,8 +287,7 @@ fn test_native_to_zk_invalid_proof_flow() {
 
     let ok = zk_service
         .get_and_verify_short_header_proof_by_l1_hash(
-            block_hash, [2u8; 32], 100,       // different height
-            [4u8; 32], // different txs commitment
+            block_hash, [2u8; 32], 100, [4u8; 32], // different txs commitment
             1, 50,
         )
         .unwrap();
