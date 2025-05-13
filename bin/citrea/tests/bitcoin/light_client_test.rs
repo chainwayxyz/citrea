@@ -6,6 +6,8 @@ use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
+use bitcoin_da::spec::RollupParams;
+use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
@@ -24,10 +26,14 @@ use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
+use sov_modules_api::BlobReaderTrait;
+use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::Network;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -2820,7 +2826,9 @@ pub fn create_serialized_fake_receipt_batch_proof(
     bincode::serialize(&receipt).unwrap()
 }
 
-struct UndecompressableBlobTest;
+struct UndecompressableBlobTest {
+    task_manager: TaskManager,
+}
 
 #[async_trait]
 impl TestCase for UndecompressableBlobTest {
@@ -2849,6 +2857,12 @@ impl TestCase for UndecompressableBlobTest {
             extra_args: vec!["-fallbackfee=0.00001"],
             ..Default::default()
         }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -2885,9 +2899,8 @@ impl TestCase for UndecompressableBlobTest {
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
-        let block = da
-            .get_block(&da.get_block_hash(finalized_height).await?)
-            .await?;
+        let block_hash = da.get_block_hash(finalized_height).await?;
+        let block = da.get_block(&block_hash).await?;
 
         let txs: Vec<_> = block
             .txdata
@@ -2903,16 +2916,47 @@ impl TestCase for UndecompressableBlobTest {
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
+        let prover_da_service = spawn_bitcoin_da_service(
+            self.task_manager.executor().clone(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+        let block = prover_da_service
+            .get_block_by_hash(block_hash.into())
+            .await
+            .unwrap();
+
+        let (mut txs, inclusion_proof, completeness_proof) =
+            prover_da_service.extract_relevant_blobs_with_proof(&block);
+
+        txs.iter_mut().for_each(|t| {
+            t.full_data();
+        });
+
+        let verifier = BitcoinVerifier::new(RollupParams {
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+            network: Network::Nightly,
+        });
+
+        assert_eq!(
+            verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
+            Ok(txs),
+        );
+
         Ok(())
     }
 }
 
 #[tokio::test]
 async fn test_undecompressable_blob() -> Result<()> {
-    TestCaseRunner::new(UndecompressableBlobTest)
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
+    TestCaseRunner::new(UndecompressableBlobTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
 fn verify_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
