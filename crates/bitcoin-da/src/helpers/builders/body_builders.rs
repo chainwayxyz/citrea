@@ -254,9 +254,7 @@ pub fn create_inscription_type_0(
                 warn!("Too many iterations finding nonce");
             }
         }
-        let utxos = utxos.clone();
-        let change_address = change_address.clone();
-        // ownerships are moved to the loop
+
         let mut reveal_script_builder = reveal_script_builder.clone();
 
         // push nonce
@@ -288,20 +286,20 @@ pub fn create_inscription_type_0(
         // we don't need leftover_utxos because they will be requested from bitcoind next call
         let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
             prev_utxo.clone(),
-            utxos,
+            utxos.clone(),
             commit_tx_address.clone(),
             change_address.clone(),
             reveal_input_value,
             commit_fee_rate,
         )?;
 
-        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+        let input_to_reveal = unsigned_commit_tx.output[0].clone();
 
         let mut reveal_tx = build_reveal_transaction(
-            output_to_reveal.clone(),
+            input_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
-            change_address,
+            change_address.clone(),
             reveal_value + REVEAL_OUTPUT_THRESHOLD,
             reveal_fee_rate,
             &reveal_script,
@@ -647,10 +645,10 @@ pub fn create_inscription_type_1(
             commit_fee_rate,
         )?;
 
-        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+        let input_to_reveal = unsigned_commit_tx.output[0].clone();
 
         let mut reveal_tx = build_reveal_transaction(
-            output_to_reveal.clone(),
+            input_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
             change_address,
