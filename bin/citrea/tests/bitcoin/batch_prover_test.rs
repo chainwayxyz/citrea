@@ -28,6 +28,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::time::sleep;
@@ -1343,6 +1344,8 @@ impl TestCase for BatchProverCreateInputTest {
             .create_circuit_input(0, 1, PartitionMode::Normal)
             .await?;
 
+        assert_eq!(inputs.len(), 1);
+
         sequencer.wait_until_stopped().await?;
         batch_prover.wait_until_stopped().await?;
 
@@ -1374,9 +1377,15 @@ impl TestCase for BatchProverCreateInputTest {
                 .await
                 .expect("Proof channel should not close");
 
+            let proof = proof.proof;
+            let output: BatchProofCircuitOutput = Risc0Host::extract_output(&proof).unwrap();
+
             // Verify the proof
-            Risc0Host::verify(&proof.proof.as_slice(), &code_commitment)
+            Risc0Host::verify(proof.as_slice(), &code_commitment)
                 .expect("Proof verification failed");
+
+            assert_eq!(output.last_l2_height(), max_l2_blocks_per_commitment);
+            assert_eq!(output.sequencer_commitment_index_range(), (1, 1));
         }
 
         Ok(())
