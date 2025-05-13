@@ -242,8 +242,23 @@ fn test_native_to_zk_invalid_proof_flow() {
     let ok = native_service
         .get_and_verify_short_header_proof_by_l1_hash(
             block_hash, [5u8; 32], // different prev_block_hash
-            101,       // different height
-            [6u8; 32], // different txs_commitment
+            100, [3u8; 32], 1, 50,
+        )
+        .unwrap();
+    assert!(!ok);
+
+    let ok = native_service
+        .get_and_verify_short_header_proof_by_l1_hash(
+            block_hash, [2u8; 32], 101, // different height
+            [3u8; 32], 1, 50,
+        )
+        .unwrap();
+    assert!(!ok);
+
+    let ok = native_service
+        .get_and_verify_short_header_proof_by_l1_hash(
+            block_hash, [2u8; 32], 100,       // different height
+            [4u8; 32], // different txs commitment
             1, 50,
         )
         .unwrap();
@@ -252,15 +267,29 @@ fn test_native_to_zk_invalid_proof_flow() {
     let verified_hashes = native_service.take_queried_hashes(50..=50);
     assert!(verified_hashes.is_empty());
 
-    let mut proofs_queue = VecDeque::new();
-    proofs_queue.push_back(proof_bytes);
+    let proofs_queue = VecDeque::from(vec![proof_bytes.clone(), proof_bytes.clone(), proof_bytes]);
     let zk_service = ZkShortHeaderProofProviderService::<MockDaSpec>::new(proofs_queue);
 
     let ok = zk_service
         .get_and_verify_short_header_proof_by_l1_hash(
             block_hash, [5u8; 32], // different prev_block_hash
-            101,       // different height
-            [6u8; 32], // different txs_commitment
+            100, [3u8; 32], 1, 50,
+        )
+        .unwrap();
+    assert!(!ok);
+
+    let ok = zk_service
+        .get_and_verify_short_header_proof_by_l1_hash(
+            block_hash, [2u8; 32], 101, // different height
+            [3u8; 32], 1, 50,
+        )
+        .unwrap();
+    assert!(!ok);
+
+    let ok = zk_service
+        .get_and_verify_short_header_proof_by_l1_hash(
+            block_hash, [2u8; 32], 100,       // different height
+            [4u8; 32], // different txs commitment
             1, 50,
         )
         .unwrap();
