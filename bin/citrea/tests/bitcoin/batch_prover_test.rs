@@ -4,6 +4,8 @@ use std::time::{Duration, Instant};
 use alloy_primitives::{Address, U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bitcoin::hashes::Hash;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
@@ -16,11 +18,19 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::NodeT;
+use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use citrea_risc0_adapter::host::Risc0Host;
+use risc0_zkvm::Digest;
+use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
+use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
+use sov_rollup_interface::Network;
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -1289,6 +1299,117 @@ impl TestCase for SubmitFakeProofRpcTest {
 #[tokio::test]
 async fn test_batch_prover_submit_fake_proof_rpc() -> Result<()> {
     TestCaseRunner::new(SubmitFakeProofRpcTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+struct BatchProverCreateInputTest;
+
+#[async_trait]
+impl TestCase for BatchProverCreateInputTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+
+        // Generate commitments to create input for proving
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for commitment transactions to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        // Finalize the commitments
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Ensure the batch prover sees the finalized commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Call batchProver_createInput to generate input for proving
+        let inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(0, 1, PartitionMode::Normal)
+            .await?;
+
+        assert_eq!(inputs.len(), 1);
+
+        let code_commitment = Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID);
+
+        // Instantiate Risc0Host
+        let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
+        let network = Network::Nightly;
+
+        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
+        let mut risc0_host = Risc0Host::new(ledger_db, network);
+
+        for input in inputs {
+            // Decode raw circuit input
+            let raw_input = BASE64_STANDARD.decode(input).unwrap();
+
+            // Add input to Risc0Host
+            risc0_host.add_hint(raw_input);
+
+            // Run the proof generation
+            let proof = risc0_host
+                .run(
+                    Uuid::new_v4(),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                    ReceiptType::Groth16,
+                    false,
+                )
+                .expect("Proof generation failed")
+                .await
+                .expect("Proof channel should not close");
+
+            let proof = proof.proof;
+            let output: BatchProofCircuitOutput = Risc0Host::extract_output(&proof).unwrap();
+
+            // Verify the proof
+            Risc0Host::verify(proof.as_slice(), &code_commitment)
+                .expect("Proof verification failed");
+
+            assert_eq!(output.last_l2_height(), max_l2_blocks_per_commitment);
+            assert_eq!(output.sequencer_commitment_index_range(), (1, 1));
+
+            let commitment = sequencer
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(1))
+                .await?
+                .unwrap();
+            let l2_block = sequencer
+                .client
+                .http_client()
+                .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+                .await?
+                .unwrap();
+            let state_roots = output.state_roots().clone();
+            assert_eq!(state_roots[1], l2_block.header.state_root);
+        }
+
+        sequencer.wait_until_stopped().await?;
+        batch_prover.wait_until_stopped().await?;
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn batch_prover_create_input_test() -> Result<()> {
+    TestCaseRunner::new(BatchProverCreateInputTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

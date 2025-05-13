@@ -80,6 +80,7 @@ alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "
 alloy-rlp = { workspace = true }
 alloy-rpc-types = { workspace = true }
 alloy-rpc-types-trace = { workspace = true }
+base64 = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
