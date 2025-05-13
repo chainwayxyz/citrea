@@ -2902,12 +2902,13 @@ impl TestCase for UndecompressableBlobTest {
         let block_hash = da.get_block_hash(finalized_height).await?;
         let block = da.get_block(&block_hash).await?;
 
-        let txs: Vec<_> = block
+        let mut txs: Vec<_> = block
             .txdata
             .iter()
             .filter(|tx| tx.input[0].witness.len() == 3)
             .collect();
 
+        txs.sort_by(|a, b| a.input[0].witness.size().cmp(&b.input[0].witness.size()));
         assert!(verify_is_non_decompressable(txs[0])); // First tx has `vec![1u8; 64]` body and should be undecompressable
         assert!(!verify_is_non_decompressable(txs[1])); // Second tx is correct batch prover reveal tx
 
