@@ -300,5 +300,65 @@ mod test {
                 ShortHeaderProofVerificationError::InvalidHeaderHash
             )
         }
+
+        // non segwit wrong tx commitment: 1 txs
+        {
+            // One-Transaction Non-SegWit Block
+            // First TX: Coinbase Transaction
+            let block = hex::decode("0200000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c0101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73ffffffff0100f2052a01000000434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac00000000").unwrap();
+            let block: bitcoin::Block = bitcoin::consensus::deserialize(block.as_slice()).unwrap();
+
+            let block = BitcoinBlock {
+                header: HeaderWrapper::new(
+                    block.header,
+                    block.txdata.len() as u32,
+                    882547,
+                    [1; 32],
+                ),
+                txdata: block.txdata.into_iter().map(Into::into).collect(),
+            };
+
+            let proof = BitcoinService::block_to_short_header_proof(block);
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::WrongTxCommitment {
+                    expected: [0; 32],
+                    actual: [1; 32]
+                }
+            )
+        }
+
+        // non segwit wrong tx commitment: 2 txs
+        {
+            // Two-Transaction Non-SegWit Block
+            // First TX: Coinbase Transaction
+            // Second TX: Fake input, send to random P2PKH address
+            let block = hex::decode("02000000000000000000000000000000000000000000000000000000000000000000000018bb1f1245be6597df2f463399e391738f4650b88c66ed7a1a1f2a7ad472b0b229ab5f49ffff001d1dac2b7c0201000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73ffffffff0100f2052a01000000434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac0000000001000000010e9ef4d565fa2b404cd1e1cd5b7bb4c083151d647536fdecf7895f3acf7ca852000000000151ffffffff0180969800000000001976a9140123456789abcdef0123456789abcdef0123456788ac00000000").unwrap();
+            let block: bitcoin::Block = bitcoin::consensus::deserialize(block.as_slice()).unwrap();
+
+            let block = BitcoinBlock {
+                header: HeaderWrapper::new(
+                    block.header,
+                    block.txdata.len() as u32,
+                    882547,
+                    [0; 32],
+                ),
+                txdata: block.txdata.into_iter().map(Into::into).collect(),
+            };
+
+            let proof = BitcoinService::block_to_short_header_proof(block);
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::WrongTxCommitment {
+                    expected: [
+                        24, 187, 31, 18, 69, 190, 101, 151, 223, 47, 70, 51, 153, 227, 145, 115,
+                        143, 70, 80, 184, 140, 102, 237, 122, 26, 31, 42, 122, 212, 114, 176, 178
+                    ],
+                    actual: [0; 32]
+                }
+            )
+        }
     }
 }
