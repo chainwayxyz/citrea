@@ -8,7 +8,7 @@ use bitcoin::hashes::Hash;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
-use bitcoincore_rpc::RpcApi;
+use bitcoincore_rpc::{Client, RpcApi};
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
@@ -37,10 +37,9 @@ use sov_rollup_interface::Network;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
+use super::utils::PROVER_DA_PUBLIC_KEY;
 use crate::bitcoin::batch_prover_test::wait_for_prover_job;
-use crate::bitcoin::utils::{
-    create_complete_tx_with_prefix, spawn_bitcoin_da_service, DaServiceKeyKind,
-};
+use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
@@ -2889,8 +2888,7 @@ impl TestCase for UndecompressableBlobTest {
 
         // Send a complete tx with dummy body
         let (commit_tx, reveal_tx) =
-            create_complete_tx_with_prefix(&batch_prover.da, vec![1u8; 64], REVEAL_TX_PREFIX)
-                .await?;
+            create_complete_tx_with_prefix(&batch_prover.da, vec![1u8; 64]).await?;
         batch_prover.da.send_raw_transaction(&commit_tx).await?;
         batch_prover.da.send_raw_transaction(&reveal_tx).await?;
 
@@ -2958,6 +2956,50 @@ async fn test_undecompressable_blob() -> Result<()> {
     .set_citrea_path(get_citrea_path())
     .run()
     .await
+}
+
+pub async fn create_complete_tx_with_prefix(
+    client: &Client,
+    body: Vec<u8>,
+) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+    use bitcoin::secp256k1::SecretKey;
+    use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_0, DaTxs};
+    use std::str::FromStr;
+
+    let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
+    let change_address = client.get_new_address(None, None).await?.assume_checked();
+    let utxos = client
+        .list_unspent(None, None, None, None, None)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+
+    let result = create_inscription_type_0(
+        body,
+        &da_private_key,
+        None,
+        utxos,
+        change_address,
+        1,
+        1,
+        bitcoin::Network::Regtest,
+        REVEAL_TX_PREFIX,
+    )?;
+
+    match result {
+        DaTxs::Complete { commit, reveal } => {
+            let signed_raw_commit_tx = client
+                .sign_raw_transaction_with_wallet(&commit, None, None)
+                .await?;
+
+            Ok((
+                signed_raw_commit_tx.hex,
+                bitcoin::consensus::encode::serialize(&reveal.tx),
+            ))
+        }
+        _ => unreachable!("Unexpected result type"),
+    }
 }
 
 fn verify_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
