@@ -1,4 +1,6 @@
 pub mod body_builders;
+#[cfg(feature = "testing")]
+pub mod test_utils;
 
 #[cfg(test)]
 mod tests;

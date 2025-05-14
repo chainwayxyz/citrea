@@ -9,6 +9,7 @@ use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use uuid::Uuid;
 
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
@@ -253,14 +254,17 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
 
-    /// Get latest job ids with max count.
-    fn get_latest_job_ids(&self, count: usize) -> Result<Vec<Uuid>>;
+    /// Get latest (job id, status) with max count.
+    fn get_latest_jobs(&self, count: usize) -> Result<Vec<(Uuid, JobStatus)>>;
 
     /// Get commitment indices by l1 height
     fn get_prover_commitment_indices_by_l1(
         &self,
         l1_height: SlotNumber,
     ) -> Result<Option<Vec<u32>>>;
+
+    /// Get job status (non-existent job IS RUNNING)
+    fn job_status(&self, id: Uuid) -> JobStatus;
 }
 
 /// Light client prover ledger operations

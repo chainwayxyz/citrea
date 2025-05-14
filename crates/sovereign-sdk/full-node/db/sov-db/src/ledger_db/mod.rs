@@ -27,6 +27,7 @@ use crate::schema::tables::{
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
+use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
@@ -625,7 +626,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_latest_job_ids(&self, count: usize) -> anyhow::Result<Vec<Uuid>> {
+    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
         let mut read_opts = ReadOptions::default();
         // Do not fill the cache with garbage data just to read ids
         read_opts.fill_cache(false);
@@ -635,15 +636,17 @@ impl BatchProverLedgerOps for LedgerDB {
             .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
-        let mut job_ids = Vec::with_capacity(count);
+        let mut jobs = Vec::with_capacity(count);
         for el in iter {
-            if job_ids.len() == count {
+            if jobs.len() == count {
                 break;
             }
-            job_ids.push(el?.key);
+            let job_id = el?.key;
+            let status = self.job_status(job_id);
+            jobs.push((job_id, status));
         }
 
-        Ok(job_ids)
+        Ok(jobs)
     }
 
     #[instrument(level = "trace", skip(self), err)]
@@ -652,6 +655,19 @@ impl BatchProverLedgerOps for LedgerDB {
         l1_height: SlotNumber,
     ) -> anyhow::Result<Option<Vec<u32>>> {
         self.db.get::<CommitmentIndicesByL1>(&l1_height)
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    fn job_status(&self, id: Uuid) -> JobStatus {
+        if let Some(el) = self.db.get::<ProofByJobId>(&id).unwrap() {
+            if el.l1_tx_id.is_some() {
+                JobStatus::Finished
+            } else {
+                JobStatus::Sending
+            }
+        } else {
+            JobStatus::Proving
+        }
     }
 }
 

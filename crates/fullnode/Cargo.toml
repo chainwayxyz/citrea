@@ -40,5 +40,6 @@ once_cell = { workspace = true, default-features = true }
 reth-tasks = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

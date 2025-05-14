@@ -43,8 +43,8 @@ clean-docker:
 
 clean-all: clean clean-node clean-txs
 
-test-legacy: ## Runs test suite with output from tests printed
-	@cargo test -- --nocapture -Zunstable-options --report-time
+test-nocapture: ## Runs test suite with output from tests printed
+	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 test: $(EF_TESTS_DIR) ## Runs test suite using nextest
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))

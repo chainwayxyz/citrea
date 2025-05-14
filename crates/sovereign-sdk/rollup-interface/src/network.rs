@@ -12,7 +12,8 @@ pub enum Network {
     Devnet,
     /// Nightly
     Nightly,
-    /// Regtest
+    /// All forks from genesis to Nightly
+    /// This is used for testing purposes only.
     TestNetworkWithForks,
 }
 
