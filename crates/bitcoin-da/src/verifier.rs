@@ -43,6 +43,7 @@ pub enum ValidationError {
     IncorrectCompletenessProof,
     RelevantTxNotInProof,
     IncorrectInclusionProof,
+    IncorrectWitnessCommitment,
     FailedToCalculateMerkleRoot,
     RelevantTxNotFoundInBlock,
     InvalidBlockHash,
@@ -209,7 +210,7 @@ impl DaVerifier for BitcoinVerifier {
                 commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
                 let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
                 if script_pubkey[6..38] != commitment {
-                    return Err(ValidationError::IncorrectInclusionProof);
+                    return Err(ValidationError::IncorrectWitnessCommitment);
                 }
 
                 if merkle_root != block_header.txs_commitment {
