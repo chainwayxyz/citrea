@@ -16,7 +16,7 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
-use citrea_primitives::{MAX_TXBODY_SIZE, REVEAL_TX_PREFIX};
+use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
@@ -177,7 +177,7 @@ pub async fn generate_mock_txs(
         .expect("Failed to send transaction");
 
     // Invoke chunked zk proof generation with 2 chunks
-    let size = MAX_TXBODY_SIZE + 1500;
+    let size = MAX_TX_BODY_SIZE + 1500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
     valid_proofs.push(blob.clone());
@@ -227,7 +227,7 @@ pub async fn generate_mock_txs(
         .expect("Failed to send transaction");
 
     // Invoke chunked zk proof generation with 3 chunks
-    let size = MAX_TXBODY_SIZE * 2 + 2500;
+    let size = MAX_TX_BODY_SIZE * 2 + 2500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
     valid_proofs.push(blob.clone());
