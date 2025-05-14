@@ -637,13 +637,16 @@ mod tests {
     use std::io::{BufRead, BufReader};
     use std::ops::Deref;
 
+    use bitcoin::hashes::Hash;
+    use bitcoin::CompactTarget;
     use borsh::BorshDeserialize;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
     use sov_rollup_interface::Network;
 
-    use super::BitcoinVerifier;
+    use super::{BitcoinVerifier, ValidationError};
     use crate::spec::header::{BitcoinHeaderWrapper, HeaderWrapper};
     use crate::spec::RollupParams;
+    use crate::verifier::bits_to_target;
 
     fn get_verifier() -> BitcoinVerifier {
         BitcoinVerifier::new(RollupParams {
@@ -772,5 +775,83 @@ mod tests {
                 .verify_header_chain_testnet4(&da_state, &header)
                 .expect("Header chain verification should not fail");
         }
+    }
+
+    #[test]
+    fn test_verify_header_chain_common_sad_paths() {
+        let verifier = get_verifier();
+
+        // mainnet block 872918
+        let header_hex = "00000020eefac07c86494826bb8876e4e9156cc94ab0509e106d0000000000000000000049aa89bafff85ba60886976cf8203b75baf951d52ed2a5af6e8769e0df1528a436b94d6770c0021730278e2d";
+        let header_bytes = hex::decode(header_hex).unwrap();
+        let inner_header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+
+        // initial da height 872917 state
+        let da_state = LatestDaState {
+            block_hash: inner_header.prev_blockhash.as_raw_hash().to_byte_array(),
+            block_height: 872917,
+            total_work: [0; 32],
+            current_target_bits: 0x1702c070,
+            epoch_start_time: 1731962532,
+            prev_11_timestamps: [
+                1733145689, 1733146032, 1733139284, 1733139502, 1733140945, 1733141528, 1733141580,
+                1733142637, 1733142783, 1733143675, 1733144344,
+            ],
+        };
+
+        let target = bits_to_target(0x1702c070);
+        let expected_bits = 0x1702c070;
+
+        // invalid block hash
+        let mut header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        header.precomputed_hash = [1; 32].into();
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::InvalidBlockHash));
+
+        // non-consecutive block height
+        let header = HeaderWrapper::new(*inner_header, 0, 872920, [0; 32]);
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::NonConsecutiveBlockHeight));
+
+        // invalid prev block hash
+        let mut bad_state = da_state.clone();
+        bad_state.block_hash = [1; 32];
+        let header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        let result =
+            verifier.verify_header_chain_common(&header, &bad_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::InvalidPrevBlockHash));
+
+        // invalid bits
+        let wrong_bits = 0x1702c071;
+        let header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, wrong_bits);
+        assert_eq!(result, Err(ValidationError::InvalidBlockBits));
+
+        // invalid target hash
+        let mut bad_header = *inner_header;
+        // make target more strict by lowering the mantissa
+        bad_header.bits = CompactTarget::from_consensus(0x1702c060);
+        let header = HeaderWrapper::new(
+            bad_header,
+            0,
+            872918,
+            bad_header.block_hash().to_byte_array(),
+        );
+        let strict_target = bits_to_target(0x1702c060);
+        let result =
+            verifier.verify_header_chain_common(&header, &da_state, strict_target, 0x1702c060);
+        assert_eq!(result, Err(ValidationError::InvalidTargetHash));
+
+        // invalid timestamp
+        let mut bad_state = da_state.clone();
+        // increase all timestamps to make the median higher than the block's time
+        bad_state.prev_11_timestamps = [
+            1833146000, 1833146100, 1833146200, 1833146300, 1833146400, 1833146500, 1833146600,
+            1833146700, 1833146800, 1833146900, 1833147000,
+        ];
+        let header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        let result =
+            verifier.verify_header_chain_common(&header, &bad_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::InvalidTimestamp));
     }
 }
