@@ -195,3 +195,113 @@ where
 {
     (BorshCodec {}).decode_value_unwrap(&bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use sov_db::native_db::NativeDB;
+    use sov_db::rocks_db_config::RocksdbConfig;
+    use sov_db::state_db::StateDB;
+    use sov_modules_api::default_context::DefaultContext;
+    use sov_modules_api::{StateReaderAndWriter, WorkingSet};
+    use sov_state::{ProverStorage, ReadWriteLog};
+
+    use super::*;
+
+    fn create_storage() -> ProverStorage {
+        let dir = tempfile::tempdir().unwrap();
+        let rocksdb_config = RocksdbConfig::new(&dir.path(), None, None);
+        let state_db = StateDB::new(Arc::new(StateDB::setup_schema_db(&rocksdb_config).unwrap()));
+        let native_db = NativeDB::new(Arc::new(
+            NativeDB::setup_schema_db(&rocksdb_config).unwrap(),
+        ));
+        ProverStorage::committable_latest_version(state_db, native_db)
+    }
+
+    #[test]
+    fn test_get_last_l1_hash_on_contract() {
+        let storage = create_storage();
+        let mut working_set = WorkingSet::new(storage.clone());
+
+        let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+        let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        let value = U256::from(42); // Mock value for next L1 height
+        working_set.set(&key, value.to_be_bytes::<32>().to_vec().into());
+
+        let mut checkpoint = working_set.checkpoint();
+        let (state_log, mut witness) = checkpoint.freeze();
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Call the function with mock data
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+            state_log,
+            storage,
+            &mut witness,
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, [0u8; 32], "Expected default hash value");
+    }
+
+    #[test]
+    #[should_panic(expected = "Last L1 hash should exist in storage")]
+    fn test_get_last_l1_hash_on_contract_failure() {
+        // Setup mock storage and witness
+        let storage = create_storage();
+        let mut witness = Witness::default();
+        let state_log = ReadWriteLog::default();
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Call the function with mock data that will cause it to fail
+        // Simulate a missing key in storage to trigger the failure
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            state_log,
+            storage,
+            &mut witness,
+            final_state_root,
+        );
+    }
+
+    // #[test]
+    // fn test_get_last_l1_hash_on_contract_with_valid_data() {
+    //     // Setup mock storage and witness
+    //     let mut storage = create_storage();
+    //     let mut witness = Witness::default();
+    //     let mut state_log = ReadWriteLog::default();
+    //     let final_state_root = [0u8; 32]; // Mock final state root
+
+    //     // Populate storage with valid data
+    //     let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
+    //     let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
+    //         &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+    //         &U256::ZERO,
+    //     );
+    //     let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+    //     let value = U256::from(42); // Mock value for next L1 height
+    //     storage.insert(key.clone(), value.to_be_bytes().to_vec());
+
+    //     // Populate state log with valid data
+    //     state_log.insert(
+    //         key.to_cache_key_version(None),
+    //         Some(value.to_be_bytes().to_vec()),
+    //     );
+
+    //     // Call the function with mock data
+    //     let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+    //         state_log,
+    //         storage,
+    //         &mut witness,
+    //         final_state_root,
+    //     );
+
+    //     // Assert the result is as expected (mocked value)
+    //     assert_eq!(result, value.to_be_bytes(), "Expected valid hash value");
+    // }
+}

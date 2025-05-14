@@ -2699,10 +2699,12 @@ dependencies = [
  "serde_json",
  "short-header-proof-provider",
  "sov-accounts",
+ "sov-db",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
  "sov-state",
+ "tempfile",
  "tracing",
 ]
 
