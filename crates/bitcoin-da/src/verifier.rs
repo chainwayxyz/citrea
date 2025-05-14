@@ -638,6 +638,7 @@ mod tests {
     use std::ops::Deref;
 
     use bitcoin::hashes::Hash;
+    use bitcoin::CompactTarget;
     use borsh::BorshDeserialize;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
     use sov_rollup_interface::Network;
@@ -828,6 +829,20 @@ mod tests {
         let result =
             verifier.verify_header_chain_common(&header, &da_state, target, wrong_bits);
         assert_eq!(result, Err(ValidationError::InvalidBlockBits));
+
+        // invalid target hash
+        let mut bad_header = *inner_header;
+        // make target more strict by lowering the mantissa
+        bad_header.bits = CompactTarget::from_consensus(0x1702c060); 
+        let header = HeaderWrapper::new(bad_header, 0, 872918, bad_header.block_hash().to_byte_array());
+        let strict_target = bits_to_target(0x1702c060);
+        let result = verifier.verify_header_chain_common(
+            &header,
+            &da_state,
+            strict_target,
+            0x1702c060,
+        );
+        assert_eq!(result, Err(ValidationError::InvalidTargetHash));
 
         // invalid timestamp
         let mut bad_state = da_state.clone();
