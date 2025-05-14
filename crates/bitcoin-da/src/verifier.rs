@@ -34,17 +34,9 @@ pub struct BitcoinVerifier {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValidationError {
     InvalidBlock,
-    NonMatchingScript,
     InvalidSegWitCommitment,
-    ValidBlobNotFoundInBlobs,
-    BlobWasTamperedWith,
-    IncorrectSenderInBlob,
-    BlobContentWasModified,
-    IncorrectCompletenessProof,
     RelevantTxNotInProof,
     IncorrectInclusionProof,
-    FailedToCalculateMerkleRoot,
-    RelevantTxNotFoundInBlock,
     InvalidBlockHash,
     NonConsecutiveBlockHeight,
     InvalidPrevBlockHash,
