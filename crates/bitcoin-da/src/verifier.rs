@@ -805,14 +805,12 @@ mod tests {
         // invalid block hash
         let mut header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
         header.precomputed_hash = [1; 32].into();
-        let result =
-            verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
         assert_eq!(result, Err(ValidationError::InvalidBlockHash));
 
         // non-consecutive block height
-        let header = HeaderWrapper::new(*inner_header, 0, 872920, [0; 32]); // Wrong height
-        let result =
-            verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
+        let header = HeaderWrapper::new(*inner_header, 0, 872920, [0; 32]);
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
         assert_eq!(result, Err(ValidationError::NonConsecutiveBlockHeight));
 
         // invalid prev block hash
@@ -826,22 +824,22 @@ mod tests {
         // invalid bits
         let wrong_bits = 0x1702c071;
         let header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
-        let result =
-            verifier.verify_header_chain_common(&header, &da_state, target, wrong_bits);
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, wrong_bits);
         assert_eq!(result, Err(ValidationError::InvalidBlockBits));
 
         // invalid target hash
         let mut bad_header = *inner_header;
         // make target more strict by lowering the mantissa
-        bad_header.bits = CompactTarget::from_consensus(0x1702c060); 
-        let header = HeaderWrapper::new(bad_header, 0, 872918, bad_header.block_hash().to_byte_array());
-        let strict_target = bits_to_target(0x1702c060);
-        let result = verifier.verify_header_chain_common(
-            &header,
-            &da_state,
-            strict_target,
-            0x1702c060,
+        bad_header.bits = CompactTarget::from_consensus(0x1702c060);
+        let header = HeaderWrapper::new(
+            bad_header,
+            0,
+            872918,
+            bad_header.block_hash().to_byte_array(),
         );
+        let strict_target = bits_to_target(0x1702c060);
+        let result =
+            verifier.verify_header_chain_common(&header, &da_state, strict_target, 0x1702c060);
         assert_eq!(result, Err(ValidationError::InvalidTargetHash));
 
         // invalid timestamp
