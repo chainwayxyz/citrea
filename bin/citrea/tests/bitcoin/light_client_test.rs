@@ -1,12 +1,13 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_batch_prover::rpc::BatchProverRpcClient;
@@ -26,8 +27,10 @@ use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
-use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, DaVerifier, SequencerCommitment};
+use sov_modules_api::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, DaTxRequest, DaVerifier, DataOnDa, SequencerCommitment,
+};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
@@ -2828,6 +2831,185 @@ struct UndecompressableBlobTest {
     task_manager: TaskManager,
 }
 
+impl UndecompressableBlobTest {
+    fn verify_complete_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
+        if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
+            decompress_blob(&complete.body).is_err()
+        } else {
+            false
+        }
+    }
+
+    fn verify_chunked_is_non_decompressable(block: &bitcoin::Block) -> bool {
+        let mut complete_proof = Vec::new();
+
+        for tx in &block.txdata {
+            if let Ok(ParsedTransaction::Aggregate(aggregate)) = parse_relevant_transaction(tx) {
+                complete_proof.extend_from_slice(&aggregate.body);
+            }
+        }
+
+        BitcoinSpec::decompress_chunks(&complete_proof).is_err()
+    }
+
+    async fn send_complete_tx(client: &Client) -> anyhow::Result<(Txid, Txid)> {
+        use std::str::FromStr;
+
+        use bitcoin::secp256k1::SecretKey;
+        use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_0, DaTxs};
+
+        let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
+        let change_address = client.get_new_address(None, None).await?.assume_checked();
+        let utxos = client
+            .list_unspent(None, None, None, None, None)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+
+        let body = vec![1u8; 64];
+        let DaTxs::Complete { commit, reveal } = create_inscription_type_0(
+            body,
+            &da_private_key,
+            None,
+            utxos,
+            change_address,
+            1,
+            1,
+            bitcoin::Network::Regtest,
+            REVEAL_TX_PREFIX,
+        )?
+        else {
+            panic!("Unexpected result type")
+        };
+
+        let signed_raw_commit_tx = client
+            .sign_raw_transaction_with_wallet(&commit, None, None)
+            .await?;
+
+        Ok((
+            client
+                .send_raw_transaction(&signed_raw_commit_tx.hex)
+                .await?,
+            client
+                .send_raw_transaction(&bitcoin::consensus::encode::serialize(&reveal.tx))
+                .await?,
+        ))
+    }
+
+    async fn send_chunked_tx(client: &Client) -> anyhow::Result<Vec<Txid>> {
+        use std::str::FromStr;
+
+        use bitcoin::consensus::encode;
+        use bitcoin::secp256k1::SecretKey;
+        use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_1, DaTxs};
+        use bitcoincore_rpc::json::SignRawTransactionInput;
+
+        let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
+        let change_address = client.get_new_address(None, None).await?.assume_checked();
+        let utxos = client
+            .list_unspent(None, None, None, None, None)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+
+        let mut chunks = vec![];
+        for _ in 0..2 {
+            let data = DataOnDa::Chunk(vec![1; 64]);
+            let blob = borsh::to_vec(&data).unwrap();
+            chunks.push(blob)
+        }
+
+        let DaTxs::Chunked {
+            commit_chunks,
+            reveal_chunks,
+            commit,
+            reveal,
+        } = create_inscription_type_1(
+            chunks,
+            &da_private_key,
+            None,
+            utxos,
+            change_address,
+            2,
+            2,
+            bitcoin::Network::Regtest,
+            REVEAL_TX_PREFIX,
+        )?
+        else {
+            panic!("Wrong DaTxs kind");
+        };
+
+        let mut raw_txs = Vec::new();
+
+        let all_tx_map = commit_chunks
+            .iter()
+            .chain(reveal_chunks.iter())
+            .chain([&commit, &reveal.tx].into_iter())
+            .map(|tx| (tx.compute_txid(), tx.clone()))
+            .collect::<HashMap<_, _>>();
+
+        for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
+            let mut inputs = vec![];
+
+            for input in commit.input.iter() {
+                if let Some(entry) = all_tx_map.get(&input.previous_output.txid) {
+                    inputs.push(SignRawTransactionInput {
+                        txid: input.previous_output.txid,
+                        vout: input.previous_output.vout,
+                        script_pub_key: entry.output[input.previous_output.vout as usize]
+                            .script_pubkey
+                            .clone(),
+                        redeem_script: None,
+                        amount: Some(entry.output[input.previous_output.vout as usize].value),
+                    });
+                }
+            }
+
+            let signed_raw_commit_tx = client
+                .sign_raw_transaction_with_wallet(&commit, Some(&inputs), None)
+                .await?;
+
+            raw_txs.push(signed_raw_commit_tx.hex);
+
+            let serialized_reveal_tx = encode::serialize(&reveal);
+            raw_txs.push(serialized_reveal_tx);
+        }
+
+        let mut inputs = vec![];
+        for input in commit.input.iter() {
+            if let Some(entry) = all_tx_map.get(&input.previous_output.txid) {
+                inputs.push(SignRawTransactionInput {
+                    txid: input.previous_output.txid,
+                    vout: input.previous_output.vout,
+                    script_pub_key: entry.output[input.previous_output.vout as usize]
+                        .script_pubkey
+                        .clone(),
+                    redeem_script: None,
+                    amount: Some(entry.output[input.previous_output.vout as usize].value),
+                });
+            }
+        }
+        let signed_raw_commit_tx = client
+            .sign_raw_transaction_with_wallet(&commit, Some(&inputs), None)
+            .await?;
+
+        raw_txs.push(signed_raw_commit_tx.hex);
+
+        let serialized_reveal_tx = encode::serialize(&reveal.tx);
+        raw_txs.push(serialized_reveal_tx);
+
+        let mut txids = Vec::new();
+        for raw_tx in raw_txs {
+            let txid = client.send_raw_transaction(&raw_tx).await?;
+            txids.push(txid);
+        }
+
+        Ok(txids)
+    }
+}
+
 #[async_trait]
 impl TestCase for UndecompressableBlobTest {
     fn test_config() -> TestCaseConfig {
@@ -2869,6 +3051,14 @@ impl TestCase for UndecompressableBlobTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
+        let prover_da_service = spawn_bitcoin_da_service(
+            self.task_manager.executor().clone(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         for _ in 0..max_l2_blocks_per_commitment {
@@ -2886,10 +3076,7 @@ impl TestCase for UndecompressableBlobTest {
             .await?;
 
         // Send a complete tx with dummy body
-        let (commit_tx, reveal_tx) =
-            create_complete_tx_with_prefix(&batch_prover.da, vec![1u8; 64]).await?;
-        batch_prover.da.send_raw_transaction(&commit_tx).await?;
-        batch_prover.da.send_raw_transaction(&reveal_tx).await?;
+        Self::send_complete_tx(&batch_prover.da).await?;
 
         // // Wait for batch prover tx and the test reveal tx to be in mempool
         da.wait_mempool_len(4, None).await?;
@@ -2906,21 +3093,14 @@ impl TestCase for UndecompressableBlobTest {
             .collect();
 
         txs.sort_by(|a, b| a.input[0].witness.size().cmp(&b.input[0].witness.size()));
-        assert!(verify_is_non_decompressable(txs[0])); // First tx has `vec![1u8; 64]` body and should be undecompressable
-        assert!(!verify_is_non_decompressable(txs[1])); // Second tx is correct batch prover reveal tx
+        assert!(Self::verify_complete_is_non_decompressable(txs[0])); // First tx has `vec![1u8; 64]` body and should be undecompressable
+        assert!(!Self::verify_complete_is_non_decompressable(txs[1])); // Second tx is correct batch prover reveal tx
 
         // LCP should be able to process it and tick along
         light_client_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor().clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
         let block = prover_da_service
             .get_block_by_hash(block_hash.into())
             .await
@@ -2943,6 +3123,43 @@ impl TestCase for UndecompressableBlobTest {
             Ok(txs),
         );
 
+        da.generate(1).await?;
+
+        // Send a chunked tx with dummy body
+        let txids = Self::send_chunked_tx(&batch_prover.da).await?;
+
+        // // Wait for chunked txs to hit the mempool
+        da.wait_mempool_len(txids.len(), None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        let block_hash = da.get_block_hash(finalized_height).await?;
+        let block = da.get_block(&block_hash).await?;
+
+        assert!(Self::verify_chunked_is_non_decompressable(&block));
+
+        // LCP should be able to process it and tick along
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        let block = prover_da_service
+            .get_block_by_hash(block_hash.into())
+            .await
+            .unwrap();
+
+        let (mut txs, inclusion_proof, completeness_proof) =
+            prover_da_service.extract_relevant_blobs_with_proof(&block);
+
+        txs.iter_mut().for_each(|t| {
+            t.full_data();
+        });
+
+        assert_eq!(
+            verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
+            Ok(txs),
+        );
+
         Ok(())
     }
 }
@@ -2955,57 +3172,4 @@ async fn test_undecompressable_blob() -> Result<()> {
     .set_citrea_path(get_citrea_path())
     .run()
     .await
-}
-
-pub async fn create_complete_tx_with_prefix(
-    client: &Client,
-    body: Vec<u8>,
-) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
-    use std::str::FromStr;
-
-    use bitcoin::secp256k1::SecretKey;
-    use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_0, DaTxs};
-
-    let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
-    let change_address = client.get_new_address(None, None).await?.assume_checked();
-    let utxos = client
-        .list_unspent(None, None, None, None, None)
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect();
-
-    let result = create_inscription_type_0(
-        body,
-        &da_private_key,
-        None,
-        utxos,
-        change_address,
-        1,
-        1,
-        bitcoin::Network::Regtest,
-        REVEAL_TX_PREFIX,
-    )?;
-
-    match result {
-        DaTxs::Complete { commit, reveal } => {
-            let signed_raw_commit_tx = client
-                .sign_raw_transaction_with_wallet(&commit, None, None)
-                .await?;
-
-            Ok((
-                signed_raw_commit_tx.hex,
-                bitcoin::consensus::encode::serialize(&reveal.tx),
-            ))
-        }
-        _ => unreachable!("Unexpected result type"),
-    }
-}
-
-fn verify_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
-    if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
-        decompress_blob(&complete.body).is_err()
-    } else {
-        false
-    }
 }
