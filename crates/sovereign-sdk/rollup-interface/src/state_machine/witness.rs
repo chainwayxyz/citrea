@@ -40,4 +40,17 @@ impl Witness {
     pub fn remaining(&self) -> usize {
         self.hints.len()
     }
+
+    #[cfg(feature = "testing")]
+    /// Get the hints
+    pub fn get_hints(&self) -> VecDeque<Vec<u8>> {
+        self.hints.clone()
+    }
+}
+
+#[cfg(feature = "testing")]
+impl From<VecDeque<Vec<u8>>> for Witness {
+    fn from(hints: VecDeque<Vec<u8>>) -> Self {
+        Self { hints }
+    }
 }
