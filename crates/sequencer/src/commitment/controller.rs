@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 use anyhow::ensure;
 use citrea_common::utils::merge_state_diffs;
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::MAX_TXBODY_SIZE;
+use citrea_primitives::MAX_TX_BODY_SIZE;
 use parking_lot::Mutex;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
@@ -15,7 +15,7 @@ use super::service::CommitmentRange;
 // Based on the test runs, brotli is able to compress the state diff 58% to 70%,
 // with an average of 66% for both empty and full blocks. This is a super safe
 // estimation of 50% compression.
-const SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE: usize = MAX_TXBODY_SIZE * 2;
+const SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE: usize = MAX_TX_BODY_SIZE * 2;
 
 /// Keeps track of the accumulated state diff ever since the last committed L2 block.
 struct AccumulatedStateDiff {
@@ -145,7 +145,7 @@ where
             }
 
             let compressed_state_diff = compress_blob(&uncompressed_state_diff).unwrap();
-            if compressed_state_diff.len() > MAX_TXBODY_SIZE {
+            if compressed_state_diff.len() > MAX_TX_BODY_SIZE {
                 debug!("Enough state diff size to submit commitment");
                 return Ok(Some(L2BlockNumber(l2_start)..=L2BlockNumber(l2_height)));
             }

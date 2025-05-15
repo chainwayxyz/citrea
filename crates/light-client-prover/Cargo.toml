@@ -46,6 +46,7 @@ rand = { workspace = true }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 tempfile = { workspace = true }
 
