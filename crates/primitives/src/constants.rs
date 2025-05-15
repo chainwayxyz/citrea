@@ -11,9 +11,9 @@ pub const MIN_BASE_FEE_PER_GAS: u64 = 10_000_000; // 0.01 gwei
 
 /// Maximum size of a bitcoin transaction body in bytes
 #[cfg(feature = "testing")]
-pub const MAX_TXBODY_SIZE: usize = 39700;
+pub const MAX_TX_BODY_SIZE: usize = 39700;
 #[cfg(not(feature = "testing"))]
-pub const MAX_TXBODY_SIZE: usize = 397000;
+pub const MAX_TX_BODY_SIZE: usize = 397000;
 
 /// SHA-256 hash of "citrea" string
 /// Used as the default tx merkle root when the block has no transactions

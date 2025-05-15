@@ -23,7 +23,7 @@ use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcErr
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
-use citrea_primitives::MAX_TXBODY_SIZE;
+use citrea_primitives::MAX_TX_BODY_SIZE;
 use lru::LruCache;
 use metrics::histogram;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -1461,20 +1461,20 @@ impl From<TxidWrapper> for [u8; 32] {
 /// 1: compress(borsh(DataOnDa::Complete(Proof)))
 /// 2:
 ///   let compressed = compress(borsh(Proof))
-///   let chunks = compressed.chunks(MAX_TXBODY_SIZE)
+///   let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
 pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
     let original_compressed = compress_blob(&original_blob)?;
 
-    if original_compressed.len() < MAX_TXBODY_SIZE {
+    if original_compressed.len() < MAX_TX_BODY_SIZE {
         let data = DataOnDa::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
         let blob = compress_blob(&blob)?;
         Ok(RawTxData::Complete(blob))
     } else {
         let mut chunks = vec![];
-        for chunk in original_compressed.chunks(MAX_TXBODY_SIZE) {
+        for chunk in original_compressed.chunks(MAX_TX_BODY_SIZE) {
             let data = DataOnDa::Chunk(chunk.to_vec());
             let blob = borsh::to_vec(&data).expect("zk::Proof Chunk serialize must not fail");
             chunks.push(blob)

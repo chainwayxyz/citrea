@@ -31,7 +31,7 @@ pub(crate) enum RawTxData {
     /// compress(borsh(DataOnDa::Complete(Proof)))
     Complete(Vec<u8>),
     /// let compressed = compress(borsh(Proof))
-    /// let chunks = compressed.chunks(MAX_TXBODY_SIZE)
+    /// let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
     /// [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
     Chunks(Vec<Vec<u8>>),
     /// borsh(DataOnDa::BatchProofMethodId(MethodId))
@@ -42,7 +42,7 @@ pub(crate) enum RawTxData {
 
 /// This is a list of txs we need to send to DA
 #[derive(Serialize, Clone)]
-pub(crate) enum DaTxs {
+pub enum DaTxs {
     Complete {
         commit: Transaction, // unsigned
         reveal: TxWithId,

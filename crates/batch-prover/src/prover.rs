@@ -6,7 +6,7 @@ use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
-use citrea_primitives::MAX_TXBODY_SIZE;
+use citrea_primitives::MAX_TX_BODY_SIZE;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -406,7 +406,7 @@ where
                 compress_blob(&serialized_diff).expect("Diff compression cannot fail");
 
             // check state diff threshold
-            if compressed_diff.len() > MAX_TXBODY_SIZE {
+            if compressed_diff.len() > MAX_TX_BODY_SIZE {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, PartitionReason::StateDiff)?;
                 continue;
@@ -909,7 +909,7 @@ mod tests {
 
     use citrea_common::BatchProverConfig;
     use citrea_primitives::forks::FORKS;
-    use citrea_primitives::MAX_TXBODY_SIZE;
+    use citrea_primitives::MAX_TX_BODY_SIZE;
     use prover_services::{ParallelProverService, ProofGenMode};
     use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SharedLedgerOps};
     use sov_db::rocks_db_config::RocksdbConfig;
@@ -1145,8 +1145,8 @@ mod tests {
             &prover.ledger_db,
             vec![
                 (1, 0),
-                (2, MAX_TXBODY_SIZE * 2 / 3),
-                (3, MAX_TXBODY_SIZE * 2 / 3),
+                (2, MAX_TX_BODY_SIZE * 2 / 3),
+                (3, MAX_TX_BODY_SIZE * 2 / 3),
             ],
         );
 
