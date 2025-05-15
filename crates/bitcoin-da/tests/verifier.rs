@@ -400,7 +400,7 @@ impl TestCase for BitcoinVerifierTest {
 
         // Tx count set to 1 but txs_commitment is not [0; 32]
         {
-            let header = HeaderWrapper::new(block.header.inner().clone(), 1, 1, [1; 32]);
+            let header = HeaderWrapper::new(*block.header.inner(), 1, 1, [1; 32]);
 
             // Keep only the coinbase transaction in the inclusion proof
             let mut modified_inclusion = inclusion_proof.clone();
@@ -416,7 +416,7 @@ impl TestCase for BitcoinVerifierTest {
         {
             let nonsegwit_block = get_mock_nonsegwit_block();
             let header = HeaderWrapper::new(
-                block.header.inner().clone(),
+                *block.header.inner(),
                 nonsegwit_block.txdata.len() as u32,
                 1,
                 [1; 32],
@@ -434,7 +434,7 @@ impl TestCase for BitcoinVerifierTest {
         {
             // Set a txs_commitment different from the wtxid merkle root
             let modified_header = HeaderWrapper::new(
-                block.header.inner().clone(),
+                *block.header.inner(),
                 inclusion_proof.wtxids.len() as u32,
                 1,
                 [1; 32],
