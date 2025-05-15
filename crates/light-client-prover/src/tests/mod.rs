@@ -2205,8 +2205,9 @@ macro_rules! assert_panic {
 // we only need to check for two scenarios:
 // - If the circuit is inputted from a different tree, we must catch it.
 // - If the value is tampered we must catch it.
+#[should_panic = "jellyfish merkle tree update must succeed"]
 #[test]
-fn test_lcp_state_cant_be_tampered() {
+fn test_lcp_input_values_cant_be_tampered() {
     // set up the test environment with
     // a few sequencer commitments
     // and batch proofs that will only process the first sequencer commitment
@@ -2304,62 +2305,58 @@ fn test_lcp_state_cant_be_tampered() {
     // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof>
     // <jmt update proof> (includes inserting blockhash)
     // <final root>
-    {
-        // let's try changing the value of VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2)
-        // as it was None, we'll try cheating and setting it to Some(VerifiedStateTransitionForSequencerCommitmentIndex{})
-        // this simulates a light client prover that tries to move state of the L2 without a valid batch proof found on DA
-        let mut input = LightClientCircuitInput::from(input);
+    // let's try changing the value of VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2)
+    // as it was None, we'll try cheating and setting it to Some(VerifiedStateTransitionForSequencerCommitmentIndex{})
+    // this simulates a light client prover that tries to move state of the L2 without a valid batch proof found on DA
+    let mut input = LightClientCircuitInput::from(input);
 
-        let mut witness = input.witness.get_hints();
+    let mut witness = input.witness.get_hints();
 
-        // values are pushed into the witness as so:
-        // borsh::to_vec(Option<StorageValue>)
+    // values are pushed into the witness as so:
+    // borsh::to_vec(Option<StorageValue>)
 
-        let storage_value: StorageValue =
-            borsh::to_vec(&VerifiedStateTransitionForSequencerCommitmentIndex {
-                initial_state_root: [2; 32],
-                final_state_root: [3; 32],
-                last_l2_height: 3,
-            })
-            .unwrap()
-            .into();
+    let storage_value: StorageValue =
+        borsh::to_vec(&VerifiedStateTransitionForSequencerCommitmentIndex {
+            initial_state_root: [2; 32],
+            final_state_root: [3; 32],
+            last_l2_height: 3,
+        })
+        .unwrap()
+        .into();
 
-        witness[0] = borsh::to_vec(&Some(storage_value)).unwrap();
+    witness[0] = borsh::to_vec(&Some(storage_value)).unwrap();
 
-        // we'll also push a None so that incrementing of VerifiedStateTransitionForSequencerCommitmentIndexAccessor stops
-        witness.insert(1, vec![0]);
+    // we'll also push a None so that incrementing of VerifiedStateTransitionForSequencerCommitmentIndexAccessor stops
+    witness.insert(1, vec![0]);
 
-        // reusing VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof
-        // for VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) as get(2) will panic already
-        witness.insert(4, witness[3].clone());
+    // reusing VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof
+    // for VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) as get(2) will panic already
+    witness.insert(4, witness[3].clone());
 
-        input.witness = witness.into();
+    input.witness = witness.into();
 
-        // we are not concerned with trying to forge a JMT read proof for now-existing VerifiedStateTransitionForSequencerCommitmentIndexAccessor(2)
-        // it's impossible for the current tree
-        // or we would add it to the tree, which would then fail because the expected root would be different
-        // trying to forge a JMT update proof for this test case is unnecessary as it means testing JMT itself.
+    // we are not concerned with trying to forge a JMT read proof for now-existing VerifiedStateTransitionForSequencerCommitmentIndexAccessor(2)
+    // it's impossible for the current tree
+    // or we would add it to the tree, which would then fail because the expected root would be different
+    // trying to forge a JMT update proof for this test case is unnecessary as it means testing JMT itself.
 
-        assert_panic!(
-            zk_circuit_runner.run_circuit(
-                da_verifier.clone(),
-                input,
-                ZkStorage::new(),
-                Network::Nightly,
-                l2_genesis_state_root,
-                INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-                &batch_prover_da_pub_key,
-                &sequencer_da_pub_key,
-                &method_id_upgrade_authority,
-            ),
-            "jellyfish merkle tree update must succeed"
-        );
-    }
-
-    // now we'll try to make a new tree that contains the same data except for L1 hashes
-    // and then try to replace the prev root with a different one
-    // with valid read and update proofs
-    // essentially trying to hack the circuit by providing values and proofs from a different tree
-    // we make it similar so the circuit won't panic but will follow until the storage verification part
-    {}
+    zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            &method_id_upgrade_authority,
+        )
+        .unwrap();
 }
+
+// now we'll try to make a new tree that contains the same data except for L1 hashes
+// and then try to replace the prev root with a different one
+// with valid read and update proofs
+// essentially trying to hack the circuit by providing values and proofs from a different tree
+// we make it similar so the circuit won't panic but will follow until the storage verification part
