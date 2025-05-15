@@ -2702,6 +2702,7 @@ dependencies = [
  "sov-db",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
  "tempfile",

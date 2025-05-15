@@ -198,40 +198,66 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use sov_db::native_db::NativeDB;
-    use sov_db::rocks_db_config::RocksdbConfig;
-    use sov_db::state_db::StateDB;
     use sov_modules_api::default_context::DefaultContext;
     use sov_modules_api::{StateReaderAndWriter, WorkingSet};
-    use sov_state::{ProverStorage, ReadWriteLog};
+    use sov_prover_storage_manager::ProverStorageManager;
+    use sov_state::storage::StorageValue;
+    use sov_state::{Config as StorageConfig, ProverStorage, ReadWriteLog};
 
     use super::*;
 
-    fn create_storage() -> ProverStorage {
+    fn init_test_storage() -> ProverStorage {
         let dir = tempfile::tempdir().unwrap();
-        let rocksdb_config = RocksdbConfig::new(&dir.path(), None, None);
-        let state_db = StateDB::new(Arc::new(StateDB::setup_schema_db(&rocksdb_config).unwrap()));
-        let native_db = NativeDB::new(Arc::new(
-            NativeDB::setup_schema_db(&rocksdb_config).unwrap(),
-        ));
-        ProverStorage::committable_latest_version(state_db, native_db)
+        let storage_config = StorageConfig {
+            path: dir.path().to_path_buf(),
+            db_max_open_files: None,
+        };
+        let storage_manager = ProverStorageManager::new(storage_config).unwrap();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Next block to make sure prover_storage inner DBs have no more than 1 strong reference
+        {
+            let mut working_set = WorkingSet::new(prover_storage.clone());
+
+            // Set Next L1 height for light client contract
+            let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+            let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+                &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+                &U256::ZERO,
+            );
+            let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+            working_set.set(&key, U256::from(1).to_be_bytes::<32>().to_vec().into());
+
+            let mut checkpoint = working_set.checkpoint();
+            let (state_log, mut witness) = checkpoint.freeze();
+            let (_, state_update, _) = prover_storage
+                .compute_state_update(&state_log, &mut witness, true)
+                .expect("Storage update must succeed");
+
+            let accessory_log = checkpoint.freeze_non_provable();
+            let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
+            prover_storage.commit(&state_update, &accessory_log, &offchain_log);
+        }
+        storage_manager.finalize_storage(prover_storage);
+
+        storage_manager.create_storage_for_next_l2_height()
     }
 
     #[test]
     fn test_get_last_l1_hash_on_contract() {
-        let storage = create_storage();
+        let storage = init_test_storage();
         let mut working_set = WorkingSet::new(storage.clone());
 
         let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&U256::from(0).to_be_bytes::<32>());
+        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+        let evm_storage_slot = keccak256(bytes).into();
         let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
             &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-            &U256::ZERO,
+            &evm_storage_slot,
         );
         let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-        let value = U256::from(42); // Mock value for next L1 height
-        working_set.set(&key, value.to_be_bytes::<32>().to_vec().into());
+        working_set.set(&key, StorageValue::new(&U256::from(1000), &BorshCodec));
 
         let mut checkpoint = working_set.checkpoint();
         let (state_log, mut witness) = checkpoint.freeze();
@@ -254,7 +280,7 @@ mod tests {
     #[should_panic(expected = "Last L1 hash should exist in storage")]
     fn test_get_last_l1_hash_on_contract_failure() {
         // Setup mock storage and witness
-        let storage = create_storage();
+        let storage = init_test_storage();
         let mut witness = Witness::default();
         let state_log = ReadWriteLog::default();
         let final_state_root = [0u8; 32]; // Mock final state root

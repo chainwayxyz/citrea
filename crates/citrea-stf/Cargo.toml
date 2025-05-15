@@ -33,6 +33,7 @@ l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer" }
 [dev-dependencies]
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", features = ["native"] }
 tempfile = { workspace = true }
 
