@@ -199,36 +199,26 @@ where
 #[cfg(test)]
 mod tests {
     use sov_modules_api::default_context::DefaultContext;
-    use sov_modules_api::{StateReaderAndWriter, WorkingSet};
+    use sov_modules_api::{StateCheckpoint, StateReaderAndWriter, WorkingSet};
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_state::storage::StorageValue;
     use sov_state::{Config as StorageConfig, ProverStorage, ReadWriteLog};
 
     use super::*;
 
-    fn init_test_storage() -> ProverStorage {
+    fn init_storage_manager() -> ProverStorageManager {
         let dir = tempfile::tempdir().unwrap();
         let storage_config = StorageConfig {
             path: dir.path().to_path_buf(),
             db_max_open_files: None,
         };
         let storage_manager = ProverStorageManager::new(storage_config).unwrap();
+
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         // Next block to make sure prover_storage inner DBs have no more than 1 strong reference
+        // Here we initialize an empty state diff
         {
-            let mut working_set = WorkingSet::new(prover_storage.clone());
-
-            // Set Next L1 height for light client contract
-            let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
-            let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
-                &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-                &U256::ZERO,
-            );
-            let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-
-            let value = (BorshCodec {}).encode_value(&U256::from(1));
-            working_set.set(&key, value.into());
-
+            let working_set = WorkingSet::new(prover_storage.clone());
             let mut checkpoint = working_set.checkpoint();
             let (state_log, mut witness) = checkpoint.freeze();
             let (_, state_update, _) = prover_storage
@@ -240,14 +230,34 @@ mod tests {
             prover_storage.commit(&state_update, &accessory_log, &offchain_log);
         }
         storage_manager.finalize_storage(prover_storage);
-
-        storage_manager.create_storage_for_next_l2_height()
+        storage_manager
     }
 
-    #[test]
-    fn test_get_last_l1_hash_on_contract() {
-        let storage = init_test_storage();
-        let mut working_set = WorkingSet::new(storage.clone());
+    fn cache_next_l1_height(
+        prover_storage: ProverStorage,
+    ) -> (ReadWriteLog, Witness, StateCheckpoint<ProverStorage>) {
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        // Set Next L1 height for light client contract
+        let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+        let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+
+        let value = (BorshCodec {}).encode_value(&U256::from(1));
+        working_set.set(&key, value.into());
+
+        let mut checkpoint = working_set.checkpoint();
+        let (state_log, witness) = checkpoint.freeze();
+        (state_log, witness, checkpoint)
+    }
+
+    fn cache_last_l1_hash(
+        prover_storage: ProverStorage,
+    ) -> (ReadWriteLog, Witness, StateCheckpoint<ProverStorage>) {
+        let mut working_set = WorkingSet::new(prover_storage.clone());
 
         let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
         let mut bytes = [0u8; 64];
@@ -262,14 +272,106 @@ mod tests {
         working_set.set(&key, StorageValue::new(&U256::from(0), &BorshCodec));
 
         let mut checkpoint = working_set.checkpoint();
-        let (state_log, mut witness) = checkpoint.freeze();
+        let (state_log, witness) = checkpoint.freeze();
+        (state_log, witness, checkpoint)
+    }
+
+    fn commit_next_l1_height(
+        storage_manager: &mut ProverStorageManager,
+    ) -> (ReadWriteLog, Witness) {
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Next block to make sure prover_storage inner DBs have no more than 1 strong reference
+        let (state_log, witness) = {
+            let (state_log, mut witness, mut checkpoint) =
+                cache_next_l1_height(prover_storage.clone());
+            let (_, state_update, _) = prover_storage
+                .compute_state_update(&state_log, &mut witness, true)
+                .expect("Storage update must succeed");
+
+            let accessory_log = checkpoint.freeze_non_provable();
+            let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
+            prover_storage.commit(&state_update, &accessory_log, &offchain_log);
+
+            (state_log, witness)
+        };
+        storage_manager.finalize_storage(prover_storage);
+
+        (state_log, witness)
+    }
+
+    fn commit_last_l1_lash(storage_manager: &mut ProverStorageManager) -> (ReadWriteLog, Witness) {
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Next block to make sure prover_storage inner DBs have no more than 1 strong reference
+        let (state_log, witness) = {
+            let (state_log, mut witness, mut checkpoint) =
+                cache_last_l1_hash(prover_storage.clone());
+            let (_, state_update, _) = prover_storage
+                .compute_state_update(&state_log, &mut witness, true)
+                .expect("Storage update must succeed");
+
+            let accessory_log = checkpoint.freeze_non_provable();
+            let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
+            prover_storage.commit(&state_update, &accessory_log, &offchain_log);
+
+            (state_log, witness)
+        };
+        storage_manager.finalize_storage(prover_storage);
+
+        (state_log, witness)
+    }
+
+    #[test]
+    #[should_panic(expected = "Next L1 height should exist in storage")]
+    fn test_no_l1_next_height_for_get_last_l1_hash_on_contract_failure() {
+        // Setup mock storage and witness
+        let storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Call the function with mock data that will cause it to fail
+        // Simulate a missing key in storage to trigger the failure
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut Witness::default(),
+            final_state_root,
+        );
+    }
+    #[test]
+    #[should_panic(expected = "Last L1 hash should exist in storage")]
+    fn test_no_get_last_l1_hash_on_contract_failure() {
+        // Setup mock storage and witness
+        let storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let (state_log, mut witness, _) = cache_next_l1_height(prover_storage.clone());
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Call the function with mock data that will cause it to fail
+        // Simulate a missing key in storage to trigger the failure
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            state_log,
+            prover_storage,
+            &mut witness,
+            final_state_root,
+        );
+    }
+
+    #[test]
+    fn test_get_last_l1_hash_on_contract() {
+        let mut storage_manager = init_storage_manager();
+        let _ = commit_next_l1_height(&mut storage_manager);
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let (state_log, mut witness, _) = cache_last_l1_hash(prover_storage);
 
         let final_state_root = [0u8; 32]; // Mock final state root
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
         // Call the function with mock data
         let result = get_last_l1_hash_on_contract::<DefaultContext>(
             state_log,
-            storage,
+            prover_storage,
             &mut witness,
             final_state_root,
         );
@@ -279,57 +381,23 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Last L1 hash should exist in storage")]
-    fn test_get_last_l1_hash_on_contract_failure() {
-        // Setup mock storage and witness
-        let storage = init_test_storage();
-        let mut witness = Witness::default();
-        let state_log = ReadWriteLog::default();
-        let final_state_root = [0u8; 32]; // Mock final state root
+    fn test_get_last_l1_hash_on_contract_with_commit() {
+        let mut storage_manager = init_storage_manager();
+        let _ = commit_next_l1_height(&mut storage_manager);
 
-        // Call the function with mock data that will cause it to fail
-        // Simulate a missing key in storage to trigger the failure
-        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        let (state_log, mut witness) = commit_last_l1_lash(&mut storage_manager);
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let final_state_root = [0u8; 32]; // Mock final state root
+                                          // Call the function with mock data
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
             state_log,
-            storage,
+            prover_storage,
             &mut witness,
             final_state_root,
         );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, [0u8; 32], "Expected default hash value");
     }
-
-    // #[test]
-    // fn test_get_last_l1_hash_on_contract_with_valid_data() {
-    //     // Setup mock storage and witness
-    //     let mut storage = create_storage();
-    //     let mut witness = Witness::default();
-    //     let mut state_log = ReadWriteLog::default();
-    //     let final_state_root = [0u8; 32]; // Mock final state root
-
-    //     // Populate storage with valid data
-    //     let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
-    //     let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
-    //         &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-    //         &U256::ZERO,
-    //     );
-    //     let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-    //     let value = U256::from(42); // Mock value for next L1 height
-    //     storage.insert(key.clone(), value.to_be_bytes().to_vec());
-
-    //     // Populate state log with valid data
-    //     state_log.insert(
-    //         key.to_cache_key_version(None),
-    //         Some(value.to_be_bytes().to_vec()),
-    //     );
-
-    //     // Call the function with mock data
-    //     let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
-    //         state_log,
-    //         storage,
-    //         &mut witness,
-    //         final_state_root,
-    //     );
-
-    //     // Assert the result is as expected (mocked value)
-    //     assert_eq!(result, value.to_be_bytes(), "Expected valid hash value");
-    // }
 }
