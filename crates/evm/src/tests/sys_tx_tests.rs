@@ -7,7 +7,7 @@ use alloy_primitives::{address, b256, hex, FixedBytes, LogData, TxKind, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use reth_primitives::Log;
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
-use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
+use short_header_proof_provider::{ShortHeaderProofProvider, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -1336,5 +1336,179 @@ fn test_system_tx_after_user_tx_should_error_out() {
             res,
             Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx)
         );
+    }
+}
+
+#[test]
+fn test_set_block_info_shp_not_found() {
+    pub struct TestingSHPNotFound;
+
+    impl ShortHeaderProofProvider for TestingSHPNotFound {
+        fn get_and_verify_short_header_proof_by_l1_hash(
+            &self,
+            _l1_hash: [u8; 32],
+            _prev_l1_hash: [u8; 32],
+            _l1_height: u64,
+            _txs_commitment: [u8; 32],
+            _coinbase_depth: u8,
+            _l2_height: u64,
+        ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
+            Err(short_header_proof_provider::ShortHeaderProofProviderError::ShortHeaderProofNotFound.into())
+        }
+
+        fn clear_queried_hashes(&self) {
+            todo!()
+        }
+
+        fn take_queried_hashes(&self, _l2_range: std::ops::RangeInclusive<u64>) -> Vec<[u8; 32]> {
+            todo!()
+        }
+
+        fn take_last_queried_hash(&self) -> Option<[u8; 32]> {
+            todo!()
+        }
+    }
+
+    let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPNotFound));
+
+    let (mut config, _dev_signer, _) =
+        get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
+
+    config_push_contracts(&mut config, None);
+    let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
+
+    let l1_fee_rate = 1;
+    let mut l2_height = 1;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 42,
+    };
+
+    // New L1 block #1
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
+
+        evm.call(CallMessage { txs }, &context, &mut working_set)
+            .unwrap();
+    }
+
+    // New L1 block #2
+    l2_height += 1;
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let set_block_info_tx =
+            set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
+
+        let err = evm
+            .call(
+                CallMessage {
+                    txs: vec![set_block_info_tx],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err();
+        assert_eq!(L2BlockModuleCallError::ShortHeaderProofNotFound, err);
+    }
+}
+
+#[test]
+fn test_set_block_info_shp_verification_failed() {
+    pub struct TestingSHPVerificationFailed;
+
+    impl ShortHeaderProofProvider for TestingSHPVerificationFailed {
+        fn get_and_verify_short_header_proof_by_l1_hash(
+            &self,
+            _l1_hash: [u8; 32],
+            _prev_l1_hash: [u8; 32],
+            _l1_height: u64,
+            _txs_commitment: [u8; 32],
+            _coinbase_depth: u8,
+            _l2_height: u64,
+        ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
+            Ok(false)
+        }
+
+        fn clear_queried_hashes(&self) {
+            todo!()
+        }
+
+        fn take_queried_hashes(&self, _l2_range: std::ops::RangeInclusive<u64>) -> Vec<[u8; 32]> {
+            todo!()
+        }
+
+        fn take_last_queried_hash(&self) -> Option<[u8; 32]> {
+            todo!()
+        }
+    }
+
+    let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPVerificationFailed));
+
+    let (mut config, _dev_signer, _) =
+        get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
+
+    config_push_contracts(&mut config, None);
+    let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
+
+    let l1_fee_rate = 1;
+    let mut l2_height = 1;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 42,
+    };
+
+    // New L1 block #1
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
+
+        evm.call(CallMessage { txs }, &context, &mut working_set)
+            .unwrap();
+    }
+
+    // New L1 block #2
+    l2_height += 1;
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let set_block_info_tx =
+            set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
+
+        let err = evm
+            .call(
+                CallMessage {
+                    txs: vec![set_block_info_tx],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err();
+        assert_eq!(L2BlockModuleCallError::ShortHeaderProofVerificationError, err);
     }
 }
