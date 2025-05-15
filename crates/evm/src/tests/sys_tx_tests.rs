@@ -5,6 +5,7 @@ use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::{BlockNumberOrTag, Encodable2718};
 use alloy_primitives::{address, b256, hex, FixedBytes, LogData, TxKind, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use jsonrpsee::core::RpcResult;
 use reth_primitives::Log;
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use short_header_proof_provider::{ShortHeaderProofProvider, SHORT_HEADER_PROOF_PROVIDER};
@@ -111,6 +112,25 @@ fn set_block_info_system_tx(
     txs[0].encode_2718(&mut buf);
 
     RlpEvmTransaction { rlp: buf }
+}
+
+fn get_block_hash(
+    evm: &Evm<DefaultContext>,
+    working_set: &mut WorkingSet<ProverStorage>,
+    block_number: u64,
+) -> RpcResult<Bytes> {
+    evm.get_call_inner(
+        TransactionRequest {
+            to: Some(TxKind::Call(BitcoinLightClient::address())),
+            input: TransactionInput::new(BitcoinLightClient::get_block_hash(block_number)),
+            ..Default::default()
+        },
+        None,
+        None,
+        None,
+        working_set,
+        get_fork_fn_only_tangerine(),
+    )
 }
 
 fn deposit_system_tx(
@@ -260,20 +280,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(system_account.balance, U256::from(0));
     assert_eq!(system_account.nonce, 3);
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(1)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_tangerine(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, 1).unwrap();
 
     let merkle_root = evm
         .get_call_inner(
@@ -290,7 +297,7 @@ fn test_sys_bitcoin_light_client() {
         )
         .unwrap();
 
-    assert_eq!(hash.as_ref(), &[1u8; 32]);
+    assert_eq!(block_hash.as_ref(), &[1u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[2u8; 32]);
 
     l2_height += 1;
@@ -385,20 +392,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 10000000));
     assert_eq!(l1_fee_vault.balance, U256::from(36 + L1_FEE_OVERHEAD));
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(2)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_tangerine(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, 2).unwrap();
 
     let merkle_root = evm
         .get_call_inner(
@@ -415,7 +409,7 @@ fn test_sys_bitcoin_light_client() {
         )
         .unwrap();
 
-    assert_eq!(hash.as_ref(), &[2u8; 32]);
+    assert_eq!(block_hash.as_ref(), &[2u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[3u8; 32]);
 }
 
@@ -893,24 +887,11 @@ fn test_upgrade_light_client() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(0)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_tangerine(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, 0).unwrap();
 
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
-        hash,
+        block_hash,
         alloy_primitives::Bytes::from_str(
             "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
         )
@@ -1073,24 +1054,11 @@ fn test_change_upgrade_owner() {
         new_contract_owner.address().to_vec()
     );
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(0)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_tangerine(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, 0).unwrap();
 
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
-        hash,
+        block_hash,
         alloy_primitives::Bytes::from_str(
             "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
         )
@@ -1353,7 +1321,7 @@ fn test_set_block_info_shp_not_found() {
             _coinbase_depth: u8,
             _l2_height: u64,
         ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
-            Err(short_header_proof_provider::ShortHeaderProofProviderError::ShortHeaderProofNotFound.into())
+            Err(short_header_proof_provider::ShortHeaderProofProviderError::ShortHeaderProofNotFound)
         }
 
         fn clear_queried_hashes(&self) {
@@ -1402,6 +1370,17 @@ fn test_set_block_info_shp_not_found() {
             .unwrap();
     }
 
+    let block_hash = get_block_hash(&evm, &mut working_set, 1).unwrap();
+
+    // Assert if block_hash is equal to 0x0101010101010101010101010101010101010101010101010101010101010101
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0101010101010101010101010101010101010101010101010101010101010101"
+        )
+        .unwrap()
+    );
+
     // New L1 block #2
     l2_height += 1;
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
@@ -1424,6 +1403,17 @@ fn test_set_block_info_shp_not_found() {
             .unwrap_err();
         assert_eq!(L2BlockModuleCallError::ShortHeaderProofNotFound, err);
     }
+
+    let block_hash = get_block_hash(&evm, &mut working_set, 2).unwrap();
+
+    // Assert that block_hash for block 2 wasn't set
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        )
+        .unwrap()
+    );
 }
 
 #[test]
@@ -1489,6 +1479,17 @@ fn test_set_block_info_shp_verification_failed() {
             .unwrap();
     }
 
+    let block_hash = get_block_hash(&evm, &mut working_set, 1).unwrap();
+
+    // Assert if block_hash is equal to 0x0101010101010101010101010101010101010101010101010101010101010101
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0101010101010101010101010101010101010101010101010101010101010101"
+        )
+        .unwrap()
+    );
+
     // New L1 block #2
     l2_height += 1;
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
@@ -1509,6 +1510,20 @@ fn test_set_block_info_shp_verification_failed() {
                 &mut working_set,
             )
             .unwrap_err();
-        assert_eq!(L2BlockModuleCallError::ShortHeaderProofVerificationError, err);
+        assert_eq!(
+            L2BlockModuleCallError::ShortHeaderProofVerificationError,
+            err
+        );
     }
+
+    let block_hash = get_block_hash(&evm, &mut working_set, 2).unwrap();
+
+    // Assert that block_hash for block 2 wasn't set
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        )
+        .unwrap()
+    );
 }
