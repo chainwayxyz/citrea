@@ -138,7 +138,7 @@ impl TestCase for BitcoinVerifierTest {
                     inclusion_proof,
                     completeness_proof.clone(),
                 ),
-                Err(ValidationError::IncorrectInclusionProof),
+                Err(ValidationError::IncorrectWitnessCommitment),
             );
         }
 
@@ -186,7 +186,7 @@ impl TestCase for BitcoinVerifierTest {
                     inclusion_proof,
                     completeness_proof.clone(),
                 ),
-                Err(ValidationError::IncorrectInclusionProof),
+                Err(ValidationError::IncorrectWitnessCommitment),
             );
         }
 
@@ -250,7 +250,7 @@ impl TestCase for BitcoinVerifierTest {
             ip.wtxids[1] = [16; 32];
             assert_eq!(
                 verifier.verify_transactions(&block.header, ip, completeness_proof.clone(),),
-                Err(ValidationError::IncorrectInclusionProof),
+                Err(ValidationError::IncorrectWitnessCommitment),
             );
         }
 
@@ -295,7 +295,7 @@ impl TestCase for BitcoinVerifierTest {
                     inclusion_proof,
                     completeness_proof.clone(),
                 ),
-                Err(ValidationError::IncorrectInclusionProof),
+                Err(ValidationError::IncorrectWitnessCommitment),
             );
         }
 
