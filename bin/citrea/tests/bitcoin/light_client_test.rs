@@ -3059,6 +3059,11 @@ impl TestCase for UndecompressableBlobTest {
         )
         .await;
 
+        let verifier = BitcoinVerifier::new(RollupParams {
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+            network: Network::Nightly,
+        });
+
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         for _ in 0..max_l2_blocks_per_commitment {
@@ -3078,7 +3083,7 @@ impl TestCase for UndecompressableBlobTest {
         // Send a complete tx with dummy body
         Self::send_complete_tx(&batch_prover.da).await?;
 
-        // // Wait for batch prover tx and the test reveal tx to be in mempool
+        // Wait for batch prover tx and the test reveal tx to be in mempool
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -3101,6 +3106,20 @@ impl TestCase for UndecompressableBlobTest {
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
+        // LCP should have processed the proof and skipped the fake complete proof
+        let lcp_output = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 1);
+        assert_eq!(
+            lcp_output.last_l2_height.to::<u64>(),
+            max_l2_blocks_per_commitment
+        );
+
         let block = prover_da_service
             .get_block_by_hash(block_hash.into())
             .await
@@ -3113,11 +3132,6 @@ impl TestCase for UndecompressableBlobTest {
             t.full_data();
         });
 
-        let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-            network: Network::Nightly,
-        });
-
         assert_eq!(
             verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
             Ok(txs),
@@ -3125,11 +3139,25 @@ impl TestCase for UndecompressableBlobTest {
 
         da.generate(1).await?;
 
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
         // Send a chunked tx with dummy body
         let txids = Self::send_chunked_tx(&batch_prover.da).await?;
 
-        // // Wait for chunked txs to hit the mempool
-        da.wait_mempool_len(txids.len(), None).await?;
+        // // Wait for batch prover tx and chunked txs to hit the mempool
+        da.wait_mempool_len(txids.len() + 2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -3142,6 +3170,20 @@ impl TestCase for UndecompressableBlobTest {
         light_client_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // LCP should have processed the proof and skipped the fake chunked proof
+        let lcp_output = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?
+            .unwrap()
+            .light_client_proof_output;
+        assert_eq!(lcp_output.last_sequencer_commitment_index.to::<u32>(), 2);
+        assert_eq!(
+            lcp_output.last_l2_height.to::<u64>(),
+            max_l2_blocks_per_commitment * 2
+        );
 
         let block = prover_da_service
             .get_block_by_hash(block_hash.into())
