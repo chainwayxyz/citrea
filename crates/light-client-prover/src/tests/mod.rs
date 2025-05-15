@@ -2242,7 +2242,7 @@ fn test_lcp_input_values_cant_be_tampered() {
     // then we'll make a new run creating an input for correct run
     let block_header_2 = MockBlockHeader::from_height(2);
 
-    let input = native_circuit_runner.run(
+    let mut input = native_circuit_runner.run(
         LightClientCircuitInput {
             previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
             light_client_proof_method_id,
@@ -2267,7 +2267,6 @@ fn test_lcp_input_values_cant_be_tampered() {
     // let's try changing the value of VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2)
     // as it was None, we'll try cheating and setting it to Some(VerifiedStateTransitionForSequencerCommitmentIndex{})
     // this simulates a light client prover that tries to move state of the L2 without a valid batch proof found on DA
-    let mut input = LightClientCircuitInput::from(input);
 
     let mut witness = input.witness.get_hints();
 
