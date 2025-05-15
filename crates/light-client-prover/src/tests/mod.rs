@@ -2160,47 +2160,6 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
     assert_eq!(commitment, None);
 }
 
-// For some reason, even though macro is used, it sees it as unused
-#[allow(unused)]
-macro_rules! assert_panic {
-    // Match a single expression
-    ($expr:expr) => {
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $expr)) {
-            Ok(_) => panic!("Expression did not trigger panic"),
-            Err(_) => (),
-        }
-    };
-    // Match an expression and an expected message
-    ($expr:expr, $expected_msg:expr) => {
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $expr)) {
-            Ok(_) => panic!("Expression did not trigger panic"),
-            Err(err) => {
-                let expected_msg = $expected_msg;
-                if let Some(msg) = err.downcast_ref::<&str>() {
-                    assert!(
-                        msg.contains(expected_msg),
-                        "Panic message '{}' does not match expected '{}'",
-                        msg,
-                        expected_msg
-                    );
-                } else if let Some(msg) = err.downcast_ref::<String>() {
-                    assert!(
-                        msg.contains(expected_msg),
-                        "Panic message '{}' does not match expected '{}'",
-                        msg,
-                        expected_msg
-                    );
-                } else {
-                    panic!(
-                        "Panic occurred, but message does not match expected '{}'",
-                        expected_msg
-                    );
-                }
-            }
-        }
-    };
-}
-
 // If we accept the fact that JMT is not tamperable, we can
 // we only need to check for two scenarios:
 // - If the circuit is inputted from a different tree, we must catch it.
