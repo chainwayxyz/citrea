@@ -333,7 +333,7 @@ impl NativeCircuitRunner {
 
         let (read_write_log, mut witness) = working_set.checkpoint().freeze();
 
-        let (state_root_transition, jmt_state_update, _) = prover_storage
+        let (_, jmt_state_update, _) = prover_storage
             .compute_state_update(&read_write_log, &mut witness, false)
             .unwrap();
 
