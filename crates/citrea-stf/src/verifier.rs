@@ -225,7 +225,9 @@ mod tests {
                 &U256::ZERO,
             );
             let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-            working_set.set(&key, U256::from(1).to_be_bytes::<32>().to_vec().into());
+
+            let value = (BorshCodec {}).encode_value(&U256::from(1));
+            working_set.set(&key, value.into());
 
             let mut checkpoint = working_set.checkpoint();
             let (state_log, mut witness) = checkpoint.freeze();
@@ -257,7 +259,7 @@ mod tests {
             &evm_storage_slot,
         );
         let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-        working_set.set(&key, StorageValue::new(&U256::from(1000), &BorshCodec));
+        working_set.set(&key, StorageValue::new(&U256::from(0), &BorshCodec));
 
         let mut checkpoint = working_set.checkpoint();
         let (state_log, mut witness) = checkpoint.freeze();
