@@ -172,33 +172,53 @@ where
         working_set: WorkingSet<C::Storage>,
         pre_state: C::Storage,
     ) -> L2BlockResult<C::Storage, Witness, ReadWriteLog> {
-        // Save checkpoint
-        let mut checkpoint = working_set.checkpoint();
+        let (
+            state_root_transition,
+            state_log,
+            offchain_log,
+            witness,
+            offchain_witness,
+            storage,
+            state_diff,
+        ) = {
+            // Save checkpoint
+            let mut checkpoint = working_set.checkpoint();
 
-        let (state_log, mut witness) = checkpoint.freeze();
+            let (state_log, mut witness) = checkpoint.freeze();
 
-        let (state_root_transition, state_update, state_diff) = pre_state
-            .compute_state_update(&state_log, &mut witness, true)
-            .expect("jellyfish merkle tree update must succeed");
+            let (state_root_transition, state_update, state_diff) = pre_state
+                .compute_state_update(&state_log, &mut witness, true)
+                .expect("jellyfish merkle tree update must succeed");
 
-        let mut working_set = checkpoint.to_revertable();
+            let mut working_set = checkpoint.to_revertable();
 
-        self.runtime.finalize_hook(
-            &state_root_transition.final_root,
-            &mut working_set.accessory_state(),
-        );
+            self.runtime.finalize_hook(
+                &state_root_transition.final_root,
+                &mut working_set.accessory_state(),
+            );
 
-        let mut checkpoint = working_set.checkpoint();
-        let accessory_log = checkpoint.freeze_non_provable();
-        let (offchain_log, offchain_witness) = checkpoint.freeze_offchain();
+            let mut checkpoint = working_set.checkpoint();
+            let accessory_log = checkpoint.freeze_non_provable();
+            let (offchain_log, offchain_witness) = checkpoint.freeze_offchain();
 
-        pre_state.commit(&state_update, &accessory_log, &offchain_log);
+            pre_state.commit(&state_update, &accessory_log, &offchain_log);
+
+            (
+                state_root_transition,
+                state_log,
+                offchain_log,
+                witness,
+                offchain_witness,
+                pre_state,
+                state_diff,
+            )
+        };
 
         L2BlockResult {
             state_root_transition,
             state_log,
             offchain_log,
-            change_set: pre_state,
+            change_set: storage,
             witness,
             offchain_witness,
             state_diff,
