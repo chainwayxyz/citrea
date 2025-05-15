@@ -382,6 +382,21 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
+        // Tamper coinbase merkle proof
+        {
+            let mut inclusion_proof = inclusion_proof.clone();
+            inclusion_proof.coinbase_merkle_proof[0] = [0; 32];
+
+            assert_eq!(
+                verifier.verify_transactions(
+                    &block.header,
+                    inclusion_proof,
+                    completeness_proof.clone(),
+                ),
+                Err(ValidationError::IncorrectTxidCommitment),
+            );
+        }
+
         Ok(())
     }
 }
