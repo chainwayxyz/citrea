@@ -42,7 +42,7 @@ pub enum ValidationError {
     BlobContentWasModified,
     IncorrectCompletenessProof,
     RelevantTxNotInProof,
-    IncorrectInclusionProof,
+    IncorrectTxidCommitment,
     IncorrectWitnessCommitment,
     FailedToCalculateMerkleRoot,
     RelevantTxNotFoundInBlock,
@@ -227,7 +227,7 @@ impl DaVerifier for BitcoinVerifier {
 
         // Check that the tx root in the block header matches the tx root in the inclusion proof.
         if block_header.merkle_root() != claimed_root {
-            return Err(ValidationError::IncorrectInclusionProof);
+            return Err(ValidationError::IncorrectTxidCommitment);
         }
 
         Ok(blobs)
