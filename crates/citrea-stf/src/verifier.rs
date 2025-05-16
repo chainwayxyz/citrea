@@ -202,7 +202,7 @@ mod tests {
     use sov_modules_api::{StateCheckpoint, StateReaderAndWriter, WorkingSet};
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_state::storage::StorageValue;
-    use sov_state::{Config as StorageConfig, ProverStorage, ReadWriteLog};
+    use sov_state::{Config as StorageConfig, ProverStorage, ReadWriteLog, ZkStorage};
 
     use super::*;
 
@@ -269,7 +269,7 @@ mod tests {
             &evm_storage_slot,
         );
         let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-        working_set.set(&key, StorageValue::new(&U256::from(0), &BorshCodec));
+        working_set.set(&key, StorageValue::new(&U256::from(1000), &BorshCodec));
 
         let mut checkpoint = working_set.checkpoint();
         let (state_log, witness) = checkpoint.freeze();
@@ -377,7 +377,11 @@ mod tests {
         );
 
         // Assert the result is as expected (mocked value)
-        assert_eq!(result, [0u8; 32], "Expected default hash value");
+        assert_eq!(
+            result,
+            U256::from(1000).to_be_bytes::<32>(),
+            "Expected default hash value"
+        );
     }
 
     #[test]
@@ -398,6 +402,68 @@ mod tests {
         );
 
         // Assert the result is as expected (mocked value)
-        assert_eq!(result, [0u8; 32], "Expected default hash value");
+        assert_eq!(
+            result,
+            U256::from(1000).to_be_bytes::<32>(),
+            "Expected default hash value"
+        );
+    }
+
+    #[test]
+    fn test_get_last_l1_hash_on_contract_with_commit_and_verify_with_zkcontext() {
+        let mut storage_manager = init_storage_manager();
+        let _ = commit_next_l1_height(&mut storage_manager);
+
+        let (state_log, mut witness) = commit_last_l1_lash(&mut storage_manager);
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Call the function with mock data
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            state_log,
+            zk_storage,
+            &mut witness,
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(
+            result,
+            U256::from(1000).to_be_bytes::<32>(),
+            "Expected default hash value"
+        );
+    }
+
+    #[test]
+    fn test_get_last_l1_hash_on_contract_with_commit_and_fail_verification_with_zkcontext() {
+        let mut storage_manager = init_storage_manager();
+        let _ = commit_next_l1_height(&mut storage_manager);
+
+        let (state_log, witness) = commit_last_l1_lash(&mut storage_manager);
+
+        let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+        let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
+        let mut witness = witness.get_hints();
+        // witness[0] = borsh::to_vec(&Some(witness[0].clone())).unwrap();
+        // witness.insert(1, vec![0]);
+        let mut witness: Witness = witness.into();
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+                                          // Call the function with mock data
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            state_log,
+            zk_storage,
+            &mut witness,
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(
+            result,
+            U256::from(1000).to_be_bytes::<32>(),
+            "Expected default hash value"
+        );
     }
 }
