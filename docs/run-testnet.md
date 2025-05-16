@@ -92,13 +92,13 @@ You can edit RPC parameters as you wish, but you have to also edit `rollup_confi
 
 ## Citrea Full Node Setup
 
-There is three different ways to run a Citra full node: using a [pre-built binary](#option-1-using-pre-built-binary), [building from source](#option-2-build-from-source) and [using docker](#option-3-using-docker).
+There is three different ways to run a Citrea full node: using a [pre-built binary](#option-1-using-pre-built-binary), [building from source](#option-2-build-from-source) and [using docker](#option-3-using-docker).
 
 ### Option 1: Using pre-built binary
 
-Before continueuing we suggest creating a `citrea/` directory and executing these commands in that directory.
+Before continuing we suggest creating a `citrea/` directory and executing these commands in that directory.
 
-#### Step 1.1: Download neccessary files
+#### Step 1.1: Download necessary files
 
 Go to this [webpage](https://github.com/chainwayxyz/citrea/releases) and download latest binary for your operating system under "Assets" section.
 
@@ -214,7 +214,7 @@ Compile Citrea by running command:
 SKIP_GUEST_BUILD=1 cargo build --release
 ```
 
-Citrea ZK proof circuits are read from `resuources/guests`. Rebuilding the circuits are unnecessary if you only wish to run a testnet node, that's why build is made with `SKIP_GUEST_BUILD=1`.
+Citrea ZK proof circuits are read from `resources/guests`. Rebuilding the circuits are unnecessary if you only wish to run a testnet node, that's why build is made with `SKIP_GUEST_BUILD=1`.
 
 #### Step 2.4: Run Citrea
 
