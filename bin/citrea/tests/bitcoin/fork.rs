@@ -160,18 +160,6 @@ impl ForkActivationTest {
     ) -> Result<()> {
         let height = sequencer.client.ledger_get_head_l2_block_height().await?;
         println!("Running test_pre_kumquat at height {height}");
-
-        // Generate max_l2_blocks_per_commitment l2 blocks but make sure no commitment are send before tangerine
-        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-        for _ in 0..max_l2_blocks_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
-        }
-
-        assert!(da
-            .wait_mempool_len(2, Some(Duration::from_secs(5)))
-            .await
-            .is_err());
-
         {
             let schnorr_input = Bytes::from_str(SCHNORR_INPUT).unwrap();
             let schnorr_result = client
@@ -193,6 +181,17 @@ impl ForkActivationTest {
             eip7702_result.is_err(),
             "eip7702 tx shouldn't be available in genesis"
         );
+
+        // Generate max_l2_blocks_per_commitment l2 blocks but make sure no commitment are send before tangerine
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        assert!(da
+            .wait_mempool_len(2, Some(Duration::from_secs(5)))
+            .await
+            .is_err());
 
         Ok(())
     }
