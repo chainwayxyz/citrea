@@ -16,28 +16,12 @@ impl BlobReaderTrait for MockBlob {
         self.address.clone()
     }
 
-    fn hash(&self) -> [u8; 32] {
-        self.hash
-    }
-
     fn wtxid(&self) -> Option<[u8; 32]> {
         self.wtxid
     }
 
     fn full_data(&self) -> &[u8] {
         self.data.accumulator()
-    }
-
-    fn total_len(&self) -> usize {
-        self.data.total_len()
-    }
-
-    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
-        borsh::to_vec(self)
-    }
-
-    fn serialize_v2(&self) -> borsh::io::Result<Vec<u8>> {
-        borsh::to_vec(self)
     }
 }
 

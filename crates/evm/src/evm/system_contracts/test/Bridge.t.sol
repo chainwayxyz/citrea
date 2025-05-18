@@ -62,15 +62,15 @@ contract MockSchnorrPrecompile {
         return abi.encode(verify(px, rx, s, m));
     }
 
-    function verify(uint256 px, uint256 rx, uint256 s, bytes32 m) public pure returns (bool) {
+    function verify(uint256 px, uint256 rx, uint256 s, bytes32 m) public pure returns (bytes memory) {
         // Check pubkey, rx, and s are in-range.
         if (px >= PP || rx >= PP || s >= NN) {
-            return false;
+            return hex"";
         }
 
         (address exp, bool ok) = convToFakeAddr(rx);
         if (!ok) {
-            return false;
+            return hex"";
         }
 
         uint256 e = computeChallenge(bytes32(rx), bytes32(px), m);
@@ -79,7 +79,11 @@ contract MockSchnorrPrecompile {
 
         // 27 apparently used to signal even parity (which it will always have).
         address rvh = ecrecover(sp, 27, bytes32(px), ep);
-        return rvh == exp; // if recovery fails we fail anyways
+        if (rvh == exp) {
+            return hex"0000000000000000000000000000000000000000000000000000000000000001";
+        } else {
+            return hex"";
+        }
     }
 
     function liftX(uint256 _x) internal pure returns (uint256, bool) {

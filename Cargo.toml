@@ -112,7 +112,7 @@ tinyvec = { version = "1", default-features = false, features = ["alloc", "rustc
 tracing = { version = "0.1.41", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "fmt"] }
 toml = "0.8.0"
-tempfile = "3.15"
+tempfile = "3.8"
 tokio = { version = "1.44.2", features = ["full"] }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
@@ -165,7 +165,7 @@ alloy-eips = { version = "0.13", default-features = false }
 alloy-consensus = { version = "0.13", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.13", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "bfc2086" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "9c90894" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "0fe8a8b" }

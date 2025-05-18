@@ -459,7 +459,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(signature.length == 64 || signature.length == 65, "Invalid signature length");
         signature = signature.slice(0, 64);
         (, bytes memory result) = address(SCHNORR_VERIFIER_PRECOMPILE).staticcall(abi.encodePacked(pubKey, messageHash, signature));
-        isValid = abi.decode(result, (bool));
+        isValid = result.length != 0;
     }
 
     function taggedHash(string memory tag, bytes memory message) internal pure returns (bytes32) {

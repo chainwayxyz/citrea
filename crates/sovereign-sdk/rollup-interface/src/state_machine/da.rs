@@ -323,23 +323,11 @@ pub trait BlobReaderTrait:
     /// Returns the address (on the DA layer) of the entity which submitted the blob transaction
     fn sender(&self) -> Self::Address;
 
-    /// Returns the hash of the blob as it appears on the DA layer
-    fn hash(&self) -> [u8; 32];
-
     /// Returns the witness transaction ID of the blob as it appears on the DA layer
     fn wtxid(&self) -> Option<[u8; 32]>;
 
     /// Returns the full data of the blob
     fn full_data(&self) -> &[u8];
-
-    /// Returns the total number of bytes in the blob. Note that this may be unequal to `verified_data.len()`.
-    fn total_len(&self) -> usize;
-
-    /// Weird method to serialize blob as v1. Should be removed when a better way is introduced in the future.
-    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>>;
-
-    /// Serialize the blob as v2 (pre Fork 2)
-    fn serialize_v2(&self) -> borsh::io::Result<Vec<u8>>;
 }
 
 /// Trait with collection of trait bounds for a block hash.

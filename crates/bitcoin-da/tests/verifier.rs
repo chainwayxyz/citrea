@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::{ScriptBuf, Witness};
 use bitcoin_da::helpers::merkle_tree::BitcoinMerkleTree;
+use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::proof::InclusionMultiProof;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
@@ -394,6 +395,58 @@ impl TestCase for BitcoinVerifierTest {
                     completeness_proof.clone(),
                 ),
                 Err(ValidationError::IncorrectTxidCommitment),
+            );
+        }
+
+        // Tx count set to 1 but txs_commitment is not [0; 32]
+        {
+            let header = HeaderWrapper::new(*block.header.inner(), 1, 1, [1; 32]);
+
+            // Keep only the coinbase transaction in the inclusion proof
+            let mut modified_inclusion = inclusion_proof.clone();
+            modified_inclusion.wtxids = vec![inclusion_proof.wtxids[0]];
+
+            assert_eq!(
+                verifier.verify_transactions(&header, modified_inclusion, vec![],),
+                Err(ValidationError::InvalidSegWitCommitment),
+            );
+        }
+
+        // Tx count higher than 1 in a non segwit block but header merkle root doesn't match txs_commitment
+        {
+            let nonsegwit_block = get_mock_nonsegwit_block();
+            let header = HeaderWrapper::new(
+                *block.header.inner(),
+                nonsegwit_block.txdata.len() as u32,
+                1,
+                [1; 32],
+            );
+            let (_, inclusion_proof, _) =
+                service.extract_relevant_blobs_with_proof(&nonsegwit_block);
+
+            assert_eq!(
+                verifier.verify_transactions(&header, inclusion_proof, vec![]),
+                Err(ValidationError::InvalidSegWitCommitment),
+            );
+        }
+
+        // merkle_root is not equal to header txs commitment
+        {
+            // Set a txs_commitment different from the wtxid merkle root
+            let modified_header = HeaderWrapper::new(
+                *block.header.inner(),
+                inclusion_proof.wtxids.len() as u32,
+                1,
+                [1; 32],
+            );
+
+            assert_eq!(
+                verifier.verify_transactions(
+                    &modified_header,
+                    inclusion_proof.clone(),
+                    completeness_proof.clone(),
+                ),
+                Err(ValidationError::InvalidSegWitCommitment),
             );
         }
 
