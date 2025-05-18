@@ -343,11 +343,7 @@ mod tests {
         );
 
         // Assert the result is as expected (mocked value)
-        assert_eq!(
-            result,
-            U256::from(1000).to_be_bytes::<32>(),
-            "Expected default hash value"
-        );
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
     }
 
     #[test]
@@ -370,11 +366,7 @@ mod tests {
         );
 
         // Assert the result is as expected (mocked value)
-        assert_eq!(
-            result,
-            U256::from(1000).to_be_bytes::<32>(),
-            "Expected default hash value"
-        );
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
     }
 
     #[test]
@@ -398,11 +390,7 @@ mod tests {
         );
 
         // Assert the result is as expected (mocked value)
-        assert_eq!(
-            result,
-            U256::from(1000).to_be_bytes::<32>(),
-            "Expected default hash value"
-        );
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
     }
 
     #[test]
