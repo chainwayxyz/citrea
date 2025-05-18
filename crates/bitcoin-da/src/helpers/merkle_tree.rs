@@ -152,12 +152,6 @@ mod tests {
 
     #[test]
     fn test_merkle_tree_against_bitcoin_impl() {
-        compare_merkle_tree_against_bitcoin_impl(vec![[0; 32]; 100]);
-        compare_merkle_tree_against_bitcoin_impl(vec![[5; 32]; 10]);
-        compare_merkle_tree_against_bitcoin_impl(vec![[255; 32]; 33]);
-        compare_merkle_tree_against_bitcoin_impl(vec![[200; 32]; 2]);
-        compare_merkle_tree_against_bitcoin_impl(vec![[99; 32]; 1]);
-
         let txs = std::fs::read_to_string("test_data/mock_txs.txt")
             .unwrap()
             .lines()
@@ -186,6 +180,10 @@ mod tests {
         let e = [5; 32];
         let f = [6; 32];
 
+        compare_merkle_tree_against_bitcoin_impl(vec![a]);
+        compare_merkle_tree_against_bitcoin_impl(vec![a, b]);
+        compare_merkle_tree_against_bitcoin_impl(vec![a, b, c]);
+        compare_merkle_tree_against_bitcoin_impl(vec![a, b, c, d]);
         compare_merkle_tree_against_bitcoin_impl(vec![a, b, c, d, e]);
         compare_merkle_tree_against_bitcoin_impl(vec![a, b, c, d, e, f]);
     }
@@ -213,5 +211,18 @@ mod tests {
         let f = [6; 32];
 
         BitcoinMerkleTree::new(vec![a, b, c, d, e, f, e, f]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Duplicate hashes in the Merkle tree, indicating mutation")]
+    fn test_merkle_duplicates_c_2361() {
+        let a = [1; 32];
+        let b = [2; 32];
+        let c = [3; 32];
+        let d = [4; 32];
+        let e = [5; 32];
+        let f = [6; 32];
+
+        BitcoinMerkleTree::new(vec![a, b, c, d, a, b, c, d, e, f]);
     }
 }
