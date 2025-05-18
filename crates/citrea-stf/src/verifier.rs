@@ -272,12 +272,15 @@ mod tests {
     #[should_panic(expected = "Next L1 height should exist in storage")]
     fn test_no_l1_next_height_for_get_last_l1_hash_on_contract_failure() {
         // Setup mock storage and witness
-        let storage_manager = init_storage_manager();
+        let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let working_set = WorkingSet::new(prover_storage.clone());
+        commit(&mut storage_manager, prover_storage, working_set);
         let final_state_root = [0u8; 32]; // Mock final state root
 
         // Call the function with mock data that will cause it to fail
         // Simulate a missing key in storage to trigger the failure
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
         get_last_l1_hash_on_contract::<ZkDefaultContext>(
             ReadWriteLog::default(),
             prover_storage,
@@ -289,7 +292,11 @@ mod tests {
     #[should_panic(expected = "Last L1 hash should exist in storage")]
     fn test_no_get_last_l1_hash_on_contract_failure() {
         // Setup mock storage and witness
-        let storage_manager = init_storage_manager();
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let working_set = WorkingSet::new(prover_storage.clone());
+        commit(&mut storage_manager, prover_storage, working_set);
+
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
         cache_next_l1_height(&mut working_set);
