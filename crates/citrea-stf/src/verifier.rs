@@ -212,25 +212,7 @@ mod tests {
             path: dir.path().to_path_buf(),
             db_max_open_files: None,
         };
-        let storage_manager = ProverStorageManager::new(storage_config).unwrap();
-
-        let prover_storage = storage_manager.create_storage_for_next_l2_height();
-        // Next block to make sure prover_storage inner DBs have no more than 1 strong reference
-        // Here we initialize an empty state diff
-        {
-            let working_set = WorkingSet::new(prover_storage.clone());
-            let mut checkpoint = working_set.checkpoint();
-            let (state_log, mut witness) = checkpoint.freeze();
-            let (_, state_update, _) = prover_storage
-                .compute_state_update(&state_log, &mut witness, true)
-                .expect("Storage update must succeed");
-
-            let accessory_log = checkpoint.freeze_non_provable();
-            let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
-            prover_storage.commit(&state_update, &accessory_log, &offchain_log);
-        }
-        storage_manager.finalize_storage(prover_storage);
-        storage_manager
+        ProverStorageManager::new(storage_config).unwrap()
     }
 
     fn cache_next_l1_height(working_set: &mut WorkingSet<ProverStorage>) {
