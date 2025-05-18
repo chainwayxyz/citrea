@@ -154,7 +154,7 @@ async fn guest_cycles() {
         Ok(elf_path) => elf_path.into(),
         Err(_) => {
             // Convert tmpdir to path so it's not deleted after the run for debugging purposes
-            let tmpdir = tempfile::tempdir().unwrap().into_path();
+            let tmpdir = tempfile::tempdir().unwrap().keep();
 
             let mut elf_path = tmpdir.clone();
             elf_path.push("batch_proof_bitcoin");
