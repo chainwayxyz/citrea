@@ -198,6 +198,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+
     use sov_modules_api::default_context::DefaultContext;
     use sov_modules_api::{StateReaderAndWriter, WorkingSet};
     use sov_prover_storage_manager::ProverStorageManager;
@@ -404,26 +406,37 @@ mod tests {
         cache_next_l1_height(&mut working_set);
         cache_last_l1_hash(&mut working_set);
 
-        let (_, mut witness) = commit(&mut storage_manager, prover_storage, working_set);
+        let (state_log, mut witness) = commit(&mut storage_manager, prover_storage, working_set);
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
-        let final_state_root = [0u8; 32]; // Mock final state root
+        let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
+        let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+        );
+        // Append to witness
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        prover_storage.get_and_prove(&key, &mut witness, [0; 32]);
 
         let zk_storage = ZkStorage::new();
+        // Consume state update hints
+        let _ = zk_storage.compute_state_update(&state_log, &mut witness, false);
 
-        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
-            // Use an empty ReadWriteLog to force calling `get_and_prove` in
-            // zk storage to generate JMT proof inside.
-            ReadWriteLog::default(),
-            zk_storage,
-            &mut witness,
-            final_state_root,
-        );
+        let final_state_root = [0u8; 32]; // Mock final state root
+        let msg = catch_unwind(AssertUnwindSafe(|| {
+            get_last_l1_hash_on_contract::<ZkDefaultContext>(
+                // Use an empty ReadWriteLog to force calling `get_and_prove` in
+                // zk storage to generate JMT proof inside.
+                ReadWriteLog::default(),
+                zk_storage,
+                &mut witness,
+                final_state_root,
+            );
+        }));
 
-        // Assert the result is as expected (mocked value)
-        assert_eq!(
-            result,
-            U256::from(1000).to_be_bytes::<32>(),
-            "Expected default hash value"
-        );
+        let error = *msg.unwrap_err().downcast::<String>().unwrap();
+        assert!(error.starts_with(
+            "JMT proof verification failed: Root hashes do not match. Actual root hash"
+        ));
     }
 }
