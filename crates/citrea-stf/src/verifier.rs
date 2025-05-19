@@ -217,7 +217,7 @@ mod tests {
         ProverStorageManager::new(storage_config).unwrap()
     }
 
-    fn cache_next_l1_height(working_set: &mut WorkingSet<ProverStorage>) {
+    fn set_next_l1_height(working_set: &mut WorkingSet<ProverStorage>) {
         // Set Next L1 height for light client contract
         let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
         let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
@@ -227,6 +227,32 @@ mod tests {
         let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
         let value = StorageValue::new(&U256::from(1), &BorshCodec);
         working_set.set(&key, value);
+    }
+
+    fn cache_next_l1_height(working_set: &mut WorkingSet<ProverStorage>) {
+        // Set Next L1 height for light client contract
+        let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
+        let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        let value = StorageValue::new(&U256::from(1), &BorshCodec);
+        working_set.get(&key);
+    }
+
+    fn set_last_l1_hash(working_set: &mut WorkingSet<ProverStorage>) {
+        let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&U256::from(0).to_be_bytes::<32>());
+        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+        let evm_storage_slot = keccak256(bytes).into();
+        let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &evm_storage_slot,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        working_set.set(&key, StorageValue::new(&U256::from(1000), &BorshCodec));
     }
 
     fn cache_last_l1_hash(working_set: &mut WorkingSet<ProverStorage>) {
@@ -240,7 +266,7 @@ mod tests {
             &evm_storage_slot,
         );
         let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-        working_set.set(&key, StorageValue::new(&U256::from(1000), &BorshCodec));
+        working_set.get(&key);
     }
 
     fn commit(
@@ -299,7 +325,7 @@ mod tests {
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
-        cache_next_l1_height(&mut working_set);
+        set_next_l1_height(&mut working_set);
 
         let mut checkpoint = working_set.checkpoint();
         let (state_log, mut witness) = checkpoint.freeze();
@@ -321,12 +347,12 @@ mod tests {
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
-        cache_next_l1_height(&mut working_set);
+        set_next_l1_height(&mut working_set);
         let _ = commit(&mut storage_manager, prover_storage, working_set);
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage);
-        cache_last_l1_hash(&mut working_set);
+        set_last_l1_hash(&mut working_set);
 
         let mut checkpoint = working_set.checkpoint();
         let (state_log, mut witness) = checkpoint.freeze();
@@ -351,12 +377,12 @@ mod tests {
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
-        cache_last_l1_hash(&mut working_set);
+        set_last_l1_hash(&mut working_set);
         let _ = commit(&mut storage_manager, prover_storage, working_set);
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage);
-        cache_next_l1_height(&mut working_set);
+        set_next_l1_height(&mut working_set);
 
         let mut checkpoint = working_set.checkpoint();
         let (state_log, mut witness) = checkpoint.freeze();
@@ -381,8 +407,8 @@ mod tests {
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
-        cache_next_l1_height(&mut working_set);
-        cache_last_l1_hash(&mut working_set);
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
         let (state_log, mut witness) = commit(&mut storage_manager, prover_storage, working_set);
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
