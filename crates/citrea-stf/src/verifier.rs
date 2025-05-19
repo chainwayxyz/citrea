@@ -237,7 +237,6 @@ mod tests {
             &U256::ZERO,
         );
         let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-        let value = StorageValue::new(&U256::from(1), &BorshCodec);
         working_set.get(&key);
     }
 
@@ -328,7 +327,7 @@ mod tests {
         set_next_l1_height(&mut working_set);
 
         let mut checkpoint = working_set.checkpoint();
-        let (state_log, mut witness) = checkpoint.freeze();
+        let (state_log, _) = checkpoint.freeze();
 
         let final_state_root = [0u8; 32]; // Mock final state root
 
@@ -337,7 +336,7 @@ mod tests {
         get_last_l1_hash_on_contract::<DefaultContext>(
             state_log,
             prover_storage,
-            &mut witness,
+            &mut Witness::default(), // witness does not matter here
             final_state_root,
         );
     }
@@ -347,15 +346,16 @@ mod tests {
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_last_l1_hash(&mut working_set);
         set_next_l1_height(&mut working_set);
         let _ = commit(&mut storage_manager, prover_storage, working_set);
 
+        // Only height is cached
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage);
-        set_last_l1_hash(&mut working_set);
 
-        let mut checkpoint = working_set.checkpoint();
-        let (state_log, mut witness) = checkpoint.freeze();
+        cache_next_l1_height(&mut working_set);
+        let state_log = working_set.checkpoint().freeze().0;
 
         let final_state_root = [0u8; 32]; // Mock final state root
 
@@ -364,28 +364,19 @@ mod tests {
         let result = get_last_l1_hash_on_contract::<DefaultContext>(
             state_log,
             prover_storage,
-            &mut witness,
+            &mut Witness::default(), // witness does not matter here
             final_state_root,
         );
 
         // Assert the result is as expected (mocked value)
         assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
-    }
 
-    #[test]
-    fn test_get_last_l1_hash_on_contract_with_committed_l1_hash() {
-        let mut storage_manager = init_storage_manager();
-        let prover_storage = storage_manager.create_storage_for_next_l2_height();
-        let mut working_set = WorkingSet::new(prover_storage.clone());
-        set_last_l1_hash(&mut working_set);
-        let _ = commit(&mut storage_manager, prover_storage, working_set);
-
+        // Only hash is cached
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage);
-        set_next_l1_height(&mut working_set);
 
-        let mut checkpoint = working_set.checkpoint();
-        let (state_log, mut witness) = checkpoint.freeze();
+        cache_last_l1_hash(&mut working_set);
+        let state_log = working_set.checkpoint().freeze().0;
 
         let final_state_root = [0u8; 32]; // Mock final state root
 
@@ -394,7 +385,29 @@ mod tests {
         let result = get_last_l1_hash_on_contract::<DefaultContext>(
             state_log,
             prover_storage,
-            &mut witness,
+            &mut Witness::default(), // witness does not matter here
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // Boths is cached
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage);
+
+        cache_next_l1_height(&mut working_set);
+        cache_last_l1_hash(&mut working_set);
+        let state_log = working_set.checkpoint().freeze().0;
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Call the function with mock data
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+            state_log,
+            prover_storage,
+            &mut Witness::default(), // witness does not matter here
             final_state_root,
         );
 
@@ -403,21 +416,22 @@ mod tests {
     }
 
     #[test]
-    fn test_get_last_l1_hash_on_contract_with_commit() {
+    fn test_get_last_l1_hash_on_contract_with_no_cache() {
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
         set_next_l1_height(&mut working_set);
         set_last_l1_hash(&mut working_set);
-        let (state_log, mut witness) = commit(&mut storage_manager, prover_storage, working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let final_state_root = [0u8; 32]; // Mock final state root
-                                          // Call the function with mock data
+
+        // Shows that no cache works
         let result = get_last_l1_hash_on_contract::<DefaultContext>(
-            state_log,
+            ReadWriteLog::default(),
             prover_storage,
-            &mut witness,
+            &mut Witness::default(), // witness does not matter here
             final_state_root,
         );
 
