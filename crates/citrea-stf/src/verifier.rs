@@ -427,24 +427,148 @@ mod tests {
 
     #[test]
     fn test_get_last_l1_hash_on_contract_with_commit_and_verify_with_zkcontext() {
+        // set up storage
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
-        cache_next_l1_height(&mut working_set);
-        cache_last_l1_hash(&mut working_set);
-        let (state_log, mut witness) = commit(&mut storage_manager, prover_storage, working_set);
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
 
-        let final_state_root = [0u8; 32]; // Mock final state root
+        // try the native --> zk flow without the values being in cache
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut witness = Witness::default();
 
-        // Call the function with mock data
-        let zk_storage = ZkStorage::new();
-        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
-            state_log,
-            zk_storage,
+        // root was found by running the test
+        let state_root = [
+            7, 86, 209, 84, 188, 43, 20, 206, 77, 83, 166, 176, 24, 255, 207, 214, 80, 9, 121, 121,
+            224, 119, 248, 189, 79, 241, 89, 51, 108, 134, 95, 82,
+        ];
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
             &mut witness,
-            final_state_root,
+            state_root,
         );
 
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // Let's see if native --> zk flow works when the values are in cache
+
+        let get_read_write_log_with_both_cached = || {
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
+            let mut working_set = WorkingSet::new(prover_storage.clone());
+            cache_next_l1_height(&mut working_set);
+            cache_last_l1_hash(&mut working_set);
+
+            let log = working_set.checkpoint().freeze().0;
+
+            assert_eq!(log.ordered_reads().len(), 2);
+
+            log
+        };
+
+        let mut witness = Witness::default();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            get_read_write_log_with_both_cached(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            get_read_write_log_with_both_cached(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // only height is cached
+        let get_read_write_log_with_height_cached = || {
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
+            let mut working_set = WorkingSet::new(prover_storage.clone());
+            cache_next_l1_height(&mut working_set);
+
+            let log = working_set.checkpoint().freeze().0;
+
+            assert_eq!(log.ordered_reads().len(), 1);
+
+            log
+        };
+
+        let mut witness = Witness::default();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            get_read_write_log_with_height_cached(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            get_read_write_log_with_height_cached(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // only hash is cached
+        let get_read_write_log_with_hash_cached = || {
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
+            let mut working_set = WorkingSet::new(prover_storage.clone());
+            cache_last_l1_hash(&mut working_set);
+
+            let log = working_set.checkpoint().freeze().0;
+
+            assert_eq!(log.ordered_reads().len(), 1);
+
+            log
+        };
+
+        let mut witness = Witness::default();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            get_read_write_log_with_hash_cached(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            get_read_write_log_with_hash_cached(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
         // Assert the result is as expected (mocked value)
         assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
     }
@@ -454,8 +578,8 @@ mod tests {
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
-        cache_next_l1_height(&mut working_set);
-        cache_last_l1_hash(&mut working_set);
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
 
         let (state_log, mut witness) = commit(&mut storage_manager, prover_storage, working_set);
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
