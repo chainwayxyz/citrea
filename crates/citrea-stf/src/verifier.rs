@@ -198,7 +198,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::panic::{catch_unwind, AssertUnwindSafe};
 
     use sov_modules_api::default_context::DefaultContext;
     use sov_modules_api::{StateReaderAndWriter, WorkingSet};
@@ -440,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_last_l1_hash_on_contract_with_commit_and_verify_with_zkcontext() {
+    fn test_get_last_l1_hash_on_contract_and_verify_with_zkcontext() {
         // set up storage
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
@@ -588,44 +587,87 @@ mod tests {
     }
 
     #[test]
-    fn test_get_last_l1_hash_on_contract_with_commit_and_generate_proof_with_zkcontext() {
+    #[should_panic(expected = "JMT proof verification failed: Root hashes do not match.")]
+    fn test_get_last_l1_hash_on_contract_fail_in_zkcontext_by_incorrect_update_proof() {
+        // set up storage
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage.clone());
         set_next_l1_height(&mut working_set);
         set_last_l1_hash(&mut working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
 
-        let (state_log, mut witness) = commit(&mut storage_manager, prover_storage, working_set);
+        // try the native --> zk flow without the values being in cache
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut witness = Witness::default();
 
-        let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
-        let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
-            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-            &U256::ZERO,
+        // incorrect state root known by zk
+        // so that we can make the read proofs fail
+        let false_state_root = [0xa; 32];
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut witness,
+            false_state_root,
         );
-        // Append to witness
-        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
-        prover_storage.get_and_prove(&key, &mut witness, [0; 32]);
 
+        // Call the function with witness accumulated in the previous step
         let zk_storage = ZkStorage::new();
-        // Consume state update hints
-        let _ = zk_storage.compute_state_update(&state_log, &mut witness, false);
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            zk_storage,
+            &mut witness,
+            false_state_root,
+        );
+    }
 
-        let final_state_root = [0u8; 32]; // Mock final state root
-        let msg = catch_unwind(AssertUnwindSafe(|| {
-            get_last_l1_hash_on_contract::<ZkDefaultContext>(
-                // Use an empty ReadWriteLog to force calling `get_and_prove` in
-                // zk storage to generate JMT proof inside.
-                ReadWriteLog::default(),
-                zk_storage,
-                &mut witness,
-                final_state_root,
-            );
-        }));
+    #[test]
+    #[should_panic(expected = "JMT proof verification failed: Value hashes do not match.")]
+    fn test_get_last_l1_hash_on_contract_fail_in_zkcontext_by_incorrect_value_supplied() {
+        // set up storage
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
 
-        let error = *msg.unwrap_err().downcast::<String>().unwrap();
-        assert!(error.starts_with(
-            "JMT proof verification failed: Root hashes do not match. Actual root hash"
-        ));
+        // try the native --> zk flow without the values being in cache
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut witness = Witness::default();
+
+        // actual state root
+        let state_root = [
+            7, 86, 209, 84, 188, 43, 20, 206, 77, 83, 166, 176, 24, 255, 207, 214, 80, 9, 121, 121,
+            224, 119, 248, 189, 79, 241, 89, 51, 108, 134, 95, 82,
+        ];
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        let mut hints = witness.get_hints();
+
+        let val = hints.get_mut(0).unwrap();
+        val[5] = 2; // first read value U256::from(2) instead of U256::from(1) now
+
+        assert_eq!(hints.len(), 4);
+
+        let mut witness = Witness::from(hints);
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
     }
 }
