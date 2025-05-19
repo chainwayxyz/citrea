@@ -347,6 +347,36 @@ mod tests {
     }
 
     #[test]
+    fn test_get_last_l1_hash_on_contract_with_committed_l1_hash() {
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        cache_last_l1_hash(&mut working_set);
+        let _ = commit(&mut storage_manager, prover_storage, working_set);
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage);
+        cache_next_l1_height(&mut working_set);
+
+        let mut checkpoint = working_set.checkpoint();
+        let (state_log, mut witness) = checkpoint.freeze();
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Call the function with mock data
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+            state_log,
+            prover_storage,
+            &mut witness,
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+    }
+
+    #[test]
     fn test_get_last_l1_hash_on_contract_with_commit() {
         let mut storage_manager = init_storage_manager();
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
