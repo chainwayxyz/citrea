@@ -19,6 +19,7 @@ use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
+use tokio::time::sleep;
 
 use super::light_client_test::{
     create_random_state_diff, create_serialized_fake_receipt_batch_proof, TEN_MINS,
@@ -2513,6 +2514,189 @@ impl TestCase for FullNodeLcpChunkProofTest {
 #[tokio::test]
 async fn test_full_node_lcp_chunk_proof() -> Result<()> {
     TestCaseRunner::new(FullNodeLcpChunkProofTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .set_citrea_cli_path(get_citrea_cli_path())
+    .run()
+    .await
+}
+
+struct FullNodeL1SyncHaltOnMerkleRootMismatch {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 50000,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(145)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+        Sequencer publish 1-5
+        Creates commitment 1
+        Full node sync 1-5
+        Verify commitment 1
+        send commitment with wrong merkle root index 2 last l2 10
+        create a proof over range [2] with that wrong commitment
+        Observe full node l1 sync halt at commitment 2 l1 height - 1
+
+
+        */
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+
+        for _ in 1..=10 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.client.wait_for_l2_block(10, None).await?;
+        full_node.wait_for_l2_height(10, None).await?; // let it sync
+
+        let range1 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(U64::from(1), U64::from(5))
+            .await?;
+
+        let merkle_root = calculate_merkle_root(&range1);
+
+        let correct_commitment = SequencerCommitment {
+            index: 1,
+            l2_end_block_number: 5,
+            merkle_root,
+        };
+        let task_executor = self.task_manager.executor();
+        let sequencer_da_service = spawn_bitcoin_da_service(
+            task_executor,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
+        )
+        .await;
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(correct_commitment), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+        let last_committed_l2 = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(last_committed_l2.commitment_index, 1);
+        assert_eq!(last_committed_l2.height, 5);
+
+        let wrong_merkle_root_commitment = SequencerCommitment {
+            index: 2,
+            l2_end_block_number: 10,
+            merkle_root: [0u8; 32],
+        };
+
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Full node should never process this commitment
+        sleep(Duration::from_secs(15)).await;
+        let full_node_last_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+
+        // Full node should halt at the last commitment, so the last processed l1 height should be the finalized height - 1
+        assert_eq!(
+            full_node_last_scanned_l1_height.to::<u64>(),
+            finalized_height - 1
+        );
+
+        // Also confirm that l2 sync continues
+        for _ in 11..=20 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.client.wait_for_l2_block(20, None).await?;
+
+        // See that l2 sync still works
+        full_node.wait_for_l2_height(20, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // See full node l1 sync is still halted
+        let full_node_last_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(
+            full_node_last_scanned_l1_height.to::<u64>(),
+            finalized_height - 1
+        );
+
+        for _ in 21..=30 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.client.wait_for_l2_block(30, None).await?;
+
+        // See that l2 sync still works
+        full_node.wait_for_l2_height(30, None).await?;
+
+        let seq_block = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(30))
+            .await?;
+        let full_node_block = full_node
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(30))
+            .await?;
+        // See that rpc works for full node and the blocks are the same
+        assert_eq!(seq_block, full_node_block);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_full_node_l1_sync_halt_on_merkle_root_mismatch() -> Result<()> {
+    TestCaseRunner::new(FullNodeL1SyncHaltOnMerkleRootMismatch {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())
