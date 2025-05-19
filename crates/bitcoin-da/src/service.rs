@@ -820,7 +820,6 @@ impl BitcoinService {
         &self,
         tx_block_hash: BlockHash,
     ) -> anyhow::Result<usize> {
-        let exponential_backoff = ExponentialBackoff::default();
         if let Some(height) = self
             .l1_block_hash_to_height
             .lock()
@@ -829,6 +828,7 @@ impl BitcoinService {
         {
             return Ok(*height);
         }
+        let exponential_backoff = ExponentialBackoff::default();
         let res = retry_backoff(exponential_backoff, || async move {
             self.client
                 .get_block_info(&tx_block_hash)
