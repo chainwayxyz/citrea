@@ -1,17 +1,19 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use alloy_primitives::ruint::aliases::U256;
-// use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes};
 use alloy_rpc_types::{BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::geth::call::FlatCallFrame;
+use alloy_rpc_types_trace::geth::mux::{MuxConfig, MuxFrame};
 use alloy_rpc_types_trace::geth::GethTrace::{
-    self, CallTracer, FlatCallTracer, FourByteTracer, PreStateTracer,
+    self, CallTracer, FlatCallTracer, FourByteTracer, MuxTracer, PreStateTracer,
 };
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
     GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateFrame, TraceResult,
 };
+// use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use citrea_stf::genesis_config::GenesisPaths;
@@ -260,6 +262,48 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         prestate_call_frame_trace,
         PreStateTracer(json_value.clone())
     );
+    let mut opts = GethDebugTracingCallOptions::default();
+    opts.tracing_options.tracer = Some(GethDebugTracerType::BuiltInTracer(
+        GethDebugBuiltInTracerType::MuxTracer,
+    ));
+
+    let call_config = CallConfig {
+        only_top_call: Some(true),
+        with_log: Some(true),
+    };
+
+    opts.tracing_options.tracer_config = MuxConfig(HashMap::from_iter([
+        (GethDebugBuiltInTracerType::FourByteTracer, None),
+        (
+            GethDebugBuiltInTracerType::CallTracer,
+            Some(call_config.into()),
+        ),
+    ]))
+    .into();
+
+    let mux_call_frame_trace = test_client
+        .debug_trace_call(tx_request.clone(), None, Some(opts))
+        .await;
+
+    let json_value = serde_json::from_value::<MuxFrame>(json![{
+        "4byteTracer": {
+            "0x60fe47b1-32": 1,
+            "0xb7d5b658-64": 1
+        },
+        "callTracer": {
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "gas": "0x1c96f3c",
+            "gasUsed": "0xba65",
+            "to": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+            "input": "0xb7d5b6580000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000000000000000000000000000000000000000000003",
+            "value": "0x0",
+            "type": "CALL"
+        }
+    }]).unwrap();
+
+    // now let's check if the traces are correct
+    assert!(matches!(mux_call_frame_trace, GethTrace::MuxTracer(_)));
+    assert_eq!(mux_call_frame_trace, MuxTracer(json_value.clone()));
 
     // call the set method from the caller contract
     let tx_hash = {
