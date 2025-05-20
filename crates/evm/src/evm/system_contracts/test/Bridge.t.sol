@@ -594,7 +594,7 @@ contract BridgeTest is Test {
             hex"00000000"
         );
         bytes memory header = hex"000000204be87d063f22ad8b0232b5507de4a980105efbd3a9ef166f9aefb43cda0000007dc5bf7aacf178fbe090b8d57ba953ea43b7cf8a21d41c13f367f69856add6e90e5e0168ae77031e27f83e00";
-        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"5120e25207f1eba68e0ff7102a20a17303e4843f3d9636f9797592f7adfb63b4ebfa");
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51207af8eb9483b6a8b0ea535acca4de849517db66ff579eb4a7e37e0cee30d1c7df");
         assertEq(receiver.balance, 0);
         // Assert if withdrawal UTXO is stored properly
         uint256 withdrawalCount = bridge.getWithdrawalCount();

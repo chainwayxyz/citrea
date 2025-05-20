@@ -225,8 +225,8 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param prepareProof Merkle proof of the prepare transaction
     /// @param payoutTx Transaction parameters of the payout transaction on Bitcoin
     /// @param blockHeader Block header of the associated Bitcoin block
-    /// @param scriptPubKey The script pubkey of the user, included for extra validation
-    function safeWithdraw(Transaction calldata prepareTx, MerkleProof calldata prepareProof, Transaction calldata payoutTx, bytes calldata blockHeader, bytes memory scriptPubKey) external payable {
+    /// @param withdrawalAddressPubKey The script pubkey of the user that BTC is withdrawn to, included for extra validation
+    function safeWithdraw(Transaction calldata prepareTx, MerkleProof calldata prepareProof, Transaction calldata payoutTx, bytes calldata blockHeader, bytes memory withdrawalAddressPubKey) external payable {
         // Validate format and inclusion of the prepare transaction
         require(BTCUtils.validateVin(prepareTx.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(prepareTx.vout), "Vout is not properly formatted");
@@ -236,13 +236,18 @@ contract Bridge is Ownable2StepUpgradeable {
         // Validate format of payout transaction, as this transaction is not mined in this format (it's a PSBT meaning that additional inputs will be added later) its inclusion cannot be checked
         require(BTCUtils.validateVin(payoutTx.vin), "Payout vin is not properly formatted");
         (, uint256 nIns) = BTCUtils.parseVarInt(payoutTx.vin);
+        (, uint256 nOuts) = BTCUtils.parseVarInt(payoutTx.vout);
         require(nIns == 1, "Payout vin should have exactly one input");
+        require(nOuts == 1, "Payout vout should have exactly one output");
         require(BTCUtils.validateVout(payoutTx.vout), "Payout vout is not properly formatted");
         require(WitnessUtils.validateWitness(payoutTx.witness, 1), "Payout witness is not properly formatted");
         
         bytes memory payoutInput = payoutTx.vin.extractInputAtIndex(0);
-        bytes memory payoutOutput = payoutTx.vout.slice(1, payoutTx.vout.length - 1);
+        bytes memory payoutOutput = payoutTx.vout.extractOutputAtIndex(0);
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
+
+        // Assert the user provided script pubkey is the same as the one in the payout transaction's output
+        require(isBytesEqual(payoutOutput.slice(9, 34), withdrawalAddressPubKey), "Invalid payout output script pubkey");
 
         // Payout tx should spend the prepare tx, so we need to check if the txId of the input matches the txId of the prepare transaction
         bytes32 spentTxId = payoutInput.extractInputTxIdLE();
@@ -254,7 +259,6 @@ contract Bridge is Ownable2StepUpgradeable {
         require(spentOutput.length == 43, "Invalid spent output length"); // 8 bytes for amount + 1 byte for script pub key length + 2 bytes for OP_1 OP_PUSHBYTES32 + 32 bytes for the hash
         require(isBytesEqual(spentOutput.slice(8, 1), hex"22"), "Invalid spent output script pubkey length");
         require(isBytesEqual(spentOutput.slice(9, 2), hex"5120"), "Spent output is not a P2TR output"); // OP_1 OP_PUSHBYTES32
-        require(isBytesEqual(spentOutput.slice(9, 34), scriptPubKey), "Invalid spent output script pubkey");
         bytes memory pubKey = spentOutput.slice(11, 32);
         bytes4 sequence = payoutInput.extractSequenceLEWitness();
         bytes32 shaSingleOutput = sha256(abi.encodePacked(payoutOutput));
