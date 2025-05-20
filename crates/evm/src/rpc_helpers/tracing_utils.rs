@@ -5,13 +5,14 @@ use alloy_rpc_types_trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingCallOptions,
     GethDebugTracingOptions, GethTrace, NoopFrame,
 };
+use reth_rpc_eth_api::FromEthApiError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use revm::context::result::{EVMError, ResultAndState};
 use revm::context::{Cfg, CfgEnv, JournalTr, Transaction, TxEnv};
 use revm::{Context, InspectEvm, Inspector, Journal};
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
-    FourByteInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
+    FourByteInspector, MuxInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
 };
 
 use crate::db::{AccountExistsProvider, DBError};
@@ -140,7 +141,37 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         .into_localized_transaction_traces(tx_info);
                     Ok(frame.into())
                 }
-                GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
+                GethDebugBuiltInTracerType::MuxTracer => {
+                    let mux_config = tracer_config
+                        .into_mux_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+
+                    let mut inspector = MuxInspector::try_from_config(mux_config)
+                        .map_err(EthApiError::from_eth_err)?;
+
+                    let mut db_ref = EvmDbRef::new(db);
+                    let res = trace_citrea(
+                        &mut db_ref,
+                        config_env,
+                        block_env.clone(),
+                        tx_env.clone(),
+                        None,
+                        l1_fee_rate,
+                        &mut inspector,
+                    )?;
+                    let tx_info = TransactionInfo {
+                        block_number: Some(block_env.number),
+                        base_fee: Some(block_env.basefee),
+                        hash: None,
+                        block_hash: None,
+                        index: None,
+                    };
+
+                    let frame = inspector
+                        .try_into_mux_frame(&res, &db_ref, tx_info)
+                        .map_err(EthApiError::from_eth_err)?;
+                    Ok(frame.into())
+                }
                 GethDebugBuiltInTracerType::NoopTracer => Ok(NoopFrame::default().into()),
             },
             GethDebugTracerType::JsTracer(code) => {
@@ -264,7 +295,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, db_ref)
-                        .map_err(|e| EthApiError::EvmCustom(e.to_string()))?;
+                        .map_err(EthApiError::from_eth_err)?;
                     Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::FlatCallTracer => {
@@ -293,7 +324,37 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .into_localized_transaction_traces(tx_info);
                     Ok((frame.into(), res.state))
                 }
-                GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
+                GethDebugBuiltInTracerType::MuxTracer => {
+                    let mux_config = tracer_config
+                        .clone()
+                        .into_mux_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+
+                    let mut inspector = MuxInspector::try_from_config(mux_config)
+                        .map_err(EthApiError::from_eth_err)?;
+
+                    let mut db_ref = EvmDbRef::new(db);
+                    let res = trace_citrea(
+                        &mut db_ref,
+                        config_env,
+                        block_env.clone(),
+                        tx_env.clone(),
+                        Some(tx_hash),
+                        l1_fee_rate,
+                        &mut inspector,
+                    )?;
+                    let tx_info = TransactionInfo {
+                        block_number: Some(block_env.number),
+                        base_fee: Some(block_env.basefee),
+                        hash: None,
+                        block_hash: None,
+                        index: None,
+                    };
+                    let frame = inspector
+                        .try_into_mux_frame(&res, &db_ref, tx_info)
+                        .map_err(EthApiError::from_eth_err)?;
+                    return Ok((frame.into(), res.state));
+                }
                 GethDebugBuiltInTracerType::NoopTracer => {
                     Ok((NoopFrame::default().into(), Default::default()))
                 }
