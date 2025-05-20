@@ -813,6 +813,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
 
             // If cache grew too large, zkvm will error with OOM, hence, we pass
             // when to prune as hint
+            tracing::warn!("total cache size: {}", state_log.estimated_cache_size() + offchain_log.estimated_cache_size());
             if state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
                 > MAX_CUMULATIVE_CACHE_SIZE
             {
