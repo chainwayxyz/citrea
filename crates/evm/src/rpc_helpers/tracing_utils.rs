@@ -1,4 +1,6 @@
 use alloy_primitives::{TxHash, U256};
+use alloy_rpc_types::TransactionInfo;
+use alloy_rpc_types_trace::geth::call::FlatCallFrame;
 use alloy_rpc_types_trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingCallOptions,
     GethDebugTracingOptions, GethTrace, NoopFrame,
@@ -112,11 +114,34 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         .map_err(EthApiError::from_eth_err)?;
                     Ok(frame.into())
                 }
-                GethDebugBuiltInTracerType::NoopTracer => Ok(NoopFrame::default().into()),
-                GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
                 GethDebugBuiltInTracerType::FlatCallTracer => {
-                    Err(EthApiError::Unsupported("FlatCallTracer"))
+                    let flat_call_config = tracer_config
+                        .into_flat_call_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+
+                    let mut inspector = TracingInspector::new(
+                        TracingInspectorConfig::from_flat_call_config(&flat_call_config),
+                    );
+
+                    let mut db_ref = EvmDbRef::new(db);
+                    let _res = trace_citrea(
+                        &mut db_ref,
+                        config_env,
+                        block_env,
+                        tx_env.clone(),
+                        None,
+                        l1_fee_rate,
+                        &mut inspector,
+                    )?;
+                    let tx_info = TransactionInfo::default();
+                    let frame: FlatCallFrame = inspector
+                        .with_transaction_gas_limit(tx_env.gas_limit())
+                        .into_parity_builder()
+                        .into_localized_transaction_traces(tx_info);
+                    Ok(frame.into())
                 }
+                GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
+                GethDebugBuiltInTracerType::NoopTracer => Ok(NoopFrame::default().into()),
             },
             GethDebugTracerType::JsTracer(code) => {
                 let config = tracer_config.into_json();
@@ -242,12 +267,35 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .map_err(|e| EthApiError::EvmCustom(e.to_string()))?;
                     Ok((frame.into(), res.state))
                 }
-                GethDebugBuiltInTracerType::NoopTracer => {
-                    Ok((NoopFrame::default().into(), Default::default()))
+                GethDebugBuiltInTracerType::FlatCallTracer => {
+                    let flat_call_config = tracer_config
+                        .into_flat_call_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+
+                    let mut inspector = TracingInspector::new(
+                        TracingInspectorConfig::from_flat_call_config(&flat_call_config),
+                    );
+                    let mut db_ref = EvmDbRef::new(db);
+                    let res = trace_citrea(
+                        &mut db_ref,
+                        config_env,
+                        block_env,
+                        tx_env.clone(),
+                        Some(tx_hash),
+                        l1_fee_rate,
+                        &mut inspector,
+                    )?;
+
+                    let tx_info = TransactionInfo::default();
+                    let frame: FlatCallFrame = inspector
+                        .with_transaction_gas_limit(tx_env.gas_limit())
+                        .into_parity_builder()
+                        .into_localized_transaction_traces(tx_info);
+                    Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
-                GethDebugBuiltInTracerType::FlatCallTracer => {
-                    Err(EthApiError::Unsupported("FlatCallTracer"))
+                GethDebugBuiltInTracerType::NoopTracer => {
+                    Ok((NoopFrame::default().into(), Default::default()))
                 }
             },
             GethDebugTracerType::JsTracer(code) => {
