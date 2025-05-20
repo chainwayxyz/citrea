@@ -15,10 +15,6 @@ resolver = "2"
 [lib]
 proc-macro = true
 
-[[test]]
-name = "tests"
-path = "tests/all_tests.rs"
-
 [dev-dependencies]
 sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
 sov-modules-core = { path = "../sov-modules-core" }
