@@ -118,7 +118,7 @@ pub struct BitcoinService {
     pub(crate) tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
-    l1_block_hash_to_map: Arc<Mutex<LruCache<BlockHash, usize>>>,
+    l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
 }
 
 impl BitcoinService {
@@ -166,7 +166,7 @@ impl BitcoinService {
             network_constants.finality_depth,
         ));
         let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
-        let l1_block_hash_to_map =
+        let l1_block_hash_to_height =
             Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
         Ok(Self {
             client,
@@ -178,7 +178,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
-            l1_block_hash_to_map,
+            l1_block_hash_to_height,
         })
     }
 
@@ -217,7 +217,7 @@ impl BitcoinService {
             network_constants.finality_depth,
         ));
         let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
-        let l1_block_hash_to_map =
+        let l1_block_hash_to_height =
             Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
 
         Ok(Self {
@@ -230,7 +230,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
-            l1_block_hash_to_map,
+            l1_block_hash_to_height,
         })
     }
 
@@ -791,37 +791,8 @@ impl BitcoinService {
         } else {
             // If chunk does not exist, it means it is in a different block
             // Check the block height
-            let exponential_backoff = ExponentialBackoff::default();
             let tx_block_height = if let Some(tx_block_hash) = tx_block_hash {
-                if let Some(height) = self.l1_block_hash_to_map.lock().await.get(&tx_block_hash) {
-                    *height
-                } else {
-                    let res = retry_backoff(exponential_backoff, || async move {
-                        self.client
-                            .get_block_info(&tx_block_hash)
-                            .await
-                            .map_err(|e| match e {
-                                BitcoinError::Io(_) => backoff::Error::transient(e),
-                                _ => backoff::Error::permanent(e),
-                            })
-                    })
-                    .await;
-                    match res {
-                        Ok(r) => {
-                            self.l1_block_hash_to_map
-                                .lock()
-                                .await
-                                .put(tx_block_hash, r.height);
-                            r.height
-                        }
-                        Err(e) => {
-                            return Err(anyhow!(
-                                "Failed to request block by block hash:{:?} Error: {e}",
-                                tx_block_hash
-                            ));
-                        }
-                    }
-                }
+                self.get_block_height_from_block_hash(tx_block_hash).await?
             } else {
                 return Err(anyhow!(
                     "{}:{}: Failed to get block hash for chunk",
@@ -843,6 +814,44 @@ impl BitcoinService {
         }
 
         Ok(())
+    }
+
+    async fn get_block_height_from_block_hash(
+        &self,
+        tx_block_hash: BlockHash,
+    ) -> anyhow::Result<usize> {
+        if let Some(height) = self
+            .l1_block_hash_to_height
+            .lock()
+            .await
+            .get(&tx_block_hash)
+        {
+            return Ok(*height);
+        }
+        let exponential_backoff = ExponentialBackoff::default();
+        let res = retry_backoff(exponential_backoff, || async move {
+            self.client
+                .get_block_info(&tx_block_hash)
+                .await
+                .map_err(|e| match e {
+                    BitcoinError::Io(_) => backoff::Error::transient(e),
+                    _ => backoff::Error::permanent(e),
+                })
+        })
+        .await;
+        match res {
+            Ok(r) => {
+                self.l1_block_hash_to_height
+                    .lock()
+                    .await
+                    .put(tx_block_hash, r.height);
+                Ok(r.height)
+            }
+            Err(e) => Err(anyhow!(
+                "Failed to request block by block hash:{:?} Error: {e}",
+                tx_block_hash
+            )),
+        }
     }
 }
 
