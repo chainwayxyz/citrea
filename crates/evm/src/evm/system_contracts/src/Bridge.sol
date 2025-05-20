@@ -166,11 +166,11 @@ contract Bridge is Ownable2StepUpgradeable {
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = moveTx.vin.extractInputAtIndex(0);
-        bytes memory output = moveTx.vout.slice(1, moveTx.vout.length - 1);
+        bytes memory outputs = moveTx.vout.slice(1, moveTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTx.witness, 0);
 
         // Verify the P2TR Schnorr signature from n-of-n which is included in move transaction
-        verifySigInTx(input, output, witness0, moveTx.version, moveTx.locktime, shaScriptPubkeys);
+        verifySigInTx(input, outputs, witness0, moveTx.version, moveTx.locktime, shaScriptPubkeys);
 
         // Nullify the move transaction based on txId
         bytes32 txId = ValidateSPV.calculateTxId(moveTx.version, moveTx.vin, moveTx.vout, moveTx.locktime);
@@ -321,11 +321,11 @@ contract Bridge is Ownable2StepUpgradeable {
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = replaceTx.vin.extractInputAtIndex(0);
-        bytes memory output = replaceTx.vout.slice(1, replaceTx.vout.length - 1);
+        bytes memory outputs = replaceTx.vout.slice(1, replaceTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTx.witness, 0);
 
         // Verify the P2TR Schnorr signature from n-of-n which is included in replace transaction
-        verifySigInTx(input, output, witness0, replaceTx.version, replaceTx.locktime, shaScriptPubkeys);
+        verifySigInTx(input, outputs, witness0, replaceTx.version, replaceTx.locktime, shaScriptPubkeys);
 
         // Nullify the replace transaction based on txId
         bytes32 newTxId = ValidateSPV.calculateTxId(replaceTx.version, replaceTx.vin, replaceTx.vout, replaceTx.locktime);
@@ -436,11 +436,11 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Verifies a P2TR signature by reconstructing the message hash and checking it against the provided signature, see BIP-341
-    function verifySigInTx(bytes memory input, bytes memory output, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) internal view {
+    function verifySigInTx(bytes memory input, bytes memory outputs, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) internal view {
         bytes32 shaPrevouts = sha256(input.extractOutpoint());
         bytes32 shaAmounts = sha256(abi.encodePacked(bytes8(BTCUtils.reverseUint64(uint64(depositAmount/(10**10)))))); // 1000000000 in LE
         bytes32 shaSequences = sha256(abi.encodePacked(input.extractSequenceLEWitness()));
-        bytes32 shaOutputs = sha256(abi.encodePacked(output));
+        bytes32 shaOutputs = sha256(abi.encodePacked(outputs));
         bytes memory script = witness0.extractItemFromWitness(1);
         bytes memory controlBlock = witness0.extractItemFromWitness(2);
         // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
