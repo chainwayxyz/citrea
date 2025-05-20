@@ -250,7 +250,7 @@ contract Bridge is Ownable2StepUpgradeable {
 
         // Assert that the spent output is a P2TR output and that the script pubkey is the same as the one provided in parameters
         bytes4 spentIndex = payoutInput.extractTxIndexLE();
-        bytes memory spentOutput = prepareTx.vout.extractOutputAtIndex(uint32(spentIndex));
+        bytes memory spentOutput = prepareTx.vout.extractOutputAtIndex(BTCUtils.reverseUint32(uint32(spentIndex)));
         require(spentOutput.length == 43, "Invalid spent output length"); // 8 bytes for amount + 1 byte for script pub key length + 2 bytes for OP_1 OP_PUSHBYTES32 + 32 bytes for the hash
         require(isBytesEqual(spentOutput.slice(8, 1), hex"22"), "Invalid spent output script pubkey length");
         require(isBytesEqual(spentOutput.slice(9, 2), hex"5120"), "Spent output is not a P2TR output"); // OP_1 OP_PUSHBYTES32
@@ -458,8 +458,8 @@ contract Bridge is Ownable2StepUpgradeable {
     function isSchnorrSigValid(bytes memory pubKey, bytes32 messageHash, bytes memory signature) internal view returns (bool isValid) {
         require(signature.length == 64 || signature.length == 65, "Invalid signature length");
         signature = signature.slice(0, 64);
-        (, bytes memory result) = address(SCHNORR_VERIFIER_PRECOMPILE).staticcall(abi.encodePacked(pubKey, messageHash, signature));
-        isValid = result.length != 0;
+        (bool success, bytes memory result) = address(SCHNORR_VERIFIER_PRECOMPILE).staticcall(abi.encodePacked(pubKey, messageHash, signature));
+        isValid = success && (result.length == 32) && (result[31] == 0x01);
     }
 
     function taggedHash(string memory tag, bytes memory message) internal pure returns (bytes32) {

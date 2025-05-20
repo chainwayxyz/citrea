@@ -67,22 +67,27 @@ contract MockSchnorrPrecompile {
         if (px >= PP || rx >= PP || s >= NN) {
             return hex"";
         }
-
-        (address exp, bool ok) = convToFakeAddr(rx);
+        
+        (address exp_, bool ok) = convToFakeAddr(rx);
         if (!ok) {
             return hex"";
         }
-
+        
         uint256 e = computeChallenge(bytes32(rx), bytes32(px), m);
         bytes32 sp = bytes32(NN - mulmod(s, px, NN));
         bytes32 ep = bytes32(NN - mulmod(e, px, NN));
-
-        // 27 apparently used to signal even parity (which it will always have).
         address rvh = ecrecover(sp, 27, bytes32(px), ep);
-        if (rvh == exp) {
-            return hex"0000000000000000000000000000000000000000000000000000000000000001";
-        } else {
-            return hex"";
+        
+        assembly {
+            if eq(rvh, exp_) {
+                let result := mload(0x40)
+                mstore(0x40, add(result, 0x20))
+                mstore(result, 1)
+                return(result, 0x20)
+            }
+            let result := mload(0x40)
+            mstore(0x40, result)
+            return(result, 0)
         }
     }
 
@@ -492,6 +497,22 @@ contract BridgeTest is Test {
         bytes memory output = testParams.vout.slice(1, testParams.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(testParams.witness, 0);
         bridge.verifySigInTx_(input, output, witness0, version, locktime, shaScriptPubkeys);
+    }
+
+    function testCannotVerifySigInTx() public {
+        version = hex"03000000";
+        locktime = hex"00000000";
+        vin = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
+        Bridge.Transaction memory testParams = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        bytes memory input = testParams.vin.extractInputAtIndex(0);
+        bytes memory output = testParams.vout.slice(1, testParams.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(testParams.witness, 0);
+        vm.expectRevert("Invalid signature");
+        bridge.verifySigInTx_(input, output, witness0, version, locktime, hex"");
     }
 
     function testDepositRedirectsWhenReceiverReverts() public {
