@@ -5,7 +5,7 @@ use alloy_rpc_types_trace::geth::{
 };
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use revm::context::result::{EVMError, ResultAndState};
-use revm::context::{Cfg, CfgEnv, JournalTr, TxEnv};
+use revm::context::{Cfg, CfgEnv, JournalTr, Transaction, TxEnv};
 use revm::{Context, InspectEvm, Inspector, Journal};
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
@@ -72,11 +72,12 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         TracingInspectorConfig::from_geth_call_config(&call_config),
                     );
 
+                    let mut db_ref = EvmDbRef::new(db);
                     let res = trace_citrea(
-                        db,
-                        config_env,
-                        block_env,
-                        tx_env,
+                        &mut db_ref,
+                        config_env.clone(),
+                        block_env.clone(),
+                        tx_env.clone(),
                         None,
                         l1_fee_rate,
                         &mut inspector,
@@ -87,9 +88,29 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                     Ok(frame.into())
                 }
                 GethDebugBuiltInTracerType::PreStateTracer => {
-                    // Requires DatabaseRef trait
-                    // meaning we need a readonly state to implement this
-                    Err(EthApiError::Unsupported("PreStateTracer"))
+                    let prestate_config = tracer_config
+                        .into_pre_state_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+                    let mut inspector = TracingInspector::new(
+                        TracingInspectorConfig::from_geth_prestate_config(&prestate_config),
+                    );
+
+                    let mut db_ref = EvmDbRef::new(db);
+                    let res = trace_citrea(
+                        &mut db_ref,
+                        config_env,
+                        block_env,
+                        tx_env.clone(),
+                        None,
+                        l1_fee_rate,
+                        &mut inspector,
+                    )?;
+                    let frame = inspector
+                        .with_transaction_gas_limit(tx_env.gas_limit())
+                        .into_geth_builder()
+                        .geth_prestate_traces(&res, &prestate_config, &db_ref)
+                        .map_err(EthApiError::from_eth_err)?;
+                    Ok(frame.into())
                 }
                 GethDebugBuiltInTracerType::NoopTracer => Ok(NoopFrame::default().into()),
                 GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
@@ -105,7 +126,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                 let mut db_ref = EvmDbRef::new(db);
                 let result_and_state = trace_citrea(
                     &mut db_ref,
-                    config_env.clone(),
+                    config_env,
                     block_env.clone(),
                     tx_env.clone(),
                     None,
@@ -198,9 +219,28 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::PreStateTracer => {
-                    // Requires DatabaseRef trait
-                    // meaning we need a readonly state to implement this
-                    Err(EthApiError::Unsupported("PreStateTracer"))
+                    let prestate_config = tracer_config
+                        .into_pre_state_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+                    let mut inspector = TracingInspector::new(
+                        TracingInspectorConfig::from_geth_prestate_config(&prestate_config),
+                    );
+                    let mut db_ref = EvmDbRef::new(db);
+                    let res = trace_citrea(
+                        &mut db_ref,
+                        config_env,
+                        block_env,
+                        tx_env.clone(),
+                        Some(tx_hash),
+                        l1_fee_rate,
+                        &mut inspector,
+                    )?;
+                    let frame = inspector
+                        .with_transaction_gas_limit(tx_env.gas_limit())
+                        .into_geth_builder()
+                        .geth_prestate_traces(&res, &prestate_config, db_ref)
+                        .map_err(|e| EthApiError::EvmCustom(e.to_string()))?;
+                    Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::NoopTracer => {
                     Ok((NoopFrame::default().into(), Default::default()))
