@@ -4,7 +4,8 @@ use alloy_primitives::ruint::aliases::U256;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes};
 use alloy_rpc_types::{BlockNumberOrTag, TransactionInput, TransactionRequest};
-use alloy_rpc_types_trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
+use alloy_rpc_types_trace::geth::call::FlatCallFrame;
+use alloy_rpc_types_trace::geth::GethTrace::{self, CallTracer, FlatCallTracer, FourByteTracer};
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
     GethDebugTracingCallOptions, GethDebugTracingOptions, TraceResult,
@@ -120,7 +121,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let call_frame_call_trace = test_client
-        .debug_trace_call(tx_request, None, Some(opts))
+        .debug_trace_call(tx_request.clone(), None, Some(opts))
         .await;
 
     let json_value = serde_json::from_value::<CallFrame>(json! [{
@@ -151,6 +152,57 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     assert!(matches!(call_frame_call_trace, GethTrace::CallTracer(_)));
 
     assert_eq!(call_frame_call_trace, CallTracer(json_value.clone()));
+
+    let opts = GethDebugTracingCallOptions::default().with_tracing_options(
+        GethDebugTracingOptions::default().with_tracer(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::FlatCallTracer,
+        )),
+    );
+
+    let flat_call_frame_trace = test_client
+        .debug_trace_call(tx_request.clone(), None, Some(opts))
+        .await;
+
+    let json_value = serde_json::from_value::<FlatCallFrame>(json! [[{
+        "action": {
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "callType": "call",
+            "gas": "0x1c9c380",
+            "input": "0xb7d5b6580000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000000000000000000000000000000000000000000003",
+            "to": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+            "value": "0x0"
+        },
+        "result": {
+            "gasUsed": "0x6621",
+            "output": "0x"
+        },
+        "subtraces": 1,
+        "traceAddress": [],
+        "type": "call"
+    }, {
+        "action": {
+            "from": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+            "callType": "call",
+            "gas": "0x1c23bb5",
+            "input": "0x60fe47b10000000000000000000000000000000000000000000000000000000000000003",
+            "to": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+            "value": "0x0"
+        },
+        "result": {
+            "gasUsed": "0x57f2",
+            "output": "0x"
+        },
+        "subtraces": 0,
+        "traceAddress": [0],
+        "type": "call"
+    }]]).unwrap();
+
+    // now let's check if the traces are correct
+    assert!(matches!(
+        flat_call_frame_trace,
+        GethTrace::FlatCallTracer(_)
+    ));
+    assert_eq!(flat_call_frame_trace, FlatCallTracer(json_value.clone()));
 
     // call the set method from the caller contract
     let tx_hash = {
