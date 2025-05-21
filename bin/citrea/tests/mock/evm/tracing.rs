@@ -407,7 +407,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         )),
     );
     let call_frame_call_trace = test_client
-        .debug_trace_call(tx_request, None, Some(opts))
+        .debug_trace_call(tx_request.clone(), None, Some(opts))
         .await
         .try_into_call_frame()
         .unwrap();
@@ -425,6 +425,38 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         call_frame_call_trace.value,
         Some(U256::from(5_000_000_000_000_000_000u128))
     );
+
+    let opts = GethDebugTracingCallOptions::default().with_tracing_options(
+        GethDebugTracingOptions::default().with_tracer(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::FlatCallTracer,
+        )),
+    );
+    let flat_call_frame_call_trace = test_client
+        .debug_trace_call(tx_request, None, Some(opts))
+        .await
+        .try_into_flat_call_frame()
+        .unwrap();
+
+    let expected_result = serde_json::from_value::<FlatCallFrame>(json![[{
+        "action": {
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "callType": "call",
+            "gas": "0x1c9c380",
+            "input": "0x",
+            "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92255",
+            "value": "0x4563918244f40000"
+        },
+        "result": {
+            "gasUsed": "0x0",
+            "output": "0x"
+        },
+        "subtraces":0,
+        "traceAddress":[],
+        "type": "call"
+    }]])
+    .unwrap();
+
+    assert_eq!(expected_result, flat_call_frame_call_trace);
 
     let send_eth_req = test_client
         .send_eth(addr, None, None, None, 5_000_000_000_000_000_000u128)
