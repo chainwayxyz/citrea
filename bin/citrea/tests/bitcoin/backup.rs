@@ -24,7 +24,7 @@ use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count, wait
 
 const API_KEY: &str = "12345";
 
-// Helper method to call create_backup with API_KEY
+// Helper method to call `backup_create` with API_KEY
 async fn create_backup(
     client: &HttpClient,
     path: Option<&Path>,
@@ -37,7 +37,7 @@ async fn create_backup(
         .await?)
 }
 
-// Helper method to call create_backup with API_KEY
+// Helper method to call `backup_validate` with API_KEY
 async fn validate_backup(
     client: &HttpClient,
     path: Option<&Path>,
@@ -50,7 +50,7 @@ async fn validate_backup(
         .await?)
 }
 
-// Helper method to call create_backup with API_KEY
+// Helper method to call `backup_info` with API_KEY
 async fn get_backup_info(
     client: &HttpClient,
     path: Option<&Path>,
@@ -61,7 +61,7 @@ async fn get_backup_info(
 }
 
 /**
- * Tests backup and restore functionality for the sequencer node.
+ * Tests backup and post-rollback backup for the sequencer node.
  *
  * # Flow
  * 1. Tests RPC guards, auth and non-existant paths
@@ -316,7 +316,7 @@ async fn test_backup_sequencer() -> Result<()> {
 }
 
 /**
- * Tests backup and restore functionality for the full node.
+ * Tests backup and post-rollback backup for the full node.
  *
  * # Flow
  * 1. Generate L2 blocks and commitments on the sequencer
@@ -598,7 +598,7 @@ async fn test_backup_full_node() -> Result<()> {
 }
 
 /**
- * Tests backup and restore functionality for the batch prover.
+ * Tests backup and post-rollback backup for the batch prover.
  *
  * # Flow
  * 1. Generate L2 blocks and commitments
@@ -919,7 +919,7 @@ async fn test_backup_batch_prover() -> Result<()> {
 }
 
 /**
- * Tests backup and restore functionality for the light client prover.
+ * Tests backup and post-rollback backup for the light client prover.
  *
  * # Flow
  * 1. Generate blocks, commitments, and proofs with sequencer and batch prover
