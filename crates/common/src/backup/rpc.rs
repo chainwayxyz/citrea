@@ -13,7 +13,7 @@ use super::{BackupManager, CreateBackupInfo};
 
 /// Response from backup validation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationResponse {
+pub struct BackupValidationResponse {
     /// Path that was validated
     pub backup_path: PathBuf,
     /// Whether the backup at the path is valid
@@ -41,7 +41,7 @@ pub trait BackupRpc {
     async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo>;
 
     #[method(name = "validate")]
-    async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse>;
+    async fn backup_validate(&self, path: PathBuf) -> RpcResult<BackupValidationResponse>;
 
     #[method(name = "info")]
     async fn backup_info(
@@ -79,14 +79,14 @@ impl BackupRpcServer for BackupRpcServerImpl {
             })
     }
 
-    async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse> {
+    async fn backup_validate(&self, path: PathBuf) -> RpcResult<BackupValidationResponse> {
         let res = match self.backup_manager.validate_backup(&path) {
-            Ok(()) => ValidationResponse {
+            Ok(()) => BackupValidationResponse {
                 backup_path: path,
                 is_valid: true,
                 message: None,
             },
-            Err(e) => ValidationResponse {
+            Err(e) => BackupValidationResponse {
                 backup_path: path,
                 is_valid: false,
                 message: Some(e.to_string()),

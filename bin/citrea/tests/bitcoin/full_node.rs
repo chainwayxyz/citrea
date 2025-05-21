@@ -24,10 +24,10 @@ use super::light_client_test::{
     create_random_state_diff, create_serialized_fake_receipt_batch_proof, TEN_MINS,
 };
 use super::{get_citrea_cli_path, get_citrea_path};
-use crate::bitcoin::batch_prover_test::{
-    wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs,
+use crate::bitcoin::utils::{
+    spawn_bitcoin_da_service, wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs,
+    DaServiceKeyKind,
 };
-use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
     let leaves: Vec<[u8; 32]> = blocks

@@ -20,8 +20,8 @@ use citrea_primitives::forks::{get_forks, use_network_forks};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::Network;
 
-use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
+use crate::bitcoin::utils::wait_for_zkproofs;
 use crate::common::client::TestClient;
 use crate::common::make_test_client;
 

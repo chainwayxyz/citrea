@@ -37,11 +37,11 @@ use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::Network;
 
-use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PUBLIC_KEY;
-use crate::bitcoin::batch_prover_test::wait_for_prover_job;
-use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
+use crate::bitcoin::utils::{
+    spawn_bitcoin_da_service, wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
+};
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
