@@ -30,6 +30,14 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 citrea-evm = { path = "../evm" }
 l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer" }
 
+[dev-dependencies]
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state", features = ["native"] }
+tempfile = { workspace = true }
+
 [features]
 default = []
 native = [

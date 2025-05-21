@@ -24,7 +24,7 @@ use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::error::ProofError;
+use crate::error::{CommitmentError, HaltingError, ProcessingError, ProofError, SkippableError};
 use crate::metrics::FULLNODE_METRICS;
 
 enum ProcessingResult {
@@ -165,7 +165,17 @@ where
                         )
                         .await
                     {
-                        error!("Could not process sequencer commitments: {e}... skipping");
+                        match e {
+                            ProcessingError::HaltingError(HaltingError::Commitment(e)) => {
+                                error!(
+                                    "Halting error while processing sequencer commitment: {e:?}"
+                                );
+                                return Err(HaltingError::Commitment(e).into());
+                            }
+                            _ => {
+                                error!("Failed to process sequencer commitment: {e:?}");
+                            }
+                        }
                     }
                 }
                 ProofOrCommitment::Proof(proof) => {
@@ -177,7 +187,15 @@ where
                         )
                         .await
                     {
-                        error!("Could not process ZK proofs: {e}... skipping...");
+                        match e {
+                            ProcessingError::HaltingError(HaltingError::Proof(e)) => {
+                                error!("Halting error while processing zk proof: {e:?}");
+                                return Err(HaltingError::Proof(e).into());
+                            }
+                            _ => {
+                                error!("Could not process ZK proofs: {e}... skipping...");
+                            }
+                        }
                     }
                 }
             }
@@ -187,14 +205,30 @@ where
             .process_pending_commitments(l1_block.header().height())
             .await
         {
-            error!("Error processing pending commitments: {e}");
+            match e {
+                ProcessingError::HaltingError(HaltingError::Commitment(e)) => {
+                    error!("Halting error while processing pending commitments: {e:?}");
+                    return Err(HaltingError::Commitment(e).into());
+                }
+                _ => {
+                    warn!("Failed to process pending commitments: {e:?}");
+                }
+            }
         }
 
         if let Err(e) = self
             .process_pending_proofs(l1_block.header().height())
             .await
         {
-            error!("Error processing pending proofs: {e}");
+            match e {
+                ProcessingError::HaltingError(HaltingError::Proof(e)) => {
+                    error!("Halting error while processing pending proofs: {e:?}");
+                    return Err(HaltingError::Proof(e).into());
+                }
+                _ => {
+                    error!("Failed to process pending proofs: {e:?}");
+                }
+            }
         }
 
         self.ledger_db
@@ -211,7 +245,7 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         sequencer_commitment: &SequencerCommitment,
-    ) -> anyhow::Result<ProcessingResult> {
+    ) -> Result<ProcessingResult, ProcessingError> {
         // Skip if we already processed commitment with same index
         if let Some(existing_commitment) = self
             .ledger_db
@@ -332,15 +366,18 @@ where
         );
 
         if l2_blocks_tree.root() != Some(sequencer_commitment.merkle_root) {
-            return Err(anyhow!(
-                "Merkle root mismatch - expected 0x{} but got 0x{}. Skipping commitment.",
-                hex::encode(
-                    l2_blocks_tree
-                        .root()
-                        .ok_or(anyhow!("Could not calculate l2 block tree root"))?
-                ),
-                hex::encode(sequencer_commitment.merkle_root)
-            ));
+            return Err(
+                HaltingError::Commitment(CommitmentError::MerkleRootMismatch(format!(
+                    "Merkle root mismatch - expected 0x{} but got 0x{}. Skipping commitment.",
+                    hex::encode(
+                        l2_blocks_tree
+                            .root()
+                            .ok_or(anyhow!("Could not calculate l2 block tree root"))?
+                    ),
+                    hex::encode(sequencer_commitment.merkle_root)
+                )))
+                .into(),
+            );
         }
 
         self.ledger_db.update_commitments_on_da_slot(
@@ -373,7 +410,7 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         proof: Proof,
-    ) -> Result<ProcessingResult, ProofError> {
+    ) -> Result<ProcessingResult, ProcessingError> {
         tracing::info!(
             "Processing zk proof at height: {}",
             found_in_l1_block_height
@@ -407,7 +444,7 @@ where
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
-    ) -> Result<ProcessingResult, ProofError> {
+    ) -> Result<ProcessingResult, ProcessingError> {
         let last_l1_hash_on_bitcoin_light_client_contract =
             batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
         if self
@@ -415,7 +452,7 @@ where
             .get_l1_height_of_l1_hash(last_l1_hash_on_bitcoin_light_client_contract)?
             .is_none()
         {
-            return Err(ProofError::UnknownL1Hash);
+            return Err(SkippableError::Proof(ProofError::UnknownL1Hash).into());
         }
 
         let sequencer_commitment_index_range =
@@ -501,11 +538,11 @@ where
                 })?;
 
         if start_state_root.as_ref() != initial_state_root.as_ref() {
-            return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(initial_state_root),
-                    hex::encode(start_state_root)
-                ).into());
+            return Err(SkippableError::Proof(ProofError::PreStateRootMismatch(
+                hex::encode(initial_state_root),
+                hex::encode(start_state_root),
+            ))
+            .into());
         }
 
         if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
@@ -547,7 +584,7 @@ where
     async fn process_pending_commitments(
         &self,
         current_l1_block_height: u64,
-    ) -> Result<(), ProofError> {
+    ) -> Result<(), ProcessingError> {
         let pending_commitments = self.ledger_db.get_pending_commitments()?;
         if pending_commitments.is_empty() {
             return Ok(());
@@ -574,10 +611,18 @@ where
                     )
                     .await
                 {
-                    Err(e) => {
-                        warn!("Failed to process pending commitment with index {index}: {e:?}");
-                        break;
-                    }
+                    Err(e) => match e {
+                        ProcessingError::HaltingError(HaltingError::Commitment(e)) => {
+                            error!(
+                                "Halting error while processing pending commitment with index {index}: {e:?}"
+                            );
+                            return Err(HaltingError::Commitment(e).into());
+                        }
+                        _ => {
+                            warn!("Failed to process pending commitment with index {index}: {e:?}");
+                            break;
+                        }
+                    },
                     Ok(ProcessingResult::Success) => {
                         info!("Successfully processed pending commitment {index}");
                         self.ledger_db.remove_pending_commitment(index)?;
@@ -599,7 +644,10 @@ where
         Ok(())
     }
 
-    async fn process_pending_proofs(&self, current_l1_block_height: u64) -> Result<(), ProofError> {
+    async fn process_pending_proofs(
+        &self,
+        current_l1_block_height: u64,
+    ) -> Result<(), ProcessingError> {
         let pending_proofs = self.ledger_db.get_pending_proofs()?;
         if pending_proofs.is_empty() {
             return Ok(());
@@ -639,29 +687,33 @@ where
         idx: u32,
         expected_hash: [u8; 32],
         proof_is_pending: &mut bool,
-    ) -> Result<u64, ProofError> {
-        let sequencer_commitment =
-            if let Some(sequencer_commitment) = self.ledger_db.get_commitment_by_index(idx)? {
-                sequencer_commitment
-            } else if let Some((sequencer_commitment, _)) =
-                self.ledger_db.get_pending_commitment_by_index(idx)?
-            {
-                // If we have a pending commitment, we need to store the proof as pending
-                info!("Proof has a pending commitment with index: {}.", idx);
-                *proof_is_pending = true;
-                sequencer_commitment
-            } else {
-                return Err(ProofError::SequencerCommitmentMissingForProof(idx));
-            };
+    ) -> Result<u64, ProcessingError> {
+        let sequencer_commitment = if let Some(sequencer_commitment) =
+            self.ledger_db.get_commitment_by_index(idx)?
+        {
+            sequencer_commitment
+        } else if let Some((sequencer_commitment, _)) =
+            self.ledger_db.get_pending_commitment_by_index(idx)?
+        {
+            // If we have a pending commitment, we need to store the proof as pending
+            info!("Proof has a pending commitment with index: {}.", idx);
+            *proof_is_pending = true;
+            sequencer_commitment
+        } else {
+            return Err(
+                SkippableError::Proof(ProofError::SequencerCommitmentMissingForProof(idx)).into(),
+            );
+        };
 
         // Check if hash matches
         if sequencer_commitment.serialize_and_calculate_sha_256() != expected_hash {
-            return Err(anyhow!(
-                "Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
-                hex::encode(expected_hash)
-            )
-            .into());
+            return Err(
+                SkippableError::Proof(ProofError::SequencerCommitmentHashMismatch(
+                    hex::encode(sequencer_commitment.serialize_and_calculate_sha_256()),
+                    hex::encode(expected_hash),
+                ))
+                .into(),
+            );
         }
         Ok(sequencer_commitment.l2_end_block_number)
     }

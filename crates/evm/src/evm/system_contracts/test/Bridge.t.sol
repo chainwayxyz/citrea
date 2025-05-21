@@ -62,24 +62,33 @@ contract MockSchnorrPrecompile {
         return abi.encode(verify(px, rx, s, m));
     }
 
-    function verify(uint256 px, uint256 rx, uint256 s, bytes32 m) public pure returns (bool) {
+    function verify(uint256 px, uint256 rx, uint256 s, bytes32 m) public pure returns (bytes memory) {
         // Check pubkey, rx, and s are in-range.
         if (px >= PP || rx >= PP || s >= NN) {
-            return false;
+            return hex"";
         }
-
-        (address exp, bool ok) = convToFakeAddr(rx);
+        
+        (address exp_, bool ok) = convToFakeAddr(rx);
         if (!ok) {
-            return false;
+            return hex"";
         }
-
+        
         uint256 e = computeChallenge(bytes32(rx), bytes32(px), m);
         bytes32 sp = bytes32(NN - mulmod(s, px, NN));
         bytes32 ep = bytes32(NN - mulmod(e, px, NN));
-
-        // 27 apparently used to signal even parity (which it will always have).
         address rvh = ecrecover(sp, 27, bytes32(px), ep);
-        return rvh == exp; // if recovery fails we fail anyways
+        
+        assembly {
+            if eq(rvh, exp_) {
+                let result := mload(0x40)
+                mstore(0x40, add(result, 0x20))
+                mstore(result, 1)
+                return(result, 0x20)
+            }
+            let result := mload(0x40)
+            mstore(0x40, result)
+            return(result, 0)
+        }
     }
 
     function liftX(uint256 _x) internal pure returns (uint256, bool) {
@@ -490,6 +499,22 @@ contract BridgeTest is Test {
         bridge.verifySigInTx_(input, output, witness0, version, locktime, shaScriptPubkeys);
     }
 
+    function testCannotVerifySigInTx() public {
+        version = hex"03000000";
+        locktime = hex"00000000";
+        vin = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
+        Bridge.Transaction memory testParams = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        bytes memory input = testParams.vin.extractInputAtIndex(0);
+        bytes memory output = testParams.vout.slice(1, testParams.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(testParams.witness, 0);
+        vm.expectRevert("Invalid signature");
+        bridge.verifySigInTx_(input, output, witness0, version, locktime, hex"");
+    }
+
     function testDepositRedirectsWhenReceiverReverts() public {
         RevertingReceiver rev = new RevertingReceiver();
         vm.etch(receiver, address(rev).code); 
@@ -545,36 +570,36 @@ contract BridgeTest is Test {
     function testSafeWithdraw() public {
         doDeposit();
         vm.prank(SYSTEM_CALLER);
-        bitcoinLightClient.setBlockInfo(hex"7E7EE8A9979BF7FBE3B4CFC2FB153678242AE3985804CF934D1A91761A000000", witnessRoot, 1);
+        bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
         vm.startPrank(receiver);
         Bridge.Transaction memory prepareTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
-            hex"01f0f0871a6383736d4602cb1d9349e3e61e94feb8424c82d7e63f957aba0992b40000000000fdffffff", 
-            hex"022202000000000000225120e25207f1eba68e0ff7102a20a17303e4843f3d9636f9797592f7adfb63b4ebfa5e87ad2f000000002251209ec141365b28c3f60984ccbe4d952a6d0cd10c6bab461478b8b4b8cf49a92bf9", 
-            hex"0140ade5c3f7d1b7bed436c347255c2fb36ebe3f2425e56be511f767d37829290e5ec2b8ef8b09b5987f150a2633dea4175eba362d22922926cdd05169908a626300",
-            hex"00000000"
+            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
+            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36", 
+            hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
+            hex"d5000000"
         );
         Bridge.MerkleProof memory proof = Bridge.MerkleProof(
-            hex"C171A2B20DE967DD5909A640787F2E5051FFE319CE65F3F46CB8484115B44B36",
+            hex"f70aa9fc12ea0cea3947a2892e8b4c2970b1d7f1cb3e2411dc83141d17b1ce5573a03a23cb4e62a4ae2eb692ff0cef81f6289472694613dd83a3e40251ad6dbf",
             INITIAL_BLOCK_NUMBER + 1,
-            1
+            2
         );
         Bridge.Transaction memory payoutTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
-            hex"018555c5cad6be32233afb241591f98f7154ae672f408acf9337979d657f2fdb0d0000000000fdffffff", 
-            hex"01009d693a000000002251207af8eb9483b6a8b0ea535acca4de849517db66ff579eb4a7e37e0cee30d1c7df", 
-            hex"0141cfcc332ff3295cec0aa7bf7395e09014ef91ca59fd00f7764587789d0d125b414c95f5fe204481d3509fc513f236061f981df4c9fb93b5f6be72118581dc413d83",
+            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
+            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90", 
+            hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
             hex"00000000"
         );
-        bytes memory header = hex"000000204be87d063f22ad8b0232b5507de4a980105efbd3a9ef166f9aefb43cda0000007dc5bf7aacf178fbe090b8d57ba953ea43b7cf8a21d41c13f367f69856add6e90e5e0168ae77031e27f83e00";
-        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"5120e25207f1eba68e0ff7102a20a17303e4843f3d9636f9797592f7adfb63b4ebfa");
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
         assertEq(receiver.balance, 0);
         // Assert if withdrawal UTXO is stored properly
         uint256 withdrawalCount = bridge.getWithdrawalCount();
         (bytes32 txId, bytes4 outputId) = bridge.withdrawalUTXOs(withdrawalCount - 1);
-        assertEq(txId, hex"8555C5CAD6BE32233AFB241591F98F7154AE672F408ACF9337979D657F2FDB0D");
-        assertEq(outputId, hex"00000000");  
+        assertEq(txId, hex"9e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af78");
+        assertEq(outputId, hex"01000000");  
     }
 }

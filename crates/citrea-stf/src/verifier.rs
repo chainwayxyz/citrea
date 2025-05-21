@@ -195,3 +195,479 @@ where
 {
     (BorshCodec {}).decode_value_unwrap(&bytes)
 }
+
+#[cfg(test)]
+mod tests {
+
+    use sov_modules_api::default_context::DefaultContext;
+    use sov_modules_api::{StateReaderAndWriter, WorkingSet};
+    use sov_prover_storage_manager::ProverStorageManager;
+    use sov_state::storage::StorageValue;
+    use sov_state::{Config as StorageConfig, ProverStorage, ReadWriteLog, ZkStorage};
+
+    use super::*;
+
+    fn init_storage_manager() -> ProverStorageManager {
+        let dir = tempfile::tempdir().unwrap();
+        let storage_config = StorageConfig {
+            path: dir.path().to_path_buf(),
+            db_max_open_files: None,
+        };
+        ProverStorageManager::new(storage_config).unwrap()
+    }
+
+    fn set_next_l1_height(working_set: &mut WorkingSet<ProverStorage>) {
+        // Set Next L1 height for light client contract
+        let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
+        let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        let value = StorageValue::new(&U256::from(1), &BorshCodec);
+        working_set.set(&key, value);
+    }
+
+    fn cache_next_l1_height(working_set: &mut WorkingSet<ProverStorage>) {
+        // Set Next L1 height for light client contract
+        let prefix = Evm::<ZkDefaultContext>::default().storage.prefix().clone();
+        let inner_evm_key = Evm::<ZkDefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &U256::ZERO,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        working_set.get(&key);
+    }
+
+    fn set_last_l1_hash(working_set: &mut WorkingSet<ProverStorage>) {
+        let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&U256::from(0).to_be_bytes::<32>());
+        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+        let evm_storage_slot = keccak256(bytes).into();
+        let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &evm_storage_slot,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        working_set.set(&key, StorageValue::new(&U256::from(1000), &BorshCodec));
+    }
+
+    fn cache_last_l1_hash(working_set: &mut WorkingSet<ProverStorage>) {
+        let prefix = Evm::<DefaultContext>::default().storage.prefix().clone();
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&U256::from(0).to_be_bytes::<32>());
+        bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
+        let evm_storage_slot = keccak256(bytes).into();
+        let inner_evm_key = Evm::<DefaultContext>::get_storage_address(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &evm_storage_slot,
+        );
+        let key = StorageKey::new(&prefix, &inner_evm_key, &BorshCodec);
+        working_set.get(&key);
+    }
+
+    fn commit(
+        storage_manager: &mut ProverStorageManager,
+        prover_storage: ProverStorage,
+        working_set: WorkingSet<ProverStorage>,
+    ) -> (ReadWriteLog, Witness) {
+        // Next block to make sure prover_storage inner DBs have no more than 1 strong reference
+        let (state_log, witness) = {
+            let mut checkpoint = working_set.checkpoint();
+            let (state_log, mut witness) = checkpoint.freeze();
+
+            let (_, state_update, _) = prover_storage
+                .compute_state_update(&state_log, &mut witness, true)
+                .expect("Storage update must succeed");
+
+            let accessory_log = checkpoint.freeze_non_provable();
+            let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
+            prover_storage.commit(&state_update, &accessory_log, &offchain_log);
+
+            (state_log, witness)
+        };
+        storage_manager.finalize_storage(prover_storage);
+
+        (state_log, witness)
+    }
+
+    #[test]
+    #[should_panic(expected = "Next L1 height should exist in storage")]
+    fn test_no_l1_next_height_for_get_last_l1_hash_on_contract_failure() {
+        // Setup mock storage and witness
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let working_set = WorkingSet::new(prover_storage.clone());
+        commit(&mut storage_manager, prover_storage, working_set);
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Call the function with mock data that will cause it to fail
+        // Simulate a missing key in storage to trigger the failure
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut Witness::default(),
+            final_state_root,
+        );
+    }
+    #[test]
+    #[should_panic(expected = "Last L1 hash should exist in storage")]
+    fn test_no_get_last_l1_hash_on_contract_failure() {
+        // Setup mock storage and witness
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let working_set = WorkingSet::new(prover_storage.clone());
+        commit(&mut storage_manager, prover_storage, working_set);
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_next_l1_height(&mut working_set);
+
+        let mut checkpoint = working_set.checkpoint();
+        let (state_log, _) = checkpoint.freeze();
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Call the function with mock data that will cause it to fail
+        // Simulate a missing key in storage to trigger the failure
+        get_last_l1_hash_on_contract::<DefaultContext>(
+            state_log,
+            prover_storage,
+            &mut Witness::default(), // witness does not matter here
+            final_state_root,
+        );
+    }
+
+    #[test]
+    fn test_get_last_l1_hash_on_contract() {
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_last_l1_hash(&mut working_set);
+        set_next_l1_height(&mut working_set);
+        let _ = commit(&mut storage_manager, prover_storage, working_set);
+
+        // Only height is cached
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage);
+
+        cache_next_l1_height(&mut working_set);
+        let state_log = working_set.checkpoint().freeze().0;
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Call the function with mock data
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+            state_log,
+            prover_storage,
+            &mut Witness::default(), // witness does not matter here
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // Only hash is cached
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage);
+
+        cache_last_l1_hash(&mut working_set);
+        let state_log = working_set.checkpoint().freeze().0;
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Call the function with mock data
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+            state_log,
+            prover_storage,
+            &mut Witness::default(), // witness does not matter here
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // Boths is cached
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage);
+
+        cache_next_l1_height(&mut working_set);
+        cache_last_l1_hash(&mut working_set);
+        let state_log = working_set.checkpoint().freeze().0;
+
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        // Call the function with mock data
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+            state_log,
+            prover_storage,
+            &mut Witness::default(), // witness does not matter here
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+    }
+
+    #[test]
+    fn test_get_last_l1_hash_on_contract_with_no_cache() {
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let final_state_root = [0u8; 32]; // Mock final state root
+
+        // Shows that no cache works
+        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut Witness::default(), // witness does not matter here
+            final_state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+    }
+
+    #[test]
+    fn test_get_last_l1_hash_on_contract_and_verify_with_zkcontext() {
+        // set up storage
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+
+        // try the native --> zk flow without the values being in cache
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut witness = Witness::default();
+
+        // root was found by running the test
+        let state_root = [
+            7, 86, 209, 84, 188, 43, 20, 206, 77, 83, 166, 176, 24, 255, 207, 214, 80, 9, 121, 121,
+            224, 119, 248, 189, 79, 241, 89, 51, 108, 134, 95, 82,
+        ];
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // Let's see if native --> zk flow works when the values are in cache
+
+        let get_read_write_log_with_both_cached = || {
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
+            let mut working_set = WorkingSet::new(prover_storage.clone());
+            cache_next_l1_height(&mut working_set);
+            cache_last_l1_hash(&mut working_set);
+
+            let log = working_set.checkpoint().freeze().0;
+
+            assert_eq!(log.ordered_reads().len(), 2);
+
+            log
+        };
+
+        let mut witness = Witness::default();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            get_read_write_log_with_both_cached(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            get_read_write_log_with_both_cached(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // only height is cached
+        let get_read_write_log_with_height_cached = || {
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
+            let mut working_set = WorkingSet::new(prover_storage.clone());
+            cache_next_l1_height(&mut working_set);
+
+            let log = working_set.checkpoint().freeze().0;
+
+            assert_eq!(log.ordered_reads().len(), 1);
+
+            log
+        };
+
+        let mut witness = Witness::default();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            get_read_write_log_with_height_cached(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            get_read_write_log_with_height_cached(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+
+        // only hash is cached
+        let get_read_write_log_with_hash_cached = || {
+            let prover_storage = storage_manager.create_storage_for_next_l2_height();
+            let mut working_set = WorkingSet::new(prover_storage.clone());
+            cache_last_l1_hash(&mut working_set);
+
+            let log = working_set.checkpoint().freeze().0;
+
+            assert_eq!(log.ordered_reads().len(), 1);
+
+            log
+        };
+
+        let mut witness = Witness::default();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            get_read_write_log_with_hash_cached(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            get_read_write_log_with_hash_cached(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+        // Assert the result is as expected (mocked value)
+        assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
+    }
+
+    #[test]
+    #[should_panic(expected = "JMT proof verification failed: Root hashes do not match.")]
+    fn test_get_last_l1_hash_on_contract_fail_in_zkcontext_by_incorrect_update_proof() {
+        // set up storage
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+
+        // try the native --> zk flow without the values being in cache
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut witness = Witness::default();
+
+        // incorrect state root known by zk
+        // so that we can make the read proofs fail
+        let false_state_root = [0xa; 32];
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut witness,
+            false_state_root,
+        );
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            zk_storage,
+            &mut witness,
+            false_state_root,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "JMT proof verification failed: Value hashes do not match.")]
+    fn test_get_last_l1_hash_on_contract_fail_in_zkcontext_by_incorrect_value_supplied() {
+        // set up storage
+        let mut storage_manager = init_storage_manager();
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        set_next_l1_height(&mut working_set);
+        set_last_l1_hash(&mut working_set);
+        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+
+        // try the native --> zk flow without the values being in cache
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let mut witness = Witness::default();
+
+        // actual state root
+        let state_root = [
+            7, 86, 209, 84, 188, 43, 20, 206, 77, 83, 166, 176, 24, 255, 207, 214, 80, 9, 121, 121,
+            224, 119, 248, 189, 79, 241, 89, 51, 108, 134, 95, 82,
+        ];
+
+        // accumulate state reads on witness
+        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+            ReadWriteLog::default(),
+            prover_storage,
+            &mut witness,
+            state_root,
+        );
+
+        let mut hints = witness.get_hints();
+
+        let val = hints.get_mut(0).unwrap();
+        val[5] = 2; // first read value U256::from(2) instead of U256::from(1) now
+
+        assert_eq!(hints.len(), 4);
+
+        let mut witness = Witness::from(hints);
+
+        // Call the function with witness accumulated in the previous step
+        let zk_storage = ZkStorage::new();
+        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            ReadWriteLog::default(),
+            zk_storage,
+            &mut witness,
+            state_root,
+        );
+    }
+}
