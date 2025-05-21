@@ -114,6 +114,7 @@ impl TestCase for BackupSequencerTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_mut().unwrap();
+        let citrea_cli = f.citrea_cli.as_mut().unwrap();
 
         let client = sequencer.client.http_client().clone();
 
@@ -194,9 +195,7 @@ impl TestCase for BackupSequencerTest {
 
         sequencer.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
@@ -240,9 +239,7 @@ impl TestCase for BackupSequencerTest {
 
         sequencer.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "rollback",
                 &[
@@ -278,9 +275,7 @@ impl TestCase for BackupSequencerTest {
 
         sequencer.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
@@ -354,6 +349,7 @@ impl TestCase for BackupFullNodeTest {
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
+        let citrea_cli = f.citrea_cli.as_mut().unwrap();
 
         let client = full_node.client.http_client().clone();
 
@@ -421,9 +417,7 @@ impl TestCase for BackupFullNodeTest {
         // Stop sequencer so that fullnode doesn't sync on restart
         sequencer.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
@@ -492,9 +486,7 @@ impl TestCase for BackupFullNodeTest {
         // Stop da so that fullnode doesn't sync on restart
         da.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "rollback",
                 &[
@@ -552,9 +544,7 @@ impl TestCase for BackupFullNodeTest {
         // Stop da so that fullnode doesn't sync on restart
         da.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
@@ -643,6 +633,7 @@ impl TestCase for BackupBatchProverTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
+        let citrea_cli = f.citrea_cli.as_mut().unwrap();
 
         let client = batch_prover.client.http_client().clone();
 
@@ -733,9 +724,7 @@ impl TestCase for BackupBatchProverTest {
 
         batch_prover.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
@@ -797,9 +786,7 @@ impl TestCase for BackupBatchProverTest {
         let rollback_target_commitment_index = 0;
         let rollback_target_l2 = proof_output.last_l2_height.to::<u64>();
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "rollback",
                 &[
@@ -865,9 +852,7 @@ impl TestCase for BackupBatchProverTest {
 
         batch_prover.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
@@ -971,6 +956,7 @@ impl TestCase for BackupLightClientProverTest {
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
+        let citrea_cli = f.citrea_cli.as_mut().unwrap();
 
         let client = light_client_prover.client.http_client().clone();
 
@@ -1076,9 +1062,7 @@ impl TestCase for BackupLightClientProverTest {
 
         light_client_prover.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
@@ -1137,9 +1121,7 @@ impl TestCase for BackupLightClientProverTest {
         let rollback_target_commitment_index = 0;
         let rollback_target_l2 = 0;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "rollback",
                 &[
@@ -1220,9 +1202,7 @@ impl TestCase for BackupLightClientProverTest {
 
         light_client_prover.wait_until_stopped().await?;
 
-        f.citrea_cli
-            .as_ref()
-            .unwrap()
+        citrea_cli
             .run(
                 "restore-backup",
                 &[
