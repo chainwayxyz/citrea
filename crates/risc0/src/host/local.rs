@@ -2,7 +2,7 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
-use metrics::histogram;
+use metrics::gauge;
 use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
 };
@@ -134,7 +134,7 @@ impl LocalProver {
             .map_err(|e| anyhow!("Local risc0 proving failed: {}", e))?;
 
         tracing::info!("Execution Stats for job_id={}: {:?}", job_id, stats);
-        histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
+        gauge!("proving_session_cycle_count").set(stats.total_cycles as f64);
 
         Ok(bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail"))
     }
