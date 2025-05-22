@@ -11,7 +11,7 @@ use alloy_rpc_types_trace::geth::GethTrace::{
 };
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
-    GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateFrame, PreStateMode, TraceResult,
+    GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateFrame, TraceResult,
 };
 // use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
@@ -764,10 +764,7 @@ async fn test_pre_state_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     // now let's check if the traces are correct
     assert!(matches!(json_res, GethTrace::PreStateTracer(_)));
-    // assert_eq!(
-    //     json_res,
-    //     PreStateTracer(PreStateFrame::Default(PreStateMode(json_value)))
-    // );
+    assert_eq!(json_res, PreStateTracer(json_value));
 
     task_manager.graceful_shutdown();
     Ok(())
