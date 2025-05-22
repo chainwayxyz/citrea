@@ -67,7 +67,7 @@ where
         let commitment_ranges = match head_l2_height {
             Some(head_l2_height) => {
                 controller
-                    .should_commit(L2BlockNumber(head_l2_height))
+                    .update_head_l2_height(L2BlockNumber(head_l2_height))
                     .expect("Should be able to construct existing state diff")
             }
             None => {
@@ -81,9 +81,9 @@ where
         (controller, commitment_ranges)
     }
 
-    pub fn should_commit(
+    pub fn update_head_l2_height(
         &self,
-        new_l2_height: L2BlockNumber,
+        l2_height: L2BlockNumber,
     ) -> anyhow::Result<Vec<CommitmentRange>> {
         assert!(
             to_l2_height.0 >= self.next_commitment_start_height(),
@@ -105,32 +105,6 @@ where
         }
 
         Ok(None)
-    }
-
-    fn update_state_diff(&self) -> anyhow::Result<Vec<CommitmentRange>> {
-        let Some(head_l2_height) = self
-            .ledger_db
-            .get_head_l2_block()?
-            .map(|(height, _)| height)
-        else {
-            // chain is not initialized yet
-            return Ok(AccumulatedStateDiff::default());
-        };
-        assert!(
-            head_l2_height.0 >= self.next_commitment_start_height.0 - 1,
-            "Head L2 height is smaller than expected commitment start height minus 1"
-        );
-
-        let mut merged_state_diff = vec![];
-        for l2_height in start_l2_height..=end_l2_height {
-            let state_diff = ledger_db.get_state_diff(L2BlockNumber(l2_height))?;
-            merged_state_diff = merge_state_diffs(merged_state_diff, state_diff);
-        }
-
-        Ok(AccumulatedStateDiff {
-            height: end_l2_height,
-            diff: merged_state_diff,
-        })
     }
 
     fn check_max_l2_blocks(
