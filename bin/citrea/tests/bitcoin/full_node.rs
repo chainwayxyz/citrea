@@ -415,10 +415,42 @@ impl TestCase for OutOfOrderCommitmentsTest {
             index: 2,
         };
 
+        let zero_index_commitment = SequencerCommitment {
+            merkle_root: merkle_root1,
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 0,
+        };
+
         // Restart and remove txs from mempool
         da.restart(None, None).await?;
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0, "Mempool should be empty after restart");
+
+        // Send the zero index commitment first, should be ignored
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(zero_index_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let second_batch_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(second_batch_height, None)
+            .await?;
+
+        // Check that zero index commitment is succesfully skipped
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+        assert!(committed_height.is_none());
 
         // Send the second commitment first
         bitcoin_da_service
