@@ -372,6 +372,9 @@ where
         )
         .map_err(to_eth_rpc_error)?;
 
+        if traces.is_empty() {
+            return Err(EthApiError::TransactionNotFound.into());
+        }
         match &traces[0] {
             TraceResult::Success { result, .. } => Ok(result.clone()),
             // this should never happen since we propagate any tracing error
