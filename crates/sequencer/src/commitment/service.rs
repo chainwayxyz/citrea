@@ -23,7 +23,7 @@ use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument};
 
 use super::controller::CommitmentController;
-use super::helpers::load_next_commitment_index;
+use super::helpers::load_next_commitment_index_and_start_height;
 use crate::metrics::SEQUENCER_METRICS;
 
 /// L2 heights to commit
@@ -154,6 +154,8 @@ where
 
                         let commitment_info = match commitment_info {
                             Ok(Some(commitment_info)) => {
+                                tracing::warn!("commitment_info: {:?}", commitment_info);
+                                tracing::warn!("from_l2_height: {} current_l2_height: {}", from_l2_height.0, current_l2_height);
                                 commitment_info
                             },
                             Err(e) => {
