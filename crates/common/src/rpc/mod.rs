@@ -16,6 +16,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 mod auth;
 pub mod server;
+pub mod utils;
 
 // Exit early if head_batch_num is below this threshold
 const BLOCK_NUM_THRESHOLD: u64 = 2;

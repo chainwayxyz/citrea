@@ -4,12 +4,11 @@ use std::sync::Arc;
 
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
 
 use super::{BackupManager, CreateBackupInfo};
+use crate::rpc::utils::internal_rpc_error;
 
 /// Response from backup validation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,13 +69,7 @@ impl BackupRpcServer for BackupRpcServerImpl {
         self.backup_manager
             .create_backup(path, &self.ledger_db)
             .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}")),
-                )
-            })
+            .map_err(internal_rpc_error)
     }
 
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse> {
@@ -118,13 +111,7 @@ impl BackupRpcServer for BackupRpcServerImpl {
                     })
                     .collect()
             })
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}")),
-                )
-            })
+            .map_err(internal_rpc_error)
     }
 }
 
