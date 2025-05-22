@@ -81,6 +81,7 @@ where
         (controller, commitment_ranges)
     }
 
+    /// Updates the head l2 height, returning the list of commitment ranges that should be committed.
     pub fn update_head_l2_height(
         &self,
         l2_height: L2BlockNumber,
