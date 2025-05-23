@@ -105,20 +105,19 @@ where
                     for current_l2_height in (last_l2_height + 1)..=head_l2_height {
                         let cc = commitment_controller.clone();
 
-                        let Some((index, commitment_range)) = tokio::task::spawn_blocking(move || {
+                        let should_commit = tokio::task::spawn_blocking(move || {
                             cc.should_commit(L2BlockNumber(current_l2_height))
-                        }).await.expect("Tokio blocking task failed").expect("Commitment criteria check failed") else {
-                            // Commitment criteria not met
-                            last_l2_height = current_l2_height;
-                            continue;
+                        }).await;
+                        if let Some((index, commitment_range)) = should_commit
+                            .expect("Commit check tokio blocking task failed")
+                            .expect("Commitment criteria check failed")
+                        {
+                            if let Err(e) = self.commit(index, commitment_range).await {
+                                // We just log error and continue here as the controller updated its internal state and it can
+                                // continue functioning correctly. We just need to resubmit the failed commitment to DA.
+                                error!("Failed to submit commitment: {:?}", e);
+                            }
                         };
-
-
-                        if let Err(e) = self.commit(index, commitment_range).await {
-                            // We just log error and continue here as the controller updated its internal state and it can
-                            // continue functioning correctly. We just need to resubmit the failed commitment to DA.
-                            error!("Failed to submit commitment: {:?}", e);
-                        }
 
                         last_l2_height = current_l2_height;
                     }
