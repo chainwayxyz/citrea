@@ -1,13 +1,14 @@
 use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_consensus::Transaction;
 use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::{Bytes as RethBytes, PrimitiveSignature, U256};
+use alloy_primitives::{Bytes as RethBytes, U256};
 use reth_primitives::{Recovered, TransactionSigned};
 use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};
 use revm::state::AccountInfo as ReVmAccountInfo;
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
+use super::system_events::SYSTEM_SIGNATURE;
 use super::AccountInfo;
 use crate::SYSTEM_SIGNER;
 
@@ -102,9 +103,7 @@ impl TryFrom<RlpEvmTransaction> for Recovered<TransactionSigned> {
 
     fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
         let tx = TransactionSigned::try_from(evm_tx)?;
-        // TODO: Use constant sys tx signature once we update reth
-        let sys_tx_signature = PrimitiveSignature::new(U256::ZERO, U256::ZERO, false);
-        if tx.signature() == &sys_tx_signature {
+        if tx.signature() == &SYSTEM_SIGNATURE {
             return Ok(Self::new_unchecked(tx, SYSTEM_SIGNER));
         }
         tx.try_into_recovered()
