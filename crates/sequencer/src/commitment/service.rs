@@ -146,7 +146,7 @@ where
             .set(l2_block_hashes.len() as f64);
 
         let commitment =
-            self.get_commitment(commitment_index, commitment_range, l2_block_hashes)?;
+            self.get_commitment(commitment_index, &commitment_range, l2_block_hashes)?;
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
@@ -193,7 +193,8 @@ where
 
         ledger_db.delete_pending_commitment(commitment.index)?;
 
-        self.clear_state_diffs(l2_start.0..=l2_end.0)?;
+        self.ledger_db
+            .delete_state_diff_by_range(commitment_range)?;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
@@ -293,12 +294,12 @@ where
     pub fn get_commitment(
         &self,
         commitment_index: u32,
-        commitment_info: CommitmentRange,
+        commitment_range: &CommitmentRange,
         l2_block_hashes: Vec<[u8; 32]>,
     ) -> anyhow::Result<SequencerCommitment> {
         // sanity check
         assert_eq!(
-            commitment_info.end().0 - commitment_info.start().0 + 1u64,
+            commitment_range.end().0 - commitment_range.start().0 + 1u64,
             l2_block_hashes.len() as u64,
             "Sequencer: Soft confirmation hashes length does not match the commitment info"
         );
@@ -309,7 +310,7 @@ where
         Ok(SequencerCommitment {
             merkle_root,
             index: commitment_index,
-            l2_end_block_number: commitment_info.end().0,
+            l2_end_block_number: commitment_range.end().0,
         })
     }
 
@@ -351,13 +352,5 @@ where
         }
 
         Ok(mined_commitments)
-    }
-
-    fn clear_state_diffs(&self, range: RangeInclusive<u64>) -> anyhow::Result<()> {
-        for i in range {
-            self.ledger_db.delete_state_diff(L2BlockNumber(i))?;
-        }
-
-        Ok(())
     }
 }

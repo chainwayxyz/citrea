@@ -1,3 +1,4 @@
+use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -763,13 +764,16 @@ impl SequencerLedgerOps for LedgerDB {
 
     /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn delete_state_diff(&self, l2_height: L2BlockNumber) -> anyhow::Result<()> {
+    fn delete_state_diff_by_range(
+        &self,
+        l2_height_range: RangeInclusive<L2BlockNumber>,
+    ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.delete::<StateDiffByBlockNumber>(&l2_height)?;
+        for l2_height in l2_height_range.start().0..=l2_height_range.end().0 {
+            schema_batch.delete::<StateDiffByBlockNumber>(&L2BlockNumber(l2_height))?;
+        }
 
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.write_schemas(schema_batch)
     }
 
     /// Gets the state diff by block number
