@@ -173,7 +173,10 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.header.number, full_node_last_block.header.number);
+    assert_eq!(
+        seq_last_block.header.number,
+        full_node_last_block.header.number
+    );
     assert_eq!(
         seq_last_block.header.state_root,
         full_node_last_block.header.state_root
