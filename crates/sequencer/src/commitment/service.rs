@@ -108,6 +108,8 @@ where
                         let Some((index, commitment_range)) = tokio::task::spawn_blocking(move || {
                             cc.should_commit(L2BlockNumber(current_l2_height))
                         }).await.expect("Tokio blocking task failed").expect("Commitment criteria check failed") else {
+                            // Commitment criteria not met
+                            last_l2_height = current_l2_height;
                             continue;
                         };
 
