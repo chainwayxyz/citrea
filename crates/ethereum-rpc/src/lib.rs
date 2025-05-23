@@ -299,6 +299,7 @@ where
         debug_trace_by_block_number(
             block_number,
             None,
+            None,
             &self.ethereum,
             &evm,
             &mut working_set,
@@ -326,6 +327,7 @@ where
 
         debug_trace_by_block_number(
             block_number,
+            None,
             None,
             &self.ethereum,
             &evm,
@@ -364,6 +366,7 @@ where
 
         let traces = debug_trace_by_block_number(
             block_number,
+            Some(tx_hash),
             Some(trace_idx as usize),
             &self.ethereum,
             &evm,

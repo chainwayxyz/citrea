@@ -1,10 +1,15 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use alloy_primitives::{BlockHash, TxHash};
 use alloy_rpc_types::BlockNumberOrTag;
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame, TraceResult,
+};
+use alloy_rpc_types_trace::parity::{
+    Action, CallAction, CallOutput, CallType, CreateAction, CreateOutput, CreationMethod,
+    LocalizedTransactionTrace, SelfdestructAction, TraceOutput, TransactionTrace,
 };
 use citrea_evm::Evm;
 use citrea_primitives::forks::fork_from_block_number;
@@ -75,6 +80,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
             let traces = debug_trace_by_block_number(
                 block_number,
                 None,
+                None,
                 &ethereum,
                 &evm,
                 &mut working_set,
@@ -114,6 +120,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
 
 pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     block_number: u64,
+    tx_hash: Option<TxHash>,
     trace_idx: Option<usize>,
     ethereum: &Ethereum<C, Da>,
     evm: &Evm<C>,
@@ -145,6 +152,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             None => Ok(traces),
         };
     }
+    let block_hash = evm.blockhash_get(block_number, working_set);
 
     let requested_opts = opts.unwrap();
     let tracer_type = requested_opts.tracer.unwrap();
@@ -156,8 +164,15 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             Some(idx) => vec![traces[idx].clone()],
             None => traces.to_vec(),
         };
-        let traces =
-            get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
+        let traces = get_traces_with_requested_tracer_and_config(
+            traces,
+            tracer_type,
+            tracer_config,
+            block_number,
+            block_hash,
+            tx_hash,
+            trace_idx,
+        )?;
         return Ok(traces);
     }
 
@@ -181,7 +196,15 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         Some(idx) => vec![traces.remove(idx)],
         None => traces,
     };
-    let traces = get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
+    let traces = get_traces_with_requested_tracer_and_config(
+        traces,
+        tracer_type,
+        tracer_config,
+        block_number,
+        block_hash,
+        tx_hash,
+        trace_idx,
+    )?;
 
     Ok(traces)
 }
@@ -209,6 +232,10 @@ fn get_traces_with_requested_tracer_and_config(
     traces: Vec<TraceResult>,
     tracer: GethDebugTracerType,
     tracer_config: GethDebugTracerConfig,
+    block_number: u64,
+    block_hash: Option<BlockHash>,
+    tx_hash: Option<TxHash>,
+    tx_index: Option<usize>,
 ) -> Result<Vec<TraceResult>, EthApiError> {
     // This can be only CallConfig or PreStateConfig if it is not CallConfig return Error for now
 
@@ -251,8 +278,31 @@ fn get_traces_with_requested_tracer_and_config(
                     }
                     Ok(new_traces)
                 }
-                GethDebugBuiltInTracerType::FlatCallTracer
-                | GethDebugBuiltInTracerType::PreStateTracer => Ok(traces),
+                GethDebugBuiltInTracerType::FlatCallTracer => {
+                    let mut localized_call_frames = vec![];
+                    for trace in traces {
+                        if let TraceResult::Success {
+                            result: GethTrace::CallTracer(call_frame),
+                            tx_hash,
+                        } = trace
+                        {
+                            let new_flat_call_frame = convert_call_trace_into_flatcall_frame(
+                                call_frame,
+                                Some(block_number),
+                                block_hash,
+                                tx_hash,
+                                tx_index,
+                            )?;
+                            localized_call_frames.push(new_flat_call_frame);
+                        }
+                    }
+                    new_traces.push(TraceResult::new_success(
+                        GethTrace::FlatCallTracer(localized_call_frames),
+                        tx_hash,
+                    ));
+                    Ok(new_traces)
+                }
+                GethDebugBuiltInTracerType::PreStateTracer => Ok(traces),
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     traces.into_iter().for_each(|trace| {
                         if let TraceResult::Success {
@@ -283,6 +333,91 @@ fn get_traces_with_requested_tracer_and_config(
             )
         }
     }
+}
+
+fn convert_call_trace_into_flatcall_frame(
+    call_frame: CallFrame,
+    block_number: Option<u64>,
+    block_hash: Option<BlockHash>,
+    tx_hash: Option<TxHash>,
+    tx_index: Option<usize>,
+) -> Result<LocalizedTransactionTrace, EthApiError> {
+    let trace = match call_frame.typ.as_str() {
+        "CREATE" | "CREATE2" => TransactionTrace {
+            action: Action::Create(CreateAction {
+                from: call_frame.from,
+                gas: call_frame.gas.saturating_to(),
+                init: call_frame.input,
+                value: call_frame.value.expect("Invalid value set for create call"),
+                creation_method: match call_frame.typ.as_str() {
+                    "CREATE" => CreationMethod::Create,
+                    "CREATE2" => CreationMethod::Create2,
+                    &_ => {
+                        return Err(EthApiError::Unsupported("Unsupported call type"));
+                    }
+                },
+            }),
+            error: call_frame.error,
+            result: Some(TraceOutput::Create(CreateOutput {
+                address: call_frame.to.expect("To field should be set"),
+                code: call_frame.output.expect("Code should be set"),
+                gas_used: call_frame.gas_used.saturating_to(),
+            })),
+            subtraces: call_frame.calls.len(),
+            trace_address: vec![],
+        },
+        "SELFDESTRUCT" => TransactionTrace {
+            action: Action::Selfdestruct(SelfdestructAction {
+                address: call_frame.from,
+                balance: call_frame.value.expect("Value should be set"),
+                refund_address: call_frame.to.expect("To field should be set"),
+            }),
+            error: call_frame.error,
+            result: Some(TraceOutput::Create(CreateOutput {
+                address: call_frame.to.expect("To field should be set"),
+                code: call_frame.output.expect("Code should be set"),
+                gas_used: call_frame.gas_used.saturating_to(),
+            })),
+            subtraces: call_frame.calls.len(),
+            trace_address: vec![],
+        },
+        "CALL" | "STATICCALL" | "CALLCODE" | "DELEGATECALL" => TransactionTrace {
+            action: Action::Call(CallAction {
+                from: call_frame.from,
+                call_type: match call_frame.typ.to_lowercase().as_str() {
+                    "call" => CallType::Call,
+                    "staticcall" => CallType::StaticCall,
+                    "callcode" => CallType::CallCode,
+                    "delegatecall" => CallType::DelegateCall,
+                    &_ => {
+                        return Err(EthApiError::Unsupported("Unsupported call type"));
+                    }
+                },
+                gas: call_frame.gas.saturating_to(),
+                input: call_frame.input,
+                to: call_frame.to.expect("To field should be set"),
+                value: call_frame.value.expect("Value should be set"),
+            }),
+            error: call_frame.error,
+            result: Some(TraceOutput::Call(CallOutput {
+                gas_used: call_frame.gas_used.saturating_to(),
+                output: call_frame.output.expect("output should be set"),
+            })),
+            subtraces: call_frame.calls.len(),
+            trace_address: vec![],
+        },
+        _ => {
+            return Err(EthApiError::Unsupported("Unsupported call frame"));
+        }
+    };
+
+    Ok(LocalizedTransactionTrace {
+        trace,
+        block_hash,
+        block_number,
+        transaction_hash: tx_hash,
+        transaction_position: tx_index.map(|i| i as u64),
+    })
 }
 
 fn convert_call_trace_into_4byte_frame(call_frames: Vec<CallFrame>) -> FourByteFrame {
