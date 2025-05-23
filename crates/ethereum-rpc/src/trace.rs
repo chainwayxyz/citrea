@@ -286,12 +286,13 @@ fn get_traces_with_requested_tracer_and_config(
                         {
                             let new_flat_call_frame = convert_call_trace_into_flatcall_frame(
                                 call_frame,
+                                vec![],
                                 Some(block_number),
                                 block_hash,
                                 tx_hash,
                                 tx_index,
                             )?;
-                            localized_call_frames.push(new_flat_call_frame);
+                            localized_call_frames.extend(new_flat_call_frame);
                         }
                     }
                     new_traces.push(TraceResult::new_success(
@@ -336,11 +337,12 @@ fn get_traces_with_requested_tracer_and_config(
 /// https://github.com/ethereum/go-ethereum/blob/20ad4f500e7fafab93f6d94fa171a5c0309de6ce/eth/tracers/native/call_flat.go#L250
 fn convert_call_trace_into_flatcall_frame(
     call_frame: CallFrame,
+    trace_address: Vec<usize>,
     block_number: Option<u64>,
     block_hash: Option<BlockHash>,
     tx_hash: Option<TxHash>,
     tx_index: Option<usize>,
-) -> Result<LocalizedTransactionTrace, EthApiError> {
+) -> Result<Vec<LocalizedTransactionTrace>, EthApiError> {
     let call_type = call_frame.typ.to_lowercase();
     let call_type = call_type.as_str();
     let trace = match call_type {
@@ -412,13 +414,33 @@ fn convert_call_trace_into_flatcall_frame(
         }
     };
 
-    Ok(LocalizedTransactionTrace {
+    let frame = LocalizedTransactionTrace {
         trace,
         block_hash,
         block_number,
         transaction_hash: tx_hash,
         transaction_position: tx_index.map(|i| i as u64),
-    })
+    };
+
+    let mut result = vec![];
+    result.push(frame);
+    for (i, child_call) in call_frame.calls.iter().enumerate() {
+        let mut new_trace_address = Vec::with_capacity(trace_address.len() + 1);
+        new_trace_address.extend(trace_address.clone());
+        new_trace_address.push(i);
+
+        let frames = convert_call_trace_into_flatcall_frame(
+            child_call.clone(),
+            new_trace_address,
+            block_number,
+            block_hash,
+            tx_hash,
+            tx_index,
+        )?;
+        result.extend_from_slice(&frames);
+    }
+
+    Ok(result)
 }
 
 fn convert_call_trace_into_4byte_frame(call_frames: Vec<CallFrame>) -> FourByteFrame {
