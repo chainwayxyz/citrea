@@ -237,7 +237,6 @@ fn get_traces_with_requested_tracer_and_config(
     tx_index: Option<usize>,
 ) -> Result<Vec<TraceResult>, EthApiError> {
     // This can be only CallConfig or PreStateConfig if it is not CallConfig return Error for now
-
     let mut new_traces = vec![];
     match tracer {
         GethDebugTracerType::BuiltInTracer(builtin_tracer) => {
@@ -301,7 +300,6 @@ fn get_traces_with_requested_tracer_and_config(
                     ));
                     Ok(new_traces)
                 }
-                GethDebugBuiltInTracerType::PreStateTracer => Ok(traces),
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     traces.into_iter().for_each(|trace| {
                         if let TraceResult::Success {
@@ -334,6 +332,8 @@ fn get_traces_with_requested_tracer_and_config(
     }
 }
 
+/// Adapted from
+/// https://github.com/ethereum/go-ethereum/blob/20ad4f500e7fafab93f6d94fa171a5c0309de6ce/eth/tracers/native/call_flat.go#L250
 fn convert_call_trace_into_flatcall_frame(
     call_frame: CallFrame,
     block_number: Option<u64>,
