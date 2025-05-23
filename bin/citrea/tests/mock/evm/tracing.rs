@@ -1019,10 +1019,12 @@ async fn test_mux_tracer() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     test_client.send_publish_batch_request().await;
 
-    let mut opts = GethDebugTracingOptions::default();
-    opts.tracer = Some(GethDebugTracerType::BuiltInTracer(
-        GethDebugBuiltInTracerType::MuxTracer,
-    ));
+    let mut opts = GethDebugTracingOptions {
+        tracer: Some(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::MuxTracer,
+        )),
+        ..Default::default()
+    };
 
     let call_config = CallConfig {
         only_top_call: Some(true),
