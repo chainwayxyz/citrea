@@ -132,11 +132,10 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     let skip_cache = opts.as_ref().is_none_or(|o| {
         o.tracer.as_ref().is_none_or(|inner| match inner {
             GethDebugTracerType::JsTracer(_) => true,
-            GethDebugTracerType::BuiltInTracer(bit) => match bit {
-                GethDebugBuiltInTracerType::MuxTracer
-                | GethDebugBuiltInTracerType::PreStateTracer => true,
-                _ => false,
-            },
+            GethDebugTracerType::BuiltInTracer(bit) => matches!(
+                bit,
+                GethDebugBuiltInTracerType::MuxTracer | GethDebugBuiltInTracerType::PreStateTracer
+            ),
         })
     });
     if skip_cache {
