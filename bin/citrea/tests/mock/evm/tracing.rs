@@ -609,6 +609,49 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(expected_result, flat_call_frame_call_trace);
 
+    let send_eth_req = test_client
+        .send_eth(addr, None, None, None, 5_000_000_000_000_000_000u128)
+        .await
+        .unwrap();
+    test_client.send_publish_batch_request().await;
+    let send_eth_tx_hash = send_eth_req.get_receipt().await.unwrap().transaction_hash;
+
+    // get the trace of send_eth_tx_hash and expect call_tx_hash trace to be in the cache
+    let send_eth_trace = test_client
+        .debug_trace_transaction(
+            send_eth_tx_hash,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FlatCallTracer),
+            )),
+        )
+        .await;
+
+    let expected_send_eth_trace = serde_json::from_value::<FlatCallFrame>(json![[{
+        "action": {
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "callType": "call",
+            "gas": "0x1",
+            "input": "0x",
+            "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92255",
+            "value": "0x4563918244f40000"
+        },
+        "blockNumber":2,
+        "result": {
+            "gasUsed": "0x5208",
+            "output": "0x"
+        },
+        "subtraces":0,
+        "traceAddress":[],
+        "transactionHash": "0x06808a08cac07bdcc0a4fac48a4caa673088cc45a10517b8ad1c86ea3c3e5460",
+        "transactionPosition":0,
+        "type": "call"
+    }]])
+    .unwrap();
+    assert_eq!(
+        send_eth_trace,
+        FlatCallTracer(expected_send_eth_trace.clone())
+    );
+
     task_manager.graceful_shutdown();
 
     Ok(())
