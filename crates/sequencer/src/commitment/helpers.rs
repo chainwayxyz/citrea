@@ -1,3 +1,4 @@
+use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
 use sov_db::ledger_db::SequencerLedgerOps;
 
 pub(super) fn load_next_commitment_index_and_start_height<Db: SequencerLedgerOps>(
@@ -20,6 +21,6 @@ pub(super) fn load_next_commitment_index_and_start_height<Db: SequencerLedgerOps
     match max_commitment {
         Some(commitment) => (commitment.index + 1, commitment.l2_end_block_number + 1),
         // TODO: should this be tangerine start height?
-        None => (1, 1),
+        None => (1, get_tangerine_activation_height_non_zero()),
     }
 }
