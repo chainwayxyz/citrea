@@ -647,10 +647,50 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         "type": "call"
     }]])
     .unwrap();
+
     assert_eq!(
         send_eth_trace,
         FlatCallTracer(expected_send_eth_trace.clone())
     );
+
+    let expected_send_eth_trace = serde_json::from_value::<FlatCallFrame>(json![[{
+        "action": {
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "callType": "call",
+            "gas": "0x1",
+            "input": "0x",
+            "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92255",
+            "value": "0x4563918244f40000"
+        },
+        "blockNumber":2,
+        "result": {
+            "gasUsed": "0x5208",
+            "output": "0x"
+        },
+        "subtraces":0,
+        "traceAddress":[],
+        "transactionHash": "0x06808a08cac07bdcc0a4fac48a4caa673088cc45a10517b8ad1c86ea3c3e5460",
+        "transactionPosition": None::<usize>,
+        "type": "call"
+    }]])
+    .unwrap();
+    let send_eth_traces = test_client
+        .debug_trace_block_by_number(
+            BlockNumberOrTag::Number(2),
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FlatCallTracer),
+            )),
+        )
+        .await
+        .into_iter()
+        .map(|trace| match trace {
+            TraceResult::Success { result, .. } => Ok(result),
+            _ => anyhow::bail!("Unexpected trace result"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    assert_eq!(send_eth_traces.len(), 1);
+    assert_eq!(send_eth_traces[0], FlatCallTracer(expected_send_eth_trace));
 
     task_manager.graceful_shutdown();
 
@@ -807,7 +847,25 @@ async fn test_pre_state_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     // now let's check if the traces are correct
     assert!(matches!(json_res, GethTrace::PreStateTracer(_)));
-    assert_eq!(json_res, PreStateTracer(json_value));
+    assert_eq!(json_res, PreStateTracer(json_value.clone()));
+
+    let json_res = test_client
+        .debug_trace_block_by_number(
+            BlockNumberOrTag::Number(2),
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::PreStateTracer),
+            )),
+        )
+        .await
+        .into_iter()
+        .map(|trace| match trace {
+            TraceResult::Success { result, .. } => Ok(result),
+            _ => anyhow::bail!("Unexpected trace result"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    assert_eq!(json_res.len(), 1);
+    assert_eq!(json_res[0], PreStateTracer(json_value));
 
     task_manager.graceful_shutdown();
     Ok(())
@@ -953,6 +1011,58 @@ async fn test_mux_tracer() -> Result<(), Box<dyn std::error::Error>> {
     // now let's check if the traces are correct
     assert!(matches!(mux_call_frame_trace, GethTrace::MuxTracer(_)));
     assert_eq!(mux_call_frame_trace, MuxTracer(json_value.clone()));
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92255").unwrap();
+    let _ = test_client
+        .send_eth(addr, None, None, None, 5_000_000_000_000_000_000u128)
+        .await
+        .unwrap();
+    test_client.send_publish_batch_request().await;
+
+    let mut opts = GethDebugTracingOptions::default();
+    opts.tracer = Some(GethDebugTracerType::BuiltInTracer(
+        GethDebugBuiltInTracerType::MuxTracer,
+    ));
+
+    let call_config = CallConfig {
+        only_top_call: Some(true),
+        with_log: Some(true),
+    };
+    opts.tracer_config = MuxConfig(HashMap::from_iter([
+        (GethDebugBuiltInTracerType::FourByteTracer, None),
+        (
+            GethDebugBuiltInTracerType::CallTracer,
+            Some(call_config.into()),
+        ),
+    ]))
+    .into();
+
+    let traces = test_client
+        .debug_trace_block_by_number(BlockNumberOrTag::Number(2), Some(opts))
+        .await
+        .into_iter()
+        .map(|trace| match trace {
+            TraceResult::Success { result, .. } => Ok(result),
+            _ => anyhow::bail!("Unexpected trace result"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let json_value = serde_json::from_value::<MuxFrame>(json![{
+        "4byteTracer": {},
+        "callTracer": {
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "gas": "0x1",
+            "gasUsed": "0x5208",
+            "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92255",
+            "input": "0x",
+            "value": "0x4563918244f40000",
+            "type": "CALL"
+        }
+    }])
+    .unwrap();
+
+    assert_eq!(traces.len(), 1);
+    assert_eq!(traces[0], MuxTracer(json_value));
 
     task_manager.graceful_shutdown();
 
