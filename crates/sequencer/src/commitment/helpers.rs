@@ -12,7 +12,7 @@ pub(super) fn load_next_commitment_index_and_start_height<Db: SequencerLedgerOps
 
     let max_commitment = pending_commitments
         .into_iter()
-        .map(|c| Some(c))
+        .map(Some)
         .chain(std::iter::once(last_commitment))
         .flatten()
         .max();

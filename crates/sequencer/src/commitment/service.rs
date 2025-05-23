@@ -144,7 +144,8 @@ where
             .commitment_blocks_count
             .set(l2_block_hashes.len() as f64);
 
-        let commitment = self.get_commitment(commitment_index, commitment_range, l2_block_hashes)?;
+        let commitment =
+            self.get_commitment(commitment_index, commitment_range, l2_block_hashes)?;
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
