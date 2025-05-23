@@ -341,16 +341,18 @@ fn convert_call_trace_into_flatcall_frame(
     tx_hash: Option<TxHash>,
     tx_index: Option<usize>,
 ) -> Result<LocalizedTransactionTrace, EthApiError> {
-    let trace = match call_frame.typ.as_str() {
-        "CREATE" | "CREATE2" => TransactionTrace {
+    let call_type = call_frame.typ.to_lowercase();
+    let call_type = call_type.as_str();
+    let trace = match call_type {
+        "create" | "create2" => TransactionTrace {
             action: Action::Create(CreateAction {
                 from: call_frame.from,
                 gas: call_frame.gas.saturating_to(),
                 init: call_frame.input,
                 value: call_frame.value.unwrap_or_default(),
-                creation_method: match call_frame.typ.as_str() {
-                    "CREATE" => CreationMethod::Create,
-                    "CREATE2" => CreationMethod::Create2,
+                creation_method: match call_type {
+                    "create" => CreationMethod::Create,
+                    "create2" => CreationMethod::Create2,
                     &_ => {
                         return Err(EthApiError::Unsupported("Unsupported call type"));
                     }
@@ -365,7 +367,7 @@ fn convert_call_trace_into_flatcall_frame(
             subtraces: call_frame.calls.len(),
             trace_address: vec![],
         },
-        "SELFDESTRUCT" => TransactionTrace {
+        "selfdestruct" => TransactionTrace {
             action: Action::Selfdestruct(SelfdestructAction {
                 address: call_frame.from,
                 balance: call_frame.value.unwrap_or_default(),
@@ -380,10 +382,10 @@ fn convert_call_trace_into_flatcall_frame(
             subtraces: call_frame.calls.len(),
             trace_address: vec![],
         },
-        "CALL" | "STATICCALL" | "CALLCODE" | "DELEGATECALL" => TransactionTrace {
+        "call" | "staticcall" | "callcode" | "delegatecall" => TransactionTrace {
             action: Action::Call(CallAction {
                 from: call_frame.from,
-                call_type: match call_frame.typ.to_lowercase().as_str() {
+                call_type: match call_type {
                     "call" => CallType::Call,
                     "staticcall" => CallType::StaticCall,
                     "callcode" => CallType::CallCode,
