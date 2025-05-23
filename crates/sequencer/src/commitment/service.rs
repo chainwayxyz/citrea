@@ -225,7 +225,7 @@ where
                 .ledger_db
                 .get_last_commitment()?
                 .map(|c| c.l2_end_block_number)
-                .unwrap_or(0);
+                .unwrap_or(1);
 
             // set state to end of evm block l2_height
             working_set.set_archival_version(l2_height + 1);
