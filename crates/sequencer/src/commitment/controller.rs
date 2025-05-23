@@ -1,5 +1,4 @@
 use std::mem;
-use std::ops::RangeInclusive;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use citrea_common::utils::merge_state_diffs;
@@ -138,11 +137,6 @@ where
     }
 
     #[inline(always)]
-    fn next_commitment_index(&self) -> u32 {
-        self.next_commitment_index.load(Ordering::SeqCst)
-    }
-
-    #[inline(always)]
     fn next_commitment_start_height(&self) -> u64 {
         self.next_commitment_start_height.load(Ordering::SeqCst)
     }
@@ -150,13 +144,5 @@ where
     #[inline(always)]
     pub(crate) fn last_l2_height(&self) -> u64 {
         self.last_l2_height.load(Ordering::SeqCst)
-    }
-
-    pub(crate) fn clear_state_diffs(&self, range: RangeInclusive<u64>) -> anyhow::Result<()> {
-        for i in range {
-            self.ledger_db.delete_state_diff(L2BlockNumber(i))?;
-        }
-
-        Ok(())
     }
 }
