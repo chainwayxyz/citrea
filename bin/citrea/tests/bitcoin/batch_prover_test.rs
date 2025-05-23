@@ -1365,7 +1365,12 @@ impl TestCase for InvokeCachePruningTest {
 
         let signed_txs = self.create_deploy_transactions().await;
         for signed_tx in signed_txs {
-            sequencer.client.http_client().eth_send_raw_transaction(signed_tx.into()).await.unwrap();
+            sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(signed_tx.into())
+                .await
+                .unwrap();
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
 
@@ -1405,22 +1410,27 @@ impl InvokeCachePruningTest {
         hex::decode_to_slice(bytecode_hex, &mut bytecode_with_args[0..bytecode_size]).unwrap();
 
         // prepare signer
-        let private_key: [u8; 32] = hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80").unwrap().try_into().unwrap();
+        let private_key: [u8; 32] =
+            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+                .unwrap()
+                .try_into()
+                .unwrap();
         let mut signer = PrivateKeySigner::from_slice(&private_key).unwrap();
         signer.set_chain_id(Some(5655));
 
         let mut signed_txs = Vec::with_capacity(DEPLOY_COUNT);
         for i in 0..DEPLOY_COUNT {
-            // set constructor argument different for each contract. 
+            // set constructor argument different for each contract.
             // since constructor argument sets immutable storage variable
             // this will make bytecode of each contract different
-            bytecode_with_args[bytecode_size..].copy_from_slice(U256::from(i).to_be_bytes::<32>().as_slice());
+            bytecode_with_args[bytecode_size..]
+                .copy_from_slice(U256::from(i).to_be_bytes::<32>().as_slice());
 
             let mut tx = TxLegacy {
                 chain_id: Some(5655),
                 nonce: i as u64,
                 gas_price: 1000000000, // 1 gwei
-                gas_limit: 7500000, // 7.5 million gas
+                gas_limit: 7500000,    // 7.5 million gas
                 to: TxKind::Create,
                 value: U256::ZERO,
                 input: Bytes::copy_from_slice(&bytecode_with_args),
@@ -1435,7 +1445,7 @@ impl InvokeCachePruningTest {
             signed_txs.push(rlp_buf);
         }
 
-        signed_txs 
+        signed_txs
     }
 }
 
