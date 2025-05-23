@@ -341,7 +341,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "proving_session_cycle_count{quantile=\"1.0\"}",
+          "expr": "proving_session_cycle_count",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",

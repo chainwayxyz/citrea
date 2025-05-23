@@ -1,7 +1,6 @@
 use async_trait::async_trait;
-use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
-
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -27,11 +26,8 @@ impl TestCase for MempoolAcceptTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let min_l2_block_per_commitment = sequencer
-            .sequencer
-            .config
-            .node
-            .max_l2_blocks_per_commitment;
+        let min_l2_block_per_commitment =
+            sequencer.sequencer.config.node.max_l2_blocks_per_commitment;
 
         // publish min_l2_block_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_l2_block_per_commitment {

@@ -1,8 +1,7 @@
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use alloy_primitives::{Address, U32, U64};
-use anyhow::bail;
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -16,7 +15,6 @@ use citrea_e2e::config::{
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::{BatchProver, FullNode};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
@@ -27,107 +25,15 @@ use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
-use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
-use tokio::time::sleep;
 use uuid::Uuid;
 
 use super::get_citrea_path;
+use super::utils::wait_for_zkproofs;
+use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count};
 use crate::common::make_test_client;
-
-pub async fn wait_for_zkproofs(
-    full_node: &FullNode,
-    height: u64,
-    timeout: Option<Duration>,
-    count: usize,
-) -> Result<Vec<VerifiedBatchProofResponse>> {
-    let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(240));
-
-    loop {
-        if start.elapsed() >= timeout {
-            bail!("FullNode failed to get zkproofs within the specified timeout");
-        }
-
-        match full_node
-            .client
-            .http_client()
-            .get_verified_batch_proofs_by_slot_height(U64::from(height))
-            .await?
-        {
-            Some(proofs) => {
-                if proofs.len() >= count {
-                    return Ok(proofs);
-                }
-            }
-            None => sleep(Duration::from_millis(500)).await,
-        }
-    }
-}
-
-/// Wait for prover job to finish.
-pub async fn wait_for_prover_job(
-    batch_prover: &BatchProver,
-    job_id: Uuid,
-    timeout: Option<Duration>,
-) -> Result<JobRpcResponse> {
-    let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(300));
-    loop {
-        let response = batch_prover
-            .client
-            .http_client()
-            .get_proving_job(job_id)
-            .await?;
-        if let Some(response) = response {
-            if let Some(proof) = &response.proof {
-                if proof.l1_tx_id.is_some() {
-                    return Ok(response);
-                }
-            }
-        }
-
-        let now = Instant::now();
-        if start + timeout <= now {
-            bail!("Timeout. Failed to get prover job {}", job_id);
-        }
-
-        sleep(Duration::from_secs(1)).await;
-    }
-}
-
-pub async fn wait_for_prover_job_count(
-    batch_prover: &BatchProver,
-    count: usize,
-    timeout: Option<Duration>,
-) -> Result<Vec<Uuid>> {
-    let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(240));
-
-    loop {
-        if start.elapsed() >= timeout {
-            bail!(
-                "BatchProver failed to reach proving job count {} on time",
-                count
-            );
-        }
-
-        let jobs = batch_prover
-            .client
-            .http_client()
-            .get_proving_jobs(count)
-            .await
-            .unwrap();
-        if jobs.len() >= count {
-            let job_ids = jobs.into_iter().map(|j| j.job_id).collect();
-            return Ok(job_ids);
-        }
-
-        sleep(Duration::from_millis(500)).await;
-    }
-}
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
 /// It generates l2 blocks and wait until it reaches the first commitment.

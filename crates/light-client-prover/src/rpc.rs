@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
+use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use sov_db::ledger_db::LightClientProverLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Spec, WorkingSet};
@@ -97,13 +96,7 @@ where
             .context
             .ledger
             .get_light_client_proof_data_by_l1_height(l1_height)
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?;
+            .map_err(internal_rpc_error)?;
         let res = proof.map(LightClientProofResponse::from);
         Ok(res)
     }

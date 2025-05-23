@@ -8,6 +8,7 @@ mod utils;
 pub mod backup;
 pub mod bitcoin_test;
 pub mod fork;
+#[cfg(feature = "testing")]
 pub mod full_node;
 pub mod guest_cycles;
 pub mod sequencer_commitments;

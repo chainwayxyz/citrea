@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use bitcoin::Txid;
+use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::fee::BumpFeeMethod;
@@ -124,13 +123,7 @@ impl DaRpcServer for DaRpcServerImpl {
         self.da
             .bump_fee(txid, fee_rate, force, BumpFeeMethod::Cpfp)
             .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })
+            .map_err(internal_rpc_error)
     }
 
     async fn da_bump_transaction_fee_rbf(
@@ -142,13 +135,7 @@ impl DaRpcServer for DaRpcServerImpl {
         self.da
             .bump_fee(txid, fee_rate, force, BumpFeeMethod::Rbf)
             .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })
+            .map_err(internal_rpc_error)
     }
 }
 

@@ -10,13 +10,12 @@ use std::{env, fs};
 use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::DefaultContext;
 use citrea_stf::verifier::get_last_l1_hash_on_contract;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
@@ -206,16 +205,16 @@ where
             self.context
                 .ledger_db
                 .put_commitment_by_index(&commitment)
-                .map_err(|e| internal_rpc_error(e.to_string()))?;
+                .map_err(internal_rpc_error)?;
             // This might cause some duplicate commitment indices appear in l1 -> index table which is ok
             self.context
                 .ledger_db
                 .put_commitment_index_by_l1(SlotNumber(l1_height), commitment.index)
-                .map_err(|e| internal_rpc_error(e.to_string()))?;
+                .map_err(internal_rpc_error)?;
             self.context
                 .ledger_db
                 .put_prover_pending_commitment(commitment.index)
-                .map_err(|e| internal_rpc_error(e.to_string()))?;
+                .map_err(internal_rpc_error)?;
         }
 
         Ok(())
@@ -267,12 +266,12 @@ where
 
         let previous_commitment = ledger_db
             .get_commitment_by_index(index_start - 1)
-            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .map_err(internal_rpc_error)?
             .ok_or_else(|| internal_rpc_error("Missing previous commitment index"))?;
 
         let commitments = ledger_db
             .get_commitment_by_range(index_start..=index_end)
-            .map_err(|e| internal_rpc_error(e.to_string()))?;
+            .map_err(internal_rpc_error)?;
         if commitments.len() as u32 != index_end - index_start + 1 {
             return Err(internal_rpc_error(
                 "Missing some commitment indices from the range",
@@ -282,12 +281,12 @@ where
         let last_commitment = commitments.last().expect("Already ensured");
         let last_l2_block = ledger_db
             .get_l2_block_by_number(&L2BlockNumber(last_commitment.l2_end_block_number))
-            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .map_err(internal_rpc_error)?
             .ok_or_else(|| internal_rpc_error("Not synced up to latest L2 block yet"))?;
 
         let initial_state_root = ledger_db
             .get_l2_state_root(previous_commitment.l2_end_block_number)
-            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .map_err(internal_rpc_error)?
             .expect("Initial L2 state root must exist");
 
         let mut start_l2_height = previous_commitment.l2_end_block_number + 1;
@@ -302,7 +301,7 @@ where
             for l2_height in start_l2_height..=end_l2_height {
                 let state_diff = ledger_db
                     .get_l2_state_diff(L2BlockNumber(l2_height))
-                    .map_err(|e| internal_rpc_error(e.to_string()))?
+                    .map_err(internal_rpc_error)?
                     .expect("L2 state diff must exist");
                 cumulative_state_diff.extend(state_diff);
             }
@@ -311,7 +310,7 @@ where
 
             let end_state_root = ledger_db
                 .get_l2_state_root(end_l2_height)
-                .map_err(|e| internal_rpc_error(e.to_string()))?
+                .map_err(internal_rpc_error)?
                 .expect("L2 state root must exist");
             state_roots.push(end_state_root);
 
@@ -363,7 +362,7 @@ where
             .da_service
             .send_transaction(DaTxRequest::ZKProof(proof.clone()))
             .await
-            .map_err(|e| internal_rpc_error(e.to_string()))?;
+            .map_err(internal_rpc_error)?;
 
         Ok(BatchProofResponse {
             l1_tx_id: Some(tx_id.into()),
@@ -390,7 +389,7 @@ where
             .context
             .ledger_db
             .get_commitment_by_range(index_start..=index_end)
-            .map_err(|e| internal_rpc_error(e.to_string()))?;
+            .map_err(internal_rpc_error)?;
 
         let (result_tx, result_rx) = oneshot::channel();
 
@@ -432,7 +431,7 @@ where
 
         let Some(commitment_indices) = ledger_db
             .get_commitment_indices_by_job_id(job_id)
-            .map_err(|e| internal_rpc_error(e.to_string()))?
+            .map_err(internal_rpc_error)?
         else {
             return Ok(None);
         };
@@ -441,7 +440,7 @@ where
         for index in commitment_indices {
             let commitment = ledger_db
                 .get_commitment_by_index(index)
-                .map_err(|e| internal_rpc_error(e.to_string()))?
+                .map_err(internal_rpc_error)?
                 .expect("Commitment must exist");
             commitments.push(SequencerCommitmentResponse {
                 merkle_root: commitment.merkle_root,
@@ -452,7 +451,7 @@ where
 
         let stored_proof = ledger_db
             .get_proof_by_job_id(job_id)
-            .map_err(|e| internal_rpc_error(e.to_string()))?;
+            .map_err(internal_rpc_error)?;
 
         Ok(Some(JobRpcResponse {
             id: job_id,
@@ -466,7 +465,7 @@ where
             .context
             .ledger_db
             .get_latest_jobs(count)
-            .map_err(|e| internal_rpc_error(e.to_string()))?;
+            .map_err(internal_rpc_error)?;
         let jobs = jobs
             .into_iter()
             .map(|(id, status)| ProvingJobResponse { job_id: id, status })
@@ -479,7 +478,7 @@ where
             .context
             .ledger_db
             .get_job_id_by_commitment_index(index)
-            .map_err(|e| internal_rpc_error(e.to_string()))?;
+            .map_err(internal_rpc_error)?;
         match job_id {
             Some(job_id) => self.get_proving_job(job_id).await,
             None => Ok(None),
@@ -490,7 +489,7 @@ where
         self.context
             .ledger_db
             .get_prover_commitment_indices_by_l1(SlotNumber(l1_height))
-            .map_err(|e| internal_rpc_error(e.to_string()))
+            .map_err(internal_rpc_error)
     }
 }
 
@@ -505,8 +504,4 @@ where
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
     BatchProverRpcServer::into_rpc(server)
-}
-
-fn internal_rpc_error(msg: impl AsRef<str>) -> ErrorObjectOwned {
-    ErrorObjectOwned::owned(INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG, Some(msg.as_ref()))
 }

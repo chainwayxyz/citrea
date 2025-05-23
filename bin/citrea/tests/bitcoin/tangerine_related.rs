@@ -20,8 +20,8 @@ use revm::bytecode::eip7702::Eip7702Bytecode;
 use sha2::Digest;
 use sov_ledger_rpc::LedgerRpcClient;
 
-use crate::bitcoin::batch_prover_test::{wait_for_prover_job, wait_for_prover_job_count};
 use crate::bitcoin::get_citrea_path;
+use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count};
 use crate::common::make_test_client;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
