@@ -447,6 +447,49 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         CallTracer(expected_top_call_only_call_get_trace)
     );
 
+    // test some cache conversions
+    // requested call tracer, cached, then requested again with different tracer
+    {
+        // as we know block 3 is now in cache, let's try to request different tracers
+        let res = test_client
+            .debug_trace_block_by_number(
+                BlockNumberOrTag::Number(3),
+                Some(GethDebugTracingOptions::default().with_tracer(
+                    GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FourByteTracer),
+                )),
+            )
+            .await
+            .into_iter()
+            .map(|trace| match trace {
+                TraceResult::Success { result, .. } => Ok(result),
+                _ => anyhow::bail!("Unexpected trace result"),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(res.len(), 2);
+        assert!(matches!(res[0], FourByteTracer(_)));
+
+        let res = test_client
+            .debug_trace_block_by_number(
+                BlockNumberOrTag::Number(3),
+                Some(GethDebugTracingOptions::default().with_tracer(
+                    GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FlatCallTracer),
+                )),
+            )
+            .await
+            .into_iter()
+            .map(|trace| match trace {
+                TraceResult::Success { result, .. } => Ok(result),
+                _ => anyhow::bail!("Unexpected trace result"),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(res.len(), 2);
+        assert!(matches!(res[0], FlatCallTracer(_)));
+    }
+
     let traces = test_client
         .debug_trace_chain(
             BlockNumberOrTag::Number(0),
@@ -670,7 +713,7 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         "subtraces":0,
         "traceAddress":[],
         "transactionHash": "0x06808a08cac07bdcc0a4fac48a4caa673088cc45a10517b8ad1c86ea3c3e5460",
-        "transactionPosition": None::<usize>,
+        "transactionPosition": 0,
         "type": "call"
     }]])
     .unwrap();
@@ -691,6 +734,49 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(send_eth_traces.len(), 1);
     assert_eq!(send_eth_traces[0], FlatCallTracer(expected_send_eth_trace));
+
+    // test some cache conversions
+    // requested flat call tracer, cached (with call tracer), then requested again with different tracers
+    {
+        // as we know block 3 is now in cache, let's try to request different tracers
+        let res = test_client
+            .debug_trace_block_by_number(
+                BlockNumberOrTag::Number(2),
+                Some(GethDebugTracingOptions::default().with_tracer(
+                    GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FourByteTracer),
+                )),
+            )
+            .await
+            .into_iter()
+            .map(|trace| match trace {
+                TraceResult::Success { result, .. } => Ok(result),
+                _ => anyhow::bail!("Unexpected trace result"),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(res.len(), 1);
+        assert!(matches!(res[0], FourByteTracer(_)));
+
+        let res = test_client
+            .debug_trace_block_by_number(
+                BlockNumberOrTag::Number(2),
+                Some(GethDebugTracingOptions::default().with_tracer(
+                    GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
+                )),
+            )
+            .await
+            .into_iter()
+            .map(|trace| match trace {
+                TraceResult::Success { result, .. } => Ok(result),
+                _ => anyhow::bail!("Unexpected trace result"),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(res.len(), 1);
+        assert!(matches!(res[0], CallTracer(_)));
+    }
 
     task_manager.graceful_shutdown();
 
