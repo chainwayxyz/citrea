@@ -173,7 +173,7 @@ where
                                 return Err(HaltingError::Commitment(e).into());
                             }
                             _ => {
-                                error!("Failed to process sequencer commitment: {e:?}");
+                                unreachable!("Failed to process sequencer commitment: {e:?}");
                             }
                         }
                     }
@@ -189,8 +189,8 @@ where
                     {
                         match e {
                             ProcessingError::HaltingError(HaltingError::Proof(e)) => {
-                                error!("Halting error while processing zk proof: {e:?}");
-                                return Err(HaltingError::Proof(e).into());
+                                unreachable!("Halting error while processing zk proof: {e:?}");
+                                // return Err(HaltingError::Proof(e).into());
                             }
                             _ => {
                                 error!("Could not process ZK proofs: {e}... skipping...");
@@ -211,7 +211,7 @@ where
                     return Err(HaltingError::Commitment(e).into());
                 }
                 _ => {
-                    warn!("Failed to process pending commitments: {e:?}");
+                    unreachable!("Failed to process pending commitments: {e:?}");
                 }
             }
         }
@@ -222,8 +222,8 @@ where
         {
             match e {
                 ProcessingError::HaltingError(HaltingError::Proof(e)) => {
-                    error!("Halting error while processing pending proofs: {e:?}");
-                    return Err(HaltingError::Proof(e).into());
+                    unreachable!("Halting error while processing pending proofs: {e:?}");
+                    // return Err(HaltingError::Proof(e).into());
                 }
                 _ => {
                     error!("Failed to process pending proofs: {e:?}");

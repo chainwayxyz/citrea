@@ -42,6 +42,145 @@ fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
     tree.root().unwrap()
 }
 
+struct PendingCommitmentHaltingErrorTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for PendingCommitmentHaltingErrorTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            task_executor,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
+        )
+        .await;
+
+        // This should cause a halting error as merkle root doesn't match the expected root from known L2 blocks
+        // Send it first then generate block so that it's pending then causes a mismatch
+        let wrong_merkle_root_commitment = SequencerCommitment {
+            merkle_root: [0xAA; 32], // Wrong merkle root
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for l2 blocks and make sure the node is halted
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        // Generate a block and make sure fullnode doesn't process it
+        da.generate(1).await?;
+
+        // Sleep to trigger L1 block processing
+        sleep(Duration::from_secs(1)).await;
+
+        // Check that the full node has stopped processing L1 blocks due to halting error
+        let last_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        println!("last_scanned_l1_height : {:?}", last_scanned_l1_height);
+
+        // The full node should be halted at commitment height + 1
+        // It is processed and kept as pending at commitment height.
+        // Next block triggers the HaltingError
+        assert_eq!(last_scanned_l1_height.to::<u64>(), l1_height);
+
+        // Verify that no commitment were processed
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+        assert!(committed_height.is_none());
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Assert that full node can still process L2 blocks
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment * 2, None)
+            .await?;
+
+        // Generate 5 blocks and assert that L1 sync is halted
+        da.generate(5).await?;
+        let final_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(
+            final_scanned_l1_height.to::<u64>(),
+            last_scanned_l1_height.to::<u64>(),
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_halting_pending_commitment_merkle_root_mismatch() -> Result<()> {
+    TestCaseRunner::new(PendingCommitmentHaltingErrorTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
 struct FullNodeRestartTest;
 
 #[async_trait]
@@ -609,6 +748,13 @@ impl TestCase for ConflictingCommitmentsTest {
             index: 1,
         };
 
+        // Create another conflicting commitment B with same index but different merkle root
+        let conflicting_commitment_different_root = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
         // Send commitment A
         bitcoin_da_service
             .send_transaction_with_fee_rate(
@@ -633,6 +779,32 @@ impl TestCase for ConflictingCommitmentsTest {
 
         assert_eq!(committed_height_a.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height_a.commitment_index, 1);
+
+        // Send conflicting commitment with different merkle root, should be ignored
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(conflicting_commitment_different_root.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height_b = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height_b, None).await?;
+
+        // The full node should ignore commitment with conflicting merkle root
+        let committed_height_b = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+
+        // The committed height should still match commitment A
+        assert_eq!(committed_height_b.height, max_l2_blocks_per_commitment);
+        assert_eq!(committed_height_b.commitment_index, 1);
 
         // Send conflicting commitment B
         bitcoin_da_service
