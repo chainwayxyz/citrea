@@ -1340,7 +1340,7 @@ impl TestCase for InvokeCachePruningTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            max_l2_blocks_per_commitment: 100,
+            max_l2_blocks_per_commitment: 60,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 1_000_000,
                 pending_tx_size: 100_000_000,
@@ -1371,13 +1371,18 @@ impl TestCase for InvokeCachePruningTest {
                 .eth_send_raw_transaction(signed_tx.into())
                 .await
                 .unwrap();
-            tokio::time::sleep(Duration::from_millis(5)).await;
         }
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        // we publish 60 blocks, but actually, 55th block hits state diff
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await
+            .unwrap();
 
         // Wait for commitment transactions to hit the mempool
         da.wait_mempool_len(2, None).await?;
@@ -1392,6 +1397,8 @@ impl TestCase for InvokeCachePruningTest {
             .await?;
 
         // Wait for batch proof transactions to hit the mempool
+        // In this proof, cache limit of 8MB will be hit and pruning will occur.
+        // If the proving session ended successfully, we are gucci
         da.wait_mempool_len(2, None).await?;
 
         Ok(())
@@ -1400,7 +1407,8 @@ impl TestCase for InvokeCachePruningTest {
 
 impl InvokeCachePruningTest {
     async fn create_deploy_transactions(&self) -> Vec<Vec<u8>> {
-        const DEPLOY_COUNT: usize = 1000;
+        // 11 tx fits into a single block
+        const DEPLOY_COUNT: usize = 60 * 11;
 
         let bytecode_hex = fs::read_to_string("tests/bitcoin/test-data/big-contract.bin").unwrap();
         let bytecode_size = bytecode_hex.len() / 2;
@@ -1429,8 +1437,8 @@ impl InvokeCachePruningTest {
             let mut tx = TxLegacy {
                 chain_id: Some(5655),
                 nonce: i as u64,
-                gas_price: 1000000000, // 1 gwei
-                gas_limit: 7500000,    // 7.5 million gas
+                gas_price: 1_000_000_000 * 1_000_000_000, // 1_000_000_000 gwei
+                gas_limit: 3_000_000,                     // 3 million gas
                 to: TxKind::Create,
                 value: U256::ZERO,
                 input: Bytes::copy_from_slice(&bytecode_with_args),

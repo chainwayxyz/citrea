@@ -6,7 +6,7 @@ use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
-use citrea_primitives::MAX_TX_BODY_SIZE;
+use citrea_primitives::{MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -645,8 +645,6 @@ where
     }
 }
 
-const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
-
 type CommitmentStateTransitionData = (
     VecDeque<Vec<u8>>,
     VecDeque<Vec<(Witness, Witness)>>,
@@ -818,8 +816,9 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
                 state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
             );
             if state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
-                > MAX_CUMULATIVE_CACHE_SIZE
+                > MAX_WITNESS_CACHE_SIZE
             {
+                tracing::warn!("Max witness cache limit exceeded, pruning caches to half");
                 state_log.prune_half();
                 offchain_log.prune_half();
                 cache_prune_l2_heights.push(l2_height);
