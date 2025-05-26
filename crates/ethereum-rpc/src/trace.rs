@@ -80,7 +80,6 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
             let traces = debug_trace_by_block_number(
                 block_number,
                 None,
-                None,
                 &ethereum,
                 &evm,
                 &mut working_set,
@@ -120,7 +119,6 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
 
 pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     block_number: u64,
-    tx_hash: Option<TxHash>,
     trace_idx: Option<usize>,
     ethereum: &Ethereum<C, Da>,
     evm: &Evm<C>,
@@ -169,7 +167,6 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             tracer_config,
             block_number,
             block_hash,
-            tx_hash,
             trace_idx,
         )?;
         return Ok(traces);
@@ -201,7 +198,6 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         tracer_config,
         block_number,
         block_hash,
-        tx_hash,
         trace_idx,
     )?;
 
@@ -227,13 +223,13 @@ fn remove_logs_from_call_frame(call_frame: &mut Vec<CallFrame>) {
     }
 }
 
+/// If index is given as Some, traces is expected to be a single trace (trace for a single transaction in a block)
 fn get_traces_with_requested_tracer_and_config(
     traces: Vec<TraceResult>,
     tracer: GethDebugTracerType,
     tracer_config: GethDebugTracerConfig,
     block_number: u64,
     block_hash: Option<BlockHash>,
-    tx_hash: Option<TxHash>,
     tx_index: Option<usize>,
 ) -> Result<Vec<TraceResult>, EthApiError> {
     // This can be only CallConfig or PreStateConfig if it is not CallConfig return Error for now
@@ -277,28 +273,27 @@ fn get_traces_with_requested_tracer_and_config(
                     Ok(new_traces)
                 }
                 GethDebugBuiltInTracerType::FlatCallTracer => {
-                    let mut localized_call_frames = vec![];
-                    for trace in traces {
+                    for (index_from_vec, trace) in traces.into_iter().enumerate() {
                         if let TraceResult::Success {
                             result: GethTrace::CallTracer(call_frame),
                             tx_hash,
                         } = trace
                         {
-                            let new_flat_call_frame = convert_call_trace_into_flatcall_frame(
+                            let new_flat_call_frames = convert_call_trace_into_flatcall_frame(
                                 call_frame,
                                 vec![],
                                 Some(block_number),
                                 block_hash,
                                 tx_hash,
-                                tx_index,
+                                tx_index.unwrap_or(index_from_vec),
                             )?;
-                            localized_call_frames.extend(new_flat_call_frame);
+                            new_traces.push(TraceResult::new_success(
+                                GethTrace::FlatCallTracer(new_flat_call_frames),
+                                tx_hash,
+                            ));
                         }
                     }
-                    new_traces.push(TraceResult::new_success(
-                        GethTrace::FlatCallTracer(localized_call_frames),
-                        tx_hash,
-                    ));
+
                     Ok(new_traces)
                 }
                 GethDebugBuiltInTracerType::FourByteTracer => {
@@ -341,7 +336,7 @@ fn convert_call_trace_into_flatcall_frame(
     block_number: Option<u64>,
     block_hash: Option<BlockHash>,
     tx_hash: Option<TxHash>,
-    tx_index: Option<usize>,
+    tx_index: usize,
 ) -> Result<Vec<LocalizedTransactionTrace>, EthApiError> {
     let call_type = call_frame.typ.to_lowercase();
     let call_type = call_type.as_str();
@@ -419,7 +414,7 @@ fn convert_call_trace_into_flatcall_frame(
         block_hash,
         block_number,
         transaction_hash: tx_hash,
-        transaction_position: tx_index.map(|i| i as u64),
+        transaction_position: Some(tx_index as u64),
     };
 
     let mut result = vec![];
