@@ -778,6 +778,56 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         assert!(matches!(res[0], CallTracer(_)));
     }
 
+    let ss_contract = SimpleStorageContract::default();
+    let deploy_ss_contract_req = test_client
+        .deploy_contract(ss_contract.byte_code(), None)
+        .await?;
+
+    test_client.send_publish_batch_request().await;
+
+    let ss_contract_tx_hash = deploy_ss_contract_req
+        .get_receipt()
+        .await
+        .unwrap()
+        .transaction_hash;
+
+    // get the trace of send_eth_tx_hash and expect call_tx_hash trace to be in the cache
+    let deploy_contract_trace = test_client
+        .debug_trace_transaction(
+            ss_contract_tx_hash,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FlatCallTracer),
+            )),
+        )
+        .await;
+
+    let expected_deploy_contract_trace = serde_json::from_value::<FlatCallFrame>(json![[{
+        "action": {
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "gas": "0x124e0",
+            "init": "0x608060405234801561000f575f80fd5b506101718061001d5f395ff3fe608060405234801561000f575f80fd5b506004361061003f575f3560e01c80634e70b1dc1461004357806360fe47b1146100615780636d4ce63c1461007d575b5f80fd5b61004b61009b565b60405161005891906100c9565b60405180910390f35b61007b60048036038101906100769190610110565b6100a0565b005b6100856100a9565b60405161009291906100c9565b60405180910390f35b5f5481565b805f8190555050565b5f8054905090565b5f819050919050565b6100c3816100b1565b82525050565b5f6020820190506100dc5f8301846100ba565b92915050565b5f80fd5b6100ef816100b1565b81146100f9575f80fd5b50565b5f8135905061010a816100e6565b92915050565b5f60208284031215610125576101246100e2565b5b5f610132848285016100fc565b9150509291505056fea264697066735822122011ac1b48890fc5332d67a2b84f4a617f861d0d0d10b928535aa5655c9ab1c66664736f6c63430008180033",
+            "value": "0x0",
+            "creationMethod": "create"
+        },
+        "blockNumber":3,
+        "result": {
+            "address": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+            "code": "0x608060405234801561000f575f80fd5b506004361061003f575f3560e01c80634e70b1dc1461004357806360fe47b1146100615780636d4ce63c1461007d575b5f80fd5b61004b61009b565b60405161005891906100c9565b60405180910390f35b61007b60048036038101906100769190610110565b6100a0565b005b6100856100a9565b60405161009291906100c9565b60405180910390f35b5f5481565b805f8190555050565b5f8054905090565b5f819050919050565b6100c3816100b1565b82525050565b5f6020820190506100dc5f8301846100ba565b92915050565b5f80fd5b6100ef816100b1565b81146100f9575f80fd5b50565b5f8135905061010a816100e6565b92915050565b5f60208284031215610125576101246100e2565b5b5f610132848285016100fc565b9150509291505056fea264697066735822122011ac1b48890fc5332d67a2b84f4a617f861d0d0d10b928535aa5655c9ab1c66664736f6c63430008180033",
+            "gasUsed": "0x2074f"
+        },
+        "subtraces":0,
+        "traceAddress":[],
+        "transactionHash": "0xcadfa0e809414cc0ef72f251235aaee5e9f1992b485100019681336de73bc78f",
+        "transactionPosition":0,
+        "type": "create"
+    }]])
+    .unwrap();
+
+    assert_eq!(
+        deploy_contract_trace,
+        FlatCallTracer(expected_deploy_contract_trace.clone())
+    );
+
     task_manager.graceful_shutdown();
 
     Ok(())
