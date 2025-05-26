@@ -362,7 +362,7 @@ fn convert_call_trace_into_flatcall_frame(
                 gas_used: call_frame.gas_used.saturating_to(),
             })),
             subtraces: call_frame.calls.len(),
-            trace_address: vec![],
+            trace_address: trace_address.clone(),
         },
         "selfdestruct" => TransactionTrace {
             action: Action::Selfdestruct(SelfdestructAction {
@@ -377,7 +377,7 @@ fn convert_call_trace_into_flatcall_frame(
                 gas_used: call_frame.gas_used.saturating_to(),
             })),
             subtraces: call_frame.calls.len(),
-            trace_address: vec![],
+            trace_address: trace_address.clone(),
         },
         "call" | "staticcall" | "callcode" | "delegatecall" => TransactionTrace {
             action: Action::Call(CallAction {
@@ -402,7 +402,7 @@ fn convert_call_trace_into_flatcall_frame(
                 output: call_frame.output.unwrap_or_default(),
             })),
             subtraces: call_frame.calls.len(),
-            trace_address: vec![],
+            trace_address: trace_address.clone(),
         },
         _ => {
             return Err(EthApiError::Unsupported("Unsupported call frame"));
