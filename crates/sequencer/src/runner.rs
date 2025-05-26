@@ -245,8 +245,9 @@ where
                             L2BlockModuleCallError::EvmTransactionExecutionError(_) => {
                                 transactions.mark_invalid(
                                     &evm_tx,
-                                    // don't really have a way to know the cost right now
-                                    // passing 1 & 0 as it doesn't matter (the kind field is never used)
+                                    // don't really have a way to know the underlying EVM error due to
+                                    // our APIs so passing a generic overdraft error
+                                    // as it doesn't matter (the kind field is never used)
                                     InvalidPoolTransactionError::Overdraft {
                                         cost: U256::from(1),
                                         balance: U256::ZERO,
