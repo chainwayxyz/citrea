@@ -31,6 +31,7 @@ l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer" }
 short-header-proof-provider = { path = "../short-header-proof-provider" }
 
 [dev-dependencies]
+citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = ".", features = ["native"] }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-keys = { path = "../sovereign-sdk/module-system/sov-keys", fatures = ["native"] }

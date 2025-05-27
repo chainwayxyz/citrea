@@ -2693,6 +2693,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "citrea-evm",
+ "citrea-primitives",
  "citrea-stf",
  "jsonrpsee",
  "l2-block-rule-enforcer",
