@@ -1,7 +1,12 @@
+use std::fs;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use alloy_primitives::{Address, U32, U64};
+use alloy::consensus::{SignableTransaction, TxLegacy};
+use alloy::network::TxSigner;
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::Signer;
+use alloy_primitives::{Address, Bytes, TxKind, U256, U32, U64};
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -18,8 +23,10 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
+use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_risc0_adapter::host::Risc0Host;
+use citrea_sequencer::SequencerRpcClient;
 use risc0_zkvm::Digest;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -1316,6 +1323,166 @@ impl TestCase for BatchProverCreateInputTest {
 #[tokio::test]
 async fn batch_prover_create_input_test() -> Result<()> {
     TestCaseRunner::new(BatchProverCreateInputTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct InvokeCachePruningTest;
+
+#[async_trait]
+impl TestCase for InvokeCachePruningTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 60,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 1_000_000,
+                pending_tx_size: 100_000_000,
+                queue_tx_limit: 1_000_000,
+                queue_tx_size: 100_000_000,
+                base_fee_tx_limit: 1_000_000,
+                base_fee_tx_size: 100_000_000,
+                max_account_slots: 1_000_000,
+            },
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+
+        let signed_txs = self.create_deploy_transactions().await;
+        for signed_tx in signed_txs {
+            sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(signed_tx.into())
+                .await
+                .unwrap();
+        }
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        // we publish 60 blocks, but actually, 55th block hits state diff
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await
+            .unwrap();
+
+        // Wait for commitment transactions to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        // Finalize the commitments
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Ensure the batch prover sees the finalized commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Wait for batch proof transactions to hit the mempool
+        // In this proof, cache limit of 6MB will be hit and pruning will occur.
+        // If the proving session ended successfully, we are gucci
+        da.wait_mempool_len(2, None).await?;
+
+        // Finalize the zk proof
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to see and process zk proof
+        full_node
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        let last_proven_l2_data = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(last_proven_l2_data.commitment_index, 1);
+        assert_eq!(last_proven_l2_data.height, 55);
+
+        Ok(())
+    }
+}
+
+impl InvokeCachePruningTest {
+    async fn create_deploy_transactions(&self) -> Vec<Vec<u8>> {
+        // 11 tx fits into a single block
+        const DEPLOY_COUNT: usize = 60 * 11;
+
+        let bytecode_hex = fs::read_to_string("tests/bitcoin/test-data/big-contract.bin").unwrap();
+        let bytecode_size = bytecode_hex.len() / 2;
+
+        // extra 32 bytes for constructor argument
+        let mut bytecode_with_args = vec![0; bytecode_size + 32];
+        hex::decode_to_slice(bytecode_hex, &mut bytecode_with_args[0..bytecode_size]).unwrap();
+
+        // prepare signer
+        let private_key: [u8; 32] =
+            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let mut signer = PrivateKeySigner::from_slice(&private_key).unwrap();
+        signer.set_chain_id(Some(5655));
+
+        let mut signed_txs = Vec::with_capacity(DEPLOY_COUNT);
+        for i in 0..DEPLOY_COUNT {
+            // set constructor argument different for each contract.
+            // since constructor argument sets immutable storage variable
+            // this will make bytecode of each contract different
+            bytecode_with_args[bytecode_size..]
+                .copy_from_slice(U256::from(i).to_be_bytes::<32>().as_slice());
+
+            let mut tx = TxLegacy {
+                chain_id: Some(5655),
+                nonce: i as u64,
+                gas_price: 1_000_000_000 * 1_000_000_000, // 1_000_000_000 gwei
+                gas_limit: 3_000_000,                     // 3 million gas
+                to: TxKind::Create,
+                value: U256::ZERO,
+                input: Bytes::copy_from_slice(&bytecode_with_args),
+            };
+
+            let signature = signer.sign_transaction(&mut tx).await.unwrap();
+            let signed_tx = tx.into_signed(signature);
+
+            let mut rlp_buf = Vec::with_capacity(signed_tx.rlp_encoded_length());
+            signed_tx.rlp_encode(&mut rlp_buf);
+
+            signed_txs.push(rlp_buf);
+        }
+
+        signed_txs
+    }
+}
+
+#[tokio::test]
+async fn invoke_cache_prune_test() -> Result<()> {
+    TestCaseRunner::new(InvokeCachePruningTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
