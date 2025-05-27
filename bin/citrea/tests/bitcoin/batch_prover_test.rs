@@ -1397,7 +1397,7 @@ impl TestCase for InvokeCachePruningTest {
             .await?;
 
         // Wait for batch proof transactions to hit the mempool
-        // In this proof, cache limit of 8MB will be hit and pruning will occur.
+        // In this proof, cache limit of 6MB will be hit and pruning will occur.
         // If the proving session ended successfully, we are gucci
         da.wait_mempool_len(2, None).await?;
 
