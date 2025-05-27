@@ -23,6 +23,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
+use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_sequencer::SequencerRpcClient;
@@ -1334,6 +1335,7 @@ impl TestCase for InvokeCachePruningTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_batch_prover: true,
+            with_full_node: true,
             ..Default::default()
         }
     }
@@ -1362,6 +1364,7 @@ impl TestCase for InvokeCachePruningTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
 
         let signed_txs = self.create_deploy_transactions().await;
         for signed_tx in signed_txs {
@@ -1400,6 +1403,26 @@ impl TestCase for InvokeCachePruningTest {
         // In this proof, cache limit of 6MB will be hit and pruning will occur.
         // If the proving session ended successfully, we are gucci
         da.wait_mempool_len(2, None).await?;
+
+        // Finalize the zk proof
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to see and process zk proof
+        full_node
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        let last_proven_l2_data = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(last_proven_l2_data.commitment_index, 1);
+        assert_eq!(last_proven_l2_data.height, 55);
 
         Ok(())
     }
