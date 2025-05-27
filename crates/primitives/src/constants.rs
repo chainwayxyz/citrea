@@ -18,7 +18,7 @@ pub const MAX_TX_BODY_SIZE: usize = 397000;
 #[cfg(feature = "testing")]
 pub const MAX_WITNESS_CACHE_SIZE: usize = 6 * 1024 * 1024;
 #[cfg(not(feature = "testing"))]
-pub const MAX_WITNESS_CACHE_SIZE: usize = 128 * 1024 * 1024;
+pub const MAX_WITNESS_CACHE_SIZE: usize = 512 * 1024 * 1024;
 
 /// SHA-256 hash of "citrea" string
 /// Used as the default tx merkle root when the block has no transactions
