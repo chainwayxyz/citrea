@@ -2705,6 +2705,7 @@ dependencies = [
  "sov-keys",
  "sov-mock-da",
  "sov-modules-api",
+ "sov-modules-core",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
