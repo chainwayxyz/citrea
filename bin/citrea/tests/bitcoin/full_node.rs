@@ -214,6 +214,18 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             .await?;
         assert!(proofs.is_none());
 
+        // Generate 1 blocks and assert that L1 sync is not halted and full node continues syncing
+        da.generate(1).await?;
+        let final_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(
+            final_scanned_l1_height.to::<u64>(),
+            last_scanned_l1_height.to::<u64>() + 1,
+        );
+
         Ok(())
     }
 }
