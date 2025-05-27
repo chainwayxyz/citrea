@@ -329,7 +329,6 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
             .http_client()
             .get_last_scanned_l1_height()
             .await?;
-        println!("last_scanned_l1_height : {:?}", last_scanned_l1_height);
 
         // The full node should be halted at commitment height + 1
         // It is processed and kept as pending at commitment height.
