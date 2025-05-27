@@ -193,7 +193,7 @@ where
                                 // return Err(HaltingError::Proof(e).into());
                             }
                             _ => {
-                                error!("Could not process ZK proofs: {e}... skipping...");
+                                warn!("Could not process ZK proofs: {e}... skipping...");
                             }
                         }
                     }

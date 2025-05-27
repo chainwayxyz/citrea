@@ -7,7 +7,9 @@ use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::config::{BatchProverConfig, BitcoinConfig, SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{
+    BatchProverConfig, BitcoinConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
+};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
@@ -40,6 +42,190 @@ fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
 
     let tree = rs_merkle::MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves);
     tree.root().unwrap()
+}
+
+struct SequencerCommitmentHashMismatchTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for SequencerCommitmentHashMismatchTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_light_client_prover: true, // Used for getting batch_proof_method_ids
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let prover_da_service = spawn_bitcoin_da_service(
+            task_executor.clone(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+        let sequencer_da_service = spawn_bitcoin_da_service(
+            task_executor,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Sequencer,
+        )
+        .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+
+        da.restart(None, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 0);
+
+        let range1 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
+            .await?;
+        let correct_merkle_root = calculate_merkle_root(&range1);
+
+        let correct_commitment = SequencerCommitment {
+            merkle_root: correct_merkle_root,
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
+        let wrong_merkle_root = [1; 32];
+        let wrong_commitment = SequencerCommitment {
+            merkle_root: wrong_merkle_root,
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
+        // Send the `correct_commitment` so it's stored and will trigger the pre-hash mismatch against `wrong_commitment`
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(correct_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to process the commitment
+        full_node
+            .wait_for_l1_height(commitment_l1_height, None)
+            .await?;
+        light_client_prover
+            .wait_for_l1_height(commitment_l1_height, None)
+            .await
+            .unwrap();
+
+        // Verify the correct commitment is stored and has the expected merkle_root
+        let stored_commitment = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .unwrap();
+        assert_eq!(stored_commitment.merkle_root, correct_merkle_root);
+
+        let finalized_height = da.get_finalized_height(None).await?;
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0;
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        // Create a fake proof against the wrong commitment
+        let fake_proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root.try_into().unwrap(),
+            max_l2_blocks_per_commitment,
+            batch_proof_method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![wrong_commitment.clone()],
+            vec![wrong_merkle_root.clone()],
+            None,
+        );
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_proof), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        // Assert that proof wasn't accepted and is correctly discarded due to hash mismatch
+        let proofs = full_node
+            .client
+            .http_client()
+            .get_verified_batch_proofs_by_slot_height(U64::from(proof_l1_height))
+            .await?;
+        assert!(proofs.is_none());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_commitment_hash_mismatch() -> Result<()> {
+    TestCaseRunner::new(SequencerCommitmentHashMismatchTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
 struct PendingCommitmentHaltingErrorTest {
