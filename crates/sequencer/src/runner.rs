@@ -25,6 +25,7 @@ use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_tasks::shutdown::GracefulShutdown;
+use reth_transaction_pool::error::InvalidPoolTransactionError;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
@@ -179,16 +180,6 @@ where
                     &mut nonce,
                 )?;
 
-            // Normally, transactions.mark_invalid() calls would give us the same
-            // functionality as invalid_senders, however,
-            // in this version of reth, mark_invalid uses transaction.hash() to mark invalid
-            // which is not desired. This was fixed in later versions, but we can not update
-            // to those versions because we have to lock our Rust version to 1.81.
-            //
-            // When a tx is rejected, its sender is added to invalid_senders set
-            // because other transactions from the same sender now cannot be included in the block
-            // since they are auto rejected due to the nonce gap.
-            let mut invalid_senders = HashSet::new();
             let mut l1_fee_failed_txs = vec![];
 
             // using .next() instead of a for loop because its the intended
@@ -196,10 +187,6 @@ where
             // when we update reth we'll need to call transactions.mark_invalid()
             #[allow(clippy::while_let_on_iterator)]
             while let Some(evm_tx) = transactions.next() {
-                if invalid_senders.contains(&evm_tx.transaction_id.sender) {
-                    continue;
-                }
-
                 let buf = evm_tx.to_consensus().into_inner().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
@@ -235,13 +222,19 @@ where
                         ) => match soft_confirmation_module_call_error {
                             L2BlockModuleCallError::EvmGasUsedExceedsBlockGasLimit {
                                 cumulative_gas,
-                                tx_gas_used: _,
+                                tx_gas_used,
                                 block_gas_limit,
                             } => {
                                 if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
                                     break;
                                 } else {
-                                    invalid_senders.insert(evm_tx.transaction_id.sender);
+                                    transactions.mark_invalid(
+                                        &evm_tx,
+                                        InvalidPoolTransactionError::ExceedsGasLimit(
+                                            tx_gas_used,
+                                            block_gas_limit - cumulative_gas,
+                                        ),
+                                    );
                                     working_set_to_discard = working_set.revert().to_revertable();
                                     continue;
                                 }
@@ -250,7 +243,16 @@ where
                                 panic!("got unsupported tx type")
                             }
                             L2BlockModuleCallError::EvmTransactionExecutionError(_) => {
-                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                transactions.mark_invalid(
+                                    &evm_tx,
+                                    // don't really have a way to know the underlying EVM error due to
+                                    // our APIs so passing a generic overdraft error
+                                    // as it doesn't matter (the kind field is never used)
+                                    InvalidPoolTransactionError::Overdraft {
+                                        cost: U256::from(1),
+                                        balance: U256::ZERO,
+                                    },
+                                );
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;
                             }
@@ -259,7 +261,15 @@ where
                             }
                             L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee => {
                                 l1_fee_failed_txs.push(*evm_tx.hash());
-                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                transactions.mark_invalid(
+                                    &evm_tx,
+                                    // don't really have a way to know the cost right now
+                                    // passing 1 & 0 as it doesn't matter (the kind field is never used)
+                                    InvalidPoolTransactionError::Overdraft {
+                                        cost: U256::from(1),
+                                        balance: U256::ZERO,
+                                    },
+                                );
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;
                             }
