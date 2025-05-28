@@ -34,9 +34,7 @@ short-header-proof-provider = { path = "../short-header-proof-provider" }
 
 [dev-dependencies]
 citrea-primitives = { path = "../primitives", features = ["testing"] }
-citrea-risc0-adapter = { path = "../risc0", features = ["testing"] }
 citrea-stf = { path = ".", features = ["testing"] }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rs_merkle = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-keys = { path = "../sovereign-sdk/module-system/sov-keys", features = ["native"] }
