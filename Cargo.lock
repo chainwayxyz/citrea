@@ -2702,7 +2702,6 @@ dependencies = [
  "serde_json",
  "short-header-proof-provider",
  "sov-accounts",
- "sov-db",
  "sov-keys",
  "sov-mock-da",
  "sov-mock-zkvm",
