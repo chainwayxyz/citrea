@@ -216,6 +216,9 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
 
         // Generate 1 blocks and assert that L1 sync is not halted and full node continues syncing
         da.generate(1).await?;
+        full_node
+            .wait_for_l1_height(proof_l1_height + 1, None)
+            .await?;
         let final_scanned_l1_height = full_node
             .client
             .http_client()
