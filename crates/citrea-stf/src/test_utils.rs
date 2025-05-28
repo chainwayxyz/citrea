@@ -3,6 +3,7 @@ use citrea_evm::{keccak256, Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::codec::BorshCodec;
 use sov_state::storage::{Storage, StorageKey, StorageValue};
 use sov_state::{Config as StorageConfig, ProverStorage, ReadWriteLog, Witness};
@@ -71,13 +72,13 @@ pub fn commit(
     storage_manager: &mut ProverStorageManager,
     prover_storage: ProverStorage,
     working_set: WorkingSet<ProverStorage>,
-) -> (ReadWriteLog, Witness) {
+) -> (StorageRootHash, ReadWriteLog, Witness) {
     // Next block to make sure prover_storage inner DBs have no more than 1 strong reference
-    let (state_log, witness) = {
+    let (state_root, state_log, witness) = {
         let mut checkpoint = working_set.checkpoint();
         let (state_log, mut witness) = checkpoint.freeze();
 
-        let (_, state_update, _) = prover_storage
+        let (state_transition, state_update, _) = prover_storage
             .compute_state_update(&state_log, &mut witness, true)
             .expect("Storage update must succeed");
 
@@ -85,9 +86,9 @@ pub fn commit(
         let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
         prover_storage.commit(&state_update, &accessory_log, &offchain_log);
 
-        (state_log, witness)
+        (state_transition.final_root, state_log, witness)
     };
     storage_manager.finalize_storage(prover_storage);
 
-    (state_log, witness)
+    (state_root, state_log, witness)
 }

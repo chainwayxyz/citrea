@@ -338,7 +338,7 @@ mod tests {
         let mut working_set = WorkingSet::new(prover_storage.clone());
         set_next_l1_height(&mut working_set);
         set_last_l1_hash(&mut working_set);
-        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+        let (_, _, _) = commit(&mut storage_manager, prover_storage, working_set);
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let final_state_root = [0u8; 32]; // Mock final state root
@@ -363,7 +363,7 @@ mod tests {
         let mut working_set = WorkingSet::new(prover_storage.clone());
         set_next_l1_height(&mut working_set);
         set_last_l1_hash(&mut working_set);
-        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+        let (_, _, _) = commit(&mut storage_manager, prover_storage, working_set);
 
         // try the native --> zk flow without the values being in cache
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
@@ -512,7 +512,7 @@ mod tests {
         let mut working_set = WorkingSet::new(prover_storage.clone());
         set_next_l1_height(&mut working_set);
         set_last_l1_hash(&mut working_set);
-        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+        let (_, _, _) = commit(&mut storage_manager, prover_storage, working_set);
 
         // try the native --> zk flow without the values being in cache
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
@@ -549,7 +549,7 @@ mod tests {
         let mut working_set = WorkingSet::new(prover_storage.clone());
         set_next_l1_height(&mut working_set);
         set_last_l1_hash(&mut working_set);
-        let (_, _) = commit(&mut storage_manager, prover_storage, working_set);
+        let (_, _, _) = commit(&mut storage_manager, prover_storage, working_set);
 
         // try the native --> zk flow without the values being in cache
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
