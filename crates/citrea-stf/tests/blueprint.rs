@@ -1,12 +1,12 @@
 use citrea_evm::EvmConfig;
 use citrea_primitives::forks::{get_forks, use_network_forks};
 use citrea_primitives::EMPTY_TX_ROOT;
+use citrea_stf::genesis_config::read_json_file;
 use citrea_stf::runtime::{CitreaRuntime, GenesisConfig};
 use citrea_stf::test_utils::{commit, init_storage_manager, set_last_l1_hash};
 use l2_block_rule_enforcer::L2BlockRuleEnforcerConfig;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use serde_json::json;
 use sov_accounts::AccountConfig;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::default_signature::K256PublicKey;
@@ -29,30 +29,15 @@ type TestStfBlueprint =
     StfBlueprint<DefaultContext, MockDaSpec, CitreaRuntime<DefaultContext, MockDaSpec>>;
 
 fn generate_genesis_config() -> GenesisParams<GenesisConfig<DefaultContext, MockDaSpec>> {
-    let accounts_config = AccountConfig { pub_keys: vec![] };
-    let evm_config: EvmConfig = serde_json::from_value(json!({
-        "data": [],
-        "chain_id": 5655,
-        "limit_contract_code_size": 24576,
-        "coinbase": "0x3100000000000000000000000000000000000005",
-        "starting_base_fee": 1000000000,
-        "block_gas_limit": 30000000,
-        "base_fee_params": {
-            "max_change_denominator": 8,
-            "elasticity_multiplier": 2
-        },
-        "difficulty": 0,
-        "extra_data": "0x",
-        "timestamp": 0,
-        "nonce": 0
-    }))
-    .unwrap();
+    let accounts_config: AccountConfig =
+        read_json_file("../../resources/test-data/integration-tests/accounts.json").unwrap();
 
-    let rule_enforcer_config: L2BlockRuleEnforcerConfig = serde_json::from_value(json!({
-        "max_l2_blocks_per_l1": 86400,
-        "authority": "sov1kqrxxkwkf7t7kfuegllwkzp6jc6r6h66pgkfe7pggtm0gayl756qku2u5p"
-    }))
-    .unwrap();
+    let evm_config: EvmConfig =
+        read_json_file("../../resources/test-data/integration-tests/evm.json").unwrap();
+
+    let rule_enforcer_config: L2BlockRuleEnforcerConfig =
+        read_json_file("../../resources/test-data/integration-tests/l2_block_rule_enforcer.json")
+            .unwrap();
 
     let genesis = GenesisConfig::<DefaultContext, MockDaSpec> {
         accounts: accounts_config,
