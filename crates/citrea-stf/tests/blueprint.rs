@@ -259,7 +259,7 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
     let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
 
     let mut storage_manager = init_storage_manager();
-    let (prev_hash, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
 
     let sequencer_private_key = K256PrivateKey::generate();
     let sequencer_public_key = sequencer_private_key.pub_key();
