@@ -221,10 +221,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             .http_client()
             .get_last_scanned_l1_height()
             .await?;
-        assert_eq!(
-            final_scanned_l1_height.to::<u64>(),
-            last_scanned_l1_height.to::<u64>() + 1,
-        );
+        assert_eq!(final_scanned_l1_height.to::<u64>(), proof_l1_height + 1,);
 
         Ok(())
     }
