@@ -62,6 +62,7 @@ fn generate_genesis_config() -> GenesisParams<GenesisConfig<DefaultContext, Mock
     GenesisParams { runtime: genesis }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_l2_block(
     stf_blueprint: &mut TestStfBlueprint,
     sequencer_private_key: &K256PrivateKey,
@@ -251,7 +252,7 @@ fn test_apply_successful_l2_block() {
         &mut vec![],
     );
 
-    assert!(matches!(result, Ok(_)))
+    assert!(result.is_ok())
 }
 
 #[test]
