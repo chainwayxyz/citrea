@@ -18,25 +18,32 @@ borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
-short-header-proof-provider = { path = "../short-header-proof-provider" }
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-evm = { path = "../evm" }
 l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer" }
+short-header-proof-provider = { path = "../short-header-proof-provider" }
 
 [dev-dependencies]
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+citrea-primitives = { path = "../primitives", features = ["testing"] }
+citrea-stf = { path = ".", features = ["testing"] }
+rs_merkle = { workspace = true }
+sov-keys = { path = "../sovereign-sdk/module-system/sov-keys", features = ["native"] }
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
-sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
+sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core", features = ["native"] }
+sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", features = ["native"] }
-tempfile = { workspace = true }
 
 [features]
 default = []
@@ -52,6 +59,5 @@ native = [
   "dep:tracing",
   "dep:anyhow",
   "dep:serde_json",
-  "sov-accounts/serde",
-  "l2-block-rule-enforcer/native",
 ]
+testing = ["native", "dep:tempfile", "dep:sov-prover-storage-manager"]
