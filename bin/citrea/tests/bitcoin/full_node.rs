@@ -217,7 +217,7 @@ impl TestCase for PreStateRootMismatchTest {
             false,
             l1_hash.as_raw_hash().to_byte_array(),
             vec![commitment2.clone()],
-            vec![commitment_respons2.merkle_root.clone()],
+            vec![commitment_respons2.merkle_root],
             Some(commitment1.serialize_and_calculate_sha_256()),
         );
 
@@ -431,7 +431,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             false,
             l1_hash.as_raw_hash().to_byte_array(),
             vec![wrong_commitment.clone()],
-            vec![wrong_merkle_root.clone()],
+            vec![wrong_merkle_root],
             None,
         );
         prover_da_service
