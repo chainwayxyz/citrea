@@ -440,6 +440,31 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
         get_forks(),
     );
 
+    let guest = MockZkGuest::new(input.clone());
+    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    // Should panic since the commitment is index 0 is not allowed
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+            &guest,
+            &sequencer_public_key.pub_key.to_sec1_bytes(),
+            &state_root,
+            prover_storage,
+            Some(SequencerCommitment {
+                merkle_root: first_commitment_calculated_root,
+                index: 0,
+                l2_end_block_number: 5,
+            }),
+            vec![SequencerCommitment {
+                merkle_root: second_commitment_calculated_root,
+                index: 3,
+                l2_end_block_number: 10,
+            }],
+            &[],
+            get_forks(),
+        )
+    }));
+    assert!(result.is_err());
+
     let guest = MockZkGuest::new(input);
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
     // Should panic since the commitment is index 3 while the next commitment index should be 2.
