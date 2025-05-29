@@ -44,6 +44,245 @@ fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
     tree.root().unwrap()
 }
 
+struct PreStateRootMismatchTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for PreStateRootMismatchTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_light_client_prover: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(175)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 175,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let prover_da_service = spawn_bitcoin_da_service(
+            task_executor.clone(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment1_l1_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(commitment1_l1_height, None)
+            .await?;
+        let commitment_response = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .unwrap();
+
+        let commitment1 = SequencerCommitment {
+            merkle_root: commitment_response.merkle_root,
+            index: commitment_response.index.to::<u32>(),
+            l2_end_block_number: commitment_response.l2_end_block_number.to::<u64>(),
+        };
+
+        light_client_prover
+            .wait_for_l1_height(commitment1_l1_height, None)
+            .await?;
+
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let l1_hash = da.get_block_hash(commitment1_l1_height).await?;
+
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0;
+
+        // First proof
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root.try_into().unwrap(),
+            max_l2_blocks_per_commitment,
+            batch_proof_method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment1.clone()],
+            vec![commitment_response.merkle_root],
+            None,
+        );
+
+        // Send the first proof
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let proof1_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof1_l1_height, None).await?;
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment2_l1_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(commitment2_l1_height, None)
+            .await?;
+
+        let commitment_respons2 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(2))
+            .await?
+            .unwrap();
+
+        let commitment2 = SequencerCommitment {
+            merkle_root: commitment_respons2.merkle_root,
+            index: commitment_respons2.index.to::<u32>(),
+            l2_end_block_number: commitment_respons2.l2_end_block_number.to::<u64>(),
+        };
+
+        light_client_prover
+            .wait_for_l1_height(commitment2_l1_height, None)
+            .await?;
+
+        // Get batch proof method IDs and L1 hash
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let l1_hash = da.get_block_hash(commitment2_l1_height).await?;
+
+        // Invalid proof with invalid starting state root
+        let invalid_proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            [1; 32], // Invalid state root
+            max_l2_blocks_per_commitment * 2,
+            batch_proof_method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment2.clone()],
+            vec![commitment_respons2.merkle_root.clone()],
+            Some(commitment1.serialize_and_calculate_sha_256()),
+        );
+
+        // Send the invalid proof
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(invalid_proof), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let invalid_proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(invalid_proof_l1_height, None)
+            .await?;
+
+        // Assert that proof wasn't accepted and is correctly discarded due to pre state root mismatch
+        let proofs = full_node
+            .client
+            .http_client()
+            .get_verified_batch_proofs_by_slot_height(U64::from(invalid_proof_l1_height))
+            .await?;
+        assert!(proofs.is_none());
+
+        // Generate 1 blocks and assert that L1 sync is not halted and full node continues syncing
+        da.generate(1).await?;
+        full_node
+            .wait_for_l1_height(invalid_proof_l1_height + 1, None)
+            .await?;
+        let final_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(
+            final_scanned_l1_height.to::<u64>(),
+            invalid_proof_l1_height + 1,
+        );
+
+        // Verify the first proof is still the only valid one
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+
+        assert_eq!(proven_height.height, max_l2_blocks_per_commitment);
+        assert_eq!(proven_height.commitment_index, 1);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_pre_state_root_mismatch() -> Result<()> {
+    TestCaseRunner::new(PreStateRootMismatchTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
 struct SequencerCommitmentHashMismatchTest {
     task_manager: TaskManager,
 }
