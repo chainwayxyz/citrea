@@ -32,8 +32,8 @@ use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
     create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
-    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec,
-    get_fork_fn_only_tangerine, publish_event_message, set_arg_message,
+    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, get_fork_fn_latest,
+    publish_event_message, set_arg_message,
 };
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{
@@ -584,7 +584,7 @@ fn test_block_hash_in_evm() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         );
         if (260..=515).contains(&i) {
             // Should be equal to the hash in accessory state
@@ -611,7 +611,7 @@ fn test_block_hash_in_evm() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -627,7 +627,7 @@ fn test_block_hash_in_evm() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
