@@ -983,8 +983,12 @@ where
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
+        let deposit_tx_by_idx = system_events
+            .iter()
+            .map(|ev| matches!(ev, SystemEvent::BridgeDeposit(_)))
+            .collect::<Vec<_>>();
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for sys_tx in sys_txs {
+        for (sys_tx, is_deposit) in sys_txs.iter().zip(deposit_tx_by_idx) {
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
@@ -1006,6 +1010,13 @@ where
                 .stf
                 .apply_l2_block_txs(l2_block_info, &txs, &mut working_set)
             {
+                // If a deposit failed, revert back the working set and continue,
+                // as deposits to non-EOA addresses can revert
+                if matches!(e, StateTransitionError::ModuleCallError(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful)) && is_deposit {
+                    warn!("Deposit transaction failed: {:?}", e);
+                    working_set_to_discard = working_set.revert().to_revertable();
+                    continue;
+                }
                 return Err(anyhow!("Failed to apply system transaction: {:?}", e));
             }
             working_set_to_discard = working_set.checkpoint().to_revertable();
