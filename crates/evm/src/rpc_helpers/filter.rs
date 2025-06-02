@@ -23,7 +23,7 @@ pub struct BlockRangeInclusiveIter {
 
 impl BlockRangeInclusiveIter {
     /// Creates a new iterator that yields inclusive block ranges of a specified step size.
-    /// 
+    ///
     /// This iterator is useful for processing large block ranges in smaller chunks,
     /// which helps manage memory usage and processing time.
     ///
