@@ -5,7 +5,8 @@ use std::sync::Arc;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
-use sov_modules_api::Zkvm;
+use sov_modules_api::{WorkingSet, Zkvm};
+use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
     BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa, SequencerCommitment,
@@ -15,6 +16,7 @@ use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, Cum
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
+use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::LightClientProofCircuit;
 
 pub(crate) fn create_mock_sequencer_commitment(
@@ -310,5 +312,32 @@ impl NativeCircuitRunner {
         input.witness = res.witness;
 
         input
+    }
+
+    /// Used for a single test case
+    pub fn insert_random_chunk(&self) {
+        let prover_storage = self
+            .prover_storage_manager
+            .create_storage_for_next_l2_height();
+
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        let mut rng = thread_rng();
+        let mut wtxid = [0u8; 32];
+        let mut chunk = vec![0u8; 1024];
+
+        rng.fill(&mut wtxid);
+        rng.fill(&mut chunk[..]);
+
+        ChunkAccessor::insert(wtxid, chunk, &mut working_set);
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, jmt_state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .unwrap();
+
+        prover_storage.commit(&jmt_state_update, &Default::default(), &Default::default());
+        self.prover_storage_manager.finalize_storage(prover_storage);
     }
 }

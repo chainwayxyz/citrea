@@ -15,7 +15,7 @@ use tokio::select;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 
 use crate::metrics::BATCH_PROVER_METRICS;
 
@@ -61,6 +61,7 @@ where
         }
     }
 
+    #[instrument(name = "L1Syncer", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         let l1_start_height = self
             .ledger_db

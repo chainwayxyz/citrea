@@ -22,7 +22,13 @@ contract BridgeHarness is Bridge {
     function isBytesEqual_(bytes memory a, bytes memory b) public pure returns (bool result) {
         result = super.isBytesEqual(a, b);
     }
+
+    function verifySigInTx_(bytes memory input, bytes memory output, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) public view {
+        super.verifySigInTx(input, output, witness0, version, locktime, shaScriptPubkeys);
+    }
 }
+
+contract RevertingReceiver {}
 
 contract FalseBridge is Bridge {
     function falseFunc() public pure returns (bytes32) {
@@ -30,21 +36,135 @@ contract FalseBridge is Bridge {
     }
 }
 
+contract MockSchnorrPrecompile {
+    // Modified from https://github.com/zerodao-finance/bip340-solidity
+    uint256 public constant GX = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798;
+    uint256 public constant GY = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8;
+    uint256 public constant AA = 0;
+    uint256 public constant BB = 7;
+    uint256 public constant PP = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+    uint256 public constant NN = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141; // curve order
+    uint256 constant private U255_MAX_PLUS_1 = 57896044618658097711785492504343953926634992332820282019728792003956564819968;
+
+    fallback(bytes calldata) external returns (bytes memory) {
+        uint256 px;
+        uint256 rx;
+        uint256 s;
+        bytes32 m;
+        
+        assembly {
+            px := calldataload(0)
+            m := calldataload(32)
+            rx := calldataload(64)
+            s := calldataload(96)
+        }
+        
+        return abi.encode(verify(px, rx, s, m));
+    }
+
+    function verify(uint256 px, uint256 rx, uint256 s, bytes32 m) public pure returns (bytes memory) {
+        // Check pubkey, rx, and s are in-range.
+        if (px >= PP || rx >= PP || s >= NN) {
+            return hex"";
+        }
+        
+        (address exp_, bool ok) = convToFakeAddr(rx);
+        if (!ok) {
+            return hex"";
+        }
+        
+        uint256 e = computeChallenge(bytes32(rx), bytes32(px), m);
+        bytes32 sp = bytes32(NN - mulmod(s, px, NN));
+        bytes32 ep = bytes32(NN - mulmod(e, px, NN));
+        address rvh = ecrecover(sp, 27, bytes32(px), ep);
+        
+        assembly {
+            if eq(rvh, exp_) {
+                let result := mload(0x40)
+                mstore(0x40, add(result, 0x20))
+                mstore(result, 1)
+                return(result, 0x20)
+            }
+            let result := mload(0x40)
+            mstore(0x40, result)
+            return(result, 0)
+        }
+    }
+
+    function liftX(uint256 _x) internal pure returns (uint256, bool) {
+        if (_x >= PP) {
+            return (0, false);
+        }
+        
+        // Taken from the EllipticCurve code.
+        uint256 y2 = addmod(mulmod(_x, mulmod(_x, _x, PP), PP), addmod(mulmod(_x, AA, PP), BB, PP), PP);
+        y2 = expMod(y2, (PP + 1) / 4, PP);
+        uint256 y = (y2 & 1) == 0 ? y2 : PP - y2;
+
+        return (y, true);
+    }
+
+    function convToFakeAddr(uint256 px) internal pure returns (address, bool) {
+        (uint256 py, bool ok) = liftX(px);
+        if (!ok) {
+            return (address(0), false);
+        }
+        bytes32 h = keccak256(abi.encodePacked(bytes32(px), bytes32(py)));
+        return (address(uint160(uint256(h))), true);
+    }
+
+    function computeChallenge(bytes32 rx, bytes32 px, bytes32 m) internal pure returns (uint256) {
+        // Precomputed `sha256("BIP0340/challenge")`.
+        //
+        // Saves ~10k gas, mostly from byte shuffling to prepare the call.
+        //bytes32 tag = sha256("BIP0340/challenge");
+        bytes32 tag = 0x7bb52d7a9fef58323eb1bf7a407db382d2f3f2d81bb1224f49fe518f6d48d37c;
+
+        // Let e = int(hashBIP0340/challenge(bytes(r) || bytes(P) || m)) mod n.
+        return uint256(sha256(abi.encodePacked(tag, tag, rx, px, m))) % NN;
+    }
+
+    function expMod(uint256 _base, uint256 _exp, uint256 _pp) internal pure returns (uint256) {
+        require(_pp!=0, "Modulus is zero");
+
+        if (_base == 0)
+        return 0;
+        if (_exp == 0)
+        return 1;
+
+        uint256 r = 1;
+        uint256 bit = U255_MAX_PLUS_1;
+        assembly {
+        for { } gt(bit, 0) { }{
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, bit)))), _pp)
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, div(bit, 2))))), _pp)
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, div(bit, 4))))), _pp)
+            r := mulmod(mulmod(r, r, _pp), exp(_base, iszero(iszero(and(_exp, div(bit, 8))))), _pp)
+            bit := div(bit, 16)
+        }
+        }
+
+        return r;
+  }
+}
+
 contract BridgeTest is Test {
     using BytesLib for bytes;
+    using BTCUtils for bytes;
 
     uint256 constant DEPOSIT_AMOUNT = 10 ether;
     BridgeHarness public bridge = BridgeHarness(address(0x3100000000000000000000000000000000000002));
     bytes2 flag = hex"0001";
-    bytes4 version = hex"02000000";
-    bytes vin = hex"01e2cb8b8c15fee29eb9cee7246ce582f412267f36b01039eb862ce3518afb95bb0100000000fdffffff";
-    bytes vout = hex"0285c79a3b00000000225120984c99c0ed8f91a0e9f70c1ab451e9e78107ecf73a12500ecd0760bea016cdfb4a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
+    bytes4 version = hex"03000000";
+    bytes vin = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
+    bytes vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
     bytes4 locktime = hex"00000000";
-    bytes witness = hex"0340abce0ec04f05a22e2bf811b824d91fda4ff6ec94f055d5715cf4384036dd157392cfab47ee808e2ddf97650e420dc848de08699f9184e2ee35da77ed05c9276e4a207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51b540e929d1a8f60137e49aaf57049ce593639353871a9ce9cb176070827a09dd";
-    bytes depositPrefix = hex"4a207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ac00630663697472656114";
+    bytes witness = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+    bytes depositPrefix = hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114";
     bytes depositSuffix = hex"08000000003b9aca0068";
-    bytes intermediate_nodes = hex"00000000000000000000000000000000000000000000000000000000000000005d0b2d694672fc17e41b10278477709b500fed59aae67dba417d442e2c7f4c6900a1c64882d54993fc008ab1e9ae150a78cc08aac6bbbb41db77f55134cb6198";
-    uint256 index = 1;
+    bytes intermediateNodes = hex"7e3bfb74009ffaa87436e5af4229178bc9ff6a8a2c5e726854912b136dd214215066ac03deadb1a4694d24189d8bb4607d80cb74da5ce59995e7f2c51c0aa9df7661ddbe37aa5059282d818f51446a40d5bcfb5af24683f357d7f0faae0a1a92";
+    uint256 index = 5;
+    bytes32 shaScriptPubkeys = hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d";
 
     address constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address receiver = address(0x0101010101010101010101010101010101010101);
@@ -52,7 +172,7 @@ contract BridgeTest is Test {
     address owner = makeAddr("citrea_owner");
     address operator;
     uint256 constant INITIAL_BLOCK_NUMBER = 1;
-    bytes32 witnessRoot = hex"142a6fc911b3091261ef52d2a50bc0f25797d73da457a7e51b6a81b51519aa1e";
+    bytes32 witnessRoot = hex"2d12d1dac06d40bbf364be911d9dc2cf07538e2118c88fdba457a5e5fa59c851";
     bytes32 mockBlockhash = keccak256("CITREA_TEST");
 
     BitcoinLightClient bitcoinLightClient;
@@ -68,6 +188,9 @@ contract BridgeTest is Test {
         address proxy_impl = address(new TransparentUpgradeableProxy(bridgeImpl, address(proxyAdmin), ""));
 
         vm.etch(address(bridge), proxy_impl.code);
+        
+        // Mock Schnorr verifier precompile
+        vm.etch(address(0x200), address(new MockSchnorrPrecompile()).code);
 
         bytes32 IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
         bytes32 ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
@@ -99,8 +222,8 @@ contract BridgeTest is Test {
         doDeposit();
         // Assert if asset transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        assertTrue(bridge.processedTxIds(hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0"));
-        assertEq(bridge.depositTxIds(0), hex"84b9aae7426412e069dfd5fc513e782f6622e3afb11909d27796444707379ac0");
+        assertTrue(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
+        assertEq(bridge.depositTxIds(0), hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929");
     }
 
     // TODO: Replace the logic of testing the root of withdrawal tree in a more proper manner if this goes into production
@@ -169,19 +292,14 @@ contract BridgeTest is Test {
     }
 
     function testCannotDepositWithFalseDepositScript() public {
-        // False witness
-        witness = hex"0340abce0ec04f05a22e2bf811b824d91fda4ff6ec94f055d5715cf4384036dd157392cfab47ee808e2ddf97650e420dc848de08699f9184e2ee35da77ed05c9276e4a207c4803421956db53eed29ee45bddbe60d16e66560f918a94270ea5272b2b4e90ac00630663697472656115010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51b540e929d1a8f60137e49aaf57049ce593639353871a9ce9cb176070827a09dd";
-        witnessRoot = hex"af3827c2b44a695e5306a643f6029b68c350f9907cdf7131ef44a00d6bdee480";
-        index = 0;
-        intermediate_nodes = hex"";
-        vm.startPrank(SYSTEM_CALLER);
-        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 0);
-        
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656115", hex"08000000003b9aca0068");
+        vm.stopPrank();
+        vm.startPrank(operator);
+        Bridge.Transaction memory depositTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER, index);
         vm.expectRevert("Invalid deposit script");
-        // Incremented 1 block, that's why `doDeposit` is not used
-        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
-
-        bridge.deposit(depositParams);
+        bridge.deposit(depositTx, proof, shaScriptPubkeys);
         vm.stopPrank();
     }
 
@@ -192,8 +310,9 @@ contract BridgeTest is Test {
         bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 3);
 
         vm.expectRevert("Transaction is not in block");
-        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
-        bridge.deposit(depositParams);
+        Bridge.Transaction memory depositTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 1, index);
+        bridge.deposit(depositTx, proof, shaScriptPubkeys);
     }
 
     function testCannotWithdrawWithInvalidAmount() public {
@@ -212,8 +331,9 @@ contract BridgeTest is Test {
 
     function testNonOperatorCannotDeposit() public {
         vm.expectRevert("caller is not the system caller or operator");
-        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
-        bridge.deposit(depositParams);
+        Bridge.Transaction memory depositTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(depositTx, proof, shaScriptPubkeys);
     }
 
     function testCannotSetOperatorIfNotOwner() public {
@@ -239,33 +359,35 @@ contract BridgeTest is Test {
     function testReplaceDeposit() public {
         vm.startPrank(SYSTEM_CALLER);
         version = hex"03000000";
-        vin = hex"0161d6a81afeee162b02263453162a43c3d0874264fae4fb8325ce0830a22d057d0000000000fdffffff";
+        vin = hex"01f74f0390589e8c83bf9ba99c1872acf63803173654cae97b1c8ec01042d6af650000000000fdffffff";
         vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
-        witness = hex"0340f70c6ba17da3a8ba5b30495f869c537190ba49c708f6b8cf1a0425a4a4ffef5daabae4115e5b48ec5f65ae78245180285a14f231a4b3ecc8cb52611876c962e24a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
-        intermediate_nodes = hex"0000000000000000000000000000000000000000000000000000000000000000a8d5764cf42bb21ec583d97fa0160e3969abf6d64790ceb25706cb97b8f8f96e1f1aac337ed626086645c4556722da89c4cee3757944b650aa383ab600dbd898";
-        witnessRoot = hex"b1701bed33c8fe60fd755c939ad857a6cc41299249f46ddea25b3b06cc70d793";
+        witness = hex"034029afe3877d9562c70b50b7d215736579869fb2f8ae30626869b87bdbdab6105ca7adc90d16a246322eb0c9ef1c63847b91f2db38f74aacc3fa72cb1098cb47664a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114564cb100d2d5deceb792fe913b9185fcfb80871208000000003b9aca006841c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de510f2951fffb548259d5abb9f351be8f94031c9ce88ce838b40d7cec7c606e0c7a";
+        intermediateNodes = hex"00000000000000000000000000000000000000000000000000000000000000002a3e143606a444e8414861e27d3409466513df018e345609cb9add0c79dd661c";
+        witnessRoot = hex"853c333692ff1da2f74e49ac493b630fb98b4587c76f46175c4c0c8a16ec0fd8";
         index = 1;
-        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 3);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 2);
         vm.stopPrank();
         vm.startPrank(owner);
         bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
         bridge.setReplaceScript(hex"54203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c61636520", hex"68");
         vm.stopPrank();
         vm.startPrank(SYSTEM_CALLER);
-        Bridge.TransactionParams memory depositToBeReplacedParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
-        bridge.deposit(depositToBeReplacedParams);
-        vin = hex"016712f7c7641cacf70b1549b346e08576af09e0a2ef7b09d3d40aaefa207786ab0000000000fdffffff";
+        Bridge.Transaction memory depositToBeReplacedTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 1, index);
+        bridge.deposit(depositToBeReplacedTx, proof, hex"916d7adc719dd331d47ef21fe3b29014186fa3b294df42221d7c0edea729881f");
+        vin = hex"01f7dc30d46c53a660ba2011fd389891736760cddeff5d68ef57afb815076ce86f0000000000fdffffff";
         vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
-        witness = hex"034077b3ac411ef95e90398e54686a7fa0a4d0d78ccc9da62befd62250254245a435fbfca5a33d351feb45c5479df126a8828446a68b6d1bc9bd38bdab712a78fedf54203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c6163652017cec92a58d987380ae223d4a991199b3b970e493b1c67defd2d4c67ecc4e7086821c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51";
-        intermediate_nodes =hex"0000000000000000000000000000000000000000000000000000000000000000069b3f62c3d1da9edc47c280146694dc1a267ef6f27d36bde7f2c6c6c9beed4f";
-        witnessRoot = hex"72ae33ada5c13b2779f3b626e2d3b02c425e6e0f1fce223f8b84edf10a0337a0";
+        witness = hex"0340c538ad077a0b4f91915d28cb926674c0c0f57ffd31cbd232d4f30b1390516dd2bfa5aa8cae925528576e29f0d9f219558ca5754648c25595d710107b2158c56154203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c6163652036db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a0391086821c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51";
+        intermediateNodes = hex"0000000000000000000000000000000000000000000000000000000000000000030486678812997a69add330bc972e229a69e2125590ab73784f55eb680ef801";
+        witnessRoot = hex"3e2161fe3b7688914a624e360dae3f3e33caf9395870610c056785d66ec26906";
         bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_3"), witnessRoot, 2);
-        Bridge.TransactionParams memory replaceParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 2, index);
-        assertEq(bridge.depositTxIds(0), hex"17cec92a58d987380ae223d4a991199b3b970e493b1c67defd2d4c67ecc4e708");
+        assertEq(bridge.depositTxIds(0), hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108");
         vm.stopPrank();
         vm.prank(operator);
-        bridge.replaceDeposit(replaceParams, 0);
-        assertEq(bridge.depositTxIds(0), hex"4bb8086aabf03a596218fa99170ce39393c9d3dc7dd9949f417265f246569f10");
+        Bridge.Transaction memory replaceTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 2, index);
+        bridge.replaceDeposit(replaceTx, proof, 0, hex"486568b2542cc5ebf896e41e17c42e5571e6f3e68020d90d39fe7a2d7f0a68c3");
+        assertEq(bridge.depositTxIds(0), hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95");
     }
 
     function testBytesEqual() public view {
@@ -356,43 +478,128 @@ contract BridgeTest is Test {
 
     function doDeposit() public {
         vm.startPrank(operator);
-        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
-        bridge.deposit(depositParams);
+        Bridge.Transaction memory depositTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(depositTx, proof, shaScriptPubkeys);
         vm.stopPrank();
     }
 
+    function testVerifySigInTx() public {
+        version = hex"03000000";
+        locktime = hex"00000000";
+        vin = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
+        Bridge.Transaction memory testParams = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        bytes memory input = testParams.vin.extractInputAtIndex(0);
+        bytes memory output = testParams.vout.slice(1, testParams.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(testParams.witness, 0);
+        bridge.verifySigInTx_(input, output, witness0, version, locktime, shaScriptPubkeys);
+    }
+
+    function testCannotVerifySigInTx() public {
+        version = hex"03000000";
+        locktime = hex"00000000";
+        vin = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
+        Bridge.Transaction memory testParams = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        bytes memory input = testParams.vin.extractInputAtIndex(0);
+        bytes memory output = testParams.vout.slice(1, testParams.vout.length - 1);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(testParams.witness, 0);
+        vm.expectRevert("Invalid signature");
+        bridge.verifySigInTx_(input, output, witness0, version, locktime, hex"");
+    }
+
+    function testDepositRedirectsWhenReceiverReverts() public {
+        RevertingReceiver rev = new RevertingReceiver();
+        vm.etch(receiver, address(rev).code); 
+
+        address vault = bridge.failedDepositVault(); 
+        uint256 vaultBalBefore = vault.balance;
+
+        vm.startPrank(operator);
+        Bridge.Transaction memory txn = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER, index);
+        vm.expectEmit();
+        emit Bridge.DepositTransferFailed(
+            hex"45957fe9a9bdb8e6c4a81bedbc55a0093105aa8eb6c3f2d8dc7bab6e9fd04fe9",
+            hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929",
+            receiver,
+            block.timestamp,
+            0
+        );
+        bridge.deposit(txn, proof, shaScriptPubkeys);
+        vm.stopPrank();
+
+        assertEq(receiver.balance, 0);
+
+        assertEq(vault.balance, vaultBalBefore + DEPOSIT_AMOUNT);
+
+        assertTrue(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
+    }
+    
+
     function testSecondDepositId() public {
         doDeposit();
-        bytes2 flag2 = hex"0001";
-        bytes4 version2 = hex"03000000";
-        bytes memory vin2 = hex"012f3175921222c511f5b382996685b25b694cf00d308de61087b25eb302cc46fd0000000000fdffffff";
-        bytes memory vout2 = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
-        bytes4 locktime2 = hex"00000000";
-        bytes memory witness2 = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
-
-        vm.startPrank(owner);
-        bytes memory depositPrefix2 = hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114";
-        bytes memory depositSuffix2 = hex"08000000003b9aca0068";
-        bridge.setDepositScript(depositPrefix2, depositSuffix2);
-        vm.stopPrank();
-
-        bytes memory intermediate_nodes2 = hex"7e3bfb74009ffaa87436e5af4229178bc9ff6a8a2c5e726854912b136dd214215066ac03deadb1a4694d24189d8bb4607d80cb74da5ce59995e7f2c51c0aa9df7661ddbe37aa5059282d818f51446a40d5bcfb5af24683f357d7f0faae0a1a92";
-        uint256 index2 = 5;
-        Bridge.TransactionParams memory secondParams = Bridge.TransactionParams(
-            version2, flag2, vin2, vout2, witness2, locktime2, intermediate_nodes2, INITIAL_BLOCK_NUMBER + 1, index2
-        );
-
         vm.startPrank(SYSTEM_CALLER);
-        bytes32 witnessRoot2 = hex"2d12d1dac06d40bbf364be911d9dc2cf07538e2118c88fdba457a5e5fa59c851";
-        bytes32 mockBlockhash2 = keccak256("CITREA_TEST_2");
-        bitcoinLightClient.setBlockInfo(mockBlockhash2, witnessRoot2, 3);
+        version = hex"03000000";
+        vin = hex"01f74f0390589e8c83bf9ba99c1872acf63803173654cae97b1c8ec01042d6af650000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"034029afe3877d9562c70b50b7d215736579869fb2f8ae30626869b87bdbdab6105ca7adc90d16a246322eb0c9ef1c63847b91f2db38f74aacc3fa72cb1098cb47664a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114564cb100d2d5deceb792fe913b9185fcfb80871208000000003b9aca006841c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de510f2951fffb548259d5abb9f351be8f94031c9ce88ce838b40d7cec7c606e0c7a";
+        intermediateNodes = hex"00000000000000000000000000000000000000000000000000000000000000002a3e143606a444e8414861e27d3409466513df018e345609cb9add0c79dd661c";
+        witnessRoot = hex"853c333692ff1da2f74e49ac493b630fb98b4587c76f46175c4c0c8a16ec0fd8";
+        index = 1;
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 2);
 
-        vm.stopPrank();
-        vm.startPrank(operator);
+        Bridge.Transaction memory secondTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 1, index);
+
         vm.expectEmit();
-        emit Bridge.Deposit(hex"45957fe9a9bdb8e6c4a81bedbc55a0093105aa8eb6c3f2d8dc7bab6e9fd04fe9", hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929", receiver, block.timestamp, 1);
+        emit Bridge.Deposit(hex"06b48f9d832a6a4dba7ecfc5335f7047a4a0823a5b2975bdad334c8e50b94985", hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108", address(0x564CB100d2D5DecEB792fe913B9185FCFB808712), block.timestamp, 1);
 
-        bridge.deposit(secondParams);
+        bridge.deposit(secondTx, proof, hex"916d7adc719dd331d47ef21fe3b29014186fa3b294df42221d7c0edea729881f");
+
         vm.stopPrank();
+    }
+
+    function testSafeWithdraw() public {
+        doDeposit();
+        vm.prank(SYSTEM_CALLER);
+        bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
+        vm.startPrank(receiver);
+        Bridge.Transaction memory prepareTx = Bridge.Transaction(
+            hex"02000000", 
+            hex"0001", 
+            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
+            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36", 
+            hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
+            hex"d5000000"
+        );
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(
+            hex"f70aa9fc12ea0cea3947a2892e8b4c2970b1d7f1cb3e2411dc83141d17b1ce5573a03a23cb4e62a4ae2eb692ff0cef81f6289472694613dd83a3e40251ad6dbf",
+            INITIAL_BLOCK_NUMBER + 1,
+            2
+        );
+        Bridge.Transaction memory payoutTx = Bridge.Transaction(
+            hex"02000000", 
+            hex"0001", 
+            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
+            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90", 
+            hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
+            hex"00000000"
+        );
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+        assertEq(receiver.balance, 0);
+        // Assert if withdrawal UTXO is stored properly
+        uint256 withdrawalCount = bridge.getWithdrawalCount();
+        (bytes32 txId, bytes4 outputId) = bridge.withdrawalUTXOs(withdrawalCount - 1);
+        assertEq(txId, hex"9e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af78");
+        assertEq(outputId, hex"01000000");  
     }
 }

@@ -21,7 +21,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 use crate::{InitParams, RollupPublicKeys, RunnerConfig};
@@ -93,6 +93,7 @@ where
     }
 
     /// Runs the L2Syncer in a blocking manner.
+    #[instrument(name = "L2Syncer", skip_all)]
     pub async fn run(&mut self, mut shutdown_signal: GracefulShutdown) {
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(

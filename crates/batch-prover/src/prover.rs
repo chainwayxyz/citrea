@@ -6,7 +6,7 @@ use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
-use citrea_primitives::MAX_TXBODY_SIZE;
+use citrea_primitives::{MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -103,6 +103,7 @@ where
         }
     }
 
+    #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         self.recover_proving_sessions().await;
 
@@ -171,8 +172,9 @@ where
                             };
 
                             let mut raw_inputs = Vec::with_capacity(partitions.len());
+                            let job_id = Uuid::nil();
                             for partition in partitions {
-                                match self.create_circuit_input(&partition) {
+                                match self.create_circuit_input(&partition, job_id) {
                                     Ok(input) => {
                                         let raw_input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
                                         raw_inputs.push(raw_input);
@@ -222,11 +224,12 @@ where
 
         let mut proving_jobs = Vec::with_capacity(partitions.len());
         for partition in partitions {
+            let id = Uuid::now_v7();
             let input = self
-                .create_circuit_input(&partition)
+                .create_circuit_input(&partition, id)
                 .context("Failed to create circuit input")?;
 
-            let (id, rx) = self.start_proving(input).await?;
+            let rx = self.start_proving(input, id).await?;
             proving_jobs.push((id, rx));
 
             let commitment_indices = partition
@@ -403,7 +406,7 @@ where
                 compress_blob(&serialized_diff).expect("Diff compression cannot fail");
 
             // check state diff threshold
-            if compressed_diff.len() > MAX_TXBODY_SIZE {
+            if compressed_diff.len() > MAX_TX_BODY_SIZE {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, PartitionReason::StateDiff)?;
                 continue;
@@ -416,9 +419,11 @@ where
         Ok(state.into_inner())
     }
 
+    #[instrument(skip_all, fields(job_id = _job_id.to_string()))]
     fn create_circuit_input(
         &self,
         partition: &Partition<'_>,
+        _job_id: Uuid,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
         let initial_state_root = self
             .ledger_db
@@ -431,14 +436,13 @@ where
             .context("Failed to get final state root")?
             .expect("End l2 height must have state root");
 
-        // TODO: REPLACE THIS
-        let (
+        let CommitmentStateTransitionData {
             short_header_proofs,
             state_transition_witnesses,
             cache_prune_l2_heights,
-            l2_blocks,
+            committed_l2_blocks,
             last_l1_hash_witness,
-        ) = get_batch_proof_circuit_input_from_commitments::<Da, _>(
+        } = get_batch_proof_circuit_input_from_commitments::<Da, _>(
             partition.start_height,
             partition.commitments,
             &self.ledger_db,
@@ -458,7 +462,7 @@ where
         Ok(BatchProofCircuitInputV3 {
             initial_state_root,
             final_state_root,
-            l2_blocks,
+            l2_blocks: committed_l2_blocks,
             state_transition_witnesses,
             short_header_proofs,
             sequencer_commitments: partition.commitments.to_vec(),
@@ -468,10 +472,12 @@ where
         })
     }
 
+    #[instrument(skip_all, fields(job_id = job_id.to_string()))]
     async fn start_proving(
         &self,
         input: BatchProofCircuitInputV3,
-    ) -> anyhow::Result<(Uuid, oneshot::Receiver<Proof>)> {
+        job_id: Uuid,
+    ) -> anyhow::Result<oneshot::Receiver<Proof>> {
         let end_l2_height = input
             .sequencer_commitments
             .last()
@@ -495,10 +501,11 @@ where
             elf,
         };
         self.prover_service
-            .start_proving(proof_data, ReceiptType::Groth16)
+            .start_proving(proof_data, ReceiptType::Groth16, job_id)
             .await
     }
 
+    #[instrument(skip_all)]
     fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, oneshot::Receiver<Proof>)>) {
         assert!(!proving_jobs.is_empty(), "received empty jobs list");
 
@@ -518,7 +525,7 @@ where
             while let Some((job_id, proof)) = proving_jobs.next().await {
                 info!("Proving job finished {}", job_id);
 
-                let output = extract_proof_output::<Vm>(&proof, &code_commitments_by_spec);
+                let output = extract_proof_output::<Vm>(&job_id, &proof, &code_commitments_by_spec);
 
                 // stores proof and marks job as waiting for da
                 ledger_db
@@ -526,7 +533,7 @@ where
                     .expect("Should put proof to db");
 
                 let tx_id = prover_service
-                    .submit_proof(proof)
+                    .submit_proof(proof, job_id)
                     .await
                     .expect("Failed to submit proof");
 
@@ -558,7 +565,8 @@ where
         while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
             info!("Proving job finished {}", job_id);
 
-            let output = extract_proof_output::<Vm>(&proof, &self.code_commitments_by_spec);
+            let output =
+                extract_proof_output::<Vm>(&job_id, &proof, &self.code_commitments_by_spec);
 
             // stores proof and marks job as waiting for da
             self.ledger_db
@@ -597,7 +605,7 @@ where
         for (job_id, proof) in proofs {
             let tx_id = self
                 .prover_service
-                .submit_proof(proof)
+                .submit_proof(proof, job_id)
                 .await
                 .expect("Failed to submit transaction");
             info!("Job {} proof sent to DA", job_id);
@@ -636,15 +644,13 @@ where
     }
 }
 
-const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
-
-type CommitmentStateTransitionData = (
-    VecDeque<Vec<u8>>,
-    VecDeque<Vec<(Witness, Witness)>>,
-    Vec<u64>,
-    VecDeque<Vec<L2Block>>,
-    Witness,
-);
+pub(crate) struct CommitmentStateTransitionData {
+    short_header_proofs: VecDeque<Vec<u8>>,
+    state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>>,
+    cache_prune_l2_heights: Vec<u64>,
+    committed_l2_blocks: VecDeque<Vec<L2Block>>,
+    last_l1_hash_witness: Witness,
+}
 
 pub(crate) fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
@@ -719,13 +725,13 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
         sequencer_pub_key,
     )?;
 
-    Ok((
+    Ok(CommitmentStateTransitionData {
         short_header_proofs,
         state_transition_witnesses,
         cache_prune_l2_heights,
         committed_l2_blocks,
         last_l1_hash_witness,
-    ))
+    })
 }
 
 #[allow(clippy::type_complexity)]
@@ -805,7 +811,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
             // If cache grew too large, zkvm will error with OOM, hence, we pass
             // when to prune as hint
             if state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
-                > MAX_CUMULATIVE_CACHE_SIZE
+                > MAX_WITNESS_CACHE_SIZE
             {
                 state_log.prune_half();
                 offchain_log.prune_half();
@@ -866,6 +872,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
 }
 
 fn extract_proof_output<Vm: ZkvmHost>(
+    job_id: &Uuid,
     proof: &Proof,
     code_commitments_by_spec: &HashMap<SpecId, Vm::CodeCommitment>,
 ) -> BatchProofCircuitOutput {
@@ -881,9 +888,13 @@ fn extract_proof_output<Vm: ZkvmHost>(
         .get(&spec)
         .expect("Proof public input must contain valid spec id");
 
-    info!("Verifying proof with image ID: {:?}", code_commitment);
+    info!(
+        "Verifying proof with job_id={} using image ID: {:?}",
+        job_id, code_commitment
+    );
 
-    Vm::verify(proof.as_slice(), code_commitment).expect("Failed to verify proof");
+    Vm::verify(proof.as_slice(), code_commitment)
+        .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={}", job_id));
 
     debug!("circuit output: {:?}", output);
     output
@@ -895,7 +906,7 @@ mod tests {
 
     use citrea_common::BatchProverConfig;
     use citrea_primitives::forks::FORKS;
-    use citrea_primitives::MAX_TXBODY_SIZE;
+    use citrea_primitives::MAX_TX_BODY_SIZE;
     use prover_services::{ParallelProverService, ProofGenMode};
     use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SharedLedgerOps};
     use sov_db::rocks_db_config::RocksdbConfig;
@@ -1131,8 +1142,8 @@ mod tests {
             &prover.ledger_db,
             vec![
                 (1, 0),
-                (2, MAX_TXBODY_SIZE * 2 / 3),
-                (3, MAX_TXBODY_SIZE * 2 / 3),
+                (2, MAX_TX_BODY_SIZE * 2 / 3),
+                (3, MAX_TX_BODY_SIZE * 2 / 3),
             ],
         );
 

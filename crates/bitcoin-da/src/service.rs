@@ -5,6 +5,7 @@ use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -22,7 +23,8 @@ use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcErr
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
-use citrea_primitives::MAX_TXBODY_SIZE;
+use citrea_primitives::MAX_TX_BODY_SIZE;
+use lru::LruCache;
 use metrics::histogram;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
@@ -33,6 +35,7 @@ use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
+use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::error::BitcoinServiceError;
@@ -58,7 +61,7 @@ use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
-type Result<T> = std::result::Result<T, BitcoinServiceError>;
+pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 const POLLING_INTERVAL: u64 = 10; // seconds
 
@@ -107,14 +110,15 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
 #[derive(Debug)]
 pub struct BitcoinService {
     client: Arc<Client>,
-    network: bitcoin::Network,
+    pub(crate) network: bitcoin::Network,
     network_constants: NetworkConstants,
-    da_private_key: Option<SecretKey>,
-    reveal_tx_prefix: Vec<u8>,
+    pub(crate) da_private_key: Option<SecretKey>,
+    pub(crate) reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
-    tx_backup_dir: PathBuf,
+    pub(crate) tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
+    l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
 }
 
 impl BitcoinService {
@@ -162,6 +166,8 @@ impl BitcoinService {
             network_constants.finality_depth,
         ));
         let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
+        let l1_block_hash_to_height =
+            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
         Ok(Self {
             client,
             network_constants,
@@ -172,6 +178,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            l1_block_hash_to_height,
         })
     }
 
@@ -210,6 +217,8 @@ impl BitcoinService {
             network_constants.finality_depth,
         ));
         let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
+        let l1_block_hash_to_height =
+            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
 
         Ok(Self {
             client,
@@ -221,9 +230,11 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            l1_block_hash_to_height,
         })
     }
 
+    #[instrument(name = "BitcoinDA")]
     pub async fn run_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
@@ -291,7 +302,7 @@ impl BitcoinService {
 
     /// Retrieves the most recent spendable UTXO from the transaction chain on startup.
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_prev_utxo(&self) -> Option<UTXO> {
+    pub(crate) async fn get_prev_utxo(&self) -> Option<UTXO> {
         let (txid, tx) = self.monitoring.get_last_tx().await?;
 
         let utxos = tx.to_utxos()?;
@@ -305,7 +316,7 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_utxos(&self) -> Result<Vec<UTXO>> {
+    pub(crate) async fn get_utxos(&self) -> Result<Vec<UTXO>> {
         let utxos = self
             .client
             .list_unspent(Some(0), None, None, None, None)
@@ -604,7 +615,7 @@ impl BitcoinService {
         Ok(txids)
     }
 
-    async fn send_complete_transaction(
+    pub(crate) async fn send_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
@@ -754,6 +765,94 @@ impl BitcoinService {
 
         Ok(new_txid)
     }
+
+    async fn verify_chunk_order(
+        &self,
+        block_height: u64,
+        tx_id: &Txid,
+        chunk_id: &Txid,
+        chunk_index: usize,
+        tx_block_hash: Option<BlockHash>,
+        chunks: &HashMap<Txid, usize>,
+    ) -> anyhow::Result<()> {
+        // If chunk exists, it means it is in the same block as the aggregate
+        // Check the order
+        if let Some(chunk_idx) = chunks.get(chunk_id) {
+            if *chunk_idx >= chunk_index {
+                // This means the chunk comes after the aggregate in the same block
+                // This is not a valid case because lcp expects all chunks to come before their aggregate
+                return Err(anyhow!(
+                    "{}:{}: Chunk comes after aggregate. Block height: {}",
+                    tx_id,
+                    chunk_id,
+                    block_height,
+                ));
+            }
+        } else {
+            // If chunk does not exist, it means it is in a different block
+            // Check the block height
+            let tx_block_height = if let Some(tx_block_hash) = tx_block_hash {
+                self.get_block_height_from_block_hash(tx_block_hash).await?
+            } else {
+                return Err(anyhow!(
+                    "{}:{}: Failed to get block hash for chunk",
+                    tx_id,
+                    chunk_id
+                ));
+            };
+            if tx_block_height > block_height as usize {
+                // This means the chunk comes after the aggregate in a future block
+                // This is not a valid case because lcp expects all chunks to come before their aggregate
+                return Err(anyhow!(
+                    "{}:{}: Chunk comes after aggregate. Block height: {}, Chunk block height: {}",
+                    tx_id,
+                    chunk_id,
+                    block_height,
+                    tx_block_height
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn get_block_height_from_block_hash(
+        &self,
+        tx_block_hash: BlockHash,
+    ) -> anyhow::Result<usize> {
+        if let Some(height) = self
+            .l1_block_hash_to_height
+            .lock()
+            .await
+            .get(&tx_block_hash)
+        {
+            return Ok(*height);
+        }
+        let exponential_backoff = ExponentialBackoff::default();
+        let res = retry_backoff(exponential_backoff, || async move {
+            self.client
+                .get_block_info(&tx_block_hash)
+                .await
+                .map_err(|e| match e {
+                    BitcoinError::Io(_) => backoff::Error::transient(e),
+                    _ => backoff::Error::permanent(e),
+                })
+        })
+        .await;
+        match res {
+            Ok(r) => {
+                self.l1_block_hash_to_height
+                    .lock()
+                    .await
+                    .put(tx_block_hash, r.height);
+                Ok(r.height)
+            }
+            Err(e) => Err(anyhow!(
+                "Failed to request block by block hash:{:?} Error: {e}",
+                tx_block_hash
+            )),
+        }
+    }
 }
 
 #[async_trait]
@@ -847,6 +946,7 @@ impl DaService for BitcoinService {
     ) -> Vec<(usize, Proof)> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
+        let mut chunks = std::collections::HashMap::new();
 
         for (i, tx) in block.txdata.iter().enumerate() {
             if !tx
@@ -893,7 +993,9 @@ impl DaService for BitcoinService {
                         }
                     }
                     ParsedTransaction::Chunk(_chunk) => {
-                        // we ignore them for now
+                        // This is stored so we can see which chunk has what index
+                        // This will help determine which comes first if in the same block aggregate or chunk
+                        chunks.insert(tx_id, i);
                     }
                     ParsedTransaction::BatchProverMethodId(_) => {
                         // ignore because these are not proofs
@@ -923,11 +1025,11 @@ impl DaService for BitcoinService {
             }
             for chunk_id in chunk_ids {
                 let chunk_id = Txid::from_byte_array(chunk_id);
+                let exponential_backoff = ExponentialBackoff::default();
                 let tx_raw = {
-                    let exponential_backoff = ExponentialBackoff::default();
-                    let res = retry_backoff(exponential_backoff, || async move {
+                    let res = retry_backoff(exponential_backoff.clone(), || async move {
                         self.client
-                            .get_raw_transaction(&chunk_id, None)
+                            .get_raw_transaction_info(&chunk_id, None)
                             .await
                             .map_err(|e| match e {
                                 BitcoinError::Io(_) => backoff::Error::transient(e),
@@ -944,8 +1046,32 @@ impl DaService for BitcoinService {
                     }
                 };
 
-                let wrapped: TransactionWrapper = tx_raw.into();
-                let parsed = match parse_relevant_transaction(&wrapped) {
+                if let Err(e) = self
+                    .verify_chunk_order(
+                        block.header.height,
+                        &tx_id,
+                        &chunk_id,
+                        i,
+                        tx_raw.blockhash,
+                        &chunks,
+                    )
+                    .await
+                {
+                    warn!("{}:{}: Failed to process chunk: {e}", tx_id, chunk_id);
+                    continue 'aggregate;
+                };
+
+                let chunk_transaction = match tx_raw.transaction() {
+                    Ok(tx) => tx,
+                    Err(e) => {
+                        error!(
+                            "{}:{}: Failed to get chunk transaction, decode error: {e}",
+                            tx_id, chunk_id
+                        );
+                        continue 'aggregate;
+                    }
+                };
+                let parsed = match parse_relevant_transaction(&chunk_transaction) {
                     Ok(r) => r,
                     Err(e) => {
                         error!("{}:{}: Failed parse chunk: {e}", tx_id, chunk_id);
@@ -1344,20 +1470,20 @@ impl From<TxidWrapper> for [u8; 32] {
 /// 1: compress(borsh(DataOnDa::Complete(Proof)))
 /// 2:
 ///   let compressed = compress(borsh(Proof))
-///   let chunks = compressed.chunks(MAX_TXBODY_SIZE)
+///   let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
-fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
+pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
     let original_compressed = compress_blob(&original_blob)?;
 
-    if original_compressed.len() < MAX_TXBODY_SIZE {
+    if original_compressed.len() < MAX_TX_BODY_SIZE {
         let data = DataOnDa::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
         let blob = compress_blob(&blob)?;
         Ok(RawTxData::Complete(blob))
     } else {
         let mut chunks = vec![];
-        for chunk in original_compressed.chunks(MAX_TXBODY_SIZE) {
+        for chunk in original_compressed.chunks(MAX_TX_BODY_SIZE) {
             let data = DataOnDa::Chunk(chunk.to_vec());
             let blob = borsh::to_vec(&data).expect("zk::Proof Chunk serialize must not fail");
             chunks.push(blob)

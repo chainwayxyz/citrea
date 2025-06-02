@@ -603,8 +603,9 @@ pub async fn wait_for_prover_job_count(
             );
         }
 
-        let job_ids = prover_client.get_proving_jobs(count).await;
-        if job_ids.len() >= count {
+        let jobs = prover_client.get_proving_jobs(count).await;
+        if jobs.len() >= count {
+            let job_ids = jobs.into_iter().map(|j| j.job_id).collect();
             return Ok(job_ids);
         }
 

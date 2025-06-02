@@ -2,7 +2,7 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
-use metrics::histogram;
+use metrics::gauge;
 use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
 };
@@ -77,7 +77,7 @@ impl LocalProver {
         let this = self.clone();
         let (tx, rx) = oneshot::channel();
         tokio::task::spawn_blocking(move || {
-            match this.handle_prove(elf, input, assumptions, prover_opts) {
+            match this.handle_prove(job_id, elf, input, assumptions, prover_opts) {
                 Ok(proof) => {
                     let _ = tx.send(ProofWithJob { job_id, proof });
                 }
@@ -90,6 +90,7 @@ impl LocalProver {
 
     fn handle_prove(
         &self,
+        job_id: Uuid,
         elf: Vec<u8>,
         input: Vec<u8>,
         assumptions: Vec<AssumptionReceipt>,
@@ -132,8 +133,8 @@ impl LocalProver {
             .prove_with_opts(env, &elf, &prover_opts)
             .map_err(|e| anyhow!("Local risc0 proving failed: {}", e))?;
 
-        tracing::info!("Execution Stats: {:?}", stats);
-        histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
+        tracing::info!("Execution Stats for job_id={}: {:?}", job_id, stats);
+        gauge!("proving_session_cycle_count").set(stats.total_cycles as f64);
 
         Ok(bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail"))
     }

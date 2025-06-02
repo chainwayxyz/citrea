@@ -44,7 +44,7 @@ clean-docker:
 clean-all: clean clean-node clean-txs
 
 test-nocapture: ## Runs test suite with output from tests printed
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --retries 0 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 test: $(EF_TESTS_DIR) ## Runs test suite using nextest
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
@@ -91,8 +91,8 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 
 lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
 	dprint fmt
-	cargo fix --allow-dirty
-	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty
+	cargo fix --allow-dirty --all-features
+	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty --all-features
 	cargo +nightly fmt --all
 
 check-features: ## Checks that project compiles with all combinations of features.

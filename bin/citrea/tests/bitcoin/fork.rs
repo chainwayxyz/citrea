@@ -20,8 +20,8 @@ use citrea_primitives::forks::{get_forks, use_network_forks};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::Network;
 
-use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
+use crate::bitcoin::utils::wait_for_zkproofs;
 use crate::common::client::TestClient;
 use crate::common::make_test_client;
 
@@ -141,6 +141,7 @@ impl ForkActivationTest {
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(1, None).await?;
 
         let contracts = TestContracts {
             schnorr_caller,
@@ -211,10 +212,7 @@ impl ForkActivationTest {
             }
         }
 
-        let height = sequencer.client.ledger_get_head_l2_block_height().await?;
-        assert!(height >= kumquat_height);
-
-        Ok(())
+        sequencer.wait_for_l2_height(kumquat_height, None).await
     }
 
     async fn test_kumquat_features(
@@ -299,10 +297,7 @@ impl ForkActivationTest {
             }
         }
 
-        let height = sequencer.client.ledger_get_head_l2_block_height().await?;
-        assert!(height >= tangerine_height,);
-
-        Ok(())
+        sequencer.wait_for_l2_height(tangerine_height, None).await
     }
 
     async fn test_tangerine_features(

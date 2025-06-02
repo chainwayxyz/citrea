@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Context};
 use bonsai_sdk::blocking::{Client, SessionId, SnarkId};
 use bonsai_sdk::responses::SessionStats;
-use metrics::histogram;
+use metrics::gauge;
 use risc0_zkvm::{
     compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt, VerifierContext,
 };
@@ -156,12 +156,13 @@ impl BonsaiProver {
             .verify(image_id)
             .context("Failed to verify bonsai succinct proof")?;
 
-        histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
+        gauge!("proving_session_cycle_count").set(stats.total_cycles as f64);
         tracing::info!(
-            "Execution Stats: total_cycles{} user_cycles={} segments={}",
+            "Execution Stats for job_id={}: total_cycles={} user_cycles={} segments={}",
+            job_id,
             stats.total_cycles,
             stats.cycles,
-            stats.segments
+            stats.segments,
         );
 
         if matches!(receipt_type, ReceiptType::Succinct) {

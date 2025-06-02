@@ -161,6 +161,9 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&seq_test_client, 110, None).await;
     wait_for_l2_block(&full_node_test_client, 110, None).await;
 
+    // wait just a bit to ensure l2 blocks generated due to missed DA blocks are caught up as well
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
     // check if the latest block state roots are same
     let seq_last_block = seq_test_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -170,9 +173,10 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.header.number, 110);
-    assert_eq!(full_node_last_block.header.number, 110);
-
+    assert_eq!(
+        seq_last_block.header.number,
+        full_node_last_block.header.number
+    );
     assert_eq!(
         seq_last_block.header.state_root,
         full_node_last_block.header.state_root

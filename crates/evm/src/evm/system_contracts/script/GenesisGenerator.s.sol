@@ -8,13 +8,6 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
 
 import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
-
-
-import "../src/BitcoinLightClient.sol";
-import "../src/Bridge.sol";
-import "../src/BaseFeeVault.sol";
-import "../src/L1FeeVault.sol";
-import "../src/PriorityFeeVault.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 
 // Taken from Optimism
@@ -49,6 +42,12 @@ contract GenesisGenerator is Script {
     bytes32 OWNER_SLOT = 0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300; // from OwnableUpgradeable
     bytes32 FEE_RECIPIENT_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000000;
     bytes32 MIN_WITHDRAW_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    bytes32 WCBTC_NAME_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000000;
+    bytes32 WCBTC_SYMBOL_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    bytes32 WCBTC_DECIMALS_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000002;
+    bytes32 WCBTC_NAME_VALUE = 0x577261707065642043697472656120426974636f696e0000000000000000002c; // "Wrapped Citrea Bitcoin"
+    bytes32 WCBTC_SYMBOL_VALUE = 0x574342544300000000000000000000000000000000000000000000000000000a; // "WCBTC"
+    bytes32 WCBTC_DECIMALS_VALUE = 0x0000000000000000000000000000000000000000000000000000000000000012; // 18
     uint160 PROXY_IMPL_OFFSET = uint160(0x0100000000000000000000000000000000000000); // uint160(address(proxy)) - uint160(address(impl))
 
     // Owner of proxy admin, can update contracts
@@ -115,33 +114,24 @@ contract GenesisGenerator is Script {
     }
 
     function setProxyAdmin() internal {
-        address proxyAdminImpl = address(new ProxyAdmin());
-        vm.etch(proxyAdmin, proxyAdminImpl.code);
+        vm.etch(proxyAdmin, vm.getDeployedCode("ProxyAdmin"));
         vm.store(proxyAdmin, bytes32(0), bytes32(uint256(uint160(upgradeOwner))));
-        // Remove init proxy impl code from genesis state as it is already copied
-        vm.etch(proxyAdminImpl, "");
-        vm.resetNonce(proxyAdminImpl);
-        vm.store(proxyAdminImpl, bytes32(0), bytes32(0));
     }
 
     function setContracts() internal {
-        deployContract(address(new BitcoinLightClient()), 1);
-        deployContract(address(new Bridge()), 2);
-        deployContract(address(new BaseFeeVault()), 3);
-        deployContract(address(new L1FeeVault()), 4);
-        deployContract(address(new PriorityFeeVault()), 5);
+        deployContract("BitcoinLightClient.sol:BitcoinLightClient", 1);
+        deployContract("Bridge", 2);
+        deployContract("BaseFeeVault", 3);
+        deployContract("L1FeeVault", 4);
+        deployContract("PriorityFeeVault", 5);
         deployWCBTC();
+        deployContract("FailedDepositVault", 7);
     }
 
-    function deployContract(address initImpl, uint160 index) internal {
+    function deployContract(string memory contractName, uint160 index) internal {
         address namespacedProxy = address(uint160(0x3100000000000000000000000000000000000000) + index);
         address namespacedImpl = address(uint160(namespacedProxy) + PROXY_IMPL_OFFSET);
-        vm.etch(namespacedImpl, initImpl.code);
-
-        // Remove init impl code from genesis state as it is already copied
-        vm.etch(initImpl, "");
-        vm.resetNonce(initImpl);
-
+        vm.etch(namespacedImpl, vm.getDeployedCode(contractName));
         address initProxyImpl = address(new TransparentUpgradeableProxy(namespacedImpl, proxyAdmin, ""));
         vm.etch(namespacedProxy, initProxyImpl.code);
         vm.store(namespacedProxy, IMPLEMENTATION_SLOT, bytes32(uint256(uint160(namespacedImpl))));
@@ -153,7 +143,7 @@ contract GenesisGenerator is Script {
         }
 
         // Fee vault contracts have a fee recipient and min withdraw amount
-        if ((index >= 3) && (index <= 5)) {
+        if ((index >= 3) && (index <= 7)) {
             vm.store(namespacedProxy, OWNER_SLOT, bytes32(uint256(uint160(feeVaultOwner))));
             vm.store(namespacedProxy, FEE_RECIPIENT_SLOT, bytes32(uint256(uint160(feeRecipient))));
             vm.store(namespacedProxy, MIN_WITHDRAW_SLOT, bytes32(uint256(0.5 ether)));
@@ -167,6 +157,9 @@ contract GenesisGenerator is Script {
     function deployWCBTC() internal{
         address wcbtc = address(0x3100000000000000000000000000000000000006);
         vm.etch(wcbtc, vm.getDeployedCode("WCBTC9"));
+        vm.store(wcbtc, WCBTC_NAME_SLOT, WCBTC_NAME_VALUE);
+        vm.store(wcbtc, WCBTC_SYMBOL_SLOT, WCBTC_SYMBOL_VALUE);
+        vm.store(wcbtc, WCBTC_DECIMALS_SLOT, WCBTC_DECIMALS_VALUE);
     }
 
     function generateEvmJson(string memory _genesisPath, string memory _evmPath, bool _isProd) internal {

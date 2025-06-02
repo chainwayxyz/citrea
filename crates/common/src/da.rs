@@ -136,19 +136,6 @@ where
     sequencer_commitments
 }
 
-pub async fn extract_zk_proofs<Da: DaService>(
-    da_service: Arc<Da>,
-    l1_block: &Da::FilteredBlock,
-    prover_da_pub_key: &[u8],
-) -> Vec<Proof> {
-    da_service
-        .extract_relevant_zk_proofs(l1_block, prover_da_pub_key)
-        .await
-        .into_iter()
-        .map(|(_, proof)| proof)
-        .collect()
-}
-
 // Extract proofs and commitments and return them sorted by tx index
 pub async fn extract_zk_proofs_and_sequencer_commitments<Da: DaService>(
     da_service: Arc<Da>,
