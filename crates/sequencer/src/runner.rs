@@ -983,12 +983,12 @@ where
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
-        let deposit_tx_by_idx = system_events
+        let is_deposit_tx = system_events
             .iter()
             .map(|ev| matches!(ev, SystemEvent::BridgeDeposit(_)))
             .collect::<Vec<_>>();
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for (sys_tx, is_deposit) in sys_txs.iter().zip(deposit_tx_by_idx) {
+        for (sys_tx, is_deposit) in sys_txs.iter().zip(is_deposit_tx) {
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
