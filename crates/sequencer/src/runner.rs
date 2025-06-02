@@ -1012,7 +1012,13 @@ where
             {
                 // If a deposit failed, revert back the working set and continue,
                 // as deposits to non-EOA addresses can revert
-                if matches!(e, StateTransitionError::ModuleCallError(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful)) && is_deposit {
+                if matches!(
+                    e,
+                    StateTransitionError::ModuleCallError(
+                        L2BlockModuleCallError::EvmSystemTransactionNotSuccessful
+                    )
+                ) && is_deposit
+                {
                     warn!("Deposit transaction failed: {:?}", e);
                     working_set_to_discard = working_set.revert().to_revertable();
                     continue;
