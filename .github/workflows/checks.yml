@@ -511,4 +511,4 @@ jobs:
 
       - name: Run codespell
         run: |
-          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests,"
+          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests," -I="codespell_ignore.txt"

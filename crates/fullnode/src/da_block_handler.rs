@@ -286,7 +286,7 @@ where
 
             if sequencer_commitment.index <= committed_height.commitment_index {
                 info!(
-                    "Skipping sequencer commitment with index {} as it is not strictly superior to the existing commited one",
+                    "Skipping sequencer commitment with index {} as it is not strictly superior to the existing committed one",
                     sequencer_commitment.index,
                 );
                 return Ok(ProcessingResult::Discarded);

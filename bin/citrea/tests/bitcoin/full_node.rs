@@ -280,7 +280,7 @@ impl TestCase for L2StatusTest {
 
         full_node.wait_until_stopped().await?;
 
-        // Rollback to genesis and check that committed and proven height are correctly resetted
+        // Rollback to genesis and check that committed and proven height are correctly reset
         citrea_cli
             .run(
                 "rollback",
@@ -1494,7 +1494,7 @@ impl TestCase for OverlappingProofRangesTest {
             .wait_for_l1_height(proof_b_l1_height, None)
             .await?;
 
-        // Extract proof_b over rnage [2,3,4]
+        // Extract proof_b over range [2,3,4]
         let proof_b = wait_for_zkproofs(full_node, proof_b_l1_height, None, 1)
             .await
             .unwrap()[0]

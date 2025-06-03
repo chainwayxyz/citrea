@@ -1245,7 +1245,7 @@ fn test_blob_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine, // wont be Tangerine at height 2 currently but we can trick the spec id
+        current_spec: SovSpecId::Tangerine, // won't be Tangerine at height 2 currently but we can trick the spec id
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1279,11 +1279,11 @@ fn test_eip7702_tx() {
     // two signers
     // create log contract and set arg contract
     // get authorization from signer 1 that delegates to log contract
-    // signer 2 sends transaction to signer1's adress and we see log contract is called
-    // assert both adresses nonce went up
+    // signer 2 sends transaction to signer1's address and we see log contract is called
+    // assert both addresses nonce went up
     // then we assert receipts
     // then signer 1 delegates to set arg contract
-    // signer 2 sends transaction to signer1's adress
+    // signer 2 sends transaction to signer1's address
     // we check for storage of signer1 and see it has changed now
 
     let signer1 = TestSigner::new_random(); // use set seed so we can test deterministically

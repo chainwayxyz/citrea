@@ -452,7 +452,7 @@ fn convert_call_trace_into_4byte_map(
     // For each input in each call
     // get the first 4 bytes, get the size of the input
     // the key is : "<first 4 bytes>-<size of the input>"
-    // value is the occurence of the key
+    // value is the occurrence of the key
     for call_frame in call_frames {
         let input = call_frame.input;
         // If this is a function call (function selector is 4 bytes long)

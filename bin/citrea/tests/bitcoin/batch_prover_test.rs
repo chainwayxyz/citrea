@@ -800,7 +800,7 @@ async fn parallel_proving_test() -> Result<()> {
 //     }
 // }
 
-// // ignoring this test now as we won't be supporting backwards compatability for proofs.
+// // ignoring this test now as we won't be supporting backwards compatibility for proofs.
 // #[tokio::test]
 // #[ignore]
 // async fn test_fork_elf_switching() -> Result<()> {

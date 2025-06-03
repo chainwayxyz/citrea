@@ -77,7 +77,7 @@ fn test_response_deserialization_on_wrong_hrp() {
     match response {
         Ok(response) => panic!("Expected error, got {:?}", response),
         Err(err) => {
-            assert_eq!(err.to_string(), "Wrong HRP: hax at line 1 column 42");
+            assert_eq!(err.to_string(), "Wrong HRP: hex at line 1 column 42");
         }
     }
 }

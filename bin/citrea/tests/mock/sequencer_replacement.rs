@@ -110,7 +110,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     // This makes the process a bit more deterministic on the test's end.
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 5, None).await;
-    // Allow for the L2 block to be commited and stored
+    // Allow for the L2 block to be committed and stored
     // Otherwise, the L2 block height might be registered but it hasn't
     // been processed inside the EVM yet.
     sleep(Duration::from_secs(1)).await;

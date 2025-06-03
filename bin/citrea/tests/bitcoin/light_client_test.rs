@@ -1738,7 +1738,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let genesis_root = initial_lcp.light_client_proof_output.l2_state_root;
         let mut l1_hash = da.get_block_hash(171).await?.to_raw_hash().to_byte_array();
 
-        // make it uknown
+        // make it unknown
         l1_hash[0] = l1_hash[0].wrapping_add(1);
 
         let bp = create_serialized_fake_receipt_batch_proof(

@@ -130,7 +130,7 @@ where
         .collect();
 
     // Make sure all sequencer commitments are stored in ascending order.
-    // We sort before checking ranges to prevent substraction errors.
+    // We sort before checking ranges to prevent subtraction errors.
     sequencer_commitments.sort();
 
     sequencer_commitments

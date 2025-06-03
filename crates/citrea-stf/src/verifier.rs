@@ -308,7 +308,7 @@ mod tests {
         // Assert the result is as expected (mocked value)
         assert_eq!(result, U256::from(1000).to_be_bytes::<32>(),);
 
-        // Boths is cached
+        // Both is cached
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         let mut working_set = WorkingSet::new(prover_storage);
 

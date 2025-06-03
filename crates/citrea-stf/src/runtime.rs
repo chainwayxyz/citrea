@@ -6,7 +6,7 @@
 //! The module-specific logic is implemented by module creators, but all the glue code responsible for message
 //! deserialization/forwarding is handled by a rollup `runtime`.
 //!
-//! In order to define the runtime we need to specify all the modules supported by our rollup (see the `Runtime` struct bellow)
+//! In order to define the runtime we need to specify all the modules supported by our rollup (see the `Runtime` struct below)
 //!
 //! The `Runtime` together with associated interfaces (`Genesis`, `DispatchCall`, `MessageCodec`)
 //! and derive macros defines:
