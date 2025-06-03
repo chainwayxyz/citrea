@@ -182,7 +182,7 @@ impl TestCase for PreStateRootMismatchTest {
             .wait_for_l1_height(commitment2_l1_height, None)
             .await?;
 
-        let commitment_respons2 = full_node
+        let commitment_response2 = full_node
             .client
             .http_client()
             .get_sequencer_commitment_by_index(U32::from(2))
@@ -190,9 +190,9 @@ impl TestCase for PreStateRootMismatchTest {
             .unwrap();
 
         let commitment2 = SequencerCommitment {
-            merkle_root: commitment_respons2.merkle_root,
-            index: commitment_respons2.index.to::<u32>(),
-            l2_end_block_number: commitment_respons2.l2_end_block_number.to::<u64>(),
+            merkle_root: commitment_response2.merkle_root,
+            index: commitment_response2.index.to::<u32>(),
+            l2_end_block_number: commitment_response2.l2_end_block_number.to::<u64>(),
         };
 
         light_client_prover
@@ -208,6 +208,15 @@ impl TestCase for PreStateRootMismatchTest {
 
         let l1_hash = da.get_block_hash(commitment2_l1_height).await?;
 
+        let commitment_2_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment2.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
         // Invalid proof with invalid starting state root
         let invalid_proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
             [1; 32], // Invalid state root
@@ -217,7 +226,7 @@ impl TestCase for PreStateRootMismatchTest {
             false,
             l1_hash.as_raw_hash().to_byte_array(),
             vec![commitment2.clone()],
-            vec![commitment_respons2.merkle_root],
+            vec![commitment_2_state_root],
             Some(commitment1.serialize_and_calculate_sha_256()),
         );
 
@@ -422,6 +431,15 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             .get_batch_proof_method_ids()
             .await?;
 
+        let wrong_commitment_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(wrong_commitment.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
         // Create a fake proof against the wrong commitment
         let fake_proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
             genesis_state_root.try_into().unwrap(),
@@ -431,7 +449,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             false,
             l1_hash.as_raw_hash().to_byte_array(),
             vec![wrong_commitment.clone()],
-            vec![wrong_merkle_root],
+            vec![wrong_commitment_state_root],
             None,
         );
         prover_da_service
