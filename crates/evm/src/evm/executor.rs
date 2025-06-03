@@ -221,7 +221,7 @@ pub fn get_last_l1_height_in_light_client<C: sov_modules_api::Context>(
     .map(|v| v.saturating_sub(U256::from(1u64)))
 }
 
-/// Returns the last set l1 block hash in bitcoin light client contract
+/// Returns the last set l1 block height with its corresponding l1 block hash in bitcoin light client contract
 pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C::Storage>,
