@@ -659,7 +659,7 @@ where
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
-                // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
+                // that even though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.recv(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {

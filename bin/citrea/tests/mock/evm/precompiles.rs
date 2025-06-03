@@ -81,7 +81,7 @@ async fn test_custom_precompiles() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        // send the same estimation to an empty adress
+        // send the same estimation to an empty address
         let res_default = seq_test_client
             .client
             .estimate_gas(
@@ -133,7 +133,7 @@ async fn test_custom_precompiles() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        // send the same estimation to an empty adress
+        // send the same estimation to an empty address
         let res_default = seq_test_client
             .client
             .estimate_gas(

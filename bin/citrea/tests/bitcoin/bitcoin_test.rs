@@ -77,7 +77,7 @@ impl TestCase for BitcoinReorgTest {
         f.bitcoin_nodes.connect_nodes().await?;
         f.bitcoin_nodes.wait_for_sync(None).await?;
 
-        // Assert that re-org occured
+        // Assert that re-org occurred
         let new_hash = da0.get_block_hash(original_chain_height).await?;
         assert_ne!(original_chain_hash, new_hash, "Re-org did not occur");
 
@@ -438,7 +438,7 @@ impl CpfpFeeBumpingTest {
         let cpfp_entry = da.get_mempool_entry(cpfp_txid).await?;
         let cpfp_fee_rate = cpfp_entry.fees.base.to_sat() as f64 / cpfp_entry.vsize as f64;
 
-        // Verify the child tx has higher fee rate to accomodate for child + parent
+        // Verify the child tx has higher fee rate to accommodate for child + parent
         assert!(cpfp_fee_rate >= target_fee_rate);
 
         // Verify that child spends from reveal tx and keeps a correct tx chain

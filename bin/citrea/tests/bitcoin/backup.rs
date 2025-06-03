@@ -64,7 +64,7 @@ async fn get_backup_info(
  * Tests backup and post-rollback backup for the sequencer node.
  *
  * # Flow
- * 1. Tests RPC guards, auth and non-existant paths
+ * 1. Tests RPC guards, auth and non-existent paths
  * 2. Generate L2 blocks to alter state before backing up
  * 3. Create initial backup and verify backup information
  * 4. Call `backup_validate` and assert backup integrity
