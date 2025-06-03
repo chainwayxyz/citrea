@@ -333,3 +333,223 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
         get_forks(),
     );
 }
+
+#[test]
+fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() {
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+
+    let mut storage_manager = init_storage_manager();
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+
+    let sequencer_private_key = K256PrivateKey::generate();
+    let sequencer_public_key = sequencer_private_key.pub_key();
+
+    let mut block_cache = vec![];
+    let mut prev_state_root = state_root;
+    for i in 1..=10 {
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        create_l2_block(
+            &mut stf_blueprint,
+            &sequencer_private_key,
+            &sequencer_public_key,
+            &mut storage_manager,
+            prover_storage,
+            i,
+            prev_state_root,
+            &mut block_cache,
+        )
+        .unwrap();
+
+        prev_state_root = block_cache.last().unwrap().1.state_root();
+    }
+
+    let mut input: Vec<u8> = vec![];
+    // Groups count
+    input.extend(&borsh::to_vec(&1u32).unwrap());
+    for i in 0..2 {
+        // State change count
+        input.extend(&borsh::to_vec(&5u32).unwrap());
+        // Blocks
+        for (height, l2_block, witness, offchain_witness) in &block_cache[i * 5..(i + 1) * 5] {
+            input.extend(&borsh::to_vec(&height).unwrap());
+            input
+                .extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
+        }
+    }
+
+    // From here on, we establish a new base on which the mockZk guest will run
+    // to validate state that has been executed previously.
+    let guest = MockZkGuest::new(input.clone());
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+    let mut storage_manager = init_storage_manager();
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+
+    let first_commitment_block_hashes = block_cache[0..5]
+        .iter()
+        .map(|(_, block, _, _)| block.hash())
+        .collect::<Vec<[u8; 32]>>();
+    let first_commitment_calculated_root =
+        MerkleTree::<Sha256>::from_leaves(&first_commitment_block_hashes)
+            .root()
+            .unwrap();
+    let second_commitment_block_hashes = block_cache[5..]
+        .iter()
+        .map(|(_, block, _, _)| block.hash())
+        .collect::<Vec<[u8; 32]>>();
+    let second_commitment_calculated_root =
+        MerkleTree::<Sha256>::from_leaves(&second_commitment_block_hashes)
+            .root()
+            .unwrap();
+
+    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+
+    // First, test that the first commitment index should always start at 1
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+            &guest,
+            &sequencer_public_key.pub_key.to_sec1_bytes(),
+            &state_root,
+            prover_storage,
+            None,
+            vec![SequencerCommitment {
+                merkle_root: first_commitment_calculated_root,
+                index: 10, // First commitment does NOT start at 1
+                l2_end_block_number: 5,
+            }],
+            &[],
+            get_forks(),
+        )
+    }));
+    assert!(result.is_err());
+
+    // Apply first commitment
+    let guest = MockZkGuest::new(input.clone());
+    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+        &guest,
+        &sequencer_public_key.pub_key.to_sec1_bytes(),
+        &state_root,
+        prover_storage,
+        None,
+        vec![SequencerCommitment {
+            merkle_root: first_commitment_calculated_root,
+            index: 1,
+            l2_end_block_number: 5,
+        }],
+        &[],
+        get_forks(),
+    );
+
+    let guest = MockZkGuest::new(input.clone());
+    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    // Should panic since the commitment is index 0 is not allowed
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+            &guest,
+            &sequencer_public_key.pub_key.to_sec1_bytes(),
+            &state_root,
+            prover_storage,
+            Some(SequencerCommitment {
+                merkle_root: first_commitment_calculated_root,
+                index: 0,
+                l2_end_block_number: 5,
+            }),
+            vec![SequencerCommitment {
+                merkle_root: second_commitment_calculated_root,
+                index: 3,
+                l2_end_block_number: 10,
+            }],
+            &[],
+            get_forks(),
+        )
+    }));
+    assert!(result.is_err());
+
+    let guest = MockZkGuest::new(input);
+    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    // Should panic since the commitment is index 3 while the next commitment index should be 2.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+            &guest,
+            &sequencer_public_key.pub_key.to_sec1_bytes(),
+            &state_root,
+            prover_storage,
+            Some(SequencerCommitment {
+                merkle_root: first_commitment_calculated_root,
+                index: 1,
+                l2_end_block_number: 5,
+            }),
+            vec![SequencerCommitment {
+                merkle_root: second_commitment_calculated_root,
+                index: 3,
+                l2_end_block_number: 10,
+            }],
+            &[],
+            get_forks(),
+        )
+    }));
+
+    assert!(result.is_err());
+
+    let mut input: Vec<u8> = vec![];
+    // Groups count
+    input.extend(&borsh::to_vec(&1u32).unwrap());
+    // State change count
+    input.extend(&borsh::to_vec(&5u32).unwrap());
+    // Blocks
+    for (height, l2_block, witness, offchain_witness) in &block_cache[0..5] {
+        input.extend(&borsh::to_vec(&height).unwrap());
+        input.extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
+    }
+
+    let guest = MockZkGuest::new(input);
+    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+        &guest,
+        &sequencer_public_key.pub_key.to_sec1_bytes(),
+        &state_root,
+        prover_storage.clone(),
+        None,
+        vec![SequencerCommitment {
+            merkle_root: first_commitment_calculated_root,
+            index: 1,
+            l2_end_block_number: 5,
+        }],
+        &[],
+        get_forks(),
+    );
+
+    storage_manager.finalize_storage(prover_storage);
+
+    let mut input: Vec<u8> = vec![];
+    // Groups count
+    input.extend(&borsh::to_vec(&1u32).unwrap());
+    // State change count
+    input.extend(&borsh::to_vec(&5u32).unwrap());
+    // Blocks
+    for (height, l2_block, witness, offchain_witness) in &block_cache[5..] {
+        input.extend(&borsh::to_vec(&height).unwrap());
+        input.extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
+    }
+    // This call has a proper input so expect it to go well.
+    let guest = MockZkGuest::new(input);
+    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+        &guest,
+        &sequencer_public_key.pub_key.to_sec1_bytes(),
+        &block_cache[4].1.state_root(),
+        prover_storage,
+        Some(SequencerCommitment {
+            merkle_root: first_commitment_calculated_root,
+            index: 1,
+            l2_end_block_number: 5,
+        }),
+        vec![SequencerCommitment {
+            merkle_root: second_commitment_calculated_root,
+            index: 2,
+            l2_end_block_number: 10,
+        }],
+        &[],
+        get_forks(),
+    );
+}
