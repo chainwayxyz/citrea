@@ -1316,12 +1316,16 @@ fn test_set_block_info_shp_not_found() {
             &self,
             _l1_hash: [u8; 32],
             _prev_l1_hash: [u8; 32],
-            _l1_height: u64,
+            l1_height: u64,
             _txs_commitment: [u8; 32],
             _coinbase_depth: u8,
             _l2_height: u64,
         ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
-            Err(short_header_proof_provider::ShortHeaderProofProviderError::ShortHeaderProofNotFound)
+            if l1_height == 1 {
+                Ok(true)
+            } else {
+                Err(short_header_proof_provider::ShortHeaderProofProviderError::ShortHeaderProofNotFound)
+            }
         }
 
         fn clear_queried_hashes(&self) {
@@ -1425,12 +1429,12 @@ fn test_set_block_info_shp_verification_failed() {
             &self,
             _l1_hash: [u8; 32],
             _prev_l1_hash: [u8; 32],
-            _l1_height: u64,
+            l1_height: u64,
             _txs_commitment: [u8; 32],
             _coinbase_depth: u8,
             _l2_height: u64,
         ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
-            Ok(false)
+            Ok(l1_height == 1)
         }
 
         fn clear_queried_hashes(&self) {
