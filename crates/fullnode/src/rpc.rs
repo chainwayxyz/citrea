@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
+use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{L2HeightAndIndex, L2HeightStatus};
 
@@ -53,7 +52,7 @@ pub trait FullNodeRpc {
     #[method(name = "getLastProvenL2Height")]
     async fn get_last_proven_l2_height(&self) -> RpcResult<Option<L2HeightAndIndex>>;
 
-    /// Get the last commited and proven L2 heights up to a specific L1 height
+    /// Get the last committed and proven L2 heights up to a specific L1 height
     #[method(name = "getL2StatusHeightsByL1Height")]
     async fn get_l2_status_heights_by_l1_height(
         &self,
@@ -88,26 +87,14 @@ where
         self.context
             .ledger
             .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("Failed to get committed L2 height: {e}")),
-                )
-            })
+            .map_err(|e| internal_rpc_error(format!("Failed to get committed L2 height: {e}")))
     }
 
     async fn get_last_proven_l2_height(&self) -> RpcResult<Option<L2HeightAndIndex>> {
         self.context
             .ledger
             .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("Failed to get proven L2 height: {e}")),
-                )
-            })
+            .map_err(|e| internal_rpc_error(format!("Failed to get proven L2 height: {e}")))
     }
 
     async fn get_l2_status_heights_by_l1_height(
@@ -119,11 +106,7 @@ where
             .ledger
             .get_l2_status_heights_by_l1_height(l1_height)
             .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("Failed to get L2 status heights by L1 height: {e}")),
-                )
+                internal_rpc_error(format!("Failed to get L2 status heights by L1 height: {e}"))
             })?;
 
         Ok(L2StatusHeightsByL1Height {

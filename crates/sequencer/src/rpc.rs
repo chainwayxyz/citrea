@@ -3,12 +3,12 @@ use std::sync::Arc;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types::Transaction;
+use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
 use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
+use jsonrpsee::types::{ErrorCode, ErrorObject};
 use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
@@ -202,11 +202,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
 
         debug!("Sequencer: citrea_testPublishBlock");
         self.context.l2_force_block_tx.send(()).map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("Could not send L2 force block transaction: {e}")),
-            )
+            internal_rpc_error(format!("Could not send L2 force block transaction: {e}"))
         })
     }
 }

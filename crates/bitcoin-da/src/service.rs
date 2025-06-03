@@ -234,7 +234,7 @@ impl BitcoinService {
         })
     }
 
-    #[instrument(name = "BitcoinDA")]
+    #[instrument(name = "BitcoinDA", skip(self))]
     pub async fn run_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
@@ -352,7 +352,7 @@ impl BitcoinService {
             .collect()
     }
 
-    #[instrument(level = "trace", fields(prev_utxo), ret, err)]
+    #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
     pub async fn send_transaction_with_fee_rate(
         &self,
         tx_request: DaTxRequest,

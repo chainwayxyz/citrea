@@ -182,7 +182,7 @@ async fn diff_sizes() -> Result<(), anyhow::Error> {
     // make a transaction to a contract that calls another contract
     // resulting in storage changes in both
     // all storage changes should be charged
-    // as there is a seperate Journal for each call in the tx
+    // as there is a separate Journal for each call in the tx
     // we must make sure we include all Journals in the tx
     {
         let deploy_tx = seq_test_client

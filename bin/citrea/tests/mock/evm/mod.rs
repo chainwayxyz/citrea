@@ -333,7 +333,7 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
 
     for storage_proof in &acc_proof.storage_proof {
         let kaddr = {
-            // See `Evm::get_storage_address` for how the storage adress is calculated
+            // See `Evm::get_storage_address` for how the storage address is calculated
             let mut hasher: sha2::Sha256 =
                 sha2::Digest::new_with_prefix(account_address.as_slice());
             #[allow(clippy::unnecessary_fallible_conversions)]
@@ -933,7 +933,7 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     // all successful
     assert!(receipts.iter().all(|r| r.inner.inner.status()));
 
-    // if we don't do this in a seperate block, gas estimation is off since the delegation is not done yet
+    // if we don't do this in a separate block, gas estimation is off since the delegation is not done yet
     // this also shows estimate gas works
     let _set_storage_tx = test_client
         .contract_transaction(

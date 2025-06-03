@@ -161,6 +161,9 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&seq_test_client, 110, None).await;
     wait_for_l2_block(&full_node_test_client, 110, None).await;
 
+    // wait just a bit to ensure l2 blocks generated due to missed DA blocks are caught up as well
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
     // check if the latest block state roots are same
     let seq_last_block = seq_test_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -170,9 +173,10 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.header.number, 110);
-    assert_eq!(full_node_last_block.header.number, 110);
-
+    assert_eq!(
+        seq_last_block.header.number,
+        full_node_last_block.header.number
+    );
     assert_eq!(
         seq_last_block.header.state_root,
         full_node_last_block.header.state_root
@@ -189,7 +193,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
 async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
 
-    // open, close without publishing blokcs
+    // open, close without publishing blocks
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -432,7 +436,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&seq_test_client, 6, None).await;
     // Still should have 4 blocks there are no commitments yet
     wait_for_l2_block(&prover_client, 6, None).await;
-    // Allow for the L2 block to be commited and stored
+    // Allow for the L2 block to be committed and stored
     // Otherwise, the L2 block height might be registered but it hasn't
     // been processed inside the EVM yet.
     sleep(Duration::from_secs(1)).await;

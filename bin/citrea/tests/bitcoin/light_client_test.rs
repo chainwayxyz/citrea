@@ -37,11 +37,11 @@ use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::Network;
 
-use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PUBLIC_KEY;
-use crate::bitcoin::batch_prover_test::wait_for_prover_job;
-use crate::bitcoin::utils::{spawn_bitcoin_da_service, DaServiceKeyKind};
+use crate::bitcoin::utils::{
+    spawn_bitcoin_da_service, wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
+};
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
@@ -1738,7 +1738,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let genesis_root = initial_lcp.light_client_proof_output.l2_state_root;
         let mut l1_hash = da.get_block_hash(171).await?.to_raw_hash().to_byte_array();
 
-        // make it uknown
+        // make it unknown
         l1_hash[0] = l1_hash[0].wrapping_add(1);
 
         let bp = create_serialized_fake_receipt_batch_proof(

@@ -409,7 +409,7 @@ where
 
         let mut last_commitment_end_height = previous_batch_proof_l2_end_height;
 
-        // Reuseable log caches
+        // Reusable log caches
         let mut cumulative_state_log = None;
         let mut cumulative_offchain_log = None;
         let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();
@@ -485,12 +485,6 @@ where
                 // The state root of prover should match l2 block coming from sequencer
                 assert_eq!(current_state_root, l2_block.state_root());
 
-                l2_height += 1;
-
-                prev_l2_block_hash = Some(l2_block.hash());
-
-                l2_block_hashes.push(l2_block.hash());
-
                 let mut state_log = result.state_log;
                 let mut offchain_log = result.offchain_log;
                 // prune cache logs if it is hinted from native
@@ -501,6 +495,10 @@ where
                     state_log.prune_half();
                     offchain_log.prune_half();
                 }
+
+                l2_height += 1;
+                prev_l2_block_hash = Some(l2_block.hash());
+                l2_block_hashes.push(l2_block.hash());
 
                 cumulative_state_log = Some(state_log);
                 cumulative_offchain_log = Some(offchain_log);

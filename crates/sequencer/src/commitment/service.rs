@@ -1,4 +1,3 @@
-use std::cmp;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -23,7 +22,6 @@ use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument};
 
 use super::controller::CommitmentController;
-use super::helpers::load_next_commitment_index;
 use crate::metrics::SEQUENCER_METRICS;
 
 /// L2 heights to commit
@@ -37,8 +35,7 @@ where
     ledger_db: Db,
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
-    next_commitment_index: u32,
-    commitment_controller: Option<CommitmentController<Db>>,
+    max_l2_blocks: u64,
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -50,17 +47,13 @@ where
         ledger_db: Db,
         da_service: Arc<Da>,
         sequencer_da_pub_key: Vec<u8>,
-        min_l2_blocks: u64,
+        max_l2_blocks: u64,
     ) -> Self {
-        let commitment_controller =
-            Some(CommitmentController::new(ledger_db.clone(), min_l2_blocks));
-        let next_commitment_index = load_next_commitment_index(&ledger_db);
         Self {
             ledger_db,
             da_service,
             sequencer_da_pub_key,
-            next_commitment_index,
-            commitment_controller,
+            max_l2_blocks,
         }
     }
 
@@ -81,41 +74,15 @@ where
             }
         }
 
-        let check_new_block_time = Duration::from_secs(2);
-        let mut check_new_block_tick = tokio::time::interval(check_new_block_time);
-        check_new_block_tick.tick().await;
-
-        // Get latest finalized and pending commitments and find the max height
-        let last_finalized_l2_height = match self.ledger_db.get_last_commitment() {
-            Ok(seq) => seq
-                .map(|seq| L2BlockNumber(seq.l2_end_block_number))
-                .unwrap_or(L2BlockNumber(0)),
-            Err(e) => {
-                error!("Could not fetch last commitment: {:?}", e);
-                return;
-            }
-        };
-        let last_pending_l2_height = match self.ledger_db.get_pending_commitments() {
-            Ok(commitments) => commitments
-                .iter()
-                .map(|seq| L2BlockNumber(seq.l2_end_block_number))
-                .max()
-                .unwrap_or(L2BlockNumber(0)),
-            Err(e) => {
-                error!("Could not read pending sequencer commitments: {:?}", e);
-                return;
-            }
-        };
-        let mut from_l2_height = L2BlockNumber(cmp::max(
-            cmp::max(last_finalized_l2_height, last_pending_l2_height).0 + 1,
-            get_tangerine_activation_height_non_zero(),
+        let commitment_controller = Arc::new(CommitmentController::new(
+            self.ledger_db.clone(),
+            self.max_l2_blocks,
         ));
+        // This is not the head l2 height but the latest commitment's l2 height
+        let mut last_l2_height = commitment_controller.last_l2_height();
 
-        let commitment_controller = Arc::new(
-            self.commitment_controller
-                .take()
-                .expect("Commitment controller should be present"),
-        );
+        let mut check_new_block_tick = tokio::time::interval(Duration::from_secs(2));
+        check_new_block_tick.tick().await;
 
         loop {
             select! {
@@ -124,16 +91,9 @@ where
                     return;
                 },
                 _ = check_new_block_tick.tick() => {
-                    let head_l2_height = match self.ledger_db.get_head_l2_block_height() {
-                        Ok(head_l2_height) => L2BlockNumber(head_l2_height.unwrap_or(0)),
-                        Err(e) => {
-                            error!("Failed to fetch head L2 height: {:?}", e);
-                            return;
-                        }
-                    };
-
+                    let head_l2_height = self.ledger_db.get_head_l2_block_height().expect("Failed to fetch head L2 height").unwrap_or(0);
                     // No need to check commitment criteria if the start L2 block number did not change.
-                    if head_l2_height <= from_l2_height {
+                    if head_l2_height <= last_l2_height {
                         continue;
                     }
 
@@ -142,44 +102,24 @@ where
                     // the max amount of blocks we commit for.
                     // Instead, we loop here from the last commitment height + 1 incrementally and commit
                     // as soon as we find a block which signals the possibility of a commitment.
-                    for current_l2_height in from_l2_height.0..=head_l2_height.0 {
+                    for current_l2_height in (last_l2_height + 1)..=head_l2_height {
                         let cc = commitment_controller.clone();
 
-                        let Ok(commitment_info) = tokio::task::spawn_blocking(move || {
-                            cc.should_commit(from_l2_height, L2BlockNumber(current_l2_height))
-                        }).await else {
-                            error!("Failed to check commitment criteria");
-                            continue;
-                        };
-
-                        let commitment_info = match commitment_info {
-                            Ok(Some(commitment_info)) => {
-                                commitment_info
-                            },
-                            Err(e) => {
-                                error!("Error while checking commitment criteria: {:?}", e);
-                                continue;
-                            },
-                            _ => {
-                                continue;
+                        let should_commit = tokio::task::spawn_blocking(move || {
+                            cc.should_commit(L2BlockNumber(current_l2_height))
+                        }).await;
+                        if let Some((index, commitment_range)) = should_commit
+                            .expect("Commit check tokio blocking task failed")
+                            .expect("Commitment criteria check failed")
+                        {
+                            if let Err(e) = self.commit(index, commitment_range).await {
+                                // We just log error and continue here as the controller updated its internal state and it can
+                                // continue functioning correctly. We just need to resubmit the failed commitment to DA.
+                                error!("Failed to submit commitment: {:?}", e);
                             }
                         };
 
-                        commitment_controller.reset();
-                        if let Err(e) = commitment_controller.clear_commitment_state_diffs(commitment_info.start().0..=commitment_info.end().0) {
-                            error!("Could not clear commitment state diffs: {:?}", e);
-                        }
-
-                        let index = self.next_commitment_index;
-
-                        from_l2_height = L2BlockNumber(commitment_info.end().0 + 1);
-
-                        if let Err(e) = self.commit(index, &commitment_info).await {
-                            error!("Could not submit commitment: {:?}", e);
-                        }
-
-                        // Stop and let the next tick start from the last set `from_l2_height`
-                        break;
+                        last_l2_height = current_l2_height;
                     }
                 },
             }
@@ -189,14 +129,14 @@ where
     pub async fn commit(
         &mut self,
         commitment_index: u32,
-        commitment_info: &CommitmentRange,
+        commitment_range: CommitmentRange,
     ) -> anyhow::Result<()> {
-        let l2_start = *commitment_info.start();
-        let l2_end = *commitment_info.end();
+        let l2_start = *commitment_range.start();
+        let l2_end = *commitment_range.end();
 
         let l2_block_hashes = self
             .ledger_db
-            .get_l2_block_range(commitment_info)?
+            .get_l2_block_range(&commitment_range)?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
@@ -205,7 +145,8 @@ where
             .commitment_blocks_count
             .set(l2_block_hashes.len() as f64);
 
-        let commitment = self.get_commitment(commitment_index, commitment_info, l2_block_hashes)?;
+        let commitment =
+            self.get_commitment(commitment_index, &commitment_range, l2_block_hashes)?;
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
@@ -252,8 +193,8 @@ where
 
         ledger_db.delete_pending_commitment(commitment.index)?;
 
-        // Increment the next commitment index here knowing that it completed successfully.
-        self.next_commitment_index += 1;
+        self.ledger_db
+            .delete_state_diff_by_range(commitment_range)?;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
@@ -342,7 +283,7 @@ where
                 let range = L2BlockNumber(l2_start_block_number)
                     ..=L2BlockNumber(pending_db_comm.l2_end_block_number);
 
-                self.commit(pending_db_comm.index, &range).await?;
+                self.commit(pending_db_comm.index, range).await?;
             }
         }
 
@@ -353,12 +294,12 @@ where
     pub fn get_commitment(
         &self,
         commitment_index: u32,
-        commitment_info: &CommitmentRange,
+        commitment_range: &CommitmentRange,
         l2_block_hashes: Vec<[u8; 32]>,
     ) -> anyhow::Result<SequencerCommitment> {
         // sanity check
         assert_eq!(
-            commitment_info.end().0 - commitment_info.start().0 + 1u64,
+            commitment_range.end().0 - commitment_range.start().0 + 1u64,
             l2_block_hashes.len() as u64,
             "Sequencer: Soft confirmation hashes length does not match the commitment info"
         );
@@ -369,7 +310,7 @@ where
         Ok(SequencerCommitment {
             merkle_root,
             index: commitment_index,
-            l2_end_block_number: commitment_info.end().0,
+            l2_end_block_number: commitment_range.end().0,
         })
     }
 

@@ -131,7 +131,7 @@ impl BackupManager {
     ) -> anyhow::Result<()> {
         ensure!(
             self.config.backup_dirs.contains(&path),
-            "Unexpect database identifier"
+            "Unexpected database identifier"
         );
         self.databases.write().unwrap().insert(path, db);
         Ok(())
