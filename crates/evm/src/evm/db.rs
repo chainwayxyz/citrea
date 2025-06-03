@@ -16,7 +16,7 @@ use crate::Evm;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum DBError {
     CodeHashMismatch,
-    BytecodeNotAvailable,
+    UnknownCodeHash,
 }
 
 impl DBErrorMarker for DBError {}
@@ -28,8 +28,8 @@ impl std::fmt::Display for DBError {
             Self::CodeHashMismatch => {
                 write!(f, "Code does not match provided hash")
             }
-            Self::BytecodeNotAvailable => {
-                write!(f, "Bytecode not available")
+            Self::UnknownCodeHash => {
+                write!(f, "Code hash is unknown")
             }
         }
     }
@@ -101,7 +101,7 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
         )? {
             Ok(code)
         } else {
-            Err(DBError::BytecodeNotAvailable)
+            Err(DBError::UnknownCodeHash)
         }
     }
 
