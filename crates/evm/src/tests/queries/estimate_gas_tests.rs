@@ -14,7 +14,7 @@ use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::get_fork_fn_only_tangerine;
+use crate::tests::utils::get_fork_fn_latest;
 use crate::{EstimatedDiffSize, Evm};
 
 type C = DefaultContext;
@@ -51,7 +51,7 @@ fn test_payable_contract_value() {
         tx_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(result.unwrap(), U256::from_str("0xab13").unwrap());
 }
@@ -88,7 +88,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         result_contract_call.unwrap(),
@@ -98,7 +98,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         contract_diff_size.unwrap(),
@@ -115,7 +115,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_gas.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         contract_diff_size.unwrap(),
@@ -133,7 +133,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_sender,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(result_no_sender.unwrap(), U256::from_str("0x6602").unwrap());
     working_set.unset_archival_version();
@@ -147,7 +147,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_recipient,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         result_no_recipient.unwrap(),
@@ -164,7 +164,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_gas,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(result_no_gas.unwrap(), U256::from_str("0x6602").unwrap());
     working_set.unset_archival_version();
@@ -178,7 +178,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_gas_price,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         result_no_gas_price.unwrap(),
@@ -195,7 +195,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_chain_id,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         result_no_chain_id.unwrap(),
@@ -212,7 +212,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_invalid_chain_id,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         result_invalid_chain_id,
@@ -230,7 +230,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_blob_versioned_hashes,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(
         result_no_blob_versioned_hashes.unwrap(),
@@ -247,7 +247,7 @@ fn test_tx_request_fields_gas_fork1() {
         no_access_list_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -277,7 +277,7 @@ fn test_tx_request_fields_gas_fork1() {
         access_list_req.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     // Wrong access punishment.
@@ -290,7 +290,7 @@ fn test_tx_request_fields_gas_fork1() {
         access_list_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -345,7 +345,7 @@ fn test_access_list() {
         tx_req_contract_call.clone(),
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(no_access_list.unwrap(), U256::from_str("0x788c").unwrap());
 
@@ -353,7 +353,7 @@ fn test_access_list() {
         tx_req_contract_call.clone(),
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -383,7 +383,7 @@ fn test_access_list() {
         tx_req_with_access_list,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(with_access_list.unwrap(), U256::from_str("0x775e").unwrap());
 }
@@ -447,7 +447,7 @@ fn test_pending_env() {
             tx_req.clone(),
             Some(BlockNumberOrTag::Latest),
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -455,17 +455,12 @@ fn test_pending_env() {
         tx_req.clone(),
         Some(BlockNumberOrTag::Pending),
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
     assert_eq!(result_pending.unwrap(), result);
 
     let result = evm
-        .create_access_list_inner(
-            tx_req.clone(),
-            None,
-            &mut working_set,
-            get_fork_fn_only_tangerine(),
-        )
+        .create_access_list_inner(tx_req.clone(), None, &mut working_set, get_fork_fn_latest())
         .unwrap();
 
     let result_pending = evm
@@ -473,7 +468,7 @@ fn test_pending_env() {
             tx_req.clone(),
             Some(BlockNumberOrTag::Pending),
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -501,7 +496,7 @@ fn test_estimate_gas_with_input(
         tx_req,
         Some(BlockNumberOrTag::Latest),
         working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     )
 }
 
@@ -524,6 +519,6 @@ fn test_estimate_gas_with_value(
         tx_req,
         Some(BlockNumberOrTag::Latest),
         working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     )
 }

@@ -57,4 +57,9 @@ impl SpecId {
             _ => None,
         }
     }
+
+    /// Get the latest active (official) SpecId.
+    pub const fn latest() -> Self {
+        Self::Tangerine
+    }
 }

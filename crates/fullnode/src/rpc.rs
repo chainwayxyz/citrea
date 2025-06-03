@@ -52,7 +52,7 @@ pub trait FullNodeRpc {
     #[method(name = "getLastProvenL2Height")]
     async fn get_last_proven_l2_height(&self) -> RpcResult<Option<L2HeightAndIndex>>;
 
-    /// Get the last commited and proven L2 heights up to a specific L1 height
+    /// Get the last committed and proven L2 heights up to a specific L1 height
     #[method(name = "getL2StatusHeightsByL1Height")]
     async fn get_l2_status_heights_by_l1_height(
         &self,

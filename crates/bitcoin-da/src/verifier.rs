@@ -741,7 +741,7 @@ mod tests {
         block_hash.reverse();
         // Initial da height 40309 state
         // Even though target is as below, this block has its next blocks produced in more than 20 minutes,
-        // causing their bits to be resetted.
+        // causing their bits to be reset.
         let mut da_state = LatestDaState {
             block_hash,
             block_height: 40309,

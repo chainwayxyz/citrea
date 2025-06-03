@@ -312,8 +312,8 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
     }
 }
 
-pub(crate) fn get_fork_fn_only_tangerine() -> impl Fn(u64) -> Fork {
-    |_: u64| Fork::new(SovSpecId::Tangerine, 0)
+pub(crate) fn get_fork_fn_latest() -> impl Fn(u64) -> Fork {
+    |_: u64| Fork::new(SovSpecId::latest(), 0)
 }
 
 /// Read genesis file

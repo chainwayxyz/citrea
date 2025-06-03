@@ -207,7 +207,7 @@ fn build_reveal_transaction(
     }];
 
     // sanity check
-    // the reveal input should already hvae calculated the reveal output size + reveal fee
+    // the reveal input should already have calculated the reveal output size + reveal fee
     let size = get_size_reveal(
         recipient.script_pubkey(),
         output_value,

@@ -493,3 +493,22 @@ jobs:
         continue-on-error: true
         run: |
           docker load < /tmp/docker/bitcoin.tar
+
+  codespell:
+    name: codespell
+    runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install codespell
+        run: pip install codespell
+
+      - name: Run codespell
+        run: |
+          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests," -I="codespell_ignore.txt"
