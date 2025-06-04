@@ -41,6 +41,7 @@ pub enum ValidationError {
     IncorrectWitnessCommitment,
     InvalidBlockHash,
     NonConsecutiveBlockHeight,
+    InvalidWitnessCommitmentStructure,
     InvalidPrevBlockHash,
     InvalidBlockBits,
     InvalidTargetHash,
@@ -188,7 +189,11 @@ impl DaVerifier for BitcoinVerifier {
                 let merkle_root =
                     merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
-                let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
+                let input_witness_value = coinbase_tx.input[0]
+                    .witness
+                    .iter()
+                    .next()
+                    .ok_or(ValidationError::InvalidWitnessCommitmentStructure)?;
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
