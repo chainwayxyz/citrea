@@ -55,7 +55,7 @@ use sov_state::ProverStorage;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment::service::CommitmentService;

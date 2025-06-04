@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 #![warn(clippy::missing_docs_in_private_items)]
 //! Sequencer crate which contains sequencer node related functionality.
 use std::sync::Arc;
