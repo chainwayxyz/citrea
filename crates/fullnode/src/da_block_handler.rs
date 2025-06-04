@@ -1,3 +1,8 @@
+//! Data Availability (DA) block handling for the fullnode
+//!
+//! This module is responsible for processing L1 blocks, extracting and verifying
+//! sequencer commitments and ZK proofs, and maintaining the chain's state integrity.
+
 use core::panic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -27,25 +32,45 @@ use tracing::{debug, error, info, instrument, warn};
 use crate::error::{CommitmentError, HaltingError, ProcessingError, ProofError, SkippableError};
 use crate::metrics::FULLNODE_METRICS;
 
+/// Result of processing a commitment or proof
 enum ProcessingResult {
+    /// Processing completed successfully
     Success,
+    /// Item was discarded due to failure or irrelevance
     Discarded,
+    /// Processing deferred, waiting for dependencies
     Pending,
 }
 
+/// Handler for processing L1 blocks and their contained proofs and commitments
+///
+/// This component is responsible for:
+/// - Synchronizing L1 blocks
+/// - Processing sequencer commitments
+/// - Verifying ZK proofs
+/// - Maintaining block processing order
+/// - Managing the backup state
 pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps,
 {
+    /// Database for ledger operations
     ledger_db: DB,
+    /// Data availability service instance
     da_service: Arc<Da>,
+    /// Sequencer's DA public key for verifying commitments
     sequencer_da_pub_key: Vec<u8>,
+    /// Prover's DA public key for verifying proofs
     prover_da_pub_key: Vec<u8>,
+    /// Map of ZKVM code commitments by spec ID
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    /// Cache for L1 block data
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    /// Queue of L1 blocks waiting to be processed
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
 }
 
@@ -55,6 +80,16 @@ where
     Vm: ZkvmHost + Zkvm,
     DB: NodeLedgerOps + Clone,
 {
+    /// Creates a new L1BlockHandler instance
+    ///
+    /// # Arguments
+    /// * `ledger_db` - Database for ledger operations
+    /// * `da_service` - Data availability service
+    /// * `sequencer_da_pub_key` - Sequencer's DA public key
+    /// * `prover_da_pub_key` - Prover's DA public key
+    /// * `code_commitments_by_spec` - Map of ZKVM code commitments
+    /// * `l1_block_cache` - Cache for L1 block data
+    /// * `backup_manager` - Manager for backup operations
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ledger_db: DB,
@@ -77,6 +112,17 @@ where
         }
     }
 
+    /// Runs the L1BlockHandler service
+    ///
+    /// This method continuously:
+    /// 1. Syncs new L1 blocks from the DA layer
+    /// 2. Processes queued blocks to extract commitments and proofs
+    /// 3. Verifies and applies the extracted data
+    /// 4. Updates the chain state accordingly
+    ///
+    /// # Arguments
+    /// * `start_l1_height` - Height to start syncing from
+    /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
@@ -108,6 +154,7 @@ where
         }
     }
 
+    /// Processes L1 blocks waiting in the queue
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         loop {
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
@@ -120,6 +167,15 @@ where
         Ok(())
     }
 
+    /// Processes a single L1 block
+    ///
+    /// # Arguments
+    /// * `l1_block` - The L1 block to process
+    ///
+    /// This method:
+    /// 1. Saves the block's short header proof
+    /// 2. Records block height mapping
+    /// 3. Extracts and processes contained ZK proofs and commitments
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
         let _l1_lock = self.backup_manager.start_l1_processing().await;
 
@@ -240,6 +296,15 @@ where
         Ok(())
     }
 
+    /// Processes a sequencer commitment found in an L1 block
+    ///
+    /// # Arguments
+    /// * `current_l1_block_height` - Current L1 block being processed
+    /// * `found_in_l1_block_height` - L1 block where commitment was found
+    /// * `sequencer_commitment` - The commitment to process
+    ///
+    /// # Returns
+    /// The processing result indicating success, discard, or pending status
     async fn process_sequencer_commitment(
         &self,
         current_l1_block_height: u64,
@@ -405,6 +470,15 @@ where
         Ok(ProcessingResult::Success)
     }
 
+    /// Processes a ZK proof found in an L1 block
+    ///
+    /// # Arguments
+    /// * `current_l1_block_height` - Current L1 block being processed
+    /// * `found_in_l1_block_height` - L1 block where proof was found
+    /// * `proof` - The ZK proof to process
+    ///
+    /// # Returns
+    /// The processing result indicating success, discard, or pending status
     async fn process_zk_proof(
         &self,
         current_l1_block_height: u64,
@@ -437,6 +511,17 @@ where
         .await
     }
 
+    /// Processes a Tangerine-specific ZK proof
+    ///
+    /// # Arguments
+    /// * `current_l1_block_height` - Current L1 block being processed
+    /// * `found_in_l1_block_height` - L1 block where proof was found
+    /// * `initial_state_root` - Initial state root for verification
+    /// * `raw_proof` - The raw ZK proof
+    /// * `batch_proof_output` - The batch proof circuit output
+    ///
+    /// # Returns
+    /// The processing result indicating success, discard, or pending status
     async fn process_tangerine_zk_proof(
         &self,
         current_l1_block_height: u64,
@@ -581,6 +666,10 @@ where
         Ok(ProcessingResult::Success)
     }
 
+    /// Processes any pending commitments up to the current L1 block height
+    ///
+    /// This method attempts to process commitments that were previously pending
+    /// due to missing dependencies.
     async fn process_pending_commitments(
         &self,
         current_l1_block_height: u64,
@@ -644,6 +733,10 @@ where
         Ok(())
     }
 
+    /// Processes any pending proofs up to the current L1 block height
+    ///
+    /// This method attempts to process proofs that were previously pending
+    /// due to missing dependencies.
     async fn process_pending_proofs(
         &self,
         current_l1_block_height: u64,
@@ -681,7 +774,15 @@ where
         Ok(())
     }
 
-    /// Returns l2 end block number of the commitment if verified
+    /// Verifies a sequencer commitment hash at a specific index
+    ///
+    /// # Arguments
+    /// * `idx` - Index of the commitment to verify
+    /// * `expected_hash` - Expected commitment hash
+    /// * `proof_is_pending` - Out parameter indicating if verification is pending
+    ///
+    /// # Returns
+    /// The L1 block height where the commitment was found
     fn verify_sequencer_commitment_hash_by_index(
         &self,
         idx: u32,

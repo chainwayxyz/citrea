@@ -1,7 +1,13 @@
+//! Metrics collection for the fullnode
+//!
+//! This module defines metrics that track various aspects of fullnode operation,
+//! including block processing times and current block numbers.
+
 use metrics::{Gauge, Histogram};
 use metrics_derive::Metrics;
 use once_cell::sync::Lazy;
 
+/// Collection of metrics for monitoring fullnode performance and state
 #[derive(Metrics)]
 #[metrics(scope = "fullnode")]
 pub struct FullnodeMetrics {
@@ -15,7 +21,10 @@ pub struct FullnodeMetrics {
     pub process_l2_block: Histogram,
 }
 
-/// Fullnode metrics
+/// Global instance of fullnode metrics
+///
+/// This static variable provides access to all fullnode metrics through a lazy-initialized
+/// singleton pattern. The metrics are automatically described and initialized on first access.
 pub static FULLNODE_METRICS: Lazy<FullnodeMetrics> = Lazy::new(|| {
     FullnodeMetrics::describe();
     FullnodeMetrics::default()
