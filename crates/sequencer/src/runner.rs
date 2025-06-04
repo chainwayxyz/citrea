@@ -66,28 +66,53 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
 
+/// Maximum number of DA blocks that can be missed per L2 block
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 
+/// The main sequencer implementation that manages block production and transaction processing
+///
+/// This struct is responsible for:
+/// - Managing the transaction mempool
+/// - Producing L2 blocks
+/// - Processing system transactions
+/// - Handling DA layer synchronization
+/// - Managing state transitions
 pub struct CitreaSequencer<Da, DB>
 where
     Da: DaService,
     DB: SequencerLedgerOps + Send + Clone + 'static,
 {
+    /// Data availability service instance
     da_service: Arc<Da>,
+    /// Transaction mempool
     mempool: Arc<CitreaMempool>,
+    /// Private key for signing transactions
     pub(crate) sov_tx_signer_priv_key: K256PrivateKey,
+    /// Channel for receiving force block production signals
     l2_force_block_rx: UnboundedReceiver<()>,
+    /// Database provider for blockchain data access
     db_provider: DbProvider,
+    /// Database for ledger operations
     pub(crate) ledger_db: DB,
+    /// Sequencer configuration
     pub(crate) config: SequencerConfig,
+    /// State transition function blueprint
     pub(crate) stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
+    /// Mempool for deposit transactions
     pub(crate) deposit_mempool: Arc<Mutex<DepositDataMempool>>,
+    /// Manager for prover storage
     pub(crate) storage_manager: ProverStorageManager,
+    /// Current state root hash
     pub(crate) state_root: StorageRootHash,
+    /// Current L2 block hash
     pub(crate) l2_block_hash: L2BlockHash,
+    /// Sequencer's DA public key
     sequencer_da_pub_key: Vec<u8>,
+    /// Manager for handling chain forks
     pub(crate) fork_manager: ForkManager<'static>,
+    /// Channel for broadcasting L2 block updates
     l2_block_tx: broadcast::Sender<u64>,
+    /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
 }
 
@@ -96,6 +121,23 @@ where
     Da: DaService,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
+    /// Creates a new CitreaSequencer instance
+    ///
+    /// # Arguments
+    /// * `da_service` - Data availability service
+    /// * `config` - Sequencer configuration
+    /// * `init_params` - Initial parameters for sequencer setup
+    /// * `stf` - State transition function blueprint
+    /// * `storage_manager` - Manager for prover storage
+    /// * `public_keys` - Public keys for the rollup
+    /// * `ledger_db` - Database for ledger operations
+    /// * `db_provider` - Provider for database operations
+    /// * `mempool` - Transaction mempool
+    /// * `deposit_mempool` - Mempool for deposit transactions
+    /// * `fork_manager` - Manager for handling chain forks
+    /// * `l2_block_tx` - Channel for L2 block notifications
+    /// * `backup_manager` - Manager for backup operations
+    /// * `l2_force_block_rx` - Channel for force block production signals
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
@@ -136,6 +178,18 @@ where
         })
     }
 
+    /// Performs a dry run of transactions to validate them before inclusion in a block
+    ///
+    /// # Arguments
+    /// * `transactions` - Transactions to validate
+    /// * `pub_key` - Public key for signing
+    /// * `prestate` - Initial state for the dry run
+    /// * `l2_block_info` - Block information for hooks
+    /// * `deposit_data` - Deposit transaction data
+    /// * `da_blocks` - Data availability blocks
+    ///
+    /// # Returns
+    /// A tuple containing the validated transactions and their hashes
     #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
@@ -309,6 +363,7 @@ where
         })
     }
 
+    /// Saves proofs for short headers from DA blocks
     fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) {
         debug!("Saving short header proofs to ledger db");
         for da_block in da_blocks {
@@ -328,6 +383,15 @@ where
         }
     }
 
+    /// Produces a new L2 block with the given DA blocks
+    ///
+    /// # Arguments
+    /// * `da_blocks` - Data availability blocks to process
+    /// * `l1_fee_rate` - Current L1 fee rate
+    /// * `last_used_l1_height` - Last processed L1 block height
+    ///
+    /// # Returns
+    /// The height of the produced L2 block
     async fn produce_l2_block(
         &mut self,
         mut da_blocks: Vec<Da::FilteredBlock>,
@@ -357,7 +421,16 @@ where
         result
     }
 
-    /// Post tangerine block production
+    /// Inner implementation of L2 block production
+    ///
+    /// # Arguments
+    /// * `da_blocks` - Data availability blocks to process
+    /// * `l1_fee_rate` - Current L1 fee rate
+    /// * `l2_height` - Height of the L2 block to produce
+    /// * `last_used_l1_height` - Last processed L1 block height
+    ///
+    /// # Returns
+    /// The height of the produced L2 block
     async fn produce_l2_block_inner(
         &mut self,
         da_blocks: Vec<Da::FilteredBlock>,
@@ -499,7 +572,16 @@ where
         Ok(l2_height)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// Saves an L2 block and its associated data to storage
+    ///
+    /// # Arguments
+    /// * `l2_block` - The L2 block to save
+    /// * `l2_block_result` - Result of block execution
+    /// * `tx_hashes` - Transaction hashes in the block
+    /// * `blobs` - Associated blob data
+    ///
+    /// # Returns
+    /// The state diff resulting from the block
     pub(crate) fn save_l2_block(
         &mut self,
         l2_block: L2Block,
@@ -543,6 +625,10 @@ where
         Ok(l2_block_result.state_diff)
     }
 
+    /// Maintains the mempool by removing failed transactions
+    ///
+    /// # Arguments
+    /// * `l1_fee_failed_txs` - Transactions that failed due to L1 fee issues
     pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
         let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
         txs_to_remove.extend(l1_fee_failed_txs);
@@ -565,7 +651,10 @@ where
         Ok(())
     }
 
-    #[instrument(name = "Sequencer", skip_all)]
+    /// Main sequencer run loop
+    ///
+    /// # Arguments
+    /// * `shutdown_signal` - Signal for graceful shutdown
     pub async fn run(
         &mut self,
         mut shutdown_signal: GracefulShutdown,
@@ -723,6 +812,7 @@ where
         }
     }
 
+    /// Gets the best transactions from the mempool for inclusion in the next block
     pub(crate) fn get_best_transactions(
         &self,
     ) -> anyhow::Result<
@@ -752,6 +842,11 @@ where
         Ok(best_txs_with_base_fee)
     }
 
+    /// Signs a transaction with the sequencer's private key
+    ///
+    /// # Arguments
+    /// * `raw_message` - Raw transaction message to sign
+    /// * `nonce` - Nonce for the transaction
     pub(crate) fn sign_tx(&self, raw_message: Vec<u8>, nonce: u64) -> anyhow::Result<Transaction> {
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
@@ -760,6 +855,10 @@ where
         Ok(tx)
     }
 
+    /// Signs an L2 block header
+    ///
+    /// # Arguments
+    /// * `header` - The L2 block header to sign
     fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
         let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
@@ -769,7 +868,7 @@ where
         Ok(SignedL2Header::new(header, hash, signature))
     }
 
-    /// Fetches nonce from state
+    /// Gets the current nonce for the sequencer account
     pub(crate) fn get_nonce(
         &self,
         working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
@@ -787,6 +886,7 @@ where
         }
     }
 
+    /// Restores the mempool state after a restart
     pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
         let mempool_txs = self.ledger_db.get_mempool_txs()?;
         for (_, tx) in mempool_txs {
@@ -798,6 +898,7 @@ where
         Ok(())
     }
 
+    /// Gets account updates for mempool maintenance
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
         let head = self
             .db_provider
@@ -828,6 +929,12 @@ where
         Ok(updates)
     }
 
+    /// Processes missed DA blocks to catch up with L1
+    ///
+    /// # Arguments
+    /// * `missed_da_blocks_count` - Number of DA blocks missed
+    /// * `last_used_l1_height` - Last processed L1 block height
+    /// * `l1_fee_rate` - Current L1 fee rate
     pub async fn process_missed_da_blocks(
         &mut self,
         missed_da_blocks_count: u64,
@@ -880,6 +987,11 @@ where
         Ok(())
     }
 
+    /// Calculates the number of DA blocks missed
+    ///
+    /// # Arguments
+    /// * `last_finalized_block_height` - Height of the last finalized L1 block
+    /// * `last_used_l1_height` - Last processed L1 block height
     pub fn da_blocks_missed(
         &self,
         last_finalized_block_height: u64,
@@ -900,6 +1012,15 @@ where
         skipped_blocks
     }
 
+    /// Produces and runs system transactions for a block
+    ///
+    /// # Arguments
+    /// * `l2_block_info` - Block information for hooks
+    /// * `evm` - EVM instance
+    /// * `working_set_to_discard` - Working set for state changes
+    /// * `deposit_data` - Deposit transaction data
+    /// * `da_blocks` - Data availability blocks
+    /// * `nonce` - Current nonce
     fn produce_and_run_system_transactions(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
@@ -958,6 +1079,14 @@ where
         )
     }
 
+    /// Processes system transactions
+    ///
+    /// # Arguments
+    /// * `l2_block_info` - Block information for hooks
+    /// * `working_set_to_discard` - Working set for state changes
+    /// * `nonce` - Current nonce
+    /// * `evm` - EVM instance
+    /// * `system_events` - System events to process
     fn process_sys_txs(
         &mut self,
         l2_block_info: &HookL2BlockInfo,

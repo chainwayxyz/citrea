@@ -15,19 +15,23 @@ use reth_transaction_pool::{
     TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
-pub use crate::db_provider::DbProvider;
+use crate::db_provider::DbProvider;
 
+/// The concrete implementation type for the Citrea mempool, using Reth's Pool with custom configuration
 type CitreaMempoolImpl = Pool<
     TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider, EthPooledTransaction>>,
     CoinbaseTipOrdering<EthPooledTransaction>,
     NoopBlobStore,
 >;
 
+/// Type alias for the transaction type used in the Citrea mempool
 type Transaction = <CitreaMempoolImpl as TransactionPool>::Transaction;
 
+/// An abstraction on top of Reth's mempool with custom Citrea functionality.
 pub struct CitreaMempool(CitreaMempoolImpl);
 
 impl CitreaMempool {
+    /// Creates a new instance of the Citrea mempool.
     pub(crate) fn new(
         client: DbProvider,
         mempool_conf: SequencerMempoolConfig,
@@ -73,6 +77,7 @@ impl CitreaMempool {
         Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
     }
 
+    /// Add a transaction to the mempool
     pub(crate) async fn add_external_transaction(
         &self,
         transaction: EthPooledTransaction,
@@ -98,10 +103,12 @@ impl CitreaMempool {
         self.0.add_external_transaction(transaction).await
     }
 
+    /// Find and return a transaction by hash
     pub(crate) fn get(&self, hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Transaction>>> {
         self.0.get(hash)
     }
 
+    /// Remove a transaction from mempool.
     pub(crate) fn remove_transactions(
         &self,
         tx_hashes: Vec<TxHash>,
@@ -109,10 +116,15 @@ impl CitreaMempool {
         self.0.remove_transactions(tx_hashes)
     }
 
+    /// Performs account updates on the pool.
+    ///
+    /// This will either promote or discard transactions based on the new account state.
     pub(crate) fn update_accounts(&self, account_updates: Vec<ChangedAccount>) {
         self.0.update_accounts(account_updates);
     }
 
+    /// Returns an iterator that yields transactions that are ready to be included in the block with
+    /// the given base fee and optional blob fee attributes.
     pub(crate) fn best_transactions_with_attributes(
         &self,
         best_transactions_attributes: BestTransactionsAttributes,
@@ -121,6 +133,7 @@ impl CitreaMempool {
             .best_transactions_with_attributes(best_transactions_attributes)
     }
 
+    /// Number of transactions in the entire pool
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }

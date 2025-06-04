@@ -26,9 +26,16 @@ use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof}
 use revm::database::BundleState;
 use sov_modules_api::{Spec, WorkingSet};
 
+/// Provider for EVM database operations in the sequencer
+///
+/// This struct implements various traits from the Reth ecosystem to provide
+/// access to blockchain data, including blocks, transactions, receipts,
+/// and state information.
 #[derive(Clone)]
 pub struct DbProvider {
+    /// The EVM instance for executing transactions
     pub evm: Evm<DefaultContext>,
+    /// Storage for the sequencer state
     pub storage: <DefaultContext as Spec>::Storage,
 }
 
@@ -39,16 +46,22 @@ impl Debug for DbProvider {
 }
 
 impl DbProvider {
+    /// Creates a new DbProvider instance with the given storage
+    ///
+    /// # Arguments
+    /// * `storage` - The storage implementation to use
     pub fn new(storage: <DefaultContext as Spec>::Storage) -> Self {
         let evm = Evm::<DefaultContext>::default();
         Self { evm, storage }
     }
 
+    /// Returns the current EVM chain configuration
     pub fn cfg(&self) -> EvmChainConfig {
         let mut working_set = WorkingSet::new(self.storage.clone());
         self.evm.get_chain_config(&mut working_set)
     }
 
+    /// Returns the transaction hashes from the last block
     pub fn last_block_tx_hashes(&self) -> RpcResult<Vec<B256>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self.evm.get_block_by_number(None, None, &mut working_set)?;
@@ -59,6 +72,7 @@ impl DbProvider {
         }
     }
 
+    /// Returns the last block with full transaction details
     pub fn last_block(&self) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self
@@ -67,6 +81,7 @@ impl DbProvider {
         Ok(rich_block)
     }
 
+    /// Returns the genesis block
     pub fn genesis_block(&self) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self.evm.get_block_by_number(

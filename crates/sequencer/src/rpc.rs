@@ -65,6 +65,7 @@ pub fn register_rpc_methods<DB: SequencerLedgerOps + Send + Sync + 'static>(
     Ok(rpc_methods)
 }
 
+/// Define the interface of the sequencer RPC calls.
 #[rpc(client, server)]
 pub trait SequencerRpc {
     #[method(name = "eth_sendRawTransaction")]
@@ -86,11 +87,13 @@ pub trait SequencerRpc {
     async fn publish_test_block(&self) -> RpcResult<()>;
 }
 
+/// Sequencer RPC server implementation
 pub struct SequencerRpcServerImpl<DB: SequencerLedgerOps + Send + Sync + 'static> {
     context: Arc<RpcContext<DB>>,
 }
 
 impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServerImpl<DB> {
+    /// Creates a new instance of the sequencer RPC server.
     pub fn new(context: RpcContext<DB>) -> Self {
         Self {
             context: Arc::new(context),
@@ -102,6 +105,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServerImpl<DB> 
 impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
     for SequencerRpcServerImpl<DB>
 {
+    /// eth_sendRawTransaction RPC call implementation
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256> {
         debug!("Sequencer: eth_sendRawTransaction");
 
@@ -132,6 +136,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         Ok(hash)
     }
 
+    /// eth_getTransactionByHash RPC call implementation
     fn eth_get_transaction_by_hash(
         &self,
         hash: B256,
@@ -165,6 +170,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         }
     }
 
+    /// eth_sendRawDepositTransaction RPC call implementation
     fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()> {
         debug!("Sequencer: citrea_sendRawDepositTransaction");
 
@@ -195,6 +201,9 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         }
     }
 
+    /// Sends a sequencer test block signal
+    ///
+    /// This is mostly used for testing purposes with a mock DA layer.
     async fn publish_test_block(&self) -> RpcResult<()> {
         if !self.context.test_mode {
             return Err(ErrorObject::from(ErrorCode::MethodNotFound).to_owned());
@@ -207,6 +216,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
     }
 }
 
+/// Creates and returns the sequencer RPC module
 pub fn create_rpc_module<DB: SequencerLedgerOps + Send + Sync + 'static>(
     rpc_context: RpcContext<DB>,
 ) -> jsonrpsee::RpcModule<SequencerRpcServerImpl<DB>> {

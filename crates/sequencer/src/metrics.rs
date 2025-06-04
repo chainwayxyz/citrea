@@ -2,6 +2,7 @@ use metrics::{Counter, Gauge, Histogram};
 use metrics_derive::Metrics;
 use once_cell::sync::Lazy;
 
+/// Defines the metrics being collected for the sequencer
 #[derive(Metrics)]
 #[metrics(scope = "sequencer")]
 pub struct SequencerMetrics {

@@ -1,3 +1,5 @@
+#![warn(clippy::missing_docs_in_private_items)]
+//! Sequencer crate which contains sequencer node related functionality.
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -21,17 +23,42 @@ use sov_rollup_interface::services::da::DaService;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 
+/// Module containing commitment-related functionality
 mod commitment;
+/// Module containing DA (Data Availability) service functionality
 mod da;
+/// Provides access to DB migration definitions.
 pub mod db_migrations;
 mod db_provider;
 mod deposit_data_mempool;
+/// Module containing mempool functionality for transaction management
 mod mempool;
+/// Module containing metrics collection and reporting functionality
 mod metrics;
+/// Provides access to sequencer RPC functionality
 pub mod rpc;
 mod runner;
+/// Module containing utility functions and helpers
 mod utils;
 
+/// Builds and initializes all sequencer services
+///
+/// # Arguments
+/// * `sequencer_config` - Configuration for the sequencer
+/// * `init_params` - Initial parameters for sequencer setup
+/// * `native_stf` - State transition function blueprint
+/// * `public_keys` - Rollup public keys for cryptographic operations
+/// * `da_service` - Data availability service implementation
+/// * `ledger_db` - Database for ledger operations
+/// * `storage_manager` - Manager for prover storage
+/// * `l2_block_tx` - Channel for L2 block notifications
+/// * `fork_manager` - Manager for handling chain forks
+/// * `rpc_module` - RPC module for external communication
+/// * `backup_manager` - Manager for backup operations
+/// * `task_executor` - Executor for async tasks
+///
+/// # Returns
+/// A tuple containing the initialized sequencer and RPC module
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Da, DB>(
     sequencer_config: SequencerConfig,
