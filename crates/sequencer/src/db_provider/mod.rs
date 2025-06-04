@@ -158,6 +158,13 @@ impl BlockReaderIdExt for DbProvider {
     fn pending_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
         unimplemented!("pending_header")
     }
+    /// Gets a sealed header by block ID
+    ///
+    /// # Arguments
+    /// * `id` - Block identifier (number or hash)
+    ///
+    /// # Returns
+    /// The sealed header if found, wrapped in a ProviderResult
     fn sealed_header_by_id(
         &self,
         id: BlockId,
@@ -188,6 +195,16 @@ impl BlockReaderIdExt for DbProvider {
             hash,
         )))
     }
+    /// Gets a sealed header by block number or tag (unimplemented)
+    ///
+    /// # Arguments
+    /// * `_id` - Block number or tag identifier
+    ///
+    /// # Returns
+    /// The sealed header if found, wrapped in a ProviderResult
+    ///
+    /// # Note
+    /// This method is currently unimplemented
     fn sealed_header_by_number_or_tag(
         &self,
         _id: BlockNumberOrTag,

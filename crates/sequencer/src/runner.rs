@@ -813,6 +813,12 @@ where
     }
 
     /// Gets the best transactions from the mempool for inclusion in the next block
+    ///
+    /// This method considers base fee and other transaction attributes to select
+    /// the most appropriate transactions.
+    ///
+    /// # Returns
+    /// A boxed iterator of valid pool transactions
     pub(crate) fn get_best_transactions(
         &self,
     ) -> anyhow::Result<
@@ -847,6 +853,9 @@ where
     /// # Arguments
     /// * `raw_message` - Raw transaction message to sign
     /// * `nonce` - Nonce for the transaction
+    ///
+    /// # Returns
+    /// A signed transaction
     pub(crate) fn sign_tx(&self, raw_message: Vec<u8>, nonce: u64) -> anyhow::Result<Transaction> {
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
@@ -855,10 +864,13 @@ where
         Ok(tx)
     }
 
-    /// Signs an L2 block header
+    /// Signs an L2 block header with the sequencer's private key
     ///
     /// # Arguments
     /// * `header` - The L2 block header to sign
+    ///
+    /// # Returns
+    /// A signed L2 block header
     fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
         let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
@@ -869,6 +881,12 @@ where
     }
 
     /// Gets the current nonce for the sequencer account
+    ///
+    /// # Arguments
+    /// * `working_set` - Working set for state access
+    ///
+    /// # Returns
+    /// The current nonce value
     pub(crate) fn get_nonce(
         &self,
         working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
@@ -899,6 +917,12 @@ where
     }
 
     /// Gets account updates for mempool maintenance
+    ///
+    /// This method retrieves account updates that occurred in the last block
+    /// to help maintain accurate account states in the mempool.
+    ///
+    /// # Returns
+    /// A vector of changed accounts with their updated states
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
         let head = self
             .db_provider

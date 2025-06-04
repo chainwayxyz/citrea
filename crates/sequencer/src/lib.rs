@@ -30,7 +30,9 @@ mod commitment;
 mod da;
 /// Provides access to DB migration definitions.
 pub mod db_migrations;
+/// Database provider implementation for the sequencer
 mod db_provider;
+/// Module handling deposit data in the mempool
 mod deposit_data_mempool;
 /// Module containing mempool functionality for transaction management
 mod mempool;
@@ -38,6 +40,7 @@ mod mempool;
 mod metrics;
 /// Provides access to sequencer RPC functionality
 pub mod rpc;
+/// Module implementing the main sequencer running logic
 mod runner;
 /// Module containing utility functions and helpers
 mod utils;

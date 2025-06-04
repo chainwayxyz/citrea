@@ -123,8 +123,13 @@ impl CitreaMempool {
         self.0.update_accounts(account_updates);
     }
 
-    /// Returns an iterator that yields transactions that are ready to be included in the block with
-    /// the given base fee and optional blob fee attributes.
+    /// Gets the best transactions from the mempool with specific attributes
+    ///
+    /// # Arguments
+    /// * `best_transactions_attributes` - Attributes to consider when selecting transactions
+    ///
+    /// # Returns
+    /// A boxed iterator of valid pool transactions
     pub(crate) fn best_transactions_with_attributes(
         &self,
         best_transactions_attributes: BestTransactionsAttributes,
@@ -133,7 +138,10 @@ impl CitreaMempool {
             .best_transactions_with_attributes(best_transactions_attributes)
     }
 
-    /// Number of transactions in the entire pool
+    /// Gets the total number of transactions in the mempool
+    ///
+    /// # Returns
+    /// The number of transactions currently in the pool
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
