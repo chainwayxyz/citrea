@@ -409,7 +409,7 @@ where
 
         let mut last_commitment_end_height = previous_batch_proof_l2_end_height;
 
-        // Reuseable log caches
+        // Reusable log caches
         let mut cumulative_state_log = None;
         let mut cumulative_offchain_log = None;
         let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();

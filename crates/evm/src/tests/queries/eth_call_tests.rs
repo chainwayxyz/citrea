@@ -19,9 +19,7 @@ use crate::smart_contracts::{BlockHashContract, SimpleStorageContract};
 use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{
-    create_contract_message, get_evm, get_evm_config, get_fork_fn_only_tangerine,
-};
+use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_fork_fn_latest};
 use crate::{CallMessage, Evm};
 
 type C = DefaultContext;
@@ -47,7 +45,7 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -66,7 +64,7 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -107,7 +105,7 @@ fn test_state_change() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -140,7 +138,7 @@ fn call_contract_with_value_transfer() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert!(call_result.is_err());
@@ -171,7 +169,7 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -192,7 +190,7 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -221,7 +219,7 @@ fn call_to_nonexistent_contract() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -249,7 +247,7 @@ fn call_with_high_gas_price() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -358,7 +356,7 @@ fn eth_call_eip1559(
         None,
         None,
         working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     )
 }
 
@@ -400,7 +398,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -419,7 +417,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(result_only_gas, Ok(Bytes::new()));
@@ -437,7 +435,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -458,7 +456,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(result_gas_and_gas_price, Ok(Bytes::new()));
@@ -476,7 +474,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert!(result_fees.is_ok());
@@ -495,7 +493,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -514,7 +512,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -532,7 +530,7 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert!(result_high_fees.is_ok());
@@ -559,7 +557,7 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -601,7 +599,7 @@ fn test_call_with_state_overrides() {
             Some(state_override),
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -626,7 +624,7 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -670,7 +668,7 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -689,7 +687,7 @@ fn test_call_with_state_overrides() {
             Some(state_override),
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -786,7 +784,7 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes.clone()),
             }),
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -815,7 +813,7 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes),
             }),
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
     let expected_hash = Bytes::from_iter([2; 32]);

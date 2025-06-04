@@ -29,7 +29,7 @@ use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
-    get_evm_config_starting_base_fee, get_fork_fn_only_tangerine, publish_event_message,
+    get_evm_config_starting_base_fee, get_fork_fn_latest, publish_event_message,
     TestingShortHeaderProofProviderService,
 };
 use crate::{
@@ -129,7 +129,7 @@ fn get_block_hash(
         None,
         None,
         working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     )
 }
 
@@ -293,7 +293,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -405,7 +405,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -1045,7 +1045,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -1133,7 +1133,7 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -1193,7 +1193,7 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 

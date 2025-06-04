@@ -14,7 +14,7 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_with_caller_contract};
-use crate::tests::utils::get_fork_fn_only_tangerine;
+use crate::tests::utils::get_fork_fn_latest;
 use crate::EstimatedDiffSize;
 
 #[test]
@@ -282,7 +282,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -326,7 +326,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     let nonce_too_low_result = evm.get_call_inner(
@@ -354,7 +354,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
@@ -395,7 +395,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -426,7 +426,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -464,7 +464,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            get_fork_fn_latest(),
         )
         .unwrap();
 

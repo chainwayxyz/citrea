@@ -142,7 +142,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context>(
             });
         }
 
-        native_trace!("Commiting tx to DB");
+        native_trace!("Committing tx to DB");
         evm.commit(result_and_state.state);
         cumulative_gas_used += result_and_state.result.gas_used();
 

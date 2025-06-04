@@ -84,7 +84,7 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
         let mut values_iter = match state_db.iter::<JmtValues>() {
             Ok(iter) => iter,
             Err(e) => {
-                error!("Coult not iterate JmtValues: {:?}", e);
+                error!("Could not iterate JmtValues: {:?}", e);
                 continue;
             }
         };

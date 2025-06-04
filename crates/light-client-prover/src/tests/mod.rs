@@ -1136,7 +1136,7 @@ fn test_new_method_id_txs() {
         vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
     );
 
-    // now try activation height < last activationg height and activation height = last activation height
+    // now try activation height < last activating height and activation height = last activation height
     let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
     let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_upgrade_authority);
 
