@@ -89,12 +89,6 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	cargo check --all-targets --all-features
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
 
-lint-docs:
-    ## Only checks the sequencer for now, we can add more packages when they're documented.
-	## This also means that we have to add #![warn(missing_docs)] to lib.rs of each crate
-	## which has been documented.
-	cargo +nightly rustdoc -p citrea-sequencer --all-features -- -Zunstable-options --check -Dwarnings
-
 lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
 	dprint fmt
 	cargo fix --allow-dirty --all-features
