@@ -1037,7 +1037,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
             .wait_for_l1_height(second_batch_height, None)
             .await?;
 
-        // Check that zero index commitment is succesfully skipped
+        // Check that zero index commitment is successfully skipped
         let committed_height = full_node
             .client
             .http_client()
