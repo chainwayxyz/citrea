@@ -222,6 +222,7 @@ pub fn get_last_l1_height_in_light_client<C: sov_modules_api::Context>(
 }
 
 /// Returns the last set l1 block height with its corresponding l1 block hash in bitcoin light client contract
+/// If the hash is not set, it returns a zero hash as it should be since in evm if a storage key is not set, it defaults to zero
 pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C::Storage>,
