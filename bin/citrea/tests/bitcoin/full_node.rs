@@ -1360,7 +1360,7 @@ impl TestCase for OutOfRangeProofTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
-            with_batch_prover: true,
+            with_light_client_prover: true,
             with_citrea_cli: true,
             ..Default::default()
         }
@@ -1378,6 +1378,13 @@ impl TestCase for OutOfRangeProofTest {
         Some(150)
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -1389,7 +1396,7 @@ impl TestCase for OutOfRangeProofTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
-        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
@@ -1411,6 +1418,32 @@ impl TestCase for OutOfRangeProofTest {
         )
         .await;
 
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let method_id = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?[0]
+            .method_id
+            .into();
+        let genesis_state_root = lcp_output.l2_state_root;
+
         // Generate two commitments to test pending proof over commitment ranges
         for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
@@ -1420,15 +1453,9 @@ impl TestCase for OutOfRangeProofTest {
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
 
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
         let range1 = sequencer
             .client
@@ -1457,12 +1484,6 @@ impl TestCase for OutOfRangeProofTest {
             index: 2,
         };
 
-        let proof1 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
-
         // Generate a third commitment for second proof
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -1471,15 +1492,9 @@ impl TestCase for OutOfRangeProofTest {
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
         let range3 = sequencer
             .client
@@ -1496,12 +1511,6 @@ impl TestCase for OutOfRangeProofTest {
             index: 3,
         };
 
-        let proof2 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
-
         // Generate a fourth commitment for third proof
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -1510,15 +1519,9 @@ impl TestCase for OutOfRangeProofTest {
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
         let range4 = sequencer
             .client
@@ -1534,12 +1537,6 @@ impl TestCase for OutOfRangeProofTest {
             l2_end_block_number: max_l2_blocks_per_commitment * 4,
             index: 4,
         };
-
-        let proof3 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
 
         /*
          ** Test that a proof is discarded if it's over a range of sequencer commitment that hasn't been processed yet
@@ -1579,6 +1576,39 @@ impl TestCase for OutOfRangeProofTest {
             .await?;
 
         full_node.start(None, None).await?;
+
+        // Create first proof
+        let commitment1_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment1.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment2_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment2.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        let current_l1_height = da.get_finalized_height(None).await?;
+        let current_l1_hash = da.get_block_hash(current_l1_height).await?;
+
+        let proof1 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            max_l2_blocks_per_commitment * 2,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment1.clone(), commitment2.clone()],
+            vec![commitment1_state_root, commitment2_state_root],
+            None,
+        );
 
         // Send the proof first. It should be discard as none of its commitments exist
         prover_da_service
@@ -1784,9 +1814,9 @@ impl TestCase for OutOfRangeProofTest {
 
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let commitment2_l1_height = da.get_finalized_height(None).await?;
+        let commitment4_l1_height = da.get_finalized_height(None).await?;
         full_node
-            .wait_for_l1_height(commitment2_l1_height, None)
+            .wait_for_l1_height(commitment4_l1_height, None)
             .await?;
 
         // Both commitments should be processed
@@ -1799,6 +1829,36 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(committed_height.commitment_index, 4);
 
+        // Create third proof
+        let current_l1_hash = da.get_block_hash(commitment4_l1_height).await?;
+        let commitment3_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment3.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment4_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment4.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        let proof3 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            commitment3_state_root,
+            max_l2_blocks_per_commitment * 4,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment4.clone()],
+            vec![commitment4_state_root],
+            Some(commitment3.serialize_and_calculate_sha_256()),
+        );
         // Send the third proof first. It should be set as pending as its commitments exist but it's starting commitment index is not proven proof last commitment index + 1
         prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof3), 1)
@@ -1820,6 +1880,22 @@ impl TestCase for OutOfRangeProofTest {
 
         assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(proven_height.commitment_index, 2);
+
+        // Create second proof
+        let current_l1_hash = da.get_block_hash(proof_l1_height).await?;
+
+        // Recreate proof2 with valid L1 hash
+        let proof2 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            commitment2_state_root,
+            max_l2_blocks_per_commitment * 3,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment3.clone()],
+            vec![commitment3_state_root],
+            Some(commitment2.serialize_and_calculate_sha_256()),
+        );
 
         // Now send the second proof. It should be processed and trigger a processing of pending proof3
         prover_da_service
@@ -1868,7 +1944,7 @@ impl TestCase for OverlappingProofRangesTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
-            with_batch_prover: true,
+            with_light_client_prover: true,
             with_citrea_cli: true,
             ..Default::default()
         }
@@ -1885,6 +1961,13 @@ impl TestCase for OverlappingProofRangesTest {
         Some(170)
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -1896,7 +1979,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
-        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
@@ -1916,6 +1999,32 @@ impl TestCase for OverlappingProofRangesTest {
         )
         .await;
 
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let method_id = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?[0]
+            .method_id
+            .into();
+        let genesis_state_root = lcp_output.l2_state_root;
+
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate 3 commitments
@@ -1927,22 +2036,9 @@ impl TestCase for OverlappingProofRangesTest {
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
 
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
-
-        // Extract proof_a over range [1,2,3]
-        let proof_a = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
 
         let range1 = sequencer
             .client
@@ -2023,28 +2119,6 @@ impl TestCase for OverlappingProofRangesTest {
 
         full_node.start(None, None).await?;
 
-        // Rollback batchprover to genesis
-        batch_prover.wait_until_stopped().await?;
-        citrea_cli
-            .run(
-                "rollback",
-                &[
-                    "--node-type",
-                    "batch-prover",
-                    "--db-path",
-                    batch_prover.config.rollup.storage.path.to_str().unwrap(),
-                    "--l2-target",
-                    "0",
-                    "--l1-target",
-                    &f.initial_da_height.to_string(),
-                    "--sequencer-commitment-index",
-                    "0",
-                ],
-            )
-            .await?;
-
-        batch_prover.start(None, None).await?;
-
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment1.clone()),
@@ -2070,23 +2144,14 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height.commitment_index, 1);
 
-        let commitments_l1_height = da.get_finalized_height(None).await?;
-        batch_prover
-            .wait_for_l1_height(commitments_l1_height, None)
-            .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
-
-        // Generate a proof over commitment range [1] that will be discarded
-        let _discarded_proof = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
+        let commitment1_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment1.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
 
         sequencer_da_service
             .send_transaction_with_fee_rate(
@@ -2140,24 +2205,30 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(committed_height.commitment_index, 4);
 
-        // Generate a proof over range [2,3,4]
-        batch_prover
-            .wait_for_l1_height(commitments_l1_height, None)
-            .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_b_l1_height = da.get_finalized_height(None).await?;
-        full_node
-            .wait_for_l1_height(proof_b_l1_height, None)
-            .await?;
-
-        // Extract proof_b over range [2,3,4]
-        let proof_b = wait_for_zkproofs(full_node, proof_b_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
+        let commitment2_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment2.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment3_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment3.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment4_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment4.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
 
         // Rollback Bitcoin to initial height and clear transactions
         let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
@@ -2245,6 +2316,29 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(committed_height.commitment_index, 4);
 
+        // Create proof_a over commitments [1,2,3]
+        let current_l1_hash = da.get_block_hash(commitments_l1_height).await?;
+
+        let proof_a = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            max_l2_blocks_per_commitment * 3,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![
+                commitment1.clone(),
+                commitment2.clone(),
+                commitment3.clone(),
+            ],
+            vec![
+                commitment1_state_root,
+                commitment2_state_root,
+                commitment3_state_root,
+            ],
+            None,
+        );
+
         // Send proof_a over commitments [1,2,3]
         prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1)
@@ -2288,9 +2382,32 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(proven_height_a.height, max_l2_blocks_per_commitment * 3);
         assert_eq!(proven_height_a.commitment_index, 3);
 
+        // Create proof_b with overlapping range of [2,3,4] using current L1 hash
+        let current_l1_hash = da.get_block_hash(proof_a_l1_height).await?;
+
+        let proof_b_updated = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            commitment1_state_root,
+            max_l2_blocks_per_commitment * 4,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![
+                commitment2.clone(),
+                commitment3.clone(),
+                commitment4.clone(),
+            ],
+            vec![
+                commitment2_state_root,
+                commitment3_state_root,
+                commitment4_state_root,
+            ],
+            Some(commitment1.serialize_and_calculate_sha_256()),
+        );
+
         // Send proof_b with overlapping range of [2,3,4]
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b_updated.clone()), 1)
             .await
             .unwrap();
 
