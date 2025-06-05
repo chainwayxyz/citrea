@@ -1,6 +1,6 @@
 [package]
 name = "citrea-risc0-light-client"
-version = "0.7.2-rc.1"
+version = "0.7.2-rc.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
