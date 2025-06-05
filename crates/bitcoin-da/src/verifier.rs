@@ -162,7 +162,7 @@ impl DaVerifier for BitcoinVerifier {
         let coinbase_tx = &inclusion_proof.coinbase_tx;
         // If there are more than one scriptPubKey matching the pattern,
         // the one with highest output index is assumed to be the commitment.
-        // That  is why the iterator is reversed.
+        // Use rposition to match the output with the highest index matching the size and prefix requirements
         let commitment_idx = coinbase_tx.output.iter().rposition(|output| {
             output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
                 && output
