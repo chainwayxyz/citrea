@@ -2385,7 +2385,7 @@ impl TestCase for OverlappingProofRangesTest {
         // Create proof_b with overlapping range of [2,3,4] using current L1 hash
         let current_l1_hash = da.get_block_hash(proof_a_l1_height).await?;
 
-        let proof_b_updated = create_serialized_fake_receipt_batch_proof_with_state_roots(
+        let proof_b = create_serialized_fake_receipt_batch_proof_with_state_roots(
             commitment1_state_root,
             max_l2_blocks_per_commitment * 4,
             method_id,
@@ -2407,7 +2407,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send proof_b with overlapping range of [2,3,4]
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b_updated.clone()), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1)
             .await
             .unwrap();
 
