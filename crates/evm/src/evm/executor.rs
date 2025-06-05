@@ -245,8 +245,8 @@ pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
             &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
             &keccak256(bytes).into(),
             working_set,
-            // If the hash is not set, we return a zero hash as it should be in since in evm if a storage key is not set, it defaults to zero
         )
+        // If the hash is not set, we return a zero hash as it should be in since in evm if a storage key is not set, it defaults to zero
         .unwrap_or_default();
 
     (last_l1_height_in_contract, last_l1_hash)
