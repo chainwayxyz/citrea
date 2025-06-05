@@ -163,7 +163,7 @@ impl DaVerifier for BitcoinVerifier {
         // If there are more than one scriptPubKey matching the pattern,
         // the one with highest output index is assumed to be the commitment.
         // That  is why the iterator is reversed.
-        let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
+        let commitment_idx = coinbase_tx.output.iter().rposition(|output| {
             output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
                 && output
                     .script_pubkey
@@ -185,7 +185,7 @@ impl DaVerifier for BitcoinVerifier {
                     return Err(ValidationError::InvalidBlock);
                 }
             }
-            Some(mut commitment_idx) => {
+            Some(commitment_idx) => {
                 let merkle_root =
                     merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
@@ -206,7 +206,6 @@ impl DaVerifier for BitcoinVerifier {
                 // check if the commitment is correct
                 // on signet there is an additional commitment after the segwit commitment
                 // so we check only the first 32 bytes after commitment header (bytes [2, 5])
-                commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
                 let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
                 if script_pubkey[6..38] != commitment {
                     return Err(ValidationError::IncorrectWitnessCommitment);
