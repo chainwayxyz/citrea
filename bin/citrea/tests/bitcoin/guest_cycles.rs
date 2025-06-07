@@ -15,7 +15,7 @@ use citrea_sequencer::SequencerRpcClient;
 use risc0_zkvm::{default_prover, ExecutorEnvBuilder, ProveInfo, ProverOpts};
 
 /// Helper test to generate a batch proof input. Risc0 host code should be modified
-/// to save the input to a file if it will be used in `guest_cycles` test. If the input
+/// to save the input to a file if it will be used in the `guest_cycles` test. If the input
 /// struct has not changed, you don't need to run this, and you can just use the one at
 /// 'test-data/kumquat-input.bin'
 struct GenerateProofInput {
