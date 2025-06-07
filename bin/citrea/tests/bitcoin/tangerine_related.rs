@@ -25,7 +25,7 @@ use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count};
 use crate::common::make_test_client;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
-/// It generates l2 blocks and wait until it reaches the first commitment.
+/// It generates l2 blocks and waits until it reaches the first commitment.
 /// It asserts that the blob inscribe txs have been sent.
 /// This catches regression to the default prover flow, such as the one introduced by [#942](https://github.com/chainwayxyz/citrea/pull/942) and [#973](https://github.com/chainwayxyz/citrea/pull/973)
 struct PrecompilesAndEip7702;
