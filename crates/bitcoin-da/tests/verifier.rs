@@ -26,8 +26,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::TaskManager;
-use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
 use test_utils::macros::assert_panic;
@@ -621,7 +620,7 @@ impl BitcoinVerifierTest {
         block: &BitcoinBlock,
     ) -> Result<()> {
         let (mut original_txs, original_inclusion_proof, original_completeness_proof) =
-            service.extract_relevant_blobs_with_proof(&block);
+            service.extract_relevant_blobs_with_proof(block);
         original_txs.iter_mut().for_each(|t| {
             t.full_data();
         });
