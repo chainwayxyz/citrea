@@ -3,6 +3,7 @@ use reth_tasks::shutdown::GracefulShutdown;
 use tracing::instrument;
 
 pub struct CitreaLightClientProver {
+    /// Runner configuration.
     _runner_config: RunnerConfig,
 }
 

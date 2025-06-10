@@ -1,3 +1,5 @@
+#![warn(clippy::missing_docs_in_private_items)]
+
 #[cfg(feature = "native")]
 pub use services::*;
 
@@ -14,5 +16,7 @@ pub mod rpc;
 pub mod runner;
 #[cfg(feature = "native")]
 mod services;
+
+/// Light client prover tests
 #[cfg(test)]
 mod tests;

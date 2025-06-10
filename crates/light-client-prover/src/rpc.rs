@@ -108,8 +108,8 @@ where
             .unwrap_or_default()
             .into_iter()
             .map(|id| BatchProofMethodIdRpcResponse {
-                method_id: id.1.into(),
                 height: alloy_primitives::U64::from(id.0),
+                method_id: id.1.into(),
             })
             .collect::<Vec<_>>();
 
