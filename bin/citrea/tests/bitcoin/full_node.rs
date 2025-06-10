@@ -1881,6 +1881,25 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(proven_height.commitment_index, 2);
 
+        light_client_prover
+            .wait_for_l1_height(proof_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height.commitment_index)
+        );
+
         // Create second proof
         let current_l1_hash = da.get_block_hash(proof_l1_height).await?;
 
@@ -1918,6 +1937,25 @@ impl TestCase for OutOfRangeProofTest {
 
         assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(proven_height.commitment_index, 4);
+
+        light_client_prover
+            .wait_for_l1_height(proof_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height.commitment_index)
+        );
 
         Ok(())
     }
@@ -2382,6 +2420,25 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(proven_height_a.height, max_l2_blocks_per_commitment * 3);
         assert_eq!(proven_height_a.commitment_index, 3);
 
+        light_client_prover
+            .wait_for_l1_height(proof_a_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_a_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height_a.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height_a.commitment_index)
+        );
+
         // Create proof_b with overlapping range of [2,3,4] using current L1 hash
         let current_l1_hash = da.get_block_hash(proof_a_l1_height).await?;
 
@@ -2447,6 +2504,25 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
         assert_eq!(proven_height_b.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(proven_height_b.commitment_index, 4);
+
+        light_client_prover
+            .wait_for_l1_height(proof_b_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_b_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height_b.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height_b.commitment_index)
+        );
 
         Ok(())
     }
