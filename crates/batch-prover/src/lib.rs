@@ -1,3 +1,27 @@
+//! This crate contains the batch prover constructs.
+//! 
+//! There are 3 main components:
+//! 
+//! 1. L1 syncer: responsible from tracking the finalized L1 blocks and extracting the sequencer commitments from them.
+//! 2. L2 syncer: responsible from tracking the L2 blocks by syncing them from the sequencer.
+//! 3. Prover: responsible from handling the proving process. It tracks the pending commitments and
+//!    tries to partition them into provable chunks.
+//! 
+//! L1 syncer sends signals to the Prover when it finds new sequencer commitments in the L1 blocks.
+//! L2 syncer sends signals to the Prover when it finds new L2 blocks in the L2 chain. This is needed when Prover is blocked on proving commitments due to unsynced L2 chain.
+//! RPC module also sends direct requests to the Prover to pause, or prove a new commitment.
+//! 
+//! Prover handles these signals as following:
+//! - Checks sampling to decide whether it should continue with proving
+//! - Checks if there are any pending commitments to prove
+//! - Filters out commitments that are not yet synced to the L2 chain
+//! - Filters out commitments that have an unknown previous commitment, e.g. 1 is unknown [2, 3] is pending -> 2 is filtered out and 3 is provable
+//! - Partitions the commitments into provable chunks based on the following criteria:
+//!     - Index gap
+//!     - State diff threshold
+//!     - Spec change
+//! - Starts proving job for each partition
+//! - Spawns a task to watch the proving jobs to finish in the background
 use std::collections::HashMap;
 use std::sync::Arc;
 
