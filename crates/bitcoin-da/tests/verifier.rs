@@ -3,11 +3,19 @@ mod test_utils;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use bitcoin::absolute::LockTime;
+use bitcoin::block::Header;
+use bitcoin::blockdata::script::Builder;
 use bitcoin::hashes::Hash;
-use bitcoin::{ScriptBuf, Witness};
+use bitcoin::transaction::Version;
+use bitcoin::{
+    Amount, BlockHash, CompactTarget, OutPoint, ScriptBuf, Sequence, Transaction, TxIn,
+    TxMerkleNode, TxOut, Witness,
+};
 use bitcoin_da::helpers::merkle_tree::BitcoinMerkleTree;
 use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::proof::InclusionMultiProof;
+use bitcoin_da::spec::transaction::TransactionWrapper;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
@@ -449,6 +457,147 @@ impl TestCase for BitcoinVerifierTest {
                 Err(ValidationError::InvalidSegWitCommitment),
             );
         }
+
+        self.test_malicious_witness_prefix_only(&verifier)?;
+
+        self.test_malicious_witness_empty_witness(&verifier)?;
+
+        Ok(())
+    }
+}
+
+impl BitcoinVerifierTest {
+    // Test protection against malicious blocks with truncated witness commitment outputs.
+    // Bitcoin core protocol does witness malleation check only if it matches MINIMUM_WITNESS_COMMITMENT_SIZE
+    // This witness commitment structure would be ignored from bitcoin core verification logic and is a valid block that needs to be
+    // handled on our side. An additional MINIMUM_WITNESS_COMMITMENT_SIZE check is added to find the commitment index.
+    // In that case, no commmitment index is found and this block is treated as one without relevant txs
+    fn test_malicious_witness_prefix_only(&self, verifier: &BitcoinVerifier) -> Result<()> {
+        let coinbase_input = TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: Builder::new().push_int(1).into_script(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        };
+
+        let reward_output = TxOut {
+            value: Amount::from_sat(5000000000),
+            script_pubkey: ScriptBuf::from_hex("76a914").unwrap(),
+        };
+
+        // Create a malicious witness commitment output with only the prefix.
+        // This should fail to pass the MINIMUM_WITNESS_COMMITMENT_SIZE check and be ignored
+        let malicious_witness_commitment = TxOut {
+            value: Amount::ZERO,
+            script_pubkey: ScriptBuf::from_bytes(WITNESS_COMMITMENT_PREFIX.to_vec()),
+        };
+
+        let malicious_coinbase = TransactionWrapper::from(Transaction {
+            version: Version::ONE,
+            lock_time: LockTime::ZERO,
+            input: vec![coinbase_input],
+            output: vec![reward_output, malicious_witness_commitment],
+        });
+
+        let malicious_txs = [malicious_coinbase.clone()];
+
+        let tree = BitcoinMerkleTree::new(
+            malicious_txs
+                .iter()
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        let inclusion_proof = InclusionMultiProof {
+            wtxids: malicious_txs
+                .iter()
+                .map(|t| t.compute_wtxid().to_raw_hash().to_byte_array())
+                .collect(),
+            coinbase_tx: malicious_coinbase,
+            coinbase_merkle_proof: tree.get_idx_path(0),
+        };
+
+        let header = Header {
+            version: bitcoin::block::Version::from_consensus(0x20000000),
+            prev_blockhash: BlockHash::all_zeros(),
+            merkle_root: TxMerkleNode::from_byte_array(tree.root()),
+            time: 1,
+            bits: CompactTarget::from_consensus(1),
+            nonce: 0,
+        };
+
+        let malicious_header = HeaderWrapper::new(header, 1, 1, [0; 32]);
+
+        // This malicious block should be ignored
+        assert_eq!(
+            verifier.verify_transactions(&malicious_header, inclusion_proof, vec![],),
+            Ok(Vec::new())
+        );
+        Ok(())
+    }
+
+    // Test protection against malicious blocks with witness commitments but invalid witness structure.
+    // This wouldn't pass bitcoin core protocol validation but verifies the `InvalidWitnessCommitmentStructure` safeguard
+    fn test_malicious_witness_empty_witness(&self, verifier: &BitcoinVerifier) -> Result<()> {
+        let coinbase_input = TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: Builder::new().push_int(1).into_script(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(), // Empty witness
+        };
+
+        let reward_output = TxOut {
+            value: Amount::from_sat(5000000000),
+            script_pubkey: ScriptBuf::from_hex("76a914").unwrap(),
+        };
+
+        let witness_commitment = TxOut {
+            value: Amount::ZERO,
+            script_pubkey: ScriptBuf::from_bytes(
+                [WITNESS_COMMITMENT_PREFIX.to_vec(), vec![0u8; 32]].concat(),
+            ),
+        };
+
+        let malicious_coinbase = TransactionWrapper::from(Transaction {
+            version: Version::ONE,
+            lock_time: LockTime::ZERO,
+            input: vec![coinbase_input],
+            output: vec![reward_output, witness_commitment],
+        });
+
+        let malicious_txs = [malicious_coinbase.clone()];
+
+        let tree = BitcoinMerkleTree::new(
+            malicious_txs
+                .iter()
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        let inclusion_proof = InclusionMultiProof {
+            wtxids: malicious_txs
+                .iter()
+                .map(|t| t.compute_wtxid().to_raw_hash().to_byte_array())
+                .collect(),
+            coinbase_tx: malicious_coinbase,
+            coinbase_merkle_proof: tree.get_idx_path(0),
+        };
+
+        let header = Header {
+            version: bitcoin::block::Version::from_consensus(0x20000000),
+            prev_blockhash: BlockHash::all_zeros(),
+            merkle_root: TxMerkleNode::from_byte_array(tree.root()),
+            time: 1,
+            bits: CompactTarget::from_consensus(1),
+            nonce: 0,
+        };
+        let malicious_header = HeaderWrapper::new(header, 1, 1, [0; 32]);
+
+        // This malicious block should be caught has having an invalid witness commitment structure
+        assert_eq!(
+            verifier.verify_transactions(&malicious_header, inclusion_proof, vec![],),
+            Err(ValidationError::InvalidWitnessCommitmentStructure)
+        );
 
         Ok(())
     }

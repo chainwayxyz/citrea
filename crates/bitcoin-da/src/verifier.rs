@@ -170,6 +170,7 @@ impl DaVerifier for BitcoinVerifier {
                     .as_bytes()
                     .starts_with(WITNESS_COMMITMENT_PREFIX)
         });
+
         match commitment_idx {
             // If commitment does not exist
             None => {
