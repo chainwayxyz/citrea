@@ -7,7 +7,7 @@
 //! 3. Prover: responsible from handling the proving process. It tracks the pending commitments and
 //!    tries to partition them into provable chunks.
 //! 
-//! L1 syncer sends signals to the Prover when it finds new sequencer commitments in the L1 blocks.
+//! L1 syncer sends signals to the Prover when it finds new L1 blocks in the L1 chain.
 //! L2 syncer sends signals to the Prover when it finds new L2 blocks in the L2 chain. This is needed when Prover is blocked on proving commitments due to unsynced L2 chain.
 //! RPC module also sends direct requests to the Prover to pause, or prove a new commitment.
 //! 
