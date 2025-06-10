@@ -27,6 +27,7 @@ use tracing::{error, info, instrument};
 use crate::metrics::BATCH_PROVER_METRICS;
 use crate::{InitParams, RollupPublicKeys, RunnerConfig};
 
+/// L2 syncer is the type responsible from tracking the L2 blocks by syncing them from the sequencer.
 pub struct L2Syncer<DA, DB>
 where
     DA: DaService,
@@ -107,6 +108,8 @@ where
 
         let backup_manager = self.backup_manager.clone();
         loop {
+            // poll l2 sync worker to continue syncing, and handle the incoming l2 blocks synchronously.
+            // hence, when processing the l2 blocks, l2 sync worker is blocked.
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
@@ -139,6 +142,7 @@ where
         &mut self,
         l2_block_response: &L2BlockResponse,
     ) -> anyhow::Result<()> {
+        // call common l2 block processing logic
         let l2_block_result = process_l2_block(
             l2_block_response,
             &self.storage_manager,

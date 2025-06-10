@@ -30,6 +30,8 @@ mod partition;
 pub mod prover;
 pub mod rpc;
 
+/// Setup function to build all the services required to run a batch prover.
+/// Sets up the L1 and L2 syncers, the prover, and the RPC module.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub async fn build_services<DA, DB, Vm>(
     prover_config: BatchProverConfig,
