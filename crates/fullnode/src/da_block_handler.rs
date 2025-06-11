@@ -298,20 +298,35 @@ where
 
     /// Processes a sequencer commitment found in an L1 block
     ///
+    /// This method validates and processes sequencer commitments that are posted to L1. Each commitment
+    /// represents a batch of L2 blocks and contains a merkle root of their block hashes. The method:
+    /// 1. Validates that the commitment advances chain state (increasing height/index)
+    /// 2. Verifies the commitment's merkle root matches the actual L2 blocks
+    /// 3. Handles dependencies by storing commitments as pending if prerequisites aren't met
+    /// 4. Updates the chain's commitment status once validation succeeds
+    ///
+    /// The method implements strict ordering - commitments must be processed in sequence and each must
+    /// build on the previous one. If a commitment's dependencies aren't met (e.g. missing previous
+    /// commitment or L2 blocks not synced), it's stored as pending for later processing.
+    ///
     /// # Arguments
     /// * `current_l1_block_height` - Current L1 block being processed
     /// * `found_in_l1_block_height` - L1 block where commitment was found
     /// * `sequencer_commitment` - The commitment to process
     ///
     /// # Returns
-    /// The processing result indicating success, discard, or pending status
+    /// The processing result indicating:
+    /// - Success: Commitment was valid and processed
+    /// - Discarded: Commitment was invalid or redundant
+    /// - Pending: Commitment needs prerequisites before processing
     async fn process_sequencer_commitment(
         &self,
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         sequencer_commitment: &SequencerCommitment,
     ) -> Result<ProcessingResult, ProcessingError> {
-        // Skip if we already processed commitment with same index
+        // Skip if this commitment index was already processed
+        // This prevents double-processing and handles conflicting commitments
         if let Some(existing_commitment) = self
             .ledger_db
             .get_commitment_by_index(sequencer_commitment.index)?
@@ -336,11 +351,13 @@ where
         }
 
         let end_l2_height = sequencer_commitment.l2_end_block_number;
+        // Check if this commitment advances the chain state
+        // We only accept strictly increasing heights and indices
         if let Some(committed_height) = self
             .ledger_db
             .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)?
         {
-            // Only proceed if the commitment height and index are higher than the stored one
+            // Discard if the commitment doesn't advance L2 height
             if end_l2_height <= committed_height.height {
                 info!(
                     "Skipping sequencer commitment with height {end_l2_height} as it is not strictly superior to existing commitment with height {}",
@@ -349,6 +366,7 @@ where
                 return Ok(ProcessingResult::Discarded);
             }
 
+            // Discard if the commitment index isn't increasing
             if sequencer_commitment.index <= committed_height.commitment_index {
                 info!(
                     "Skipping sequencer commitment with index {} as it is not strictly superior to the existing committed one",
@@ -358,6 +376,9 @@ where
             }
         }
 
+        // Determine the starting L2 height for this commitment
+        // For first commitment (index 1), start at Tangerine fork height
+        // Otherwise, start at previous commitment's end height + 1
         let start_l2_height = if sequencer_commitment.index == 1 {
             get_tangerine_activation_height_non_zero()
         } else {
@@ -367,7 +388,7 @@ where
             {
                 Some(previous_commitment) => previous_commitment.l2_end_block_number + 1,
                 None => {
-                    // Store the out of order commitment as pending
+                    // If previous commitment is missing, store this one as pending
                     info!(
                             "Commitment with index {} is missing its predecessor (index {}). Storing as pending.",
                             sequencer_commitment.index,
@@ -387,12 +408,13 @@ where
             start_l2_height, end_l2_height, found_in_l1_block_height,
         );
 
-        // Check first if the end l2 height is within the range of the last scanned l2 height
+        // Check if we have synced all L2 blocks needed for this commitment
         let head_l2_height = self
             .ledger_db
             .get_head_l2_block_height()?
             .unwrap_or_default();
         if end_l2_height > head_l2_height {
+            // Store as pending if we haven't synced all needed L2 blocks yet
             if self
                 .ledger_db
                 .get_pending_commitment_by_index(sequencer_commitment.index)?
@@ -411,13 +433,13 @@ where
                 )?;
                 return Ok(ProcessingResult::Pending);
             } else {
-                // This branch will be reached when we are processing pending commitments, and the commitment is still pending
+                // Keep as pending if already stored as pending
                 return Ok(ProcessingResult::Pending);
             }
         }
 
-        // Traverse each item's field of vector of transactions, put them in merkle tree
-        // and compare the root with the one from the ledger
+        // Verify the merkle root matches the L2 blocks
+        // This ensures the commitment correctly represents the L2 chain
         let stored_l2_blocks: Vec<StoredL2Block> = self
             .ledger_db
             .get_l2_block_range(&(L2BlockNumber(start_l2_height)..=L2BlockNumber(end_l2_height)))?;
@@ -430,6 +452,7 @@ where
                 .as_slice(),
         );
 
+        // Halt processing if merkle root doesn't match
         if l2_blocks_tree.root() != Some(sequencer_commitment.merkle_root) {
             return Err(
                 HaltingError::Commitment(CommitmentError::MerkleRootMismatch(format!(
@@ -445,6 +468,7 @@ where
             );
         }
 
+        // Store the commitment and update all related state
         self.ledger_db.update_commitments_on_da_slot(
             found_in_l1_block_height,
             sequencer_commitment.clone(),
@@ -458,6 +482,7 @@ where
         self.ledger_db
             .put_commitment_by_index(sequencer_commitment)?;
 
+        // Update the highest committed L2 height
         self.ledger_db.set_l2_height_status(
             L2HeightStatus::Committed,
             current_l1_block_height,
@@ -472,13 +497,27 @@ where
 
     /// Processes a ZK proof found in an L1 block
     ///
+    /// This method handles the verification and processing of zero-knowledge proofs that validate
+    /// L2 block execution. Each proof demonstrates the correctness of state transitions for a batch
+    /// of L2 blocks. The method:
+    /// 1. Extracts and validates the proof using the appropriate ZKVM
+    /// 2. Verifies the proof against the correct fork's code commitment
+    /// 3. Processes the proof using Tangerine-specific validation logic
+    ///
+    /// The proofs provide cryptographic assurance that the L2 blocks were executed correctly
+    /// according to the rollup's rules. This is a critical part of the rollup's security model,
+    /// ensuring that invalid state transitions cannot be committed.
+    ///
     /// # Arguments
     /// * `current_l1_block_height` - Current L1 block being processed
     /// * `found_in_l1_block_height` - L1 block where proof was found
     /// * `proof` - The ZK proof to process
     ///
     /// # Returns
-    /// The processing result indicating success, discard, or pending status
+    /// The processing result indicating:
+    /// - Success: Proof was valid and processed
+    /// - Discarded: Proof was redundant or for already proven blocks
+    /// - Pending: Proof needs prerequisites before processing
     async fn process_zk_proof(
         &self,
         current_l1_block_height: u64,
@@ -491,16 +530,22 @@ where
         );
         tracing::trace!("ZK proof: {:?}", proof);
 
+        // Extract and verify the proof using the appropriate ZKVM
         let batch_proof_output = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
             .map_err(|e| anyhow!("Failed to extract batch proof output from proof: {:?}", e))?;
+
+        // Get the code commitment for the appropriate fork
         let spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
         let code_commitment = self
             .code_commitments_by_spec
             .get(&spec_id)
             .expect("Proof public input must contain valid spec id");
+
+        // Verify the proof against the code commitment
         Vm::verify(proof.as_slice(), code_commitment)
             .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
+        // Process the verified proof using Tangerine-specific logic
         self.process_tangerine_zk_proof(
             current_l1_block_height,
             found_in_l1_block_height,
@@ -668,8 +713,23 @@ where
 
     /// Processes any pending commitments up to the current L1 block height
     ///
-    /// This method attempts to process commitments that were previously pending
-    /// due to missing dependencies.
+    /// This method attempts to process commitments that were previously stored as pending because
+    /// their prerequisites weren't met. A commitment might be pending because:
+    /// - Its previous commitment wasn't processed yet
+    /// - The L2 blocks it commits to weren't synced yet
+    ///
+    /// The method processes pending commitments in order by index, since each commitment must build
+    /// on the previous one. Processing stops at the first commitment that still can't be processed,
+    /// as all later commitments will also be unprocessable.
+    ///
+    /// This is a crucial part of maintaining the chain's commitment order and ensuring no gaps in
+    /// the sequence of committed L2 blocks.
+    ///
+    /// # Arguments
+    /// * `current_l1_block_height` - Current L1 block being processed
+    ///
+    /// # Returns
+    /// Success if all processable pending commitments were handled, or an error if processing failed
     async fn process_pending_commitments(
         &self,
         current_l1_block_height: u64,
@@ -679,8 +739,11 @@ where
             return Ok(());
         }
 
+        // Try to process each pending commitment in order
         for (index, commitment, found_in_l1_height) in pending_commitments {
-            // Check if we can process this commitment now
+            // A commitment is processable if:
+            // - For index 1: all its L2 blocks are synced
+            // - For other indices: its previous commitment exists
             let processable = if index == 1 {
                 let head_l2_height = self
                     .ledger_db
@@ -691,7 +754,9 @@ where
             } else {
                 self.ledger_db.get_commitment_by_index(index - 1)?.is_some()
             };
+
             if processable {
+                // Try to process the commitment now that dependencies are met
                 match self
                     .process_sequencer_commitment(
                         current_l1_block_height,
@@ -725,7 +790,8 @@ where
                     }
                 }
             } else {
-                // Breaking since pending commitments are sorted and we won't be to process anymore from then on
+                // Stop processing since remaining commitments will also be unprocessable
+                // (pending commitments are sorted by index)
                 break;
             }
         }
