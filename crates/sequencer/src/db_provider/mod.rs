@@ -28,9 +28,16 @@ use sov_modules_api::{Spec, WorkingSet};
 
 /// Provider for EVM database operations in the sequencer
 ///
-/// This struct implements various traits from the Reth ecosystem to provide
-/// access to blockchain data, including blocks, transactions, receipts,
-/// and state information.
+/// This struct primarily exists for reth compatibility, implementing various traits
+/// from the Reth ecosystem to provide access to blockchain data. While many trait
+/// methods are marked as `unimplemented!()`, they can be implemented as needed -
+/// they were left unimplemented as they weren't required for our current use cases.
+///
+/// The provider handles access to:
+/// - Blocks
+/// - Transactions
+/// - Receipts
+/// - State information
 #[derive(Clone)]
 pub struct DbProvider {
     /// The EVM instance for executing transactions
@@ -195,16 +202,7 @@ impl BlockReaderIdExt for DbProvider {
             hash,
         )))
     }
-    /// Gets a sealed header by block number or tag (unimplemented)
-    ///
-    /// # Arguments
-    /// * `_id` - Block number or tag identifier
-    ///
-    /// # Returns
-    /// The sealed header if found, wrapped in a ProviderResult
-    ///
-    /// # Note
-    /// This method is currently unimplemented
+
     fn sealed_header_by_number_or_tag(
         &self,
         _id: BlockNumberOrTag,

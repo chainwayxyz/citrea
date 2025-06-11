@@ -1,5 +1,38 @@
 #![warn(clippy::missing_docs_in_private_items)]
-//! Sequencer crate which contains sequencer node related functionality.
+//! # Citrea Sequencer
+//!
+//! The sequencer is a critical component of the Citrea rollup system that manages transaction ordering,
+//! block production, and data availability. It serves as the primary coordinator for the rollup's
+//! transaction processing pipeline.
+//!
+//! ## Core Responsibilities
+//!
+//! * **Transaction Management**: Maintains a mempool for pending transactions and deposit data,
+//!   ensuring efficient transaction processing and ordering.
+//!
+//! * **Block Production**: Drives the state transition function to create new L2 blocks, processing
+//!   transactions and updating the rollup state.
+//!
+//! * **Data Availability**: The sequencer groups L2 blocks (which contain the transactions) into
+//!   sequencer commitments. These commitments are then published to the DA (Data Availability) layer,
+//!   where they serve to finalize all L2 blocks included within the commitment. This mechanism
+//!   ensures proper ordering and finalization of blocks in the rollup chain.
+//!
+//! * **Node Synchronization**: Provides necessary information and services for full nodes to
+//!   synchronize with the current state of the rollup.
+//!
+//! ## Key Components
+//!
+//! * **Mempool**: Manages pending transactions and ensures efficient transaction processing.
+//! * **RPC Interface**: Provides external communication endpoints for interaction with the sequencer.
+//! * **State Management**: Handles state transitions and maintains the rollup's state integrity.
+//! * **Database Operations**: Manages persistent storage for ledger and other critical data.
+//! * **Fork Management**: Handles chain reorganizations and maintains chain consistency.
+//!
+//! The sequencer operates differently from full nodes by directly interacting with the State
+//! Transition Function's inner workings, allowing it to preview transaction results before
+//! finalizing L2 blocks.
+
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -29,9 +62,10 @@ mod commitment;
 mod da;
 /// Provides access to DB migration definitions.
 pub mod db_migrations;
-/// Database provider implementation for the sequencer
+/// Database provider implementation that abstracts over reth's mempool functionality,
+/// providing a custom interface for the sequencer's needs
 mod db_provider;
-/// Module handling deposit data in the mempool
+/// Separate mempool implementation for handling deposit data in FIFO (First-In-First-Out) order
 mod deposit_data_mempool;
 /// Module containing mempool functionality for transaction management
 mod mempool;

@@ -104,12 +104,24 @@ pub trait SequencerRpc {
 
     /// Retrieves transaction information by hash
     ///
+    /// This implements the standard Ethereum JSON-RPC `eth_getTransactionByHash` method with
+    /// an additional feature to query only mempool transactions.
+    ///
+    /// The method first checks the mempool for the transaction. If not found, it will check
+    /// the blockchain state unless `mempool_only` is set to true.
+    ///
     /// # Arguments
     /// * `hash` - The transaction hash
-    /// * `mempool_only` - If true, only check the mempool
+    /// * `mempool_only` - If true, only check the mempool. Default is false.
+    ///    This is a Citrea-specific extension to the standard Ethereum RPC.
     ///
     /// # Returns
-    /// Transaction details if found
+    /// * If the transaction is in the mempool: Returns the pending transaction details
+    /// * If mempool_only is false and not in mempool: Searches the blockchain state
+    /// * If not found in either location: Returns None
+    ///
+    /// This extended functionality allows clients to specifically query for
+    /// transactions that haven't been included in a block yet.
     #[method(name = "eth_getTransactionByHash")]
     #[blocking]
     fn eth_get_transaction_by_hash(
@@ -122,6 +134,15 @@ pub trait SequencerRpc {
     ///
     /// # Arguments
     /// * `deposit` - The raw deposit transaction data
+    ///
+    /// # Processing Steps
+    /// 1. Creates a deposit transaction from the raw data
+    /// 2. Performs an eth_call simulation with the deposit data against the bridge contract
+    ///    to validate that the deposit would succeed
+    /// 3. If the simulation succeeds, adds the deposit to the FIFO deposit mempool
+    /// 4. If the simulation fails, returns an error
+    ///
+    /// This ensures deposits are valid before being accepted into the mempool.
     #[method(name = "citrea_sendRawDepositTransaction")]
     #[blocking]
     fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()>;
@@ -188,7 +209,19 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         Ok(hash)
     }
 
-    /// eth_getTransactionByHash RPC call implementation
+    /// Implementation of the standard Ethereum eth_getTransactionByHash RPC method
+    /// with Citrea's mempool-only extension.
+    ///
+    /// The implementation follows this flow:
+    /// 1. First checks the mempool for the transaction
+    /// 2. If found in mempool:
+    ///    - Converts it to a transaction
+    ///    - Returns it as a pending transaction
+    /// 3. If not in mempool and mempool_only is true:
+    ///    - Returns None immediately
+    /// 4. If not in mempool and mempool_only is false:
+    ///    - Searches the blockchain state using the EVM
+    ///    - Returns the transaction if found, None if not
     fn eth_get_transaction_by_hash(
         &self,
         hash: B256,
