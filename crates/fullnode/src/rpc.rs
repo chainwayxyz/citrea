@@ -1,7 +1,12 @@
 //! RPC interface for the fullnode
 //!
-//! This module provides RPC functionality for external services to query the fullnode's
-//! state, including information about L2 blocks and their status.
+//! This module provides a subset of the fullnode's RPC functionality, specifically focused on
+//! tracking L2 block finality with respect to L1 blocks. This includes methods to query the
+//! commitment and proof status of L2 blocks relative to L1 blocks.
+//!
+//! Note that this module only contains finality-tracking RPC methods. The majority of the
+//! fullnode's RPC functionality (such as transaction submission, state queries, and block
+//! information) is defined in other modules of the codebase.
 
 use std::sync::Arc;
 
@@ -20,12 +25,17 @@ where
     pub ledger: DB,
 }
 
-/// Response type containing L2 block heights and their status relative to a L1 height
+/// Response type containing L2 block heights and their status relative to a L1 height.
+/// This type tracks two key stages of L2 block finality:
+/// - Commitment: When L2 blocks are posted to L1 by the sequencer
+/// - Proof: When validity proofs for L2 blocks are posted to L1 by the batch prover
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct L2StatusHeightsByL1Height {
-    /// The L2 block height that has been committed at this L1 height
+    /// The L2 block height that has been committed to L1 by the sequencer at this L1 height.
+    /// Committed blocks have their data available on L1 but their validity has not yet been proven.
     pub committed: L2HeightAndIndex,
-    /// The L2 block height that has been proven at this L1 height
+    /// The L2 block height that has been proven valid on L1 by the batch prover at this L1 height.
+    /// Proven blocks have had their validity mathematically verified through ZK proofs.
     pub proven: L2HeightAndIndex,
 }
 

@@ -61,7 +61,7 @@ where
     sequencer_client: HttpClient,
     /// Sequencer's public key for signature verification
     sequencer_pub_key: K256PublicKey,
-    /// Whether to include transaction bodies in block processing
+    /// Whether to include transaction bodies in block storage
     include_tx_body: bool,
     /// Cache for L1 block data
     _l1_block_cache: Arc<Mutex<L1BlockCache<DA>>>,

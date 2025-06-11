@@ -11,11 +11,11 @@ use once_cell::sync::Lazy;
 #[derive(Metrics)]
 #[metrics(scope = "fullnode")]
 pub struct FullnodeMetrics {
-    /// Current L1 block number being processed by the fullnode
+    /// Current L1 block number that has been processed by the fullnode
     #[metric(describe = "The current L1 block number which is used to produce L2 blocks")]
     pub current_l1_block: Gauge,
 
-    /// Current L2 block number being processed by the fullnode
+    /// Current L2 block number which has been processed by the fullnode
     #[metric(describe = "The current L2 block number")]
     pub current_l2_block: Gauge,
 

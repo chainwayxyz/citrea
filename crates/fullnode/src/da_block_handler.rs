@@ -1,7 +1,7 @@
 //! Data Availability (DA) block handling for the fullnode
 //!
 //! This module is responsible for processing L1 blocks, extracting and verifying
-//! sequencer commitments and ZK proofs, and maintaining the chain's state integrity.
+//! sequencer commitments and ZK proofs, and tracking L2 finality.
 
 use core::panic;
 use std::collections::{HashMap, VecDeque};

@@ -4,7 +4,7 @@
 //! This crate provides functionality for running a full node in the Citrea network.
 //! A full node is responsible for:
 //! - Syncing and validating L2 blocks
-//! - Processing L1 data availability blocks
+//! - Processing L1 blocks in order to track finality of the rollup.
 //! - Managing state and storage
 //! - Providing RPC services
 //! - Optional pruning of historical data
@@ -50,7 +50,7 @@ pub mod rpc;
 /// * `runner_config` - Configuration for the fullnode
 /// * `init_params` - Initial parameters for node setup
 /// * `native_stf` - State transition function blueprint
-/// * `public_keys` - Rollup public keys for cryptographic operations
+/// * `public_keys` - Rollup public keys containing the sequencer's and batch prover's keys for cryptographic operations
 /// * `da_service` - Data availability service implementation
 /// * `ledger_db` - Database for ledger operations
 /// * `storage_manager` - Manager for prover storage

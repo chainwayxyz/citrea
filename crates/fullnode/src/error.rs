@@ -36,7 +36,7 @@ pub enum CommitmentError {
     Other(#[from] anyhow::Error),
 }
 
-/// Errors that require the node to halt processing
+/// Errors that require the node to halt L1 processing
 #[derive(Debug, Error)]
 pub enum HaltingError {
     /// Critical proof errors that require halting
