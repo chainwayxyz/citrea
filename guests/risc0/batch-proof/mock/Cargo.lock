@@ -843,7 +843,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
 name = "batch-proof-mock"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "citrea-primitives",
@@ -984,10 +984,11 @@ dependencies = [
 [[package]]
 name = "blst"
 version = "0.3.14"
-source = "git+https://github.com/risc0/blst?tag=blst%2Fv0.3.14-risczero.1#16d51efbf08b3f779809ce496a40e68908020018"
+source = "git+https://github.com/risc0/blst?tag=v0.3.14-risczero.2#ca5d6042fffe3cf599e4f10a7d9a6a63693b6d15"
 dependencies = [
  "cc",
  "glob",
+ "risc0-bigint2",
  "threadpool",
  "zeroize",
 ]
@@ -1138,7 +1139,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -1164,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -1173,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "bincode",
  "borsh",
@@ -1187,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "borsh",
  "citrea-evm",
@@ -2062,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "borsh",
  "citrea-evm",
@@ -3027,9 +3028,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-bigint2"
-version = "1.4.2"
+version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "921e2d3d07a327750f657c0d42cf9437024583b218ad05b24b91a557f5d01979"
+checksum = "00a065c83232c9945f9c1690f9766bec75f8919272b3a724b44dcc68b05f4625"
 dependencies = [
  "include_bytes_aligned",
  "stability",
@@ -3056,9 +3057,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-circuit-keccak"
-version = "2.0.1"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cd8acfc84307ed1be64cf9fefc390963fc22b2865d027f03405977a0cfa9747"
+checksum = "8d339c65b0e011677404bd6bdfe1b0f29748187a568fb2f74df7fb650590181a"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3072,9 +3073,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-circuit-recursion"
-version = "2.0.1"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdd1514e94440e2da301f48d345e1937b315147f58c5dc4992feb045324651d"
+checksum = "8c6501fd3936aea2dd3e55915f34328fe96e6ca25ef00320242f837ae668785b"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3087,9 +3088,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-circuit-rv32im"
-version = "2.0.3"
+version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23f6ed144d8b8f93c4a6096e3dd90f9dcbd91eff83eae690a72fd6e640760b94"
+checksum = "c80e0a8f0f56106295bb682dbc27093438e163a5f6384a79e877ab895a11d9ae"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -3172,9 +3173,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-zkvm"
-version = "2.0.2"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a049319790277845335445b549d49e66341f4a7ffba7f7aaa1e77e2fc4a9c19"
+checksum = "0f1014d2efcb3b359aff878c9aeb6aa949a6d91f091a2ffb5ffd8d928a1ab7f3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3576,7 +3577,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "borsh",
  "once_cell",
@@ -3612,7 +3613,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "borsh",
  "hex",
@@ -3626,7 +3627,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -3642,7 +3643,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3656,7 +3657,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "bech32",
@@ -3677,7 +3678,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "bech32",
@@ -3697,7 +3698,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3707,7 +3708,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3724,7 +3725,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3738,7 +3739,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.7.2-rc.2"
+version = "0.7.2"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
