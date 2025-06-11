@@ -204,6 +204,7 @@ where
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         let start = Instant::now();
 
+        // Disable logging during dry run to avoid noise
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
@@ -211,6 +212,7 @@ where
 
             let mut nonce = self.get_nonce(&mut working_set_to_discard)?;
 
+            // Apply L2 block hook before processing transactions
             if let Err(err) =
                 self.stf
                     .begin_l2_block(pub_key, &mut working_set_to_discard, &l2_block_info)
@@ -234,6 +236,7 @@ where
                     &mut nonce,
                 )?;
 
+            // Track transactions that failed due to insufficient L1 fee balance
             let mut l1_fee_failed_txs = vec![];
 
             // using .next() instead of a for loop because its the intended
@@ -446,6 +449,7 @@ where
 
         let timestamp = chrono::Local::now().timestamp() as u64;
 
+        // Get pending deposits up to configured limit
         let deposit_data = self
             .deposit_mempool
             .lock()
@@ -462,8 +466,10 @@ where
             timestamp,
         };
 
+        // Create storage for the next L2 block
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
 
+        // Get best transactions from mempool based on gas price
         let evm_txs = self.get_best_transactions()?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
@@ -593,6 +599,7 @@ where
 
         let state_root_transition = l2_block_result.state_root_transition;
 
+        // Check if state has actually changed
         if state_root_transition.final_root.as_ref() == self.state_root.as_ref() {
             bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
         }
@@ -604,11 +611,13 @@ where
 
         let next_state_root = state_root_transition.final_root;
 
+        // Finalize storage changes from block execution
         self.storage_manager
             .finalize_storage(l2_block_result.change_set);
 
         let l2_block_hash = l2_block.hash();
 
+        // Persist block data to storage
         self.ledger_db
             .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
 
@@ -630,16 +639,20 @@ where
     /// # Arguments
     /// * `l1_fee_failed_txs` - Transactions that failed due to L1 fee issues
     pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
+        // Combine transactions from last block and those that failed L1 fee check
         let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
         txs_to_remove.extend(l1_fee_failed_txs);
 
+        // Remove processed/failed transactions from mempool
         self.mempool.remove_transactions(txs_to_remove.clone());
         SEQUENCER_METRICS.mempool_txs.set(self.mempool.len() as f64);
 
+        // Update account states in mempool
         let account_updates = self.get_account_updates()?;
 
         self.mempool.update_accounts(account_updates);
 
+        // Remove transactions from persistent storage
         let txs = txs_to_remove
             .iter()
             .map(|tx_hash| tx_hash.to_vec())
@@ -665,6 +678,7 @@ where
             .await
             .map_err(|e| anyhow!(e))?;
 
+        // Restore mempool state from persistent storage
         match self.restore_mempool().await {
             Ok(()) => debug!("Sequencer: Mempool restored"),
             Err(e) => {
@@ -672,6 +686,7 @@ where
             }
         }
 
+        // Get initial DA block data and fee rate
         let (mut last_finalized_block, mut l1_fee_rate) =
             match get_da_block_data(self.da_service.clone()).await {
                 Ok(l1_data) => l1_data,
@@ -686,6 +701,8 @@ where
         let evm = Evm::<DefaultContext>::default();
         let head_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
         let _spec_id = fork_from_block_number(head_l2_height).spec_id;
+
+        // Get last processed L1 height from light client
         let mut last_used_l1_height =
             match get_last_l1_height_in_light_client(&evm, &mut working_set) {
                 Some(l1_height) => l1_height.to(),
@@ -696,6 +713,7 @@ where
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
 
+        // Initialize commitment service for DA layer publication
         let commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
             self.da_service.clone(),
@@ -703,12 +721,14 @@ where
             self.config.max_l2_blocks_per_commitment,
         );
 
+        // Spawn commitment service task
         tokio::spawn(commitment_service.run(
             self.storage_manager.clone(),
             self.l2_block_hash,
             shutdown_signal.clone(),
         ));
 
+        // Spawn DA block monitor task
         tokio::spawn(da_block_monitor(
             self.da_service.clone(),
             da_height_update_tx,
@@ -906,8 +926,10 @@ where
 
     /// Restores the mempool state after a restart
     pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
+        // Load transactions from persistent storage
         let mempool_txs = self.ledger_db.get_mempool_txs()?;
         for (_, tx) in mempool_txs {
+            // Recover and add each transaction back to mempool
             let recovered = recover_raw_transaction(Bytes::from(tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_pooled(recovered);
 
@@ -924,11 +946,13 @@ where
     /// # Returns
     /// A vector of changed accounts with their updated states
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
+        // Get the most recent block
         let head = self
             .db_provider
             .last_block()?
             .expect("Unrecoverable: Head must exist");
 
+        // Extract unique addresses from block transactions
         let addresses: HashSet<Address> = match head.transactions {
             alloy_rpc_types::BlockTransactions::Full(ref txs) => {
                 txs.iter().map(|tx| tx.inner.signer()).collect()
@@ -938,6 +962,7 @@ where
 
         let mut updates = vec![];
 
+        // Get updated account state for each address
         for address in addresses {
             let account = self
                 .db_provider
@@ -966,6 +991,8 @@ where
         l1_fee_rate: u128,
     ) -> anyhow::Result<()> {
         debug!("We have {} missed DA blocks", missed_da_blocks_count);
+
+        // Configure exponential backoff for DA block fetching retries
         let exponential_backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_millis(200))
             .with_max_elapsed_time(Some(Duration::from_secs(30)))
@@ -974,6 +1001,7 @@ where
 
         let mut filtered_blocks = vec![];
 
+        // Fetch all missed DA blocks with retry logic
         for i in 1..=missed_da_blocks_count {
             let needed_da_block_height = *last_used_l1_height + i;
 
@@ -1021,9 +1049,12 @@ where
         last_finalized_block_height: u64,
         last_used_l1_height: u64,
     ) -> u64 {
+        // No blocks missed if we're caught up or behind
         if last_finalized_block_height <= last_used_l1_height {
             return 0;
         }
+
+        // Calculate number of blocks we've skipped
         let skipped_blocks = last_finalized_block_height - last_used_l1_height - 1;
         if skipped_blocks > 0 {
             // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
@@ -1125,6 +1156,7 @@ where
         info!("Processing {} system transactions", system_events.len());
 
         let mut all_txs = vec![];
+        // Get system account info or use default if not exists
         let system_signer = evm
             .account_info(&SYSTEM_SIGNER, &mut working_set_to_discard)
             .unwrap_or(AccountInfo {
@@ -1133,11 +1165,14 @@ where
                 code_hash: None,
             });
 
+        // Get chain configuration for transaction creation
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
+        // Create and process each system transaction
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
         for sys_tx in sys_txs {
+            // Encode transaction in EIP-2718 format
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
@@ -1148,11 +1183,13 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
+            // Sign and increment nonce
             let signed_tx = self.sign_tx(raw_message, *nonce)?;
             *nonce += 1;
 
             let txs = vec![signed_tx];
 
+            // Create checkpoint for potential revert
             let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
             if let Err(e) = self
