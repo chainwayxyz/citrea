@@ -122,5 +122,3 @@ flowchart LR
     class U,LC client;
     class BTC bitcoin;
 ```
-
-Each node type plays a crucial role in maintaining the security, efficiency, and accessibility of the Citrea network, working together to ensure a robust and verifiable Layer 2 scaling solution for the Bitcoin network.
