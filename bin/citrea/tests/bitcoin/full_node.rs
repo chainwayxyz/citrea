@@ -1396,7 +1396,7 @@ impl TestCase for OutOfRangeProofTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
-        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
@@ -1442,6 +1442,10 @@ impl TestCase for OutOfRangeProofTest {
             .await?[0]
             .method_id
             .into();
+
+        // Stopping lcp so it doesn't sync over the rolled back state
+        light_client_prover.wait_until_stopped().await?;
+
         let genesis_state_root = lcp_output.l2_state_root;
 
         // Generate two commitments to test pending proof over commitment ranges
@@ -1881,6 +1885,8 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(proven_height.commitment_index, 2);
 
+        light_client_prover.start(None, None).await?;
+
         light_client_prover
             .wait_for_l1_height(proof_l1_height, None)
             .await?;
@@ -2017,7 +2023,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
-        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
@@ -2061,6 +2067,10 @@ impl TestCase for OverlappingProofRangesTest {
             .await?[0]
             .method_id
             .into();
+
+        // Stopping lcp so it doesn't sync over the rolled back state
+        light_client_prover.wait_until_stopped().await?;
+
         let genesis_state_root = lcp_output.l2_state_root;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
@@ -2419,6 +2429,8 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
         assert_eq!(proven_height_a.height, max_l2_blocks_per_commitment * 3);
         assert_eq!(proven_height_a.commitment_index, 3);
+
+        light_client_prover.start(None, None).await?;
 
         light_client_prover
             .wait_for_l1_height(proof_a_l1_height, None)
