@@ -104,8 +104,10 @@ async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOp
         BridgeContract::depositCall::SELECTOR => {
             tracing::info!("Deposit system tx found inside block");
         }
-        _ => {
-            return Err(anyhow!("Invalid system tx"));
+        unexpected_selector => {
+            tracing::warn!(
+                "Invalid system tx, unexpected function selector: {unexpected_selector:?} , tx input: {:?}, tx hash: {:?}, tx nonce: {:?}", tx.inner().transaction().input(), tx.inner().hash(), tx.inner().transaction().nonce()
+            );
         }
     }
 
