@@ -75,4 +75,52 @@ The typical flow of data and verification in the Citrea network:
 4. Full Nodes verify and process these ZK proofs
 5. Light Client Prover creates optimized proofs for light clients
 
+```mermaid
+flowchart LR
+    subgraph Clients
+        U((Users/Apps))
+    end
+
+    subgraph Core
+        direction TB
+        S[Sequencer]
+        FN[Full Node]
+        BP[Batch Prover]
+        LCP[Light Client Prover]
+    end
+
+    subgraph DA
+        BTC[Bitcoin Network]
+    end
+
+    subgraph Light
+        LC[Light Clients]
+    end
+
+    %% User interactions
+    U -->|Submit Tx| S
+    FN -->|Serve Data| U
+
+    %% L2 Block syncing
+    S -.->|Sync L2 Blocks| FN & BP
+
+    %% Bitcoin Network interactions
+    S -->|Publish Commitments| BTC
+    BTC -->|Sync Commitments| FN
+    BTC -->|Read Commitments| BP
+    BP -->|Publish ZK Proofs| BTC
+    BTC -->|Verify ZK Proofs| FN
+    BTC -->|Read ZK Proofs| LCP
+
+    %% Light Client interactions
+    LCP -->|Generate Proofs| LC
+
+    %% Styling
+    classDef default fill:#0F1117,stroke:#333,stroke-width:2px;
+    classDef client fill:#2A2E37,stroke:#333;
+    classDef bitcoin fill:#2A2E37,stroke:#F7931A,stroke-width:3px;
+    class U,LC client;
+    class BTC bitcoin;
+```
+
 Each node type plays a crucial role in maintaining the security, efficiency, and accessibility of the Citrea network, working together to ensure a robust and verifiable Layer 2 scaling solution for the Bitcoin network.
