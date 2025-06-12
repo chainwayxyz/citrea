@@ -132,6 +132,12 @@ impl TestCase for SyncStatusTest {
         sequencer.wait_for_l2_height(300, None).await?;
         full_node.wait_for_l2_height(5, None).await?;
 
+        // Check eth_syncing
+        let eth_sync = full_node_test_client.eth_syncing().await;
+        assert_eq!(eth_sync.starting_block, U64::from(0));
+        assert_eq!(eth_sync.highest_block, U64::from(300));
+        assert!(eth_sync.current_block < U64::from(300));
+
         // Check sync status while syncing
         let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
         match l2_status {
@@ -146,6 +152,11 @@ impl TestCase for SyncStatusTest {
         }
 
         full_node.wait_for_l2_height(300, None).await?;
+
+        let eth_sync = full_node_test_client.eth_syncing().await;
+        assert_eq!(eth_sync.starting_block, U64::from(0));
+        assert_eq!(eth_sync.highest_block, U64::from(300));
+        assert_eq!(eth_sync.current_block, U64::from(300));
 
         // Check sync status after fully synced
         let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;

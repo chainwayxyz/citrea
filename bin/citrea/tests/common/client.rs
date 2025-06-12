@@ -20,7 +20,7 @@ use alloy_rpc_types_trace::geth::{
 use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
-use ethereum_rpc::SyncStatus;
+use ethereum_rpc::{EthSyncStatus, SyncStatus};
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -788,6 +788,13 @@ impl TestClient {
             .unwrap();
 
         block_number.saturating_to()
+    }
+
+    pub(crate) async fn eth_syncing(&self) -> EthSyncStatus {
+        self.http_client
+            .request("eth_syncing", rpc_params![])
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn citrea_sync_status(&self) -> SyncStatus {
