@@ -89,7 +89,7 @@ where
     }
 
     /// Runs proving in a blocking manner. This just calls `start_proving` and waits for the result.
-    /// 
+    ///
     /// * `data` - the proof data to be used for generating a proof
     /// * `receipt_type` - the expected receipt type of the proof
     pub async fn prove(&self, data: ProofData, receipt_type: ReceiptType) -> anyhow::Result<Proof> {
@@ -101,15 +101,15 @@ where
     /// Starts the proving task in the background and returns a channel which will resolve
     /// once the proving is done. If there is not enough proving slots left, this function
     /// will block until it can get a slot and start the proof.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `data` - the proof data to be used for generating a proof
     /// * `receipt_type` - the expected receipt type of the proof
     /// * `job_id` - the job id that is correlated to the proof
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// * a channel that will resolve once the proving job is done
     #[instrument(name = "ParallelProverService", skip_all)]
     pub async fn start_proving(
