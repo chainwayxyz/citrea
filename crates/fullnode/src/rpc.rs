@@ -27,8 +27,8 @@ where
 
 /// Response type containing L2 block heights and their status relative to a L1 height.
 /// This type tracks two key stages of L2 block finality:
-/// - Commitment: When L2 blocks are posted to L1 by the sequencer
-/// - Proof: When validity proofs for L2 blocks are posted to L1 by the batch prover
+/// - Committed: When a commitment to the L2 blocks are posted to L1 by the sequencer
+/// - Proven: When validity proofs for L2 blocks are posted to L1 by the batch prover
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct L2StatusHeightsByL1Height {
     /// The L2 block height that has been committed to L1 by the sequencer at this L1 height.

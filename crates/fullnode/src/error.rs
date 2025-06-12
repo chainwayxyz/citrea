@@ -61,7 +61,7 @@ pub enum SkippableError {
 /// Top-level error type encompassing all processing errors
 #[derive(Debug, Error)]
 pub enum ProcessingError {
-    /// Errors that require halting
+    /// Errors that require halting L1 syncing
     #[error("Halting error: {0}")]
     HaltingError(#[from] HaltingError),
     /// Errors that can be skipped
