@@ -65,7 +65,7 @@ pub mod db_migrations;
 /// Database provider implementation that abstracts over reth's mempool functionality,
 /// providing a custom interface for the sequencer's needs
 mod db_provider;
-/// Separate mempool implementation for handling deposit data in FIFO (First-In-First-Out) order
+/// Separate mempool implementation only for handling deposit data in FIFO (First-In-First-Out) order
 mod deposit_data_mempool;
 /// Module containing mempool functionality for transaction management
 mod mempool;

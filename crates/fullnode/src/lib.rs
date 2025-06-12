@@ -1,3 +1,14 @@
+#![warn(clippy::missing_docs_in_private_items)]
+//! Fullnode implementation for the Citrea rollup
+//!
+//! This crate provides functionality for running a full node in the Citrea network.
+//! A full node is responsible for:
+//! - Syncing and validating L2 blocks
+//! - Processing L1 blocks in order to track finality of the rollup.
+//! - Managing state and storage
+//! - Providing RPC services
+//! - Optional pruning of historical data
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -20,13 +31,46 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::{broadcast, Mutex};
 
+/// Module for handling L1 data availability blocks
 pub mod da_block_handler;
+/// Module containing database migration definitions
 pub mod db_migrations;
+/// Module containing error definitions
 mod error;
+/// Module for L2 block synchronization
 mod l2_syncer;
+/// Module for metrics collection
 mod metrics;
+/// Module providing RPC functionality
 pub mod rpc;
 
+/// Builds and initializes all fullnode services
+///
+/// # Arguments
+/// * `runner_config` - Configuration for the fullnode
+/// * `init_params` - Initial parameters for node setup
+/// * `native_stf` - State transition function blueprint
+/// * `public_keys` - Rollup public keys containing the sequencer's and batch prover's keys for cryptographic operations
+/// * `da_service` - Data availability service implementation
+/// * `ledger_db` - Database for ledger operations
+/// * `storage_manager` - Manager for prover storage
+/// * `l2_block_tx` - Channel for L2 block notifications
+/// * `fork_manager` - Manager for handling chain forks
+/// * `code_commitments` - Map of ZKVM code commitments by spec ID
+/// * `rpc_module` - RPC module for external communication
+/// * `backup_manager` - Manager for backup operations
+///
+/// # Type Parameters
+/// * `DA` - Data availability service type
+/// * `DB` - Database type implementing NodeLedgerOps
+/// * `Vm` - ZKVM implementation type
+///
+/// # Returns
+/// A tuple containing:
+/// - L2Syncer for block synchronization
+/// - L1BlockHandler for DA block processing
+/// - Optional PrunerService for historical data pruning
+/// - Configured RPC module
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<DA, DB, Vm>(
     runner_config: RunnerConfig,
