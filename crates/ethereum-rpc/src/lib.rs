@@ -153,6 +153,10 @@ pub trait EthereumRpc {
     ) -> RpcResult<Option<Transaction>>;
 
     /// Gets sync status (full node only).
+    #[method(name = "eth_syncing")]
+    async fn eth_syncing(&self) -> RpcResult<SyncStatus>;
+
+    /// Gets sync status (full node only).
     #[method(name = "citrea_syncStatus")]
     async fn citrea_sync_status(&self) -> RpcResult<SyncStatus>;
 
@@ -457,6 +461,10 @@ where
                 }
             }
         }
+    }
+
+    async fn eth_syncing(&self) -> RpcResult<SyncStatus> {
+        self.citrea_sync_status().await
     }
 
     async fn citrea_sync_status(&self) -> RpcResult<SyncStatus> {
