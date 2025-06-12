@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use citrea_e2e::config::{CitreaMode, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::NodeT;
+use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use ethereum_rpc::LayerStatus;
 use sov_ledger_rpc::LedgerRpcClient;
@@ -105,7 +105,7 @@ impl TestCase for SyncStatusTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
         let seq_test_client = make_test_client(SocketAddr::new(
@@ -166,6 +166,26 @@ impl TestCase for SyncStatusTest {
             }
             _ => panic!("Expected synced status"),
         }
+
+        // Restart full node
+        full_node.wait_until_stopped().await?;
+
+        for _ in 0..10 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        full_node.start(None, None).await?;
+
+        let full_node_test_client = make_test_client(SocketAddr::new(
+            full_node.config.rpc_bind_host().parse()?,
+            full_node.config.rpc_bind_port(),
+        ))
+        .await?;
+
+        let eth_sync = full_node_test_client.eth_syncing().await;
+        assert_eq!(eth_sync.starting_block, U64::from(300));
+        assert_eq!(eth_sync.highest_block, U64::from(310));
+        assert!(eth_sync.current_block <= U64::from(310));
 
         // Generate DA blocks and check L1 sync status
         for _ in 0..19 {
