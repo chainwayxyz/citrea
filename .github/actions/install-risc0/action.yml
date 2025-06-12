@@ -17,6 +17,6 @@ runs:
         curl -L https://risczero.com/install | bash
         export PATH="$PATH:$HOME/.risc0/bin"
         rzup install r0vm 2.0.2
-        rzup install cargo-risc0 2.0.2
+        rzup install cargo-risczero 2.0.2
         rzup install cpp
         rzup install rust 1.85.0
