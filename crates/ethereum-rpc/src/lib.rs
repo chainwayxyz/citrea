@@ -8,7 +8,8 @@ use std::sync::Arc;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, Transaction,
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
+    SyncStatus as EthSyncStatus, Transaction,
 };
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_evm::{generate_eth_proof, Evm};
@@ -53,14 +54,6 @@ pub enum LayerStatus {
 pub struct SyncStatus {
     pub l1_status: LayerStatus,
     pub l2_status: LayerStatus,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct EthSyncStatus {
-    pub starting_block: U64,
-    pub current_block: U64,
-    pub highest_block: U64,
 }
 
 #[rpc(server)]
@@ -491,11 +484,19 @@ where
             Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
         };
 
-        Ok(EthSyncStatus {
-            starting_block: self.starting_l2_height,
-            current_block: U64::from(head_l2_block),
-            highest_block,
-        })
+        let sync_status = if head_l2_block == highest_block.saturating_to::<u64>() {
+            EthSyncStatus::None
+        } else {
+            EthSyncStatus::Info(Box::new(SyncInfo {
+                starting_block: U256::from(self.starting_l2_height),
+                current_block: U256::from(head_l2_block),
+                highest_block: U256::from(highest_block),
+                warp_chunks_amount: None,
+                warp_chunks_processed: None,
+                stages: None,
+            }))
+        };
+        Ok(sync_status)
     }
 
     async fn citrea_sync_status(&self) -> RpcResult<SyncStatus> {
