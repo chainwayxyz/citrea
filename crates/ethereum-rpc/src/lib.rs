@@ -55,6 +55,14 @@ pub struct SyncStatus {
     pub l2_status: LayerStatus,
 }
 
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EthSyncStatus {
+    pub starting_block: U64,
+    pub current_block: U64,
+    pub highest_block: U64,
+}
+
 #[rpc(server)]
 pub trait EthereumRpc {
     /// Returns the client version.
@@ -154,7 +162,7 @@ pub trait EthereumRpc {
 
     /// Gets sync status (full node only).
     #[method(name = "eth_syncing")]
-    async fn eth_syncing(&self) -> RpcResult<SyncStatus>;
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus>;
 
     /// Gets sync status (full node only).
     #[method(name = "citrea_syncStatus")]
@@ -187,6 +195,7 @@ where
     Da: DaService,
 {
     ethereum: Arc<Ethereum<C, Da>>,
+    starting_l2_height: U64,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -194,8 +203,11 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>) -> Self {
-        Self { ethereum }
+    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64) -> Self {
+        Self {
+            ethereum,
+            starting_l2_height,
+        }
     }
 }
 
@@ -463,8 +475,27 @@ where
         }
     }
 
-    async fn eth_syncing(&self) -> RpcResult<SyncStatus> {
-        self.citrea_sync_status().await
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus> {
+        let highest_block = self
+            .ethereum
+            .sequencer_client
+            .as_ref()
+            .unwrap()
+            .get_head_l2_block_height()
+            .await
+            .map_err(|e| to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e))?;
+
+        let head_l2_block = match self.ethereum.ledger_db.get_head_l2_block() {
+            Ok(Some((height, _))) => height.0,
+            Ok(None) => 0u64,
+            Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
+        };
+
+        Ok(EthSyncStatus {
+            starting_block: self.starting_l2_height,
+            current_block: U64::from(head_l2_block),
+            highest_block,
+        })
     }
 
     async fn citrea_sync_status(&self) -> RpcResult<SyncStatus> {
@@ -594,6 +625,11 @@ where
     C::Storage: NativeStorage,
     Da: DaService,
 {
+    let head_l2_block = match ledger_db.get_head_l2_block().unwrap() {
+        Some((height, _)) => height.0,
+        None => 0u64,
+    };
+
     // Unpack config
     let EthRpcConfig {
         gas_price_oracle_config,
@@ -614,7 +650,7 @@ where
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
     ));
-    let server = EthereumRpcServerImpl::new(ethereum);
+    let server = EthereumRpcServerImpl::new(ethereum, U64::from(head_l2_block));
 
     let mut module = EthereumRpcServer::into_rpc(server);
 
