@@ -58,7 +58,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
 
     #[cfg(feature = "native")]
     /// Default rpc methods.
-    fn rpc_methods(storage: C::Storage) -> jsonrpsee::RpcModule<()>;
+    fn rpc_methods(storage: C::Storage, ledger: C::LedgerDB) -> jsonrpsee::RpcModule<()>;
 
     #[cfg(feature = "native")]
     /// Reads genesis configs.

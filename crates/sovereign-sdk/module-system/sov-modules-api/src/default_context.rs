@@ -4,6 +4,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB;
+#[cfg(feature = "native")]
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};
 use sov_modules_core::{Address, Context, Spec};
@@ -26,6 +28,7 @@ pub struct DefaultContext {
 impl Spec for DefaultContext {
     type Address = Address;
     type Storage = ProverStorage;
+    type LedgerDB = LedgerDB;
     type PrivateKey = K256PrivateKey;
     type PublicKey = K256PublicKey;
     type Hasher = sha2::Sha256;
@@ -73,6 +76,7 @@ pub struct ZkDefaultContext {
 impl Spec for ZkDefaultContext {
     type Address = Address;
     type Storage = ZkStorage;
+    type LedgerDB = ();
     #[cfg(feature = "native")]
     type PrivateKey = K256PrivateKey;
     type PublicKey = K256PublicKey;
