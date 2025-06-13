@@ -17,7 +17,7 @@ use crate::types::StorageNodeType;
 
 pub fn rollback_ledger(node_type: StorageNodeType, ledger_db: Arc<DB>, context: RollbackContext) {
     debug!(
-        "Rolling back {}, down to L2 block {}, L1 block {}",
+        "Rolling back {}, down to L2 block {:?}, L1 block {:?}",
         node_type, context.l2_target, context.l1_target
     );
     let (tables, rollback_result) = match node_type {

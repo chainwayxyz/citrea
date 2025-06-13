@@ -43,15 +43,16 @@ impl Rollback {
     pub async fn execute(
         &self,
         node_type: StorageNodeType,
-        _current_l2_height: u64,
-        l2_target: u64,
-        l1_target: u64,
-        last_sequencer_commitment_index: u32,
+        l2_target: Option<u64>,
+        l1_target: Option<u64>,
+        last_sequencer_commitment_index: Option<u32>,
     ) -> anyhow::Result<()> {
         info!(
-            "Rolling back {} node until L2 {}, L1 {}",
+            "Rolling back {:?} node until L2 {:?}, L1 {:?}",
             node_type, l2_target, l1_target
         );
+
+        let mut futures = Vec::with_capacity(3);
 
         let ledger_db = self.ledger_db.clone();
         let native_db = self.native_db.clone();
@@ -65,19 +66,21 @@ impl Rollback {
             };
             rollback_ledger(node_type, ledger_db, context);
         });
+        futures.push(ledger_rollback_handle);
 
-        let state_db_rollback_handle =
-            tokio::task::spawn_blocking(move || rollback_state_db(state_db, l2_target));
+        if let Some(l2_target) = l2_target {
+            let state_db_rollback_handle =
+                tokio::task::spawn_blocking(move || rollback_state_db(state_db, l2_target));
 
-        let native_db_rollback_handle =
-            tokio::task::spawn_blocking(move || rollback_native_db(native_db, l2_target));
+            futures.push(state_db_rollback_handle);
 
-        future::join_all([
-            ledger_rollback_handle,
-            state_db_rollback_handle,
-            native_db_rollback_handle,
-        ])
-        .await;
+            let native_db_rollback_handle =
+                tokio::task::spawn_blocking(move || rollback_native_db(native_db, l2_target));
+
+            futures.push(native_db_rollback_handle);
+        };
+
+        future::join_all(futures).await;
 
         Ok(())
     }

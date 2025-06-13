@@ -181,10 +181,9 @@ async fn rollback_node(
     rollback
         .execute(
             node_type,
-            50,
-            rollback_l2_height,
-            rollback_l1_height,
-            commitment_index,
+            Some(rollback_l2_height),
+            Some(rollback_l1_height),
+            Some(commitment_index),
         )
         .await
         .unwrap();

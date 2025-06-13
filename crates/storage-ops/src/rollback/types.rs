@@ -8,9 +8,9 @@ pub struct RollbackResult {
 }
 
 pub struct RollbackContext {
-    pub(crate) l2_target: u64,
-    pub(crate) l1_target: u64,
-    pub(crate) last_sequencer_commitment_index: u32,
+    pub(crate) l2_target: Option<u64>,
+    pub(crate) l1_target: Option<u64>,
+    pub(crate) last_sequencer_commitment_index: Option<u32>,
 }
 
 pub trait LedgerNodeRollback {

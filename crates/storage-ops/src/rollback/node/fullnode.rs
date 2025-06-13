@@ -170,15 +170,24 @@ impl FullNodeLedgerRollback {
 impl LedgerNodeRollback for FullNodeLedgerRollback {
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
-        rollback_result = self.rollback_l2(context.l2_target, rollback_result)?;
-        rollback_result =
-            self.rollback_commitments(context.last_sequencer_commitment_index, rollback_result)?;
-        rollback_result = self.rollback_slots(context.l1_target, rollback_result)?;
-        rollback_result = self.rollback_l2_status_heights(context.l1_target, rollback_result)?;
 
-        let _ = self
-            .ledger_db
-            .put::<ProverLastScannedSlot>(&(), &SlotNumber(context.l1_target));
+        if let Some(l2_target) = context.l2_target {
+            rollback_result = self.rollback_l2(l2_target, rollback_result)?;
+        }
+
+        if let Some(last_sequencer_commitment_index) = context.last_sequencer_commitment_index {
+            rollback_result =
+                self.rollback_commitments(last_sequencer_commitment_index, rollback_result)?;
+        }
+
+        if let Some(l1_target) = context.l1_target {
+            rollback_result = self.rollback_slots(l1_target, rollback_result)?;
+            rollback_result = self.rollback_l2_status_heights(l1_target, rollback_result)?;
+
+            let _ = self
+                .ledger_db
+                .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target));
+        }
         let _ = self.ledger_db.flush();
         Ok(rollback_result)
     }

@@ -173,10 +173,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollback
                 .execute(
                     node_type,
-                    ledger_version,
-                    ledger_version, // rollback to ledger version
-                    l1_target,
-                    last_sequencer_commitment_index,
+                    Some(ledger_version), // rollback to ledger version
+                    Some(l1_target),
+                    Some(last_sequencer_commitment_index),
                 )
                 .await?;
         } else if state_version == ledger_version {

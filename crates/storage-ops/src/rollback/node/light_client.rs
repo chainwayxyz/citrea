@@ -52,11 +52,15 @@ impl LightClientLedgerRollback {
 impl LedgerNodeRollback for LightClientLedgerRollback {
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
-        rollback_result = self.rollback_slots_by_number(context.l1_target, rollback_result)?;
 
-        let _ = self
-            .ledger_db
-            .put::<ProverLastScannedSlot>(&(), &SlotNumber(context.l1_target));
+        if let Some(l1_target) = context.l1_target {
+            rollback_result = self.rollback_slots_by_number(l1_target, rollback_result)?;
+
+            let _ = self
+                .ledger_db
+                .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target));
+        }
+
         let _ = self.ledger_db.flush();
         Ok(rollback_result)
     }
