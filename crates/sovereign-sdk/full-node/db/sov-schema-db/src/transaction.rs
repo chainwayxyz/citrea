@@ -133,7 +133,8 @@ impl From<DbTransaction> for SchemaBatch {
 }
 
 /// Ordered iterator over the [`DbTransaction`] cache and the underlying database.
-/// RocksDB iteration is strictly ordered, and since we store some of the writes in memory
+/// RocksDB iteration is strictly ordered, and since we store some of the writes in memory,
+/// we need a custom iterator to handle 2 iterators, cache and db, managing the ordering.
 struct DbTransactionIter<'a, S, LocalIter, DbIter>
 where
     S: Schema,
