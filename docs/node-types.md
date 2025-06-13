@@ -32,7 +32,6 @@ Key characteristics:
 - Independent verification of all chain data
 - Validates both sequencer commitments and batch proofs
 - No transaction ordering responsibilities
-- Serves as a read-only validator of the network
 - Provides data access points for users and applications
 
 ## 3. Batch Prover
@@ -48,7 +47,6 @@ Key characteristics:
 - Computationally intensive role
 - Creates cryptographic proofs of state validity
 - Works in conjunction with the sequencer's commitments
-- Ensures the mathematical validity of state transitions
 
 ## 4. Light Client Prover
 
@@ -63,7 +61,8 @@ Key characteristics:
 - Creates optimized proofs for resource-constrained clients
 - Processes and verifies batch proofs
 - Enables efficient chain verification without full state
-- Bridges between full nodes and light clients
+- Processes L1 blocks sequentially using recursive proof generation
+- Enables verification of the latest Citrea rollup state through a single recursive proof
 
 ## Interaction Flow
 
@@ -73,7 +72,7 @@ The typical flow of data and verification in the Citrea network:
 2. Full Node validates and syncs these commitments
 3. Batch Prover generates ZK proofs of state transitions
 4. Full Nodes verify and process these ZK proofs
-5. Light Client Prover creates optimized proofs for light clients
+5. Light Client Prover creates compact proofs for light clients
 
 ```mermaid
 flowchart LR
@@ -110,7 +109,7 @@ flowchart LR
     BTC -->|Read Commitments| BP
     BP -->|Publish ZK Proofs| BTC
     BTC -->|Verify ZK Proofs| FN
-    BTC -->|Read ZK Proofs| LCP
+    BTC -->|Read Blocks & Verify Relations| LCP
 
     %% Light Client interactions
     LCP -->|Generate Proofs| LC
