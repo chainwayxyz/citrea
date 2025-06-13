@@ -112,6 +112,10 @@ async fn main() -> anyhow::Result<()> {
             l1_target,
             sequencer_commitment_index,
         } => {
+            if l2_target.is_none() && l1_target.is_none() && sequencer_commitment_index.is_none() {
+                println!("Missing L2/L1 target or sequencer commitment");
+                return Ok(());
+            }
             commands::rollback(
                 node_type,
                 db_path.clone(),
