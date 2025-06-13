@@ -6,7 +6,8 @@ use sov_rollup_interface::zk::StorageRootHash;
 
 use crate::DefaultHasher;
 
-/// A [`Storage`] implementation designed to be used inside the zkVM.
+/// A [`Storage`] implementation designed to be used inside the zkVM. Used for
+/// reading ordered witnesses that are populated initially by the `ProverStorage` in zkVM.
 #[derive(Default, Clone)]
 pub struct ZkStorage;
 
