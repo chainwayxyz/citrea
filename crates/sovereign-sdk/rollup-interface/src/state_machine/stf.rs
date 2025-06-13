@@ -79,7 +79,7 @@ pub enum L2BlockError {
     InvalidDaTxsCommitment,
     /// The hash of the l2 block is incorrect
     InvalidL2BlockHash,
-    /// The l2 block signature is incorret
+    /// The l2 block signature is incorrect
     InvalidL2BlockSignature,
     /// The l2 block includes a non-serializable sov-tx
     NonSerializableSovTx,

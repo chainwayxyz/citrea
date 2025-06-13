@@ -37,7 +37,7 @@ pub fn get_network_constants(network: &bitcoin::Network) -> NetworkConstants {
         bitcoin::Network::Testnet | bitcoin::Network::Testnet4 => TESTNET4_CONSTANTS,
         bitcoin::Network::Signet => SIGNET_CONSTANTS,
         bitcoin::Network::Regtest => REGTEST_CONSTANTS,
-        _ => unreachable!("Unsupport network"),
+        _ => unreachable!("Unsupported network"),
     }
 }
 

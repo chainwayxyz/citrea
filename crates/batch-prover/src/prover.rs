@@ -47,6 +47,9 @@ pub enum ProverRequest {
     ),
 }
 
+/// Prover is the type responsible from handling the proving process. It tracks the pending commitments and
+/// tries to partition them into provable chunks. After partitioning, initializes and tracks the background proving jobs
+/// and updates the ledger db at each step. Proving signals are sent from L1 syncer, L2 syncer, and RPC requests.
 pub struct Prover<Da, DB, Vm>
 where
     Da: DaService,
@@ -131,12 +134,13 @@ where
                     };
 
                     let Some(sync_target_l2_height) = self.sync_target_l2_height else {
-                        // we are already fully synced or no commitments are waiting for l2 blocks
+                        // there are no commitments that are waiting the L2 chain to be synced
                         continue;
                     };
 
                     if l2_height < sync_target_l2_height {
-                        // new l2 height has not yet reached the next sync target
+                        // there are commitments waiting the L2 chain to be synced to a point,
+                        // but we haven't reached the next sync target yet
                         continue;
                     }
 
@@ -229,6 +233,7 @@ where
                 .create_circuit_input(&partition, id)
                 .context("Failed to create circuit input")?;
 
+            // start the proving job in the background
             let rx = self.start_proving(input, id).await?;
             proving_jobs.push((id, rx));
 
@@ -238,6 +243,7 @@ where
                 .map(|comm| comm.index)
                 .collect::<Vec<_>>();
 
+            // insert the proving job to the ledger db, and delete the pending commitments
             self.ledger_db
                 .insert_new_proving_job(id, &commitment_indices)
                 .context("Failed to insert prover job")?;
@@ -248,6 +254,7 @@ where
 
         let job_ids = proving_jobs.iter().map(|job| job.0).collect();
 
+        // start watching the proving jobs to finish in the background
         self.watch_proving_jobs(proving_jobs);
 
         Ok(job_ids)
@@ -521,6 +528,7 @@ where
             })
             .collect::<FuturesUnordered<_>>();
 
+        // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, proof)) = proving_jobs.next().await {
                 info!("Proving job finished {}", job_id);

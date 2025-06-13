@@ -25,7 +25,6 @@ impl<C: Context, Da: DaSpec> L2BlockRuleEnforcer<C, Da> {
             let evm = Evm::<C>::default();
             get_last_l1_height_and_hash_in_light_client(&evm, working_set)
                 .1
-                .expect("At least one L1 height/hash should be present")
                 .to_be_bytes::<32>()
         };
 

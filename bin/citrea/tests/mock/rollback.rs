@@ -484,7 +484,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
 }
 
 /// Trigger rollback DB data.
-/// This test makes sure that a rollback on fullnode withour rolling back sequencer
+/// This test makes sure that a rollback on fullnode without rolling back sequencer
 /// enables fullnode to sync from the rollback point up until latest sequencer block.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyhow::Error> {

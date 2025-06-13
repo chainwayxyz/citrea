@@ -76,7 +76,7 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 2 complete, 2 aggregate proofs with 2 chunks for the first and 3 chunks for the second agg, and 2 method id txs
-            // 4 seqeuncer commitments
+            // 4 sequencer commitments
             assert_eq!(txs.len(), 15);
             // it is >= due to the probability that one of commit transactions ended up
             // with the prefix by chance (reveals are guaranteed to have a certain prefix)

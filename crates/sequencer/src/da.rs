@@ -14,6 +14,8 @@ use tracing::{debug, error, instrument};
 /// Contains latest finalized block and fee rate.
 pub(crate) type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
+/// Run a DA block monitor which sends L1 data signals
+/// when a new L1 block is detected.
 #[instrument(name = "L1BlockMonitor", skip_all)]
 pub(crate) async fn da_block_monitor<Da>(
     da_service: Arc<Da>,
@@ -50,6 +52,7 @@ pub(crate) async fn da_block_monitor<Da>(
     }
 }
 
+/// Fetch the finalized height and it's corresponding fee rate.
 pub(crate) async fn get_da_block_data<Da>(da_service: Arc<Da>) -> anyhow::Result<L1Data<Da>>
 where
     Da: DaService,

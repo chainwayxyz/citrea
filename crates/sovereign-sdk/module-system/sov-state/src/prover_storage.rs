@@ -43,7 +43,7 @@ impl ProverStorage {
         }
     }
 
-    /// Creates a new [`ProverStorage`] instace from specified db handles and version.
+    /// Creates a new [`ProverStorage`] instance from specified db handles and version.
     /// Storage is marked as uncommittable when created using this method.
     pub fn uncommittable_with_version(db: StateDB, native_db: NativeDB, version: Version) -> Self {
         Self {
