@@ -1115,7 +1115,7 @@ impl TestCase for BackupLightClientProverTest {
 
         light_client_prover.wait_until_stopped().await?;
 
-        let rollback_target_l1 = batch_proof_l1_height;
+        let rollback_target_l1 = light_client_prover.config.node.initial_da_height;
 
         // Doesn't matter for LCP
         let rollback_target_commitment_index = 0;
