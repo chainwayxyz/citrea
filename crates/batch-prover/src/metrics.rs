@@ -1,16 +1,29 @@
+//! Metrics collection for the batch prover
+//!
+//! This module defines metrics that track various aspects of batch prover operation,
+//! including block processing times and current block numbers.
+
 use metrics::{Gauge, Histogram};
 use metrics_derive::Metrics;
 use once_cell::sync::Lazy;
 
+/// Collection of metrics for monitoring batch prover performance and state
 #[derive(Metrics)]
 #[metrics(scope = "batch_prover")]
 pub struct BatchProverMetrics {
+    /// Current L1 block number that has been processed by the batch prover
     #[metric(describe = "The current L1 block number which is used to produce L2 blocks")]
     pub current_l1_block: Gauge,
+
+    /// Current L2 block number that has been processed by the batch prover
     #[metric(describe = "The current L2 block number")]
     pub current_l2_block: Gauge,
+
+    /// Histogram tracking the time taken to process L2 blocks
     #[metric(describe = "The duration of processing a single l2 block")]
     pub process_l2_block: Histogram,
+
+    /// Histogram tracking the time taken to scan and process L1 blocks
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
     pub scan_l1_block: Histogram,
 }
