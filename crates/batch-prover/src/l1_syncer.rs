@@ -1,3 +1,8 @@
+//! Data Availability (DA) block handling for the batch prover
+//!
+//! This module is responsible for processing L1 blocks, extracting and storing
+//! sequencer commitments and signaling prover module after successful L1 block processing.
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -46,7 +51,7 @@ where
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
-    /// Channel sender to signal when new L1 blocks are processed
+    /// Channel sender to signal prover module when new L1 blocks are processed
     l1_signal_tx: mpsc::Sender<()>,
 }
 
@@ -64,7 +69,7 @@ where
     /// * `scan_l1_start_height` - The height from which to start scanning L1 blocks.
     /// * `l1_block_cache` - A cache for L1 blocks to avoid redundant fetches.
     /// * `backup_manager` - Manager for backup operations.
-    /// * `l1_signal_tx` - A channel sender to signal when new L1 blocks are processed.
+    /// * `l1_signal_tx` - A channel sender to signal prover module when new L1 blocks are processed.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ledger_db: DB,
