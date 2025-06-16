@@ -6,6 +6,18 @@ error[E0220]: associated type `Storage` not found for `S`
    |
    = note: this error originates in the attribute macro `expose_rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
 
+error[E0220]: associated type `LedgerDB` not found for `S`
+  --> tests/rpc/expose_rpc_first_generic_not_context.rs:93:1
+   |
+93 | #[expose_rpc]
+   | ^^^^^^^^^^^^^ there is an associated type `LedgerDB` in the trait `Spec`
+   |
+   = note: this error originates in the attribute macro `expose_rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider further restricting type parameter `S` with trait `Spec`
+   |
+96 | struct Runtime<S: TestSpec + Spec, C: Context> {
+   |                            ++++++
+
 error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:96:16
    |

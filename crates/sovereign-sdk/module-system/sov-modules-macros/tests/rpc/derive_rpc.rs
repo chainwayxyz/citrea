@@ -49,6 +49,7 @@ pub struct TestRuntime<C: Context> {
 // but we do not have that in scope here so generating the struct manually.
 struct RpcStorage<C: Context> {
     pub storage: C::Storage,
+    pub ledger_db: C::LedgerDB,
 }
 
 impl TestStructRpcImpl<ZkDefaultContext> for RpcStorage<ZkDefaultContext> {
@@ -57,12 +58,17 @@ impl TestStructRpcImpl<ZkDefaultContext> for RpcStorage<ZkDefaultContext> {
     ) -> ::sov_modules_api::WorkingSet<<ZkDefaultContext as Spec>::Storage> {
         ::sov_modules_api::WorkingSet::new(self.storage.clone())
     }
+
+    fn get_ledger_db(&self) -> &<ZkDefaultContext as Spec>::LedgerDB {
+        &self.ledger_db
+    }
 }
 
 fn main() {
     let storage = ZkStorage::new();
     let r: RpcStorage<ZkDefaultContext> = RpcStorage {
         storage: storage.clone(),
+        ledger_db: (),
     };
     {
         let result =
