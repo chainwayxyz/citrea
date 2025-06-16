@@ -19,6 +19,8 @@ use tracing::{error, info, instrument, warn};
 
 use crate::metrics::BATCH_PROVER_METRICS;
 
+/// L1 syncer is the type responsible from tracking the finalized L1 blocks and
+/// extracting the sequencer commitments from them.
 pub struct L1Syncer<Da, DB>
 where
     Da: DaService,
@@ -105,6 +107,7 @@ where
         // don't ping if no new l1 blocks
         let should_ping = pending_l1_blocks.len() > 0;
 
+        // process all the pending l1 blocks
         while !pending_l1_blocks.is_empty() {
             let l1_block = pending_l1_blocks
                 .front()

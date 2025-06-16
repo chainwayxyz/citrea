@@ -14,6 +14,7 @@ use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::BitcoinSpec;
 
+pub const MINIMUM_WITNESS_COMMITMENT_SIZE: usize = 38;
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 /// An epoch should be two weeks (represented as number of seconds)
@@ -40,6 +41,7 @@ pub enum ValidationError {
     IncorrectWitnessCommitment,
     InvalidBlockHash,
     NonConsecutiveBlockHeight,
+    InvalidWitnessCommitmentStructure,
     InvalidPrevBlockHash,
     InvalidBlockBits,
     InvalidTargetHash,
@@ -160,13 +162,15 @@ impl DaVerifier for BitcoinVerifier {
         let coinbase_tx = &inclusion_proof.coinbase_tx;
         // If there are more than one scriptPubKey matching the pattern,
         // the one with highest output index is assumed to be the commitment.
-        // That  is why the iterator is reversed.
-        let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
-            output
-                .script_pubkey
-                .as_bytes()
-                .starts_with(WITNESS_COMMITMENT_PREFIX)
+        // Use rposition to match the output with the highest index matching the size and prefix requirements
+        let commitment_idx = coinbase_tx.output.iter().rposition(|output| {
+            output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
+                && output
+                    .script_pubkey
+                    .as_bytes()
+                    .starts_with(WITNESS_COMMITMENT_PREFIX)
         });
+
         match commitment_idx {
             // If commitment does not exist
             None => {
@@ -182,11 +186,15 @@ impl DaVerifier for BitcoinVerifier {
                     return Err(ValidationError::InvalidBlock);
                 }
             }
-            Some(mut commitment_idx) => {
+            Some(commitment_idx) => {
                 let merkle_root =
                     merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
-                let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
+                let input_witness_value = coinbase_tx.input[0]
+                    .witness
+                    .iter()
+                    .next()
+                    .ok_or(ValidationError::InvalidWitnessCommitmentStructure)?;
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
@@ -199,7 +207,6 @@ impl DaVerifier for BitcoinVerifier {
                 // check if the commitment is correct
                 // on signet there is an additional commitment after the segwit commitment
                 // so we check only the first 32 bytes after commitment header (bytes [2, 5])
-                commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
                 let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
                 if script_pubkey[6..38] != commitment {
                     return Err(ValidationError::IncorrectWitnessCommitment);

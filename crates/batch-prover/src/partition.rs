@@ -77,6 +77,7 @@ impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
             reason
         );
 
+        // create a new partition
         let commitments = &self.commitments[self.partition_start_idx..=end_idx];
         self.partitions.push(Partition {
             commitments,
@@ -92,7 +93,7 @@ impl<'a, DB: BatchProverLedgerOps> PartitionState<'a, DB> {
 
         self.partition_start_height = match reason {
             PartitionReason::IndexGap => {
-                // in case of index gap, we need to query the next partition start height
+                // in case of index gap, we need to query the next partition's start height
                 let first_commitment_of_next_partition =
                     &self.commitments[self.partition_start_idx];
                 self.ledger_db
