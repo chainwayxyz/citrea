@@ -119,10 +119,8 @@ impl DaRpcServer for DaRpcServerImpl {
         Ok(self
             .da
             .monitoring
-            .get_monitored_txs()
+            .get_monitored_tx(&txid)
             .await
-            .get(&txid)
-            .map(ToOwned::to_owned)
             .map(|tx| (txid, tx).into()))
     }
 
