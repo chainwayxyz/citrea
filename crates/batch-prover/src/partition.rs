@@ -25,7 +25,8 @@ pub enum PartitionReason {
     /// e.g. [1], [2], [3] will create partitions for each commitment
     OneByOne,
     /// Partitions commitments by index gap, i.e. when there is a gap in the commitment indices
-    /// e.g. [1, 2, 3, 5] will create a partition for [1, 2, 3] and [5]
+    /// e.g. [1, 2, 3, 5, 6] will create a partition for [1, 2, 3] and [6] because of the gap at index 4
+    /// and the check from filtering commitments that do not have previous commitment
     IndexGap,
     /// Partitions commitments when a spec change is detected
     /// e.g. when the spec ID changes between two commitments
