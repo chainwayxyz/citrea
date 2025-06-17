@@ -95,6 +95,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
         require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositAmount % (10**10) == 0, "Deposit amount must be a multiple of 10^10");
 
         initialized = true;
         depositPrefix = _depositPrefix;
