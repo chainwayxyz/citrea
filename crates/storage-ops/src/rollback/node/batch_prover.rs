@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentIndicesByL1, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber,
-    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash,
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, JobIdOfCommitment, L2BlockByHash,
+    L2BlockByNumber, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs,
+    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
@@ -80,6 +80,24 @@ impl BatchProverLedgerRollback {
             self.ledger_db
                 .delete::<ProverPendingCommitments>(&comm_idx)?;
             increment_table_counter!("ProverPendingCommitments", rollback_result);
+
+            let mut jobs_iter = self
+                .ledger_db
+                .iter_with_direction::<CommitmentIndicesByJobId>(
+                    Default::default(),
+                    ScanDirection::Backward,
+                )?;
+            jobs_iter.seek_to_last();
+            for job_record in jobs_iter {
+                let job_record = job_record?;
+                let job_id = job_record.key;
+                let job_commitment_indices = job_record.value;
+                if !job_commitment_indices.contains(&comm_idx) {
+                    continue;
+                }
+                self.ledger_db.delete::<CommitmentIndicesByJobId>(&job_id)?;
+                increment_table_counter!("SequencerCommitmentByIndex", rollback_result);
+            }
         }
 
         Ok(rollback_result)
