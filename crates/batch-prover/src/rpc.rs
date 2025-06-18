@@ -49,7 +49,7 @@ use crate::prover::ProverRequest;
 pub struct ProverInputResponse {
     /// The range of commitment indices for which the circuit input is created
     pub commitment_range: (U32, U32),
-    /// The L1 block height at which the commitments were made
+    /// The L1 block height at which the commitments were found
     pub l1_block_height: U64,
     /// The encoded serialized batch proof input in base64 format
     pub encoded_serialized_batch_proof_input: String,
@@ -171,6 +171,11 @@ pub trait BatchProverRpc {
     /// # Arguments
     /// * `index_start` - The starting index of the commitment range to submit a fake proof for.
     /// * `index_end` - The ending index of the commitment range to submit a fake proof for.
+    /// Small gotchas about the arguments:
+    /// - `index_start` must be greater than 1, as the first commitment index requires special handling.
+    /// - `index_end` must be greater than or equal to `index_start`.
+    /// - The range is inclusive, meaning both `index_start` and `index_end` are included in the proof.
+    /// - The previous index to `index_start` must exist in the ledger database if `index_start` is greater than 1.
     ///
     /// # Returns
     /// A `BatchProofResponse` containing the L1 transaction ID, proof, and proof output.
@@ -188,8 +193,8 @@ pub trait BatchProverRpc {
     /// Create circuit input for the given commitment index range start..=end
     ///
     /// # Arguments
-    /// * `index_start` - The starting index of the commitment range.
-    /// * `index_end` - The ending index of the commitment range.
+    /// * `index_start` - The starting index of the commitment range. (Inclusive)
+    /// * `index_end` - The ending index of the commitment range. (Inclusive)
     /// * `mode` - The partition mode to use for creating the circuit input.
     ///
     /// # Returns
