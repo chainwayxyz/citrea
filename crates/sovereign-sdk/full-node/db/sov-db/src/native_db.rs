@@ -10,8 +10,7 @@ use crate::schema::types::StateKeyRef;
 /// Specifies a particular version of the Accessory state.
 pub type Version = u64;
 
-/// Typesafe wrapper for Data, that is not part of the provable state
-/// TODO: Rename to AccessoryDb
+/// Typesafe wrapper for Data, that is not part of the provable state.
 #[derive(Debug, Clone)]
 pub struct NativeDB {
     /// Pointer to [`DbTransaction`] for up to date state

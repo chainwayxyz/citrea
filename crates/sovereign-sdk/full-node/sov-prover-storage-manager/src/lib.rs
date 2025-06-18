@@ -8,6 +8,8 @@ pub use sov_state::config::Config;
 use sov_state::storage::NativeStorage;
 pub use sov_state::ProverStorage;
 
+/// ProverStorageManager is responsible for creating and managing [`ProverStorage`] instances
+/// with the correct version. It also provides a way to commit the changes to the underlying database.
 #[derive(Clone)]
 pub struct ProverStorageManager {
     state_db: Arc<DB>,

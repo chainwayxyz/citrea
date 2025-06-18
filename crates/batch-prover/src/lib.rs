@@ -1,3 +1,4 @@
+#![warn(clippy::missing_docs_in_private_items)]
 //! This crate contains the batch prover constructs.
 //!
 //! There are 3 main components:
@@ -46,16 +47,53 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::{broadcast, mpsc, Mutex};
 
+/// Module containing database migration definitions
 pub mod db_migrations;
+/// Module for syncing and storing L1 blocks and relevant DA data
 pub mod l1_syncer;
+/// Module for L2 block synchronization
 mod l2_syncer;
+/// Module for metrics collection
 mod metrics;
+/// Module that contains functionality for partitioning commitments into provable chunks
 mod partition;
+/// Prover module that handles the proving process using the partitioning module to create provable chunks
 pub mod prover;
+/// Module providing RPC functionality
 pub mod rpc;
 
 /// Setup function to build all the services required to run a batch prover.
 /// Sets up the L1 and L2 syncers, the prover, and the RPC module.
+/// Builds and initializes all batch prover services.
+///
+/// # Arguments
+/// * `prover_config` - Configuration for the batch prover.
+/// * `runner_config` - Runner configuration for the batch prover.
+/// * `init_params` - Initialization parameters for the batch prover start up.
+/// * `native_stf` - State transition function blueprint for the batch prover.
+/// * `public_keys` - Rollup public keys containing the sequencer's and batch prover's keys for cryptographic operations.
+/// * `da_service` - Data availability service implementation.
+/// * `prover_service` - Prover service implementation for parallel proving.
+/// * `ledger_db` - Database for ledger operations.
+/// * `storage_manager` - Manager for prover storage.
+/// * `l2_block_tx` - Channel for L2 block notifications.
+/// * `fork_manager` - Manager for handling chain forks.
+/// * `code_commitments` - Map of ZKVM code commitments by spec ID.
+/// * `elfs` - Map of ZKVM ELF binaries by spec ID.
+/// * `rpc_module` - RPC module for external communication.
+/// * `backup_manager` - Manager for backup operations.
+///
+/// # Type Parameters
+/// * `DA` - Data availability service type.
+/// * `DB` - Database type implementing `BatchProverLedgerOps`.
+/// * `Vm` - ZKVM implementation type.
+///
+/// # Returns
+/// A tuple containing:
+/// - `L2Syncer` for block synchronization.
+/// - `L1Syncer` for DA block processing.
+/// - `Prover` for handling the proving process.
+/// - `RpcModule` configured with the necessary RPC methods.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub async fn build_services<DA, DB, Vm>(
     prover_config: BatchProverConfig,

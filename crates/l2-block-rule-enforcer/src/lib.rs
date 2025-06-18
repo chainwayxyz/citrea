@@ -14,6 +14,8 @@ pub use query::*;
 mod tests;
 
 // "Given DA slot hasn't been used for more than N l2 block blocks."
+#[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB; // for rpc
 use sov_modules_api::{Address, Context, DaSpec, ModuleInfo, StateValue, WorkingSet};
 use sov_state::codec::{BcsCodec, BorshCodec};
 use sov_state::storage::StateValueCodec;
