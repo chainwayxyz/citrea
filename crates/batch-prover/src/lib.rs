@@ -1,3 +1,4 @@
+#![warn(clippy::missing_docs_in_private_items)]
 //! This crate contains the batch prover constructs.
 //!
 //! There are 3 main components:
