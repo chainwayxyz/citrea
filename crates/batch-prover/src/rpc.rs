@@ -171,7 +171,7 @@ pub trait BatchProverRpc {
     /// # Arguments
     /// * `index_start` - The starting index of the commitment range to submit a fake proof for.
     /// * `index_end` - The ending index of the commitment range to submit a fake proof for.
-    /// Small gotchas about the arguments:
+    /// Important caveats regarding the arguments:
     /// - `index_start` must be greater than 1, as the first commitment index requires special handling.
     /// - `index_end` must be greater than or equal to `index_start`.
     /// - The range is inclusive, meaning both `index_start` and `index_end` are included in the proof.
