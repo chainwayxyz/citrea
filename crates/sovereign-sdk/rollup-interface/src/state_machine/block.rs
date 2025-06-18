@@ -57,7 +57,7 @@ impl L2Header {
 
     /// Computes the cryptographic digest of the block header using the specified hash function.
     ///
-    /// # Arguments
+    /// # Type Parameters
     /// * `D` - The type of hash function to use (must implement the `Digest` trait)
     ///
     /// # Returns
