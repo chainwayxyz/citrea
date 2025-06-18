@@ -4138,7 +4138,6 @@ impl TestCase for ChunkingPackageTooBigTest {
         // Test for `MempoolRejection("package-mempool-limits, possibly exceeds descendant size limit for tx 6a0c9e3c2fed9cbac73c88031e7333d0ce2242a664e3141ba028b765b0b1e562 [limit: 101000]` error
         // Send 4 105kb proofs. The 4th one will be tipping the total package size over the 101kvb limit and be rejected with package-too-large error
         for i in 1..=4 {
-            println!("i : {:?}", i);
             let state_diff_105kb = create_random_state_diff(105);
             let l1_hash = da.get_block_hash(finalized_height).await?;
 
