@@ -6,6 +6,9 @@ use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{Context, ModuleInfo, Spec, WorkingSet};
 use sov_state::ZkStorage;
 
+#[derive(Clone)]
+struct LedgerDB {}
+
 #[derive(ModuleInfo)]
 pub struct TestStruct<C: ::sov_modules_api::Context, D>
 where
@@ -62,7 +65,7 @@ pub struct TestRuntime<C: Context> {
 // but we do not have that in scope here so generating the struct manually.
 struct RpcStorage<C: Context> {
     pub storage: C::Storage,
-    pub ledger_db: C::LedgerDB,
+    pub ledger_db: LedgerDB,
 }
 
 impl TestStructRpcImpl<ZkDefaultContext, u32> for RpcStorage<ZkDefaultContext> {
@@ -72,7 +75,7 @@ impl TestStructRpcImpl<ZkDefaultContext, u32> for RpcStorage<ZkDefaultContext> {
         ::sov_modules_api::WorkingSet::new(self.storage.clone())
     }
 
-    fn get_ledger_db(&self) -> &<ZkDefaultContext as Spec>::LedgerDB {
+    fn get_ledger_db(&self) -> &crate::LedgerDB {
         &self.ledger_db
     }
 }
@@ -81,7 +84,7 @@ fn main() {
     let storage = ZkStorage::new();
     let r: RpcStorage<ZkDefaultContext> = RpcStorage {
         storage: storage.clone(),
-        ledger_db: (),
+        ledger_db: LedgerDB {},
     };
     {
         let result =

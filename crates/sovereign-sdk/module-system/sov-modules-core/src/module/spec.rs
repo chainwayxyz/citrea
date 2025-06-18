@@ -53,9 +53,6 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
     /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.
     type Storage: Storage + Send + Sync;
 
-    /// The type of LedgerDB (empty for zk).
-    type LedgerDB: Send + Sync + Clone;
-
     /// The public key used for digital signatures
     #[cfg(feature = "native")]
     type PrivateKey: sov_keys::PrivateKey<PublicKey = Self::PublicKey, Signature = Self::Signature>;

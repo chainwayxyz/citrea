@@ -215,7 +215,7 @@ impl RpcImplBlock {
             pub trait #impl_trait_name #generics #where_clause {
                 #working_set_marker
                 /// Get a copy of ledger db
-                fn get_ledger_db(&self) -> &C::LedgerDB;
+                fn get_ledger_db(&self) -> &crate::LedgerDB;
                 #(#impl_trait_methods)*
             }
         };

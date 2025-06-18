@@ -10,6 +10,8 @@ pub use query::*;
 mod tests;
 
 pub use hooks::AccountsTxHook;
+#[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB; // for rpc
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{Address, Context, L2BlockModuleCallError, ModuleInfo, WorkingSet};
 use sov_state::codec::BorshCodec;

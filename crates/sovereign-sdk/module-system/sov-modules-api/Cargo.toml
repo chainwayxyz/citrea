@@ -15,7 +15,6 @@ resolver = "2"
 jsonrpsee = { workspace = true, optional = true }
 anyhow = { workspace = true }
 digest = { workspace = true }
-sov-db = { path = "../../full-node/db/sov-db", optional = true }
 sov-state = { path = "../sov-state" }
 sov-keys = { path = "../sov-keys" }
 sov-modules-core = { path = "../sov-modules-core" }
@@ -57,7 +56,6 @@ native = [
     "clap",
     "jsonrpsee",
     "macros",
-    "sov-db",
     "sov-modules-core/native",
     "sov-modules-macros/native",
     "sov-state/native",
