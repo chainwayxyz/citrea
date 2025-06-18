@@ -107,17 +107,9 @@ where
     /// There are no slot hash comparisons with l2 blocks
     pub fn begin_l2_block(
         &mut self,
-        sequencer_public_key: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
         l2_block_info: &HookL2BlockInfo,
     ) -> Result<(), StateTransitionError> {
-        // check if l2 block is coming from our sequencer
-        if l2_block_info.sequencer_pub_key() != sequencer_public_key {
-            return Err(StateTransitionError::L2BlockError(
-                L2BlockError::SequencerPublicKeyMismatch,
-            ));
-        };
-
         self.begin_l2_block_inner(working_set, l2_block_info)
             .map_err(StateTransitionError::HookError)
     }
@@ -303,7 +295,7 @@ where
 
         self.verify_l2_block(l2_block, sequencer_public_key)?;
 
-        self.begin_l2_block(sequencer_public_key, &mut working_set, &l2_block_info)?;
+        self.begin_l2_block(&mut working_set, &l2_block_info)?;
 
         self.apply_l2_block_txs(&l2_block_info, &l2_block.txs, &mut working_set)?;
 
