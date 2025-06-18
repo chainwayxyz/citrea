@@ -4172,7 +4172,7 @@ impl TestCase for ChunkingPackageTooBigTest {
 
                 let res = batch_prover_da_service
                     .send_transaction_with_fee_rate(
-                        DaTxRequest::ZKProof(verifiable_105kb_batch_proof),
+                        DaTxRequest::ZKProof(verifiable_100kb_batch_proof),
                         1,
                     )
                     .await;
