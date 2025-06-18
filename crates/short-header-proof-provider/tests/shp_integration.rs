@@ -60,19 +60,11 @@ fn test_native_clear_and_take_queried_hashes() {
         .get_and_verify_short_header_proof_by_l1_hash(block_hash, [2u8; 32], 100, [3u8; 32], 1, 50)
         .unwrap();
 
-    assert!(!native_service
-        .queried_and_verified_hashes
-        .lock()
-        .unwrap()
-        .is_empty());
+    assert!(!native_service.queried_and_verified_hashes.lock().is_empty());
 
-    native_service.clear_queried_hashes().unwrap();
+    native_service.clear_queried_hashes();
 
-    assert!(native_service
-        .queried_and_verified_hashes
-        .lock()
-        .unwrap()
-        .is_empty());
+    assert!(native_service.queried_and_verified_hashes.lock().is_empty());
 
     // test with multiple hashes
     let block_hash1 = [1u8; 32];

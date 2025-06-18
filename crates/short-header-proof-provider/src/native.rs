@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use borsh::BorshDeserialize;
+use parking_lot::Mutex;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::VerifableShortHeaderProof;
@@ -58,14 +59,12 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                     && coinbase_depth == l1_update_info.coinbase_txid_merkle_proof_height;
 
                 if return_cond {
-                    let mut lock = self
-                        .queried_and_verified_hashes
-                        .lock()
-                        .map_err(|e| ShortHeaderProofProviderError::MutexPoisoned(e.to_string()))?;
-                    let entry = lock.entry(l2_height);
+                    let mut unlocked = self.queried_and_verified_hashes.lock();
+                    let entry = unlocked.entry(l2_height);
                     match entry {
                         std::collections::hash_map::Entry::Occupied(mut occ) => {
-                            occ.get_mut().try_reserve(32).map_err(|e| {
+                            const BLOCK_HASH_SIZE: usize = 32;
+                            occ.get_mut().try_reserve(BLOCK_HASH_SIZE).map_err(|e| {
                                 ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
                             })?;
                             occ.get_mut().push(block_hash);
@@ -83,22 +82,15 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound)
     }
 
-    fn clear_queried_hashes(&self) -> Result<(), ShortHeaderProofProviderError> {
-        self.queried_and_verified_hashes
-            .lock()
-            .map_err(|e| ShortHeaderProofProviderError::MutexPoisoned(e.to_string()))?
-            .clear();
-        Ok(())
+    fn clear_queried_hashes(&self) {
+        self.queried_and_verified_hashes.lock().clear();
     }
 
     fn take_queried_hashes(
         &self,
         l2_range: RangeInclusive<u64>,
     ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
-        let queried_and_verified_hashes = self
-            .queried_and_verified_hashes
-            .lock()
-            .map_err(|e| ShortHeaderProofProviderError::MutexPoisoned(e.to_string()))?;
+        let queried_and_verified_hashes = self.queried_and_verified_hashes.lock();
         let mut hashes = Vec::new();
         for l2_height in l2_range {
             if let Some(hash) = queried_and_verified_hashes.get(&l2_height) {

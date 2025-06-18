@@ -201,8 +201,7 @@ fn verify_system_tx<C: sov_modules_api::Context>(
                 return Err(L2BlockModuleCallError::ShortHeaderProofNotFound);
             }
             #[cfg(feature = "native")]
-            Err(ShortHeaderProofProviderError::MutexPoisoned(e))
-            | Err(ShortHeaderProofProviderError::VectorAllocationFailed(e)) => {
+            Err(ShortHeaderProofProviderError::VectorAllocationFailed(e)) => {
                 return Err(L2BlockModuleCallError::ShortHeaderProofOtherError(e));
             }
         }

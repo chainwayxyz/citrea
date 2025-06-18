@@ -9803,6 +9803,7 @@ dependencies = [
  "borsh",
  "futures",
  "once_cell",
+ "parking_lot",
  "sov-db",
  "sov-mock-da",
  "sov-modules-api",

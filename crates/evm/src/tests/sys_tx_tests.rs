@@ -1330,7 +1330,7 @@ fn test_set_block_info_shp_not_found() {
             }
         }
 
-        fn clear_queried_hashes(&self) -> Result<(), ShortHeaderProofProviderError> {
+        fn clear_queried_hashes(&self) {
             todo!()
         }
 
@@ -1442,7 +1442,7 @@ fn test_set_block_info_shp_verification_failed() {
             Ok(l1_height == 1)
         }
 
-        fn clear_queried_hashes(&self) -> Result<(), ShortHeaderProofProviderError> {
+        fn clear_queried_hashes(&self) {
             todo!()
         }
 

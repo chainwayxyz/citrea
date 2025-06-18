@@ -73,7 +73,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
         Ok(false)
     }
 
-    fn clear_queried_hashes(&self) -> Result<(), ShortHeaderProofProviderError> {
+    fn clear_queried_hashes(&self) {
         unimplemented!("clear_queried_hashes is not implemented for zk provider");
     }
 

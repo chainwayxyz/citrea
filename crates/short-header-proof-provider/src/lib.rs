@@ -15,9 +15,6 @@ pub enum ShortHeaderProofProviderError {
     #[error("Short header proof not found")]
     ShortHeaderProofNotFound,
     #[cfg(feature = "native")]
-    #[error("Short header proof Mutex poisoned")]
-    MutexPoisoned(String),
-    #[cfg(feature = "native")]
     #[error("Short header proof Vector Allocation Failed")]
     VectorAllocationFailed(String),
 }
@@ -38,7 +35,7 @@ pub trait ShortHeaderProofProvider: Send + Sync {
     ) -> Result<bool, ShortHeaderProofProviderError>;
 
     /// Clears queried short header proofs
-    fn clear_queried_hashes(&self) -> Result<(), ShortHeaderProofProviderError>;
+    fn clear_queried_hashes(&self);
 
     /// Takes the queried short header proofs
     fn take_queried_hashes(

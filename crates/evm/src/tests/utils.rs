@@ -340,9 +340,7 @@ impl ShortHeaderProofProvider for TestingShortHeaderProofProviderService {
         Ok(true)
     }
 
-    fn clear_queried_hashes(
-        &self,
-    ) -> Result<(), short_header_proof_provider::ShortHeaderProofProviderError> {
+    fn clear_queried_hashes(&self) {
         todo!()
     }
 
