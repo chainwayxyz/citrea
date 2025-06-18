@@ -55,7 +55,7 @@
 //!
 //!    a. **Pre-Transition Setup**
 //!       - Creates a new storage instance for the block using `ProverStorageManager`
-//!       - Verifies the current state root matches the block's previous state root
+//!       - Verifies the current block's `prev_hash` matches the previous block's hash.
 //!       - Prepares the execution context with the current fork specification
 //!       - Initializes the runtime environment with necessary parameters:
 //!         * Current fork specification
@@ -74,23 +74,21 @@
 //!         * Records state changes in a change set for atomic commits
 //!       - Special handling for system transactions:
 //!         * Bitcoin Light Client contract initialization
-//!         * Bridge contract operations
-//!         * Block info updates
+//!         * Bridge contract initialization
+//!         * L1 Block info updates
+//!         * Bridge deposits
 //!
 //!    c. **Post-Transition Validation**
 //!       - Verifies the new state root matches the block's state root
 //!       - Validates all state transitions are consistent
 //!       - Ensures proper handling of fork-specific logic
 //!       - Performs additional checks:
-//!         * State root hash verification
-//!         * Transaction receipt validation
 //!         * Gas usage verification
 //!         * System call authorization
 //!
 //!    d. **State Finalization**
 //!       - Commits state changes to storage using the change set
 //!       - Updates state root and block hash
-//!       - Records state diffs for potential rollbacks
 //!       - Finalizes the storage instance for the block
 //!       - Updates metrics and monitoring data
 //!
@@ -98,11 +96,10 @@
 //!       - Implements atomic transaction processing
 //!       - Handles transaction failures gracefully
 //!       - Maintains state consistency during errors
-//!       - Provides detailed error information for debugging
 //!
 //!    f. **Fork Management**
 //!       - Handles fork transitions based on block height
-//!       - Applies fork-specific validation rules
+//!       - Applies fork-specific validation rules using the spec's image ID.
 //!       - Manages code commitments for different forks
 //!       - Ensures proper state transitions across forks
 //!
