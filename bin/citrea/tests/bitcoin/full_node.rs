@@ -4136,18 +4136,18 @@ impl TestCase for ChunkingPackageTooBigTest {
             .state_root;
 
         // Test for `MempoolRejection("package-mempool-limits, possibly exceeds descendant size limit for tx 6a0c9e3c2fed9cbac73c88031e7333d0ce2242a664e3141ba028b765b0b1e562 [limit: 101000]` error
-        // Send 4 105kb proofs. The 4th one will be tipping the total package size over the 101kvb limit and be rejected with package-too-large error
+        // Send 4 100kb proofs. The 4th one will be tipping the total package size over the 101kvb limit and be rejected with package-too-large error
         for i in 1..=4 {
-            let state_diff_105kb = create_random_state_diff(105);
+            let state_diff_100kb = create_random_state_diff(100);
             let l1_hash = da.get_block_hash(finalized_height).await?;
 
-            // Create a 105kb batch proof
-            let verifiable_105kb_batch_proof =
+            // Create a 100kb batch proof
+            let verifiable_100kb_batch_proof =
                 create_serialized_fake_receipt_batch_proof_with_state_roots(
                     genesis_state_root,
                     20,
                     batch_proof_method_ids[0].method_id.into(),
-                    Some(state_diff_105kb.clone()),
+                    Some(state_diff_100kb.clone()),
                     false,
                     l1_hash.as_raw_hash().to_byte_array(),
                     vec![commitment_1.clone()],
@@ -4157,7 +4157,7 @@ impl TestCase for ChunkingPackageTooBigTest {
 
             let res = batch_prover_da_service
                 .send_transaction_with_fee_rate(
-                    DaTxRequest::ZKProof(verifiable_105kb_batch_proof.clone()),
+                    DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
                     1,
                 )
                 .await;
@@ -4187,18 +4187,18 @@ impl TestCase for ChunkingPackageTooBigTest {
         da.generate(1).await?;
 
         // Test for `MempoolRejection("package-too-large")` error
-        // Single 420kb state diff
-        let state_diff_420kb = create_random_state_diff(420);
+        // Single 400kb state diff
+        let state_diff_400kb = create_random_state_diff(400);
 
         let l1_hash = da.get_block_hash(finalized_height).await?;
 
-        // Create a 420kb batch proof
-        let verifiable_420kb_batch_proof =
+        // Create a 400kb batch proof
+        let verifiable_400kb_batch_proof =
             create_serialized_fake_receipt_batch_proof_with_state_roots(
                 genesis_state_root,
                 20,
                 batch_proof_method_ids[0].method_id.into(),
-                Some(state_diff_420kb.clone()),
+                Some(state_diff_400kb.clone()),
                 false,
                 l1_hash.as_raw_hash().to_byte_array(),
                 vec![commitment_1.clone()],
@@ -4207,7 +4207,7 @@ impl TestCase for ChunkingPackageTooBigTest {
             );
 
         let res = batch_prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_420kb_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
             .await;
 
         assert!(matches!(res, Err(MempoolRejection(msg)) if msg.contains("package-too-large")));
