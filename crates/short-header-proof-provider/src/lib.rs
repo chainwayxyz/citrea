@@ -14,7 +14,6 @@ pub use zk::*;
 pub enum ShortHeaderProofProviderError {
     #[error("Short header proof not found")]
     ShortHeaderProofNotFound,
-    #[cfg(feature = "native")]
     #[error("Short header proof Vector Allocation Failed")]
     VectorAllocationFailed(String),
 }
