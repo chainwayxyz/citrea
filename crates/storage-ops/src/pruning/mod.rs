@@ -1,19 +1,21 @@
 use std::sync::Arc;
 
 use futures::future;
+use ledger::prune_ledger;
+use native::prune_native_db;
 use serde::{Deserialize, Serialize};
 use sov_db::schema::tables::{LastPrunedBlock, LastPrunedL2Height};
 use tracing::info;
-use types::StorageNodeType;
 
-use self::components::{prune_ledger, prune_native_db};
 use self::criteria::{Criteria, DistanceCriteria};
 pub use self::service::*;
+use crate::types::StorageNodeType;
 
-pub(crate) mod components;
 pub(crate) mod criteria;
+pub(crate) mod ledger;
+pub(crate) mod native;
 pub(crate) mod service;
-pub mod types;
+pub(crate) mod state;
 
 /// A configuration type to define the behaviour of the pruner.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

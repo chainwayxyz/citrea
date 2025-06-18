@@ -38,6 +38,7 @@ contract Bridge is Ownable2StepUpgradeable {
     BitcoinLightClient public constant LIGHT_CLIENT = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address public constant SCHNORR_VERIFIER_PRECOMPILE = address(0x200);
+    uint256 public constant SAT_TO_WEI = 10**10; 
 
     bytes public constant EPOCH = hex"00";
     bytes public constant SIGHASH_ALL_HASH_TYPE = hex"00";
@@ -95,6 +96,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
         require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositAmount % SAT_TO_WEI == 0, "Deposit amount must have valid satoshi value");
 
         initialized = true;
         depositPrefix = _depositPrefix;
@@ -442,7 +444,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Verifies a P2TR signature by reconstructing the message hash and checking it against the provided signature, see BIP-341
     function verifySigInTx(bytes memory input, bytes memory outputs, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) internal view {
         bytes32 shaPrevouts = sha256(input.extractOutpoint());
-        bytes32 shaAmounts = sha256(abi.encodePacked(bytes8(BTCUtils.reverseUint64(uint64(depositAmount/(10**10)))))); // 1000000000 in LE
+        bytes32 shaAmounts = sha256(abi.encodePacked(bytes8(BTCUtils.reverseUint64(uint64(depositAmount/(SAT_TO_WEI)))))); // 1000000000 in LE
         bytes32 shaSequences = sha256(abi.encodePacked(input.extractSequenceLEWitness()));
         bytes32 shaOutputs = sha256(abi.encodePacked(outputs));
         bytes memory script = witness0.extractItemFromWitness(1);

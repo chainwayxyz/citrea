@@ -15,8 +15,8 @@ use citrea_common::{
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
-use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PruningConfig;
+use citrea_storage_ops::types::StorageNodeType;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,

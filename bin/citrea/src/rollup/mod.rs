@@ -17,9 +17,9 @@ use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
-use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
+use citrea_storage_ops::types::StorageNodeType;
 use jsonrpsee::RpcModule;
 use reth_tasks::{TaskExecutor, TaskManager};
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
@@ -173,10 +173,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollback
                 .execute(
                     node_type,
-                    ledger_version,
-                    ledger_version, // rollback to ledger version
-                    l1_target,
-                    last_sequencer_commitment_index,
+                    Some(ledger_version), // rollback to ledger version
+                    Some(l1_target),
+                    Some(last_sequencer_commitment_index),
                 )
                 .await?;
         } else if state_version == ledger_version {
