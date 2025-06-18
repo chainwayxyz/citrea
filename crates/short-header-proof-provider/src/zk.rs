@@ -73,11 +73,14 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
         Ok(false)
     }
 
-    fn clear_queried_hashes(&self) {
+    fn clear_queried_hashes(&self) -> Result<(), ShortHeaderProofProviderError> {
         unimplemented!("clear_queried_hashes is not implemented for zk provider");
     }
 
-    fn take_queried_hashes(&self, _l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]> {
+    fn take_queried_hashes(
+        &self,
+        _l2_range: RangeInclusive<u64>,
+    ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
         unimplemented!("take_queried_hashes is not implemented for zk provider");
     }
 

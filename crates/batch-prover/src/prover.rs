@@ -979,7 +979,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         SHORT_HEADER_PROOF_PROVIDER
             .get()
             .unwrap()
-            .clear_queried_hashes();
+            .clear_queried_hashes()?;
 
         for l2_block in l2_blocks_in_commitment {
             let l2_height = l2_block.height();
@@ -1038,7 +1038,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
                         .last()
                         .expect("must have at least one")
                         .height(),
-            );
+            )?;
 
         for hash in new_hashes {
             let serialized_shp = ledger_db

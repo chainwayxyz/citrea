@@ -139,6 +139,9 @@ pub enum L2BlockModuleCallError {
     ShortHeaderProofNotFound,
     /// Short Header Proof Verification Error
     ShortHeaderProofVerificationError,
+    /// Some other error related to short header proof
+    /// This will occur if mutex is poisoned or vector reservation fails in native side
+    ShortHeaderProofOtherError(String),
     /// Some System transaction was placed after a user transaction in the block
     EvmSystemTransactionPlacedAfterUserTx,
     /// System tx failed to parse
@@ -264,6 +267,9 @@ impl std::fmt::Display for L2BlockModuleCallError {
             }
             L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
                 write!(f, "EVM system transaction reverted or halted")
+            }
+            L2BlockModuleCallError::ShortHeaderProofOtherError(e) => {
+                write!(f, "Short header proof other error: {}", e)
             }
         }
     }
