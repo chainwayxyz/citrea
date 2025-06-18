@@ -13,6 +13,7 @@ use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U32, U64};
 // use reth_rpc_types::TransactionReceipt;
+use alloy_rpc_types::SyncStatus as EthSyncStatus;
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
@@ -788,6 +789,13 @@ impl TestClient {
             .unwrap();
 
         block_number.saturating_to()
+    }
+
+    pub(crate) async fn eth_syncing(&self) -> EthSyncStatus {
+        self.http_client
+            .request("eth_syncing", rpc_params![])
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn citrea_sync_status(&self) -> SyncStatus {

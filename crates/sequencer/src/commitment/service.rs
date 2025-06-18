@@ -27,14 +27,19 @@ use crate::metrics::SEQUENCER_METRICS;
 /// L2 heights to commit
 pub(crate) type CommitmentRange = RangeInclusive<L2BlockNumber>;
 
+/// Service responsible for managing and processing sequencer commitments
 pub struct CommitmentService<Da, Db>
 where
     Da: DaService,
     Db: SequencerLedgerOps,
 {
+    /// The ledger database interface for state operations
     ledger_db: Db,
+    /// Data availability service interface
     da_service: Arc<Da>,
+    /// Public key used for signing commitments
     sequencer_da_pub_key: Vec<u8>,
+    /// Maximum number of L2 blocks that can be included in a single commitment
     max_l2_blocks: u64,
 }
 
@@ -43,6 +48,13 @@ where
     Da: DaService,
     Db: SequencerLedgerOps + Clone + Send + Sync + 'static,
 {
+    /// Creates a new commitment service instance
+    ///
+    /// # Arguments
+    /// * `ledger_db` - The ledger database interface
+    /// * `da_service` - Data availability service interface
+    /// * `sequencer_da_pub_key` - Public key for signing commitments
+    /// * `max_l2_blocks` - Maximum number of L2 blocks per commitment
     pub fn new(
         ledger_db: Db,
         da_service: Arc<Da>,
@@ -126,6 +138,16 @@ where
         }
     }
 
+    /// Commits a range of L2 blocks to the data availability layer
+    ///
+    /// # Arguments
+    /// * `commitment_index` - Index of the commitment
+    /// * `commitment_range` - Range of L2 blocks to commit
+    /// * `processed_storage_update` - Processed storage updates to include
+    /// * `l1_head` - Current L1 block height
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the commitment operation
     pub async fn commit(
         &mut self,
         commitment_index: u32,
@@ -314,12 +336,23 @@ where
         })
     }
 
+    /// Retrieves pending sequencer commitments from the mempool
+    ///
+    /// # Returns
+    /// A vector of pending sequencer commitments
     async fn get_pending_mempool_commitments(&self) -> Vec<SequencerCommitment> {
         self.da_service
             .get_pending_sequencer_commitments(&self.sequencer_da_pub_key)
             .await
     }
 
+    /// Retrieves mined commitments starting from a specific height
+    ///
+    /// # Arguments
+    /// * `start_height` - Starting L1 block height to search from
+    ///
+    /// # Returns
+    /// Result containing a vector of mined sequencer commitments
     async fn get_mined_commitments_from(
         &self,
         start_height: u64,

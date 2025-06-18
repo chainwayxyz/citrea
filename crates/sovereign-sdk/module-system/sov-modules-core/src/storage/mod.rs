@@ -1,4 +1,19 @@
-//! Module storage definitions.
+//! Module storage definitions. Here is the high level dependency overview of the storage system:
+//! - Highest level access to the storage is `WorkingSet`, which keeps track of `StateDelta`,
+//!   `AccessoryDelta` and `OffchainDelta`.
+//! - `WorkingSet` implements `StateReaderAndWriter` trait to delegate the calls to `StateDelta`,
+//!   while `AccessoryWorkingSet` and `OffchainWorkingSet` delegate the calls to `AccessoryDelta`
+//!   and `OffchainDelta` respectively.
+//! - `XDelta` like types keeps track of the cache log, ordered reads, uncommitted writes and witness. Each write
+//!   initially goes to the uncommitted writes, and on commit, it is moved to the cache log. Each read initially
+//!   checks the uncommitted writes, cache log, and then the underlying storage. If storage is accessed,
+//!   read is added to the ordered reads and cache log. Witness is updated on the underlying storage. Not all `Delta`
+//!   types keeps tracks of these, but each subcomponent is handled in the same manner.
+//! - After the operations are done, `Delta` types are first committed, and then frozen, returning back the
+//!   `ReadWriteLog` and `Witness` to be submitted to the underlying `Storage::compute_state_update` method.
+//!   So the in-memory changes in `Delta`s are first taken to the `Storage`, and by freezing the `Storage`,
+//!   the changes are committed to the underlying database. In case of ZK, committing to underlying database
+//!   is the verification of the witnesses generated when accessing the storage.
 
 use alloc::vec::Vec;
 use core::fmt;

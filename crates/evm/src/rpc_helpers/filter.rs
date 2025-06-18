@@ -22,7 +22,27 @@ pub struct BlockRangeInclusiveIter {
 }
 
 impl BlockRangeInclusiveIter {
-    /// TODO: docs
+    /// Creates a new iterator that yields inclusive block ranges of a specified step size.
+    ///
+    /// This iterator is useful for processing large block ranges in smaller chunks,
+    /// which helps manage memory usage and processing time.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The inclusive range of block numbers to iterate over
+    /// * `step` - The maximum size of each sub-range (chunk)
+    ///
+    /// # Returns
+    ///
+    /// Returns an iterator that yields tuples of (start, end) block numbers,
+    /// where each sub-range has at most `step + 1` blocks.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let iter = BlockRangeInclusiveIter::new(0..=10, 3);
+    /// // This will yield: (0, 3), (4, 7), (8, 10)
+    /// ```
     pub fn new(range: RangeInclusive<u64>, step: u64) -> Self {
         Self {
             end: *range.end(),

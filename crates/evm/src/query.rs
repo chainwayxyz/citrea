@@ -2002,7 +2002,7 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
 /// However, there is a chance that the real gas used is not bigger than
 /// block gas limit, but it is bigger with the overhead added. In this
 /// case the mempool will reject the transaction and even if it didn't, the sequencer
-/// wouldn't put it into a block since it's against EVM rules to hava tx that
+/// wouldn't put it into a block since it's against EVM rules to have a tx that
 /// has more gas limit than the block.
 ///
 /// But in the case where the gas used is already bigger than the block gas limit

@@ -19,7 +19,9 @@ use crate::config::Config;
 use crate::DefaultHasher;
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
-/// environment (outside of the zkVM).
+/// environment (outside of the zkVM). This storage is used to fill the witness
+/// with the storage values and proofs. Also keeps track of the version of the storage,
+/// and can be created initially with any version.
 #[derive(Clone)]
 pub struct ProverStorage {
     db: StateDB,
@@ -43,7 +45,7 @@ impl ProverStorage {
         }
     }
 
-    /// Creates a new [`ProverStorage`] instace from specified db handles and version.
+    /// Creates a new [`ProverStorage`] instance from specified db handles and version.
     /// Storage is marked as uncommittable when created using this method.
     pub fn uncommittable_with_version(db: StateDB, native_db: NativeDB, version: Version) -> Self {
         Self {
@@ -55,7 +57,7 @@ impl ProverStorage {
         }
     }
 
-    /// Converts it to pair of readonly [`SchemaBatch`]s
+    /// Converts it to pair of readonly [`SchemaBatch`]s by freezing the underlying databases.
     /// First is from [`StateDB`]
     /// Second is from [`NativeDB`]
     pub fn freeze(self) -> anyhow::Result<(SchemaBatch, SchemaBatch)> {

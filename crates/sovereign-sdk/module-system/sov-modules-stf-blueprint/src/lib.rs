@@ -5,6 +5,8 @@ use borsh::BorshDeserialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
+#[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};
 use sov_keys::Signature;
 use sov_modules_api::fork::Fork;
@@ -58,7 +60,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
 
     #[cfg(feature = "native")]
     /// Default rpc methods.
-    fn rpc_methods(storage: C::Storage) -> jsonrpsee::RpcModule<()>;
+    fn rpc_methods(storage: C::Storage, ledger: crate::LedgerDB) -> jsonrpsee::RpcModule<()>;
 
     #[cfg(feature = "native")]
     /// Reads genesis configs.
@@ -409,7 +411,7 @@ where
 
         let mut last_commitment_end_height = previous_batch_proof_l2_end_height;
 
-        // Reuseable log caches
+        // Reusable log caches
         let mut cumulative_state_log = None;
         let mut cumulative_offchain_log = None;
         let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();

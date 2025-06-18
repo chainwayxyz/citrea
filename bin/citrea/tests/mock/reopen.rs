@@ -193,7 +193,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
 async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
 
-    // open, close without publishing blokcs
+    // open, close without publishing blocks
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -436,7 +436,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&seq_test_client, 6, None).await;
     // Still should have 4 blocks there are no commitments yet
     wait_for_l2_block(&prover_client, 6, None).await;
-    // Allow for the L2 block to be commited and stored
+    // Allow for the L2 block to be committed and stored
     // Otherwise, the L2 block height might be registered but it hasn't
     // been processed inside the EVM yet.
     sleep(Duration::from_secs(1)).await;

@@ -1,3 +1,8 @@
+//! L2 block synchronization for the batch prover
+//!
+//! This module contains functionality for synchronizing L2 blocks from the sequencer
+//! and processing them to maintain the batch prover's state.
+
 use std::sync::Arc;
 
 use backoff::backoff::Backoff;
@@ -27,25 +32,47 @@ use tracing::{error, info, instrument};
 use crate::metrics::BATCH_PROVER_METRICS;
 use crate::{InitParams, RollupPublicKeys, RunnerConfig};
 
+/// Component responsible for synchronizing and processing L2 blocks
+///
+/// The L2Syncer maintains the state of the L2 chain by:
+/// - Fetching new blocks from the sequencer
+/// - Validating block signatures and contents
+/// - Processing blocks to update the local state
+/// - Managing forks and state transitions
 pub struct L2Syncer<DA, DB>
 where
     DA: DaService,
     DB: BatchProverLedgerOps + Clone,
 {
+    /// Starting height for L2 block synchronization
     start_l2_height: u64,
+    /// Data availability service instance
     da_service: Arc<DA>,
+    /// State transition function blueprint
     stf: StfBlueprint<DefaultContext, DA::Spec, CitreaRuntime<DefaultContext, DA::Spec>>,
+    /// Manager for prover storage
     storage_manager: ProverStorageManager,
+    /// Database for ledger operations
     ledger_db: DB,
+    /// Current state root hash
     state_root: StorageRootHash,
+    /// Current L2 block hash
     l2_block_hash: L2BlockHash,
+    /// HTTP client for connecting to the sequencer
     sequencer_client: HttpClient,
+    /// Sequencer's public key for signature verification
     sequencer_pub_key: K256PublicKey,
+    /// Whether to include transaction bodies in block storage
     include_tx_body: bool,
+    /// Cache for L1 block data
     _l1_block_cache: Arc<Mutex<L1BlockCache<DA>>>,
+    /// Number of blocks to sync at a time
     sync_blocks_count: u64,
+    /// Manager for handling chain forks
     fork_manager: ForkManager<'static>,
+    /// Channel for L2 block notifications
     l2_block_tx: broadcast::Sender<u64>,
+    /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
 }
 
@@ -54,7 +81,20 @@ where
     DA: DaService<Error = anyhow::Error>,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
-    /// Creates a new `L2Syncer`.
+    /// Creates a new `L2Syncer` instance.
+    ///
+    /// # Arguments
+    /// * `runner_config` - Configuration for the runner.
+    /// * `init_params` - Initial parameters including previous state root and L2 block hash.
+    /// * `stf` - State transition function blueprint.
+    /// * `public_keys` - Public keys for the rollup, including the sequencer's public key.
+    /// * `da_service` - Data availability service instance.
+    /// * `ledger_db` - Database for ledger operations.
+    /// * `storage_manager` - Manager for prover storage.
+    /// * `fork_manager` - Manager for handling chain forks.
+    /// * `l2_block_tx` - Channel for L2 block notifications.
+    /// * `backup_manager` - Manager for backup operations.
+    /// * `include_tx_body` - Whether to include transaction bodies in block processing.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
@@ -93,7 +133,13 @@ where
         })
     }
 
-    /// Runs the L2Syncer in a blocking manner.
+    /// Runs the L2Syncer until shutdown is signaled
+    ///
+    /// This method continuously:
+    /// 1. Fetches new L2 blocks from the sequencer
+    /// 2. Processes each block to update the local state
+    /// 3. Handles any errors with exponential backoff
+    /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L2Syncer", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
@@ -107,6 +153,8 @@ where
 
         let backup_manager = self.backup_manager.clone();
         loop {
+            // poll l2 sync worker to continue syncing, and handle the incoming l2 blocks synchronously.
+            // hence, when processing the l2 blocks, l2 sync worker is blocked.
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
@@ -135,10 +183,18 @@ where
         }
     }
 
+    /// Processes a single L2 block
+    ///
+    /// # Arguments
+    /// * `l2_block_response` - Block data from the sequencer
+    ///
+    /// # Returns
+    /// Success if the block was processed and state was updated, error otherwise
     async fn process_l2_block(
         &mut self,
         l2_block_response: &L2BlockResponse,
     ) -> anyhow::Result<()> {
+        // call common l2 block processing logic
         let l2_block_result = process_l2_block(
             l2_block_response,
             &self.storage_manager,

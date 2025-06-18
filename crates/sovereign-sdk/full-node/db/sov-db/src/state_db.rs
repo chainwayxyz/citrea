@@ -38,7 +38,8 @@ impl StateDB {
         )
     }
 
-    /// Convert it to [`SchemaBatch`] which cannot be edited anymore
+    /// Convert it to [`SchemaBatch`] which cannot be edited anymore. Takes ownership of the
+    /// cached transaction writes.
     pub fn freeze(self) -> anyhow::Result<SchemaBatch> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
             "StateDB underlying DbTransaction has more than 1 strong references"

@@ -24,16 +24,31 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
 
+/// RPC context containing all the shared data needed for RPC method implementations
 pub struct RpcContext<DB: SequencerLedgerOps> {
+    /// The transaction mempool
     pub mempool: Arc<CitreaMempool>,
+    /// The deposit transaction mempool
     pub deposit_mempool: Arc<Mutex<DepositDataMempool>>,
+    /// Channel for forcing block production (used in test mode)
     pub l2_force_block_tx: UnboundedSender<()>,
+    /// Storage for the sequencer state
     pub storage: <DefaultContext as Spec>::Storage,
+    /// Ledger database access
     pub ledger: DB,
+    /// Whether the sequencer is running in test mode
     pub test_mode: bool,
 }
 
 /// Creates a shared RpcContext with all required data.
+///
+/// # Arguments
+/// * `mempool` - The transaction mempool
+/// * `deposit_mempool` - The deposit transaction mempool
+/// * `l2_force_block_tx` - Channel for forcing block production
+/// * `storage` - Storage for the sequencer state
+/// * `ledger_db` - Ledger database access
+/// * `test_mode` - Whether the sequencer is running in test mode
 pub fn create_rpc_context<DB>(
     mempool: Arc<CitreaMempool>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -56,6 +71,13 @@ where
 }
 
 /// Updates the given RpcModule with Sequencer methods.
+///
+/// # Arguments
+/// * `rpc_context` - The context containing all required data for RPC methods
+/// * `rpc_methods` - The RPC module to extend with sequencer methods
+///
+/// # Returns
+/// The updated RPC module or a registration error
 pub fn register_rpc_methods<DB: SequencerLedgerOps + Send + Sync + 'static>(
     rpc_context: RpcContext<DB>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
@@ -65,11 +87,41 @@ pub fn register_rpc_methods<DB: SequencerLedgerOps + Send + Sync + 'static>(
     Ok(rpc_methods)
 }
 
+/// Interface definition for the sequencer RPC calls.
+///
+/// This trait defines all available RPC methods that can be called on the sequencer.
 #[rpc(client, server)]
 pub trait SequencerRpc {
+    /// Submits a raw transaction to the mempool
+    ///
+    /// # Arguments
+    /// * `data` - The raw transaction data
+    ///
+    /// # Returns
+    /// The transaction hash
     #[method(name = "eth_sendRawTransaction")]
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256>;
 
+    /// Retrieves transaction information by hash
+    ///
+    /// This implements the standard Ethereum JSON-RPC `eth_getTransactionByHash` method with
+    /// an additional feature to query only mempool transactions.
+    ///
+    /// The method first checks the mempool for the transaction. If not found, it will check
+    /// the blockchain state unless `mempool_only` is set to true.
+    ///
+    /// # Arguments
+    /// * `hash` - The transaction hash
+    /// * `mempool_only` - If true, only check the mempool. Default is false.
+    ///    This is a Citrea-specific extension to the standard Ethereum RPC.
+    ///
+    /// # Returns
+    /// * If the transaction is in the mempool: Returns the pending transaction details
+    /// * If mempool_only is false and not in mempool: Searches the blockchain state
+    /// * If not found in either location: Returns None
+    ///
+    /// This extended functionality allows clients to specifically query for
+    /// transactions that haven't been included in a block yet.
     #[method(name = "eth_getTransactionByHash")]
     #[blocking]
     fn eth_get_transaction_by_hash(
@@ -78,19 +130,43 @@ pub trait SequencerRpc {
         mempool_only: Option<bool>,
     ) -> RpcResult<Option<Transaction>>;
 
+    /// Submits a raw deposit transaction
+    ///
+    /// # Arguments
+    /// * `deposit` - The raw deposit transaction data
+    ///
+    /// # Processing Steps
+    /// 1. Creates a deposit transaction from the raw data
+    /// 2. Performs an eth_call simulation with the deposit data against the bridge contract
+    ///    to validate that the deposit would succeed
+    /// 3. If the simulation succeeds, adds the deposit to the FIFO deposit mempool
+    /// 4. If the simulation fails, returns an error
+    ///
+    /// This ensures deposits are valid before being accepted into the mempool.
     #[method(name = "citrea_sendRawDepositTransaction")]
     #[blocking]
     fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()>;
 
+    /// Forces block production in test mode
+    ///
+    /// This method is only available when the sequencer is running in test mode.
     #[method(name = "citrea_testPublishBlock")]
     async fn publish_test_block(&self) -> RpcResult<()>;
 }
 
+/// Sequencer RPC server implementation
+///
+/// Handles all RPC method calls by delegating to the appropriate services
 pub struct SequencerRpcServerImpl<DB: SequencerLedgerOps + Send + Sync + 'static> {
+    /// The shared RPC context containing all required data
     context: Arc<RpcContext<DB>>,
 }
 
 impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServerImpl<DB> {
+    /// Creates a new instance of the sequencer RPC server.
+    ///
+    /// # Arguments
+    /// * `context` - The shared RPC context containing all required data
     pub fn new(context: RpcContext<DB>) -> Self {
         Self {
             context: Arc::new(context),
@@ -102,6 +178,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServerImpl<DB> 
 impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
     for SequencerRpcServerImpl<DB>
 {
+    /// eth_sendRawTransaction RPC call implementation
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256> {
         debug!("Sequencer: eth_sendRawTransaction");
 
@@ -132,6 +209,19 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         Ok(hash)
     }
 
+    /// Implementation of the standard Ethereum eth_getTransactionByHash RPC method
+    /// with Citrea's mempool-only extension.
+    ///
+    /// The implementation follows this flow:
+    /// 1. First checks the mempool for the transaction
+    /// 2. If found in mempool:
+    ///    - Converts it to a transaction
+    ///    - Returns it as a pending transaction
+    /// 3. If not in mempool and mempool_only is true:
+    ///    - Returns None immediately
+    /// 4. If not in mempool and mempool_only is false:
+    ///    - Searches the blockchain state using the EVM
+    ///    - Returns the transaction if found, None if not
     fn eth_get_transaction_by_hash(
         &self,
         hash: B256,
@@ -165,6 +255,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         }
     }
 
+    /// eth_sendRawDepositTransaction RPC call implementation
     fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()> {
         debug!("Sequencer: citrea_sendRawDepositTransaction");
 
@@ -195,6 +286,9 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         }
     }
 
+    /// Sends a sequencer test block signal
+    ///
+    /// This is mostly used for testing purposes with a mock DA layer.
     async fn publish_test_block(&self) -> RpcResult<()> {
         if !self.context.test_mode {
             return Err(ErrorObject::from(ErrorCode::MethodNotFound).to_owned());
@@ -207,6 +301,13 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
     }
 }
 
+/// Creates and returns the sequencer RPC module with all methods registered
+///
+/// # Arguments
+/// * `rpc_context` - The shared RPC context containing all required data
+///
+/// # Returns
+/// The configured RPC module
 pub fn create_rpc_module<DB: SequencerLedgerOps + Send + Sync + 'static>(
     rpc_context: RpcContext<DB>,
 ) -> jsonrpsee::RpcModule<SequencerRpcServerImpl<DB>> {

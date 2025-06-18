@@ -92,7 +92,7 @@ impl BitcoinService {
                             })
                             .collect();
                         let aggregate = DataOnDa::Aggregate(reveal_tx_ids, reveal_wtx_ids);
-                        // To sign the list of tx ids we assume they form a contigious list of bytes
+                        // To sign the list of tx ids we assume they form a contiguous list of bytes
                         let reveal_body: Vec<u8> =
                             borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
 
