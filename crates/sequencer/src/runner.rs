@@ -210,9 +210,9 @@ where
             let mut nonce = self.get_nonce(&mut working_set_to_discard)?;
 
             // Apply L2 block hook before processing transactions
-            if let Err(err) =
-                self.stf
-                    .begin_l2_block(&mut working_set_to_discard, &l2_block_info)
+            if let Err(err) = self
+                .stf
+                .begin_l2_block(&mut working_set_to_discard, &l2_block_info)
             {
                 warn!(
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
@@ -493,10 +493,7 @@ where
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        if let Err(err) = self
-            .stf
-            .begin_l2_block(&mut working_set, &l2_block_info)
-        {
+        if let Err(err) = self.stf.begin_l2_block(&mut working_set, &l2_block_info) {
             warn!(
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err

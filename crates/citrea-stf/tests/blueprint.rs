@@ -147,13 +147,13 @@ fn test_wrong_l2_block_signature() {
     let hash = Into::<[u8; 32]>::into(digest);
     let signature = random_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
-    
+
     let l2_block = L2Block {
         header: SignedL2Header::new(header, hash, signature),
         txs: vec![],
     };
     let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
-    
+
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(
