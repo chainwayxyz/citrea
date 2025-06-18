@@ -70,7 +70,7 @@ fn create_l2_block(
     };
 
     stf_blueprint
-        .begin_l2_block(sequencer_public_key, &mut working_set, &l2_block_info)
+        .begin_l2_block(&mut working_set, &l2_block_info)
         .unwrap();
     stf_blueprint
         .end_l2_block(l2_block_info, &mut working_set)
@@ -134,32 +134,30 @@ fn init_chain(
 }
 
 #[test]
-fn test_wrong_sequencer_public_key() {
-    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
-
-    let storage_manager = init_storage_manager();
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
-    let mut working_set = WorkingSet::new(prover_storage);
+fn test_wrong_l2_block_signature() {
+    let stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
 
     let sequencer_private_key = K256PrivateKey::generate();
     let sequencer_public_key = sequencer_private_key.pub_key();
 
     let random_private_key = K256PrivateKey::generate();
-    let random_public_key = random_private_key.pub_key();
 
-    let l2_block_info = HookL2BlockInfo {
-        l2_height: 1,
-        pre_state_root: [0; 32],
-        current_spec: sov_modules_api::SpecId::Kumquat,
-        sequencer_pub_key: sequencer_public_key,
-        l1_fee_rate: 123,
-        timestamp: 1,
+    let header = L2Header::new(2, [0; 32], [0; 32], 128u128, EMPTY_TX_ROOT, 10);
+    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
+    let hash = Into::<[u8; 32]>::into(digest);
+    let signature = random_private_key.sign(&hash);
+    let signature = borsh::to_vec(&signature).unwrap();
+    
+    let l2_block = L2Block {
+        header: SignedL2Header::new(header, hash, signature),
+        txs: vec![],
     };
-    let result = stf_blueprint.begin_l2_block(&random_public_key, &mut working_set, &l2_block_info);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
+    
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(
-            L2BlockError::SequencerPublicKeyMismatch
+            L2BlockError::InvalidL2BlockSignature
         ))
     ))
 }
