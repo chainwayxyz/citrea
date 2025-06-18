@@ -40,12 +40,12 @@ pub enum LightClientVerificationError<DaV: DaVerifier> {
 }
 
 pub struct RunL1BlockResult<S: Storage> {
-    l2_state_root: [u8; 32],
+    pub l2_state_root: [u8; 32],
     pub lcp_state_root: [u8; 32],
-    last_l2_height: u64,
+    pub last_l2_height: u64,
     pub witness: Witness,
     pub change_set: S,
-    last_sequencer_commitment_index: u32,
+    pub last_sequencer_commitment_index: u32,
 }
 
 pub struct LightClientProofCircuit<S: Storage, DS: DaSpec, Z: Zkvm> {
