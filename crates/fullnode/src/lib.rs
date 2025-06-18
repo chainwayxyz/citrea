@@ -82,9 +82,6 @@
 //!       - Verifies the new state root matches the block's state root
 //!       - Validates all state transitions are consistent
 //!       - Ensures proper handling of fork-specific logic
-//!       - Performs additional checks:
-//!         * Gas usage verification
-//!         * System call authorization
 //!
 //!    d. **State Finalization**
 //!       - Commits state changes to storage using the change set
