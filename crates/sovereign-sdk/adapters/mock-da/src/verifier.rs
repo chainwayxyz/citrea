@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
     BlobReaderTrait, DaSpec, DaVerifier, DecompressError, L1UpdateSystemTransactionInfo,
-    LatestDaState, ShortHeaderProofVerificationError, VerifableShortHeaderProof,
+    LatestDaState, ShortHeaderProofVerificationError, VerifiableShortHeaderProof,
 };
 use sov_rollup_interface::Network;
 
@@ -57,7 +57,7 @@ pub struct MockShortHeaderProof {
     pub height: u64,
 }
 
-impl VerifableShortHeaderProof for MockShortHeaderProof {
+impl VerifiableShortHeaderProof for MockShortHeaderProof {
     fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
         Ok(L1UpdateSystemTransactionInfo {
             header_hash: self.header_hash,

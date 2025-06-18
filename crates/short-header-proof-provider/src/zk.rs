@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::da::VerifableShortHeaderProof;
+use sov_rollup_interface::da::VerifiableShortHeaderProof;
 
 use super::ShortHeaderProofProvider;
 use crate::ShortHeaderProofProviderError;

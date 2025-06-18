@@ -7,7 +7,7 @@ use borsh::BorshDeserialize;
 use parking_lot::Mutex;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::da::VerifableShortHeaderProof;
+use sov_rollup_interface::da::VerifiableShortHeaderProof;
 
 use super::{ShortHeaderProofProvider, ShortHeaderProofProviderError};
 
