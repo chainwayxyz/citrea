@@ -10,7 +10,7 @@ use crate::fee::BumpFeeMethod;
 use crate::monitoring::{MonitoredTx, TxStatus};
 use crate::service::BitcoinService;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MonitoredTxResponse {
     pub txid: Txid,
     pub vsize: usize,
@@ -53,8 +53,14 @@ pub trait DaRpc {
     #[method(name = "getPendingTransactions")]
     async fn da_get_pending_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>>;
 
-    #[method(name = "getMonitoredTransactions")]
-    async fn da_get_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>>;
+    #[method(name = "listMonitoredTransactions")]
+    async fn da_list_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>>;
+
+    #[method(name = "getMonitoredTransaction")]
+    async fn da_get_monitored_transaction(
+        &self,
+        txid: Txid,
+    ) -> RpcResult<Option<MonitoredTxResponse>>;
 
     #[method(name = "getTxStatus")]
     async fn da_get_tx_status(&self, txid: Txid) -> RpcResult<Option<TxStatus>>;
@@ -95,7 +101,7 @@ impl DaRpcServer for DaRpcServerImpl {
         Ok(txs)
     }
 
-    async fn da_get_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>> {
+    async fn da_list_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>> {
         Ok(self
             .da
             .monitoring
@@ -104,6 +110,18 @@ impl DaRpcServer for DaRpcServerImpl {
             .into_iter()
             .map(Into::into)
             .collect::<Vec<_>>())
+    }
+
+    async fn da_get_monitored_transaction(
+        &self,
+        txid: Txid,
+    ) -> RpcResult<Option<MonitoredTxResponse>> {
+        Ok(self
+            .da
+            .monitoring
+            .get_monitored_tx(&txid)
+            .await
+            .map(|tx| (txid, tx).into()))
     }
 
     async fn da_get_tx_status(&self, txid: Txid) -> RpcResult<Option<TxStatus>> {

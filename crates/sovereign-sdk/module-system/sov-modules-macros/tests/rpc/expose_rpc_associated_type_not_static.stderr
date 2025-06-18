@@ -1,7 +1,7 @@
 error[E0599]: the method `set` exists for struct `StateValue<D>`, but its trait bounds were not satisfied
-  --> tests/rpc/expose_rpc_associated_type_not_static.rs:53:23
+  --> tests/rpc/expose_rpc_associated_type_not_static.rs:56:23
    |
-53 |             self.data.set(config, working_set);
+56 |             self.data.set(config, working_set);
    |                       ^^^ method cannot be called on `StateValue<D>` due to unsatisfied trait bounds
    |
   ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
@@ -19,9 +19,9 @@ error[E0599]: the method `set` exists for struct `StateValue<D>`, but its trait 
            which is required by `sov_modules_api::StateValue<D>: sov_modules_api::StateValueAccessor<D, BorshCodec, sov_modules_api::WorkingSet<_>>`
 
 error[E0599]: the method `set` exists for struct `StateValue<D>`, but its trait bounds were not satisfied
-  --> tests/rpc/expose_rpc_associated_type_not_static.rs:62:23
+  --> tests/rpc/expose_rpc_associated_type_not_static.rs:65:23
    |
-62 |             self.data.set(&msg, working_set);
+65 |             self.data.set(&msg, working_set);
    |                       ^^^ method cannot be called on `StateValue<D>` due to unsatisfied trait bounds
    |
   ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
@@ -39,9 +39,9 @@ error[E0599]: the method `set` exists for struct `StateValue<D>`, but its trait 
            which is required by `sov_modules_api::StateValue<D>: sov_modules_api::StateValueAccessor<D, BorshCodec, sov_modules_api::WorkingSet<_>>`
 
 error[E0599]: the method `get` exists for struct `StateValue<D>`, but its trait bounds were not satisfied
-  --> tests/rpc/expose_rpc_associated_type_not_static.rs:87:39
+  --> tests/rpc/expose_rpc_associated_type_not_static.rs:90:39
    |
-87 |                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
+90 |                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
    |                                       ^^^ method cannot be called on `StateValue<D>` due to unsatisfied trait bounds
    |
   ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
@@ -59,9 +59,9 @@ error[E0599]: the method `get` exists for struct `StateValue<D>`, but its trait 
            which is required by `sov_modules_api::StateValue<D>: sov_modules_api::StateValueAccessor<D, BorshCodec, sov_modules_api::WorkingSet<_>>`
 
 error[E0310]: the parameter type `S` may not live long enough
-  --> tests/rpc/expose_rpc_associated_type_not_static.rs:96:1
+  --> tests/rpc/expose_rpc_associated_type_not_static.rs:99:1
    |
-96 | #[expose_rpc]
+99 | #[expose_rpc]
    | ^^^^^^^^^^^^^
    | |
    | the parameter type `S` must be valid for the static lifetime...
@@ -70,5 +70,5 @@ error[E0310]: the parameter type `S` may not live long enough
    = note: this error originates in the attribute macro `expose_rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider adding an explicit lifetime bound
    |
-99 | struct Runtime<C: Context, S: TestSpec + 'static> {
+102| struct Runtime<C: Context, S: TestSpec + 'static> {
    |                                        +++++++++

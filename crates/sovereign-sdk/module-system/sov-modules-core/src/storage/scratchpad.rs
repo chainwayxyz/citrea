@@ -178,6 +178,8 @@ pub trait StateReaderAndWriter {
     }
 }
 
+/// `StateDelta` is a wrapper around a `Storage` implementation that keeps track of the
+/// cache log, reads and witness.
 struct StateDelta<S: Storage> {
     storage: S,
     cache_log: CacheLog,
@@ -219,6 +221,7 @@ impl<S: Storage> StateDelta<S> {
         }
     }
 
+    /// Commits the uncommitted writes to the cache log.
     fn commit(mut self) -> Self {
         let writes = mem::take(&mut self.uncommitted_writes);
         for (key, value) in writes {
@@ -227,11 +230,15 @@ impl<S: Storage> StateDelta<S> {
         self
     }
 
+    /// Reverts the uncommitted writes.
     fn revert(mut self) -> Self {
         self.uncommitted_writes.clear();
         self
     }
 
+    /// Takes ownership of the cache log, ordered reads and witness. Returned `ReadWriteLog`
+    /// can be used to recreate the `StateDelta` again with a new version which will be useful
+    /// for reusing the same cache log to generate less witness in the subsequent calls.
     fn freeze(&mut self) -> (ReadWriteLog, Witness) {
         let ordered_reads = mem::take(&mut self.ordered_storage_reads);
         let cache_log = mem::take(&mut self.cache_log);
@@ -287,6 +294,9 @@ impl<S: Storage> StateReaderAndWriter for StateDelta<S> {
     }
 }
 
+/// `AccessoryDelta` is a wrapper around a `Storage` implementation that keeps track of the
+/// committed and uncommitted writes. Accessory state does not need witness as it deals with the
+/// data that doesn't require proving in the ZK environment.
 struct AccessoryDelta<S: Storage> {
     storage: S,
     committed_writes: BTreeMap<CacheKey, Option<CacheValue>>,
@@ -351,6 +361,8 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
     }
 }
 
+/// `OffchainDelta` is a wrapper around a `Storage` implementation that keeps track of the
+/// access to the offchain storage.
 struct OffchainDelta<S: Storage> {
     storage: S,
     cache_log: CacheLog,
@@ -389,6 +401,7 @@ impl<S: Storage> OffchainDelta<S> {
         }
     }
 
+    /// Commits the uncommitted writes to the cache log.
     fn commit(mut self) -> Self {
         let writes = mem::take(&mut self.uncommitted_writes);
         for (key, value) in writes {
@@ -397,11 +410,15 @@ impl<S: Storage> OffchainDelta<S> {
         self
     }
 
+    /// Reverts the uncommitted writes.
     fn revert(mut self) -> Self {
         self.uncommitted_writes.clear();
         self
     }
 
+    /// Takes ownership of the cache log, ordered reads and witness. Returned `ReadWriteLog`
+    /// can be used to recreate the `OffchainDelta` again with a new version which will be useful
+    /// for reusing the same cache log to generate less witness in the subsequent calls.
     fn freeze(&mut self) -> (ReadWriteLog, Witness) {
         let cache_log = mem::take(&mut self.cache_log);
 

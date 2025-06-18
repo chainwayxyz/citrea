@@ -77,8 +77,8 @@ where
     type GenesisPaths = GenesisPaths;
 
     #[cfg(feature = "native")]
-    fn rpc_methods(storage: C::Storage) -> jsonrpsee::RpcModule<()> {
-        get_rpc_methods::<C, Da>(storage)
+    fn rpc_methods(storage: C::Storage, ledger: crate::LedgerDB) -> jsonrpsee::RpcModule<()> {
+        get_rpc_methods::<C, Da>(storage, ledger)
     }
 
     #[cfg(feature = "native")]
