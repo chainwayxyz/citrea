@@ -8,6 +8,114 @@
 //! - Managing state and storage
 //! - Providing RPC services
 //! - Optional pruning of historical data
+//!
+//! # L2 Block Processing
+//!
+//! The fullnode processes L2 blocks through a coordinated system involving several components,
+//! primarily the `L2Syncer` and `L1BlockHandler`. The process ensures proper synchronization,
+//! validation, and state transitions of L2 blocks while maintaining consistency with L1 blocks.
+//!
+//! ## Main Components
+//!
+//! ### 1. L2Syncer
+//! The `L2Syncer` is the primary component responsible for synchronizing and processing L2 blocks.
+//! It maintains the state of the L2 chain by:
+//! - Fetching new blocks from the sequencer
+//! - Validating block signatures and contents
+//! - Processing blocks to update the local state
+//! - Managing forks and state transitions
+//!
+//! ### 2. L1BlockHandler
+//! The `L1BlockHandler` processes L1 blocks and their contained proofs and commitments,
+//! which are crucial for L2 block finality.
+//!
+//! ## L2 Block Processing Flow
+//!
+//! ### 1. Block Synchronization
+//! The system fetches L2 blocks from the sequencer in batches, implementing adaptive batch sizing
+//! based on response size. Blocks are sorted to ensure correct processing order.
+//!
+//! ### 2. Block Processing
+//! Each L2 block goes through several processing steps:
+//!
+//! 1. **Initial Validation**
+//!    - Verifies the block's previous hash matches the current chain state
+//!    - Creates storage for the next L2 height
+//!    - Registers the block with the fork manager
+//!
+//! 2. **Transaction Processing**
+//!    - Decodes and processes system transactions
+//!    - Updates short header proofs for L1 blocks referenced in system transactions
+//!    - Handles EVM transactions and system calls
+//!
+//! 3. **State Transition Function (STF)**
+//!    The STF is a critical component that handles state transitions for L2 blocks. It implements
+//!    the core logic for processing transactions and maintaining the rollup's state. The STF is
+//!    implemented using the `StfBlueprint` which provides a framework for state transitions:
+//!
+//!    a. **Pre-Transition Setup**
+//!       - Creates a new storage instance for the block using `ProverStorageManager`
+//!       - Verifies the current block's `prev_hash` matches the previous block's hash.
+//!       - Prepares the execution context with the current fork specification
+//!       - Initializes the runtime environment with necessary parameters:
+//!         * Current fork specification
+//!         * Sequencer public key for signature verification
+//!         * Current state root for validation
+//!         * Storage instance for state changes
+//!
+//!    b. **Transaction Execution**
+//!       - Processes transactions in the block's order using the `CitreaRuntime`
+//!       - For each transaction:
+//!         * Validates transaction format and signature
+//!         * Decodes transaction data into appropriate message types
+//!         * Applies state changes atomically within a transaction context
+//!         * Handles system calls and EVM transactions through the runtime
+//!         * Maintains gas accounting and execution limits
+//!         * Records state changes in a change set for atomic commits
+//!       - Special handling for system transactions:
+//!         * Bitcoin Light Client contract initialization
+//!         * Bridge contract initialization
+//!         * L1 Block info updates
+//!         * Bridge deposits
+//!
+//!    c. **Post-Transition Validation**
+//!       - Verifies the new state root matches the block's state root
+//!       - Validates all state transitions are consistent
+//!       - Ensures proper handling of fork-specific logic
+//!
+//!    d. **State Finalization**
+//!       - Commits state changes to storage using the change set
+//!       - Updates state root and block hash
+//!       - Finalizes the storage instance for the block
+//!       - Updates metrics and monitoring data
+//!
+//!    e. **Error Handling and Recovery**
+//!       - Implements atomic transaction processing
+//!       - Handles transaction failures gracefully
+//!       - Maintains state consistency during errors
+//!
+//!    f. **Fork Management**
+//!       - Handles fork transitions based on block height
+//!       - Applies fork-specific validation rules using the spec's image ID.
+//!       - Manages code commitments for different forks
+//!       - Ensures proper state transitions across forks
+//!
+//! 4. **Block Commitment**
+//!    - Computes transaction hashes
+//!    - Commits the block to the ledger database
+//!    - Updates metrics and state tracking
+//!
+//! ## Integration with L1
+//!
+//! The L2 block processing is tightly integrated with L1 through:
+//! - Sequencer commitments posted to L1
+//! - ZK proofs for state transitions
+//! - Short header proofs for L1 block references
+//! - Finality tracking through L1 block processing
+//!
+//! This comprehensive system ensures that L2 blocks are processed correctly, maintaining
+//! the security and consistency of the rollup chain while providing efficient
+//! synchronization and state management.
 
 use std::collections::HashMap;
 use std::sync::Arc;

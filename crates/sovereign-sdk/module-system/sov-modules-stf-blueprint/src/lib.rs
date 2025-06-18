@@ -1,6 +1,150 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+//! # Sovereign SDK STF Blueprint Module
+//!
+//! This module provides the core State Transition Function (STF) blueprint implementation
+//! for the Sovereign SDK. It defines the framework for processing L2 blocks and managing
+//! state transitions in a rollup system.
+//!
+//! ## Core Components
+//!
+//! ### StfBlueprint
+//! The main implementation of the State Transition Function that works with the module system.
+//! It provides:
+//! - L2 block processing and validation
+//! - Transaction execution and state management
+//! - Genesis initialization
+//! - Sequencer commitment handling
+//!
+//! ### Runtime Integration
+//! The `Runtime` trait defines the interface that runtimes must implement to work with the STF:
+//! - Transaction hooks for context setup
+//! - Slot hooks for block processing
+//! - Genesis configuration
+//! - RPC method definitions
+//!
+//! ## Public Interface
+//!
+//! ### Block Processing
+//! ```rust
+//! impl<C, RT, Da> StfBlueprint<C, Da, RT> {
+//!     /// Begin processing an L2 block
+//!     pub fn begin_l2_block(
+//!         &mut self,
+//!         sequencer_public_key: &K256PublicKey,
+//!         working_set: &mut WorkingSet<C::Storage>,
+//!         l2_block_info: &HookL2BlockInfo,
+//!     ) -> Result<(), StateTransitionError>
+//!
+//!     /// Apply transactions from an L2 block
+//!     pub fn apply_l2_block_txs(
+//!         &mut self,
+//!         l2_block_info: &HookL2BlockInfo,
+//!         txs: &[Transaction],
+//!         batch_workspace: &mut WorkingSet<C::Storage>,
+//!     ) -> Result<(), StateTransitionError>
+//!
+//!     /// Verify L2 block hash and signature
+//!     pub fn verify_l2_block(
+//!         &self,
+//!         l2_block: &L2Block,
+//!         sequencer_public_key: &K256PublicKey,
+//!     ) -> Result<(), StateTransitionError>
+//!
+//!     /// End L2 block processing
+//!     pub fn end_l2_block(
+//!         &mut self,
+//!         l2_block_info: HookL2BlockInfo,
+//!         working_set: &mut WorkingSet<C::Storage>,
+//!     ) -> Result<(), StateTransitionError>
+//! }
+//! ```
+//!
+//! ### State Management
+//! ```rust
+//! impl<C, RT, Da> StfBlueprint<C, Da, RT> {
+//!     /// Finalize an L2 block and compute state transitions
+//!     pub fn finalize_l2_block(
+//!         &self,
+//!         current_spec: SpecId,
+//!         working_set: WorkingSet<C::Storage>,
+//!         pre_state: C::Storage,
+//!     ) -> L2BlockResult<C::Storage, Witness, ReadWriteLog>
+//!
+//!     /// Initialize chain from genesis configuration
+//!     pub fn init_chain(
+//!         &self,
+//!         pre_state: C::Storage,
+//!         params: GenesisParams<<RT as Genesis>::Config>,
+//!     ) -> (StorageRootHash, C::Storage)
+//! }
+//! ```
+//!
+//! ### Sequencer Commitment Processing
+//! ```rust
+//! impl<C, RT, Da> StfBlueprint<C, Da, RT> {
+//!     /// Apply L2 blocks from sequencer commitments
+//!     pub fn apply_l2_blocks_from_sequencer_commitments(
+//!         &mut self,
+//!         guest: &impl ZkvmGuest,
+//!         sequencer_public_key: &[u8],
+//!         initial_state_root: &StorageRootHash,
+//!         pre_state: C::Storage,
+//!         previous_sequencer_commitment: Option<SequencerCommitment>,
+//!         sequencer_commitments: Vec<SequencerCommitment>,
+//!         cache_prune_l2_heights: &[u64],
+//!         forks: &[Fork],
+//!     ) -> ApplySequencerCommitmentsOutput
+//! }
+//! ```
+//!
+//! ## Type Parameters
+//!
+//! - `C`: Context type implementing the `Context` trait
+//! - `Da`: Data availability specification implementing `DaSpec`
+//! - `RT`: Runtime type implementing the `Runtime` trait
+//!
+//! ## Error Handling
+//!
+//! The module uses several error types:
+//! - `StateTransitionError`: General state transition errors
+//! - `L2BlockError`: Specific L2 block processing errors
+//! - `HookError`: Errors from runtime hooks
+//!
+//! ## Security Considerations
+//!
+//! The STF blueprint implements several security measures:
+//! - Sequencer public key verification
+//! - Block signature validation
+//! - Transaction merkle root verification
+//! - State root validation
+//!
+//! ## Integration Guide
+//!
+//! To use the STF blueprint in a rollup:
+//!
+//! 1. Implement the `Runtime` trait for your runtime
+//! 2. Configure genesis parameters
+//! 3. Initialize the STF with your runtime
+//! 4. Use the block processing methods to handle L2 blocks
+//! 5. Implement proper error handling and recovery
+//!
+//! ## Example Usage
+//!
+//! ```rust
+//! // Initialize STF with runtime
+//! let stf = StfBlueprint::<MyContext, MyDaSpec, MyRuntime>::new();
+//!
+//! // Process L2 block
+//! stf.begin_l2_block(&sequencer_key, &mut working_set, &block_info)?;
+//! stf.apply_l2_block_txs(&block_info, &transactions, &mut working_set)?;
+//! stf.end_l2_block(block_info, &mut working_set)?;
+//!
+//! // Finalize block
+//! let result = stf.finalize_l2_block(current_spec, working_set, pre_state);
+//! ```
+
 use borsh::BorshDeserialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
