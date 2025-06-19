@@ -347,9 +347,9 @@ where
         }
         info!("Got {} synced commitment(s)", filtered_commitments.len());
 
-        let filtered_commitments = self.filter_prev_missing_commitments(filtered_commitments)?;
+        let filtered_commitments = self.filter_commitments_with_index_gap(filtered_commitments)?;
         if filtered_commitments.is_empty() {
-            warn!("None of the pending commitments have a known previous commitment");
+            warn!("Previous commitment of pending commitment list is not known yet");
             return Ok(Vec::new());
         }
         info!("Got {} provable commitment(s)", filtered_commitments.len());
@@ -411,29 +411,35 @@ where
         Ok(commitments)
     }
 
-    /// Filters out the commitments that doesn't have a known previous commitment, hence, can't be proven.
-    /// E.g. commitments = [3, 4, 5], but commitment 2 is not known yet, outputs [4, 5]
-    fn filter_prev_missing_commitments(
+    /// Filters out the commitments that has index gaps, hence, can't be proven.
+    /// E.g. commitments = [3, 4, 5], and commitment 2 is not known yet, outputs []
+    /// E.g. commitments = [3, 4, 6], and commitment 2 is known, outputs [3, 4]
+    fn filter_commitments_with_index_gap(
         &self,
         commitments: Vec<SequencerCommitment>,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        commitments
-            .into_iter()
-            .filter_map(|comm| {
-                if comm.index == 1 {
-                    return Some(Ok(comm));
-                }
+        let first_index = commitments[0].index;
+        let mut prev_index = if first_index == 1 {
+            0
+        } else {
+            match self.ledger_db.get_commitment_by_index(first_index - 1)? {
+                Some(_) => first_index - 1,
+                // prev commitment not found
+                None => return Ok(Vec::new()),
+            }
+        };
 
-                match self.ledger_db.get_commitment_by_index(comm.index - 1) {
-                    // prev commitment exists
-                    Ok(Some(_)) => Some(Ok(comm)),
-                    // prev commitment doesn't exist
-                    Ok(None) => None,
-                    // db error
-                    Err(e) => Some(Err(e)),
-                }
-            })
-            .collect()
+        let mut filtered_commitments = Vec::with_capacity(commitments.len());
+        for comm in commitments {
+            if comm.index != prev_index + 1 {
+                // break immediately when an index gap is found
+                break;
+            }
+            prev_index = comm.index;
+            filtered_commitments.push(comm);
+        }
+
+        Ok(filtered_commitments)
     }
 
     /// Partition the commitments into provable chunks.
@@ -586,6 +592,8 @@ where
             cache_prune_l2_heights,
             last_l1_hash_witness,
             previous_sequencer_commitment,
+            // TODO: calculate this
+            prev_hash_proof: None,
         })
     }
 
