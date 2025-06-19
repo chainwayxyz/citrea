@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use sov_db::schema::tables::{
     CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2StatusHeights,
-    PendingSequencerCommitments, ProverLastScannedSlot, SequencerCommitmentByIndex,
+    PendingProofs, PendingSequencerCommitments, ProverLastScannedSlot, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, L2HeightStatus, SlotNumber};
@@ -165,6 +165,29 @@ impl FullNodeLedgerRollback {
 
         Ok(cache)
     }
+
+    fn clear_pending_proofs(&self, mut rollback_result: RollbackResult) -> Result {
+        // ledger_db.drop_cf requires a mutable ref to DB so we just iterate.
+        let pending_proofs = self.ledger_db.iter::<PendingProofs>()?;
+        for pending_proof in pending_proofs {
+            let pending_proof = pending_proof?;
+            self.ledger_db.delete::<PendingProofs>(&pending_proof.key)?;
+            increment_table_counter!("PendingProofs", rollback_result);
+        }
+
+        Ok(rollback_result)
+    }
+
+    fn clear_pending_sequencer_commitments(&self, mut rollback_result: RollbackResult) -> Result {
+        let pending_sequencer_commitments = self.ledger_db.iter::<PendingSequencerCommitments>()?;
+        for sequencer_commitment in pending_sequencer_commitments {
+            let sequencer_commitment = sequencer_commitment?;
+            self.ledger_db
+                .delete::<PendingSequencerCommitments>(&sequencer_commitment.key)?;
+            increment_table_counter!("PendingSequencerCommitments", rollback_result);
+        }
+        Ok(rollback_result)
+    }
 }
 
 impl LedgerNodeRollback for FullNodeLedgerRollback {
@@ -178,11 +201,14 @@ impl LedgerNodeRollback for FullNodeLedgerRollback {
         if let Some(last_sequencer_commitment_index) = context.last_sequencer_commitment_index {
             rollback_result =
                 self.rollback_commitments(last_sequencer_commitment_index, rollback_result)?;
+
+            rollback_result = self.clear_pending_sequencer_commitments(rollback_result)?;
         }
 
         if let Some(l1_target) = context.l1_target {
             rollback_result = self.rollback_slots(l1_target, rollback_result)?;
             rollback_result = self.rollback_l2_status_heights(l1_target, rollback_result)?;
+            rollback_result = self.clear_pending_proofs(rollback_result)?;
 
             let _ = self
                 .ledger_db
