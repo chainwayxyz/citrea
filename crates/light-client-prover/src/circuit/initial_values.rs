@@ -23,9 +23,7 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
 }
 
 const fn non_empty_slice<T>(slice: &[T]) -> &[T] {
-    if slice.is_empty() {
-        panic!("Empty slice passed to non_empty_slice");
-    }
+    assert!(!slice.is_empty(), "Empty slice passed to non_empty_slice");
     slice
 }
 
