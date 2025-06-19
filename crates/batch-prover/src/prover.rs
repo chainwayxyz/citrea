@@ -589,8 +589,6 @@ where
             cache_prune_l2_heights,
             last_l1_hash_witness,
             previous_sequencer_commitment,
-            // TODO: calculate this
-            prev_hash_proof: None,
         })
     }
 
