@@ -77,6 +77,7 @@ where
             &data.initial_state_root,
             pre_state.clone(),
             data.previous_sequencer_commitment,
+            data.prev_hash_proof,
             data.sequencer_commitments,
             &data.cache_prune_l2_heights,
             forks,

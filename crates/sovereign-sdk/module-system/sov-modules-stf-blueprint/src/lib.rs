@@ -148,7 +148,7 @@
 use borsh::BorshDeserialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
+use rs_merkle::{MerkleProof, MerkleTree};
 #[cfg(feature = "native")]
 use sov_db::ledger_db::LedgerDB;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};
@@ -164,6 +164,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{L2BlockError, L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
+use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::{ReadWriteLog, Storage, Witness};
@@ -472,6 +473,7 @@ where
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
+        prev_hash_proof: Option<PrevHashProof>,
         sequencer_commitments: Vec<SequencerCommitment>,
         cache_prune_l2_heights: &[u64],
         forks: &[Fork],
@@ -493,7 +495,46 @@ where
 
         // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
-        let mut prev_l2_block_hash: Option<[u8; 32]> = None;
+
+        // we are going to initialize with 000.000 or the last hash from the previous commitment
+
+        let mut prev_l2_block_hash: [u8; 32] = match &previous_sequencer_commitment {
+            Some(commitment) => {
+                let prev_hash_proof = prev_hash_proof
+                    .expect("Previous sequencer commitment must have a prev hash proof");
+
+                let merkle_proof = MerkleProof::<Sha256>::from_bytes(
+                    prev_hash_proof.merkle_proof_bytes.as_slice(),
+                )
+                .expect("Merkle proof must be valid");
+
+                // Is this ok???
+                let index = (commitment.l2_end_block_number
+                    - prev_hash_proof.prev_sequencer_commitment_start)
+                    as usize;
+                let count = index + 1;
+                let last_header_hash = prev_hash_proof
+                    .last_header
+                    .compute_digest::<<C as Spec>::Hasher>()
+                    .into();
+
+                assert!(
+                    merkle_proof.verify(
+                        commitment.merkle_root,
+                        &[index],
+                        &[last_header_hash],
+                        count
+                    ),
+                    "Prev hash proof must be valid"
+                );
+
+                last_header_hash
+            }
+            None => {
+                assert!(prev_hash_proof.is_none());
+                [0; 32] // This is the going to start from the first l2 block
+            }
+        };
 
         let group_count: u32 = guest.read_from_host();
 
@@ -597,13 +638,11 @@ where
                     "L2 block height is not equal to the expected height"
                 );
 
-                if let Some(hash) = prev_l2_block_hash {
-                    assert_eq!(
-                        l2_block.prev_hash(),
-                        hash,
-                        "L2 block previous hash must match the hash of the block before"
-                    );
-                }
+                assert_eq!(
+                    l2_block.prev_hash(),
+                    prev_l2_block_hash,
+                    "L2 block previous hash must match the hash of the block before"
+                );
 
                 fork_manager.register_block(l2_height).unwrap();
 
@@ -643,7 +682,7 @@ where
                 }
 
                 l2_height += 1;
-                prev_l2_block_hash = Some(l2_block.hash());
+                prev_l2_block_hash = l2_block.hash();
                 l2_block_hashes.push(l2_block.hash());
 
                 cumulative_state_log = Some(state_log);
@@ -672,7 +711,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height,
-            final_l2_block_hash: prev_l2_block_hash.unwrap(),
+            final_l2_block_hash: prev_l2_block_hash,
             sequencer_commitment_hashes,
             sequencer_commitment_index_range,
             cumulative_state_log: cumulative_state_log.unwrap(),
