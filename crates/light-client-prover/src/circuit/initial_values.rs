@@ -38,9 +38,8 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
-    pub const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(
-        &[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)]
-    );
+    pub const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
+        non_empty_slice(&[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)]);
 
     pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
@@ -113,13 +112,13 @@ pub mod bitcoinda {
         }
     };
 
-    pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(&[(0, [0; 8])]);
+    pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
+        non_empty_slice(&[(0, [0; 8])]);
 
-    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(
-        &[(0,
+    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(&[(
+        0,
         decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
-        )]
-    );
+    )]);
 
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(&[(
         0,
