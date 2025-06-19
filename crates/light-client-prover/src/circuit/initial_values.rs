@@ -393,3 +393,27 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         }
     }
 }
+
+macro_rules! require_not_empty {
+    ($($slice:expr),* $(,)?) => {
+        $(
+            const _: () = {
+                if $slice.is_empty() {
+                    panic!(concat!(
+                        "Initial batch proof method IDs cannot be empty: ",
+                        stringify!($slice)
+                    ));
+                }
+            };
+        )*
+    };
+}
+
+require_not_empty!(
+    bitcoinda::MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+    bitcoinda::TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+    bitcoinda::DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+    bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS,
+    bitcoinda::TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS,
+    mockda::INITIAL_BATCH_PROOF_METHOD_IDS,
+);
