@@ -404,3 +404,24 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         }
     }
 }
+
+mod tests {
+    #[test]
+    fn test_non_empty_slice_check() {
+        let slice: &[(u64, [u32; 8])] = &[];
+        let result = std::panic::catch_unwind(|| super::non_empty_slice(slice));
+        assert!(result.is_err());
+
+        let slice: &[u32] = &[];
+        let result = std::panic::catch_unwind(|| super::non_empty_slice(slice));
+        assert!(result.is_err());
+
+        let slice: &[(u64, [u32; 8])] = &[(0, [0; 8])];
+        let result = super::non_empty_slice(slice);
+        assert_eq!(result, slice);
+
+        let slice = &[0];
+        let result = super::non_empty_slice(slice);
+        assert_eq!(result, slice);
+    }
+}
