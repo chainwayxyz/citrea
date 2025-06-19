@@ -497,14 +497,11 @@ where
                 continue;
             }
 
-            // check index gap
-            if commitment.index != commitments[i - 1].index + 1 {
-                cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, PartitionReason::IndexGap)?;
-                // override commitment start height as we lost track of the latest commitment due to index gap
-                commitment_start_height = state.next_partition_start_height();
-                continue;
-            }
+            assert_eq!(
+                commitment.index,
+                commitments[i - 1].index + 1,
+                "Commitments with index gap must be filtered before calling partition"
+            );
 
             // check spec change
             let current_spec = fork_from_block_number(commitment_end_height);
