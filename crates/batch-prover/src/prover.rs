@@ -411,7 +411,7 @@ where
         Ok(commitments)
     }
 
-    /// Filters out the commitments that has index gaps, hence, can't be proven.
+    /// Filters out the commitments that has index gaps, hence, can't be proven. Expects commitments to be in ascending order by index.
     /// E.g. commitments = [3, 4, 5], and commitment 2 is not known yet, outputs []
     /// E.g. commitments = [3, 4, 6], and commitment 2 is known, outputs [3, 4]
     fn filter_commitments_with_index_gap(
