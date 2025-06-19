@@ -458,8 +458,8 @@ where
     /// 4. If there is a remaining commitment after the loop, it is added as a last partition with the Finish PartitionReason.
     ///
     /// # Gotchas:
-    /// This function expects each commitment to have previous commitment, so, ensure filtering commitments
-    /// with `filter_prev_missing_commitments` before calling this function.
+    /// This function expects contiguous known commitments, so, ensure filtering commitments
+    /// with `filter_commitments_with_index_gaps` before calling this function.
     ///
     /// # Arguments
     /// * `commitments` - A slice of sequencer commitments to partition
