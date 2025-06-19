@@ -6,6 +6,7 @@ use citrea_evm::Evm;
 use futures::future;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use reth_rpc_eth_types::logs_utils::log_matches_filter;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::task::JoinHandle;
@@ -21,6 +22,7 @@ pub(crate) struct SubscriptionManager {
 impl SubscriptionManager {
     pub(crate) fn new<C: sov_modules_api::Context>(
         storage: C::Storage,
+        ledger_db: LedgerDB,
         l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
         let (new_heads_tx, new_heads_rx) = mpsc::channel(16);
@@ -34,6 +36,7 @@ impl SubscriptionManager {
         // and send the corresponding ethereum block to subscribers
         let l2_block_handle = tokio::spawn(l2_block_event_handler::<C>(
             storage,
+            ledger_db,
             l2_block_rx,
             new_heads_tx.clone(),
             logs_tx.clone(),
@@ -138,6 +141,7 @@ pub async fn logs_notifier(
 
 pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
     storage: C::Storage,
+    ledger_db: LedgerDB,
     mut l2_block_rx: broadcast::Receiver<u64>,
     new_heads_tx: mpsc::Sender<WithOtherFields<Block>>,
     logs_tx: mpsc::Sender<Vec<Log>>,
@@ -150,6 +154,7 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
                 Some(BlockNumberOrTag::Number(height)),
                 None,
                 &mut working_set,
+                &ledger_db,
             )
             .expect("Error querying block from evm")
             .expect("Received signal but evm block is not found");

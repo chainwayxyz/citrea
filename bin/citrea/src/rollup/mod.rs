@@ -208,7 +208,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
         task_executor: TaskExecutor,
-    ) -> Result<(CitreaSequencer<Self::DaService, LedgerDB>, RpcModule<()>)> {
+    ) -> Result<(CitreaSequencer<Self::DaService>, RpcModule<()>)> {
         let current_l2_height = ledger_db
             .get_head_l2_block()
             .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
