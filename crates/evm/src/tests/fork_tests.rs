@@ -121,7 +121,8 @@ fn test_cancun_transient_storage_activation() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Tangerine);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Tangerine);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -233,7 +234,8 @@ fn test_cancun_mcopy_activation() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Tangerine);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Tangerine);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -309,7 +311,7 @@ fn test_self_destructing_constructor() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -388,7 +390,8 @@ fn test_blob_base_fee_should_return_1() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Tangerine);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Tangerine);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -465,7 +468,7 @@ fn test_kzg_point_eval_should_revert() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -574,7 +577,7 @@ fn test_p256_verify() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -630,7 +633,7 @@ fn test_schnorr_verify() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -761,7 +764,8 @@ fn test_offchain_contract_storage_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Tangerine);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Tangerine);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 

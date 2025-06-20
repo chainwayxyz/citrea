@@ -7,6 +7,7 @@ use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U256};
 use lazy_static::lazy_static;
 use short_header_proof_provider::ShortHeaderProofProvider;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -47,14 +48,26 @@ pub(crate) fn get_evm_with_storage(
     (evm, working_set, prover_storage)
 }
 
-pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
+pub(crate) fn get_evm(
+    config: &EvmConfig,
+) -> (
+    Evm<C>,
+    WorkingSet<<C as Spec>::Storage>,
+    SovSpecId,
+    LedgerDB,
+) {
     get_evm_with_spec(config, SovSpecId::Tangerine)
 }
 
 pub(crate) fn get_evm_with_spec(
     config: &EvmConfig,
     spec_id: SovSpecId,
-) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, SovSpecId) {
+) -> (
+    Evm<C>,
+    WorkingSet<<C as Spec>::Storage>,
+    SovSpecId,
+    LedgerDB,
+) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
@@ -249,7 +262,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
     signer_balance: U256,
     block_gas_limit: Option<u64>,
     starting_base_fee: u64,
-) -> (EvmConfig, TestSigner, Address) {
+) -> (EvmConfig, TestSigner, Address, LedgerDB) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");

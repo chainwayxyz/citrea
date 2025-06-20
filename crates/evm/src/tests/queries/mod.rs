@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use alloy_primitives::{address, Address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -40,7 +41,8 @@ fn init_evm(
     WorkingSet<<C as Spec>::Storage>,
     Storage,
     TestSigner,
-    u64,
+    u64, // l2_height
+    LedgerDB,
 ) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
@@ -192,7 +194,12 @@ fn init_evm(
 
 pub fn init_evm_single_block(
     spec_id: SovSpecId,
-) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, TestSigner) {
+) -> (
+    Evm<C>,
+    WorkingSet<<C as Spec>::Storage>,
+    TestSigner,
+    LedgerDB,
+) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
@@ -264,8 +271,13 @@ pub fn init_evm_single_block(
     (evm, working_set, dev_signer)
 }
 
-pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, TestSigner, u64)
-{
+pub fn init_evm_with_caller_contract() -> (
+    Evm<C>,
+    WorkingSet<<C as Spec>::Storage>,
+    TestSigner,
+    u64,
+    LedgerDB,
+) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {

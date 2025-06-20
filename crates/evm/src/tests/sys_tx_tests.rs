@@ -9,6 +9,7 @@ use jsonrpsee::core::RpcResult;
 use reth_primitives::Log;
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use short_header_proof_provider::{ShortHeaderProofProvider, SHORT_HEADER_PROOF_PROVIDER};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -117,6 +118,7 @@ fn set_block_info_system_tx(
 fn get_block_hash(
     evm: &Evm<DefaultContext>,
     working_set: &mut WorkingSet<ProverStorage>,
+    ledger_db: &LedgerDB,
     block_number: u64,
 ) -> RpcResult<Bytes> {
     evm.get_call_inner(
@@ -129,6 +131,7 @@ fn get_block_hash(
         None,
         None,
         working_set,
+        ledger_db,
         get_fork_fn_latest(),
     )
 }
@@ -158,7 +161,7 @@ fn deposit_system_tx(
 fn test_sys_bitcoin_light_client() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, dev_signer, _) =
+    let (mut config, dev_signer, _, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -280,7 +283,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(system_account.balance, U256::from(0));
     assert_eq!(system_account.nonce, 3);
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 1).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 1).unwrap();
 
     let merkle_root = evm
         .get_call_inner(
@@ -293,6 +296,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
+            &ledger_db,
             get_fork_fn_latest(),
         )
         .unwrap();
@@ -392,7 +396,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 10000000));
     assert_eq!(l1_fee_vault.balance, U256::from(36 + L1_FEE_OVERHEAD));
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 2).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 2).unwrap();
 
     let merkle_root = evm
         .get_call_inner(
@@ -405,6 +409,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
+            &ledger_db,
             get_fork_fn_latest(),
         )
         .unwrap();
@@ -419,7 +424,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
-    let (mut config, dev_signer, contract_addr) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, contract_addr, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
@@ -614,7 +619,12 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap();
 
@@ -632,7 +642,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 fn test_bridge() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, _, _) =
+    let (mut config, _, _, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -808,7 +818,7 @@ fn test_bridge() {
 #[test]
 fn test_upgrade_light_client() {
     // initialize_logging(tracing::Level::INFO);
-    let (mut config, _, _) = get_evm_config_starting_base_fee(
+    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -887,7 +897,7 @@ fn test_upgrade_light_client() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 0).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 0).unwrap();
 
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
@@ -901,7 +911,7 @@ fn test_upgrade_light_client() {
 
 #[test]
 fn test_change_upgrade_owner() {
-    let (mut config, _, _) = get_evm_config_starting_base_fee(
+    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -1045,6 +1055,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
+            &ledger_db,
             get_fork_fn_latest(),
         )
         .unwrap();
@@ -1054,7 +1065,7 @@ fn test_change_upgrade_owner() {
         new_contract_owner.address().to_vec()
     );
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 0).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 0).unwrap();
 
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
@@ -1068,7 +1079,7 @@ fn test_change_upgrade_owner() {
 
 #[test]
 fn test_wcbtc() {
-    let (mut config, signer, _) = get_evm_config_starting_base_fee(
+    let (mut config, signer, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -1133,6 +1144,7 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
+            &ledger_db,
             get_fork_fn_latest(),
         )
         .unwrap();
@@ -1193,6 +1205,7 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
+            &ledger_db,
             get_fork_fn_latest(),
         )
         .unwrap();
@@ -1227,7 +1240,7 @@ fn test_system_tx_after_user_tx_should_error_out() {
 
     // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
-    let (mut config, dev_signer, contract_addr) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, contract_addr, _ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
@@ -1343,7 +1356,7 @@ fn test_set_block_info_shp_not_found() {
 
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPNotFound));
 
-    let (mut config, _dev_signer, _) =
+    let (mut config, _dev_signer, _, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1374,7 +1387,7 @@ fn test_set_block_info_shp_not_found() {
             .unwrap();
     }
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 1).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 1).unwrap();
 
     // Assert if block_hash is equal to 0x0101010101010101010101010101010101010101010101010101010101010101
     assert_eq!(
@@ -1408,7 +1421,7 @@ fn test_set_block_info_shp_not_found() {
         assert_eq!(L2BlockModuleCallError::ShortHeaderProofNotFound, err);
     }
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 2).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 2).unwrap();
 
     // Assert that block_hash for block 2 wasn't set
     assert_eq!(
@@ -1452,7 +1465,7 @@ fn test_set_block_info_shp_verification_failed() {
 
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPVerificationFailed));
 
-    let (mut config, _dev_signer, _) =
+    let (mut config, _dev_signer, _, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1483,7 +1496,7 @@ fn test_set_block_info_shp_verification_failed() {
             .unwrap();
     }
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 1).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 1).unwrap();
 
     // Assert if block_hash is equal to 0x0101010101010101010101010101010101010101010101010101010101010101
     assert_eq!(
@@ -1520,7 +1533,7 @@ fn test_set_block_info_shp_verification_failed() {
         );
     }
 
-    let block_hash = get_block_hash(&evm, &mut working_set, 2).unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 2).unwrap();
 
     // Assert that block_hash for block 2 wasn't set
     assert_eq!(
