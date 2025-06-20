@@ -21,6 +21,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::block::{L2Header, SignedL2Header};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateTransitionError;
+use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, Witness};
@@ -317,6 +318,7 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
         &state_root,
         prover_storage,
         None,
+        None,
         vec![
             SequencerCommitment {
                 merkle_root: first_commitment_calculated_root,
@@ -388,10 +390,12 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
         .iter()
         .map(|(_, block, _, _)| block.hash())
         .collect::<Vec<[u8; 32]>>();
-    let first_commitment_calculated_root =
-        MerkleTree::<Sha256>::from_leaves(&first_commitment_block_hashes)
-            .root()
-            .unwrap();
+    let first_commitment_merkle_tree =
+        MerkleTree::<Sha256>::from_leaves(&first_commitment_block_hashes);
+    let first_commitment_calculated_root = first_commitment_merkle_tree.root().unwrap();
+    let first_commitment_last_block_merkle_proof =
+        first_commitment_merkle_tree.proof(&[4]).to_bytes();
+
     let second_commitment_block_hashes = block_cache[5..]
         .iter()
         .map(|(_, block, _, _)| block.hash())
@@ -410,6 +414,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             &sequencer_public_key.pub_key.to_sec1_bytes(),
             &state_root,
             prover_storage,
+            None,
             None,
             vec![SequencerCommitment {
                 merkle_root: first_commitment_calculated_root,
@@ -430,6 +435,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
         &sequencer_public_key.pub_key.to_sec1_bytes(),
         &state_root,
         prover_storage,
+        None,
         None,
         vec![SequencerCommitment {
             merkle_root: first_commitment_calculated_root,
@@ -453,6 +459,11 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
                 merkle_root: first_commitment_calculated_root,
                 index: 0,
                 l2_end_block_number: 5,
+            }),
+            Some(PrevHashProof {
+                merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
+                last_header: block_cache[4].1.header.inner.clone(),
+                prev_sequencer_commitment_start: 1,
             }),
             vec![SequencerCommitment {
                 merkle_root: second_commitment_calculated_root,
@@ -478,6 +489,11 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
                 merkle_root: first_commitment_calculated_root,
                 index: 1,
                 l2_end_block_number: 5,
+            }),
+            Some(PrevHashProof {
+                merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
+                last_header: block_cache[4].1.header.inner.clone(),
+                prev_sequencer_commitment_start: 1,
             }),
             vec![SequencerCommitment {
                 merkle_root: second_commitment_calculated_root,
@@ -509,6 +525,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
         &sequencer_public_key.pub_key.to_sec1_bytes(),
         &state_root,
         prover_storage.clone(),
+        None,
         None,
         vec![SequencerCommitment {
             merkle_root: first_commitment_calculated_root,
@@ -543,6 +560,11 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             merkle_root: first_commitment_calculated_root,
             index: 1,
             l2_end_block_number: 5,
+        }),
+        Some(PrevHashProof {
+            merkle_proof_bytes: first_commitment_last_block_merkle_proof,
+            last_header: block_cache[4].1.header.inner.clone(),
+            prev_sequencer_commitment_start: 1,
         }),
         vec![SequencerCommitment {
             merkle_root: second_commitment_calculated_root,
