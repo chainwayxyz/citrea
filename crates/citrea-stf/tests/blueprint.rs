@@ -28,6 +28,23 @@ use sov_state::{ProverStorage, Witness};
 type TestStfBlueprint =
     StfBlueprint<DefaultContext, MockDaSpec, CitreaRuntime<DefaultContext, MockDaSpec>>;
 
+/// Helper function to extract panic message and assert it contains expected text
+fn assert_panic_message_contains(panic_payload: Box<dyn std::any::Any + Send>, expected: &str) {
+    let message: &str = if let Some(message) = panic_payload.downcast_ref::<&str>() {
+        message
+    } else if let Some(message) = panic_payload.downcast_ref::<String>() {
+        message
+    } else {
+        panic!("Unexpected panic payload type");
+    };
+    assert!(
+        message.contains(expected),
+        "Expected panic message to contain '{}', but got: '{}'",
+        expected,
+        message
+    );
+}
+
 fn generate_genesis_config() -> GenesisParams<GenesisConfig<DefaultContext, MockDaSpec>> {
     let accounts_config: AccountConfig =
         read_json_file("../../resources/test-data/integration-tests/accounts.json").unwrap();
@@ -418,7 +435,11 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             get_forks(),
         )
     }));
+
     assert!(result.is_err());
+    if let Err(panic_payload) = result {
+        assert_panic_message_contains(panic_payload, "First commitment must be index 1");
+    }
 
     // Apply first commitment
     let guest = MockZkGuest::new(input.clone());
@@ -461,7 +482,14 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             get_forks(),
         )
     }));
+
     assert!(result.is_err());
+    if let Err(panic_payload) = result {
+        assert_panic_message_contains(
+            panic_payload,
+            "Previous sequencer commitment index must be non-zero",
+        );
+    }
 
     let guest = MockZkGuest::new(input);
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
@@ -488,6 +516,9 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     }));
 
     assert!(result.is_err());
+    if let Err(panic_payload) = result {
+        assert_panic_message_contains(panic_payload, "Sequencer commitments must be sequential");
+    }
 
     let mut input: Vec<u8> = vec![];
     // Groups count
