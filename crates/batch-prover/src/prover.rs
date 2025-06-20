@@ -28,7 +28,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
+use sov_rollup_interface::zk::batch_proof::input::v3::{BatchProofCircuitInputV3, PrevHashProof};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use sov_state::Witness;
@@ -579,6 +579,10 @@ where
                 .expect("Commitment should exist")
         });
 
+        let prev_hash_proof = previous_sequencer_commitment
+            .as_ref()
+            .map(|c| get_prev_hash_proof(c, &self.ledger_db));
+
         Ok(BatchProofCircuitInputV3 {
             initial_state_root,
             final_state_root,
@@ -589,6 +593,7 @@ where
             cache_prune_l2_heights,
             last_l1_hash_witness,
             previous_sequencer_commitment,
+            prev_hash_proof,
         })
     }
 
@@ -1077,6 +1082,51 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         short_header_proofs,
         last_l1_hash_witness,
     ))
+}
+
+/// Given a previous sequencer commitment, this function will generate a `PrevHashProof`.
+/// This proof will be used inside the circuit to verify the `prev_hash` field of the first
+/// L2 block that will be run in the batch proof circuit for the given commitments.
+fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
+    previous_commitment: &SequencerCommitment,
+    ledger_db: &DB,
+) -> PrevHashProof {
+    let prev_commitment_start_height = ledger_db
+        .get_commitment_by_index(previous_commitment.index - 1)
+        .expect("Should get previous commitment")
+        .expect("Previous commitment should exist")
+        .l2_end_block_number
+        + 1;
+
+    let blocks = ledger_db
+        .get_l2_block_range(
+            &(L2BlockNumber(prev_commitment_start_height)
+                ..=L2BlockNumber(previous_commitment.l2_end_block_number)),
+        )
+        .unwrap();
+
+    let tree = MerkleTree::<Sha256>::from_leaves(
+        blocks
+            .iter()
+            .map(|block| block.hash)
+            .collect::<Vec<_>>()
+            .as_slice(),
+    );
+
+    let merkle_proof = tree.proof(&[blocks.len() - 1]);
+
+    let last_block: L2Block = blocks
+        .into_iter()
+        .last()
+        .expect("Blocks must not be empty")
+        .try_into()
+        .unwrap();
+
+    PrevHashProof {
+        last_header: last_block.header.inner,
+        merkle_proof_bytes: merkle_proof.to_bytes(),
+        prev_sequencer_commitment_start: prev_commitment_start_height + 1,
+    }
 }
 
 /// This function extracts the proof output from the given proof and verifies it using the provided code commitments.
