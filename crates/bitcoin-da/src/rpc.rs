@@ -20,6 +20,7 @@ pub struct MonitoredTxResponse {
     pub prev_txid: Option<Txid>,
     pub next_txid: Option<Txid>,
     pub status: TxStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hex: Option<String>,
 }
 
