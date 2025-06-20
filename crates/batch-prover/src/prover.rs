@@ -9,7 +9,7 @@ use anyhow::Context;
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
 use citrea_primitives::{MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use futures::stream::FuturesUnordered;
@@ -1091,12 +1091,16 @@ fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
     previous_commitment: &SequencerCommitment,
     ledger_db: &DB,
 ) -> PrevHashProof {
-    let prev_commitment_start_height = ledger_db
-        .get_commitment_by_index(previous_commitment.index - 1)
-        .expect("Should get previous commitment")
-        .expect("Previous commitment should exist")
-        .l2_end_block_number
-        + 1;
+    let prev_commitment_start_height = if previous_commitment.index == 1 {
+        get_tangerine_activation_height_non_zero()
+    } else {
+        ledger_db
+            .get_commitment_by_index(previous_commitment.index - 1)
+            .expect("Should get previous commitment")
+            .expect("Previous commitment should exist")
+            .l2_end_block_number
+            + 1
+    };
 
     let blocks = ledger_db
         .get_l2_block_range(
