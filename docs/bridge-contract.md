@@ -4,7 +4,8 @@ This document provides an overview of the `Bridge.sol` smart contract, which is 
 
 ## Overview
 
-`Bridge.sol` is a smart contract deployed on the Citrea EVM. It has two primary functions. The first one is in deposits checking the locking of BTC on the Bitcoin network and the corresponding minting of  cBTC on Citrea, and the second one is in withdraws Bridge.sol contract is the place that cBTC is locked and the relevant information for BTC to be withdrawn from Bitcoin is stored.
+`Bridge.sol` is a smart contract deployed on the Citrea EVM. Its two primary functions are handling deposits and withdrawals. For deposits, it verifies that BTC has been locked on the Bitcoin network before minting the corresponding cBTC on Citrea. For withdrawals, it locks cBTC and stores the information required for the user to withdraw BTC on the Bitcoin network.
+
 
 The bridge is designed to be trust-minimized and secure, check [Clementine whitepaper](https://citrea.xyz/clementine_whitepaper.pdf) for further information about the Bridge in general.
 
@@ -43,4 +44,4 @@ The withdrawal process moves assets from Citrea back to Bitcoin.
 
 1.  **Initiate Withdrawal**: A user calls the `withdraw()` or `batchWithdraw()` function on the bridge contract. To do this, they must send the fixed `depositAmount` of cBTC to the contract. They also specify a Bitcoin ANYONECANPAY UTXO (`txId` and `outputId`) where they wish to receive the funds. 
 2.  **Request Queue**: The contract records this request in a public `withdrawalUTXOs` array. This array serves as a queue of pending withdrawals for the operators to process.
-4.  **`safeWithdraw()`**: The contract also provides a `safeWithdraw` function. This method offers users greater security by doing extra security checks such as verifying user's signature, and verifying the inclusion of the transaction.
+3.  **`safeWithdraw()`**: The contract also provides a `safeWithdraw` function. This method offers users greater security by doing extra security checks such as verifying user's signature, and verifying the inclusion of the transaction.
