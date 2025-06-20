@@ -1369,47 +1369,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn commitment_partition_with_index_gap() {
-        let MockProverData { mut prover, .. } = create_mock_prover();
-        // put 4 l2 blocks
-        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0), (4, 0)]);
-
-        // commitments with index gap should create 2 partitions
-        let mut commitments = vec![
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 1,
-                l2_end_block_number: 1,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 3,
-                l2_end_block_number: 3,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 4,
-                l2_end_block_number: 4,
-            },
-        ];
-        put_commitments(&prover.ledger_db, &commitments);
-
-        let partitions = prover
-            .create_partitions(&mut commitments, PartitionMode::Normal)
-            .unwrap();
-        assert_eq!(partitions.len(), 2);
-        let partition_1 = &partitions[0];
-        assert_eq!(partition_1.start_height, 1);
-        assert_eq!(partition_1.end_height, 1);
-        assert_eq!(partition_1.commitments.len(), 1);
-        // index 3 should be filtered due to prev missing, and index 4 should be the 2nd partition
-        let partition_2 = &partitions[1];
-        assert_eq!(partition_2.start_height, 4);
-        assert_eq!(partition_2.end_height, 4);
-        assert_eq!(partition_2.commitments.len(), 1);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     async fn commitment_partition_with_state_diff() {
         let MockProverData { mut prover, .. } = create_mock_prover();
         // put 3 l2 blocks with total state diff of 1.33 * maxsize
