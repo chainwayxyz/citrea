@@ -22,7 +22,13 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
     }
 }
 
+const fn non_empty_slice<T>(slice: &[T]) -> &[T] {
+    assert!(!slice.is_empty(), "Empty slice passed to non_empty_slice");
+    slice
+}
+
 pub mod mockda {
+    use super::non_empty_slice;
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
         b"658e15edbc2b4168ac974778a2b516955589122d1a8309a7aa5afe8e22647c18",
     ) {
@@ -31,7 +37,7 @@ pub mod mockda {
     };
 
     pub const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
-        &[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
+        non_empty_slice(&[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)]);
 
     pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
@@ -57,7 +63,7 @@ pub mod mockda {
 }
 
 pub mod bitcoinda {
-    use super::decode_to_u32_array;
+    use super::{decode_to_u32_array, non_empty_slice};
 
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
         b"0000000000000000000000000000000000000000000000000000000000000000",
@@ -104,27 +110,29 @@ pub mod bitcoinda {
         }
     };
 
-    pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(0, [0; 8])];
+    pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
+        non_empty_slice(&[(0, [0; 8])]);
 
-    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
+    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(&[(
         0,
         decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
-    )];
+    )]);
 
-    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
+    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(&[(
         0,
         decode_to_u32_array("aba3ac6bc099b8669930c9a488f7c94d4e829d75800dbe77db115c830a27c246"),
-    )];
+    )]);
 
     pub const NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
-        match option_env!("BATCH_PROOF_METHOD_ID") {
+        const METHOD_IDS: &[(u64, [u32; 8])] = match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
             None => &[(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
-        }
+        };
+        non_empty_slice(METHOD_IDS)
     };
 
     pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
-        match option_env!("BATCH_PROOF_METHOD_ID") {
+        const METHOD_IDS: &[(u64, [u32; 8])] = match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
             None => &[
                 (
@@ -141,7 +149,8 @@ pub mod bitcoinda {
                 ),
                 (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
             ],
-        }
+        };
+        non_empty_slice(METHOD_IDS)
     };
 
     pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
@@ -391,5 +400,26 @@ impl InitialValueProvider<BitcoinSpec> for Network {
                 bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
             }
         }
+    }
+}
+
+mod tests {
+    #[test]
+    fn test_non_empty_slice_check() {
+        let slice: &[(u64, [u32; 8])] = &[];
+        let result = std::panic::catch_unwind(|| super::non_empty_slice(slice));
+        assert!(result.is_err());
+
+        let slice: &[u32] = &[];
+        let result = std::panic::catch_unwind(|| super::non_empty_slice(slice));
+        assert!(result.is_err());
+
+        let slice: &[(u64, [u32; 8])] = &[(0, [0; 8])];
+        let result = super::non_empty_slice(slice);
+        assert_eq!(result, slice);
+
+        let slice = &[0];
+        let result = super::non_empty_slice(slice);
+        assert_eq!(result, slice);
     }
 }
