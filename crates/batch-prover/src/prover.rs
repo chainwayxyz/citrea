@@ -1129,7 +1129,7 @@ fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
     PrevHashProof {
         last_header: last_block.header.inner,
         merkle_proof_bytes: merkle_proof.to_bytes(),
-        prev_sequencer_commitment_start: prev_commitment_start_height + 1,
+        prev_sequencer_commitment_start: prev_commitment_start_height,
     }
 }
 
