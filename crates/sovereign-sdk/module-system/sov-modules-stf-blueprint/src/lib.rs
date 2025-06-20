@@ -508,7 +508,14 @@ where
                 )
                 .expect("Merkle proof must be valid");
 
-                // Is this ok???
+                // This means we could actually bake in the genesis root into the batch proof
+                // and we could start from the first l2 block
+                assert_eq!(
+                    prev_hash_proof.last_header.state_root(),
+                    *initial_state_root
+                );
+
+                // TODO: Is this ok???
                 let index = (commitment.l2_end_block_number
                     - prev_hash_proof.prev_sequencer_commitment_start)
                     as usize;
