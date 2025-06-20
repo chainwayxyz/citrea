@@ -25,7 +25,10 @@ pub fn decompress_blob(blob: &[u8]) -> Result<Vec<u8>, io::Error> {
                 if let io::ErrorKind::Interrupted = e.kind() {
                     continue;
                 }
-                panic!("Error reading data from compressed blob: {}", e);
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Brotli decompression failure",
+                ));
             }
             Ok(size) => {
                 if size + decompressed_data.len() > MAX_DECOMPRESSED_BLOB_SIZE {
