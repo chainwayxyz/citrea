@@ -60,12 +60,16 @@ pub trait DaRpc {
     async fn da_get_pending_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>>;
 
     #[method(name = "listMonitoredTransactions")]
-    async fn da_list_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>>;
+    async fn da_list_monitored_transactions(
+        &self,
+        with_hex: bool,
+    ) -> RpcResult<Vec<MonitoredTxResponse>>;
 
     #[method(name = "getMonitoredTransaction")]
     async fn da_get_monitored_transaction(
         &self,
         txid: Txid,
+        with_hex: bool,
     ) -> RpcResult<Option<MonitoredTxResponse>>;
 
     #[method(name = "getTxStatus")]
@@ -107,27 +111,31 @@ impl DaRpcServer for DaRpcServerImpl {
         Ok(txs)
     }
 
-    async fn da_list_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>> {
+    async fn da_list_monitored_transactions(
+        &self,
+        with_hex: bool,
+    ) -> RpcResult<Vec<MonitoredTxResponse>> {
         Ok(self
             .da
             .monitoring
             .get_monitored_txs()
             .await
             .into_iter()
-            .map(Into::into)
+            .map(|(txid, tx)| (txid, tx, with_hex).into())
             .collect::<Vec<_>>())
     }
 
     async fn da_get_monitored_transaction(
         &self,
         txid: Txid,
+        with_hex: bool,
     ) -> RpcResult<Option<MonitoredTxResponse>> {
         Ok(self
             .da
             .monitoring
             .get_monitored_tx(&txid)
             .await
-            .map(|tx| (txid, tx, true).into()))
+            .map(|tx| (txid, tx, with_hex).into()))
     }
 
     async fn da_get_tx_status(&self, txid: Txid) -> RpcResult<Option<TxStatus>> {
