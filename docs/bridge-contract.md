@@ -4,7 +4,7 @@ This document provides an overview of the `Bridge.sol` smart contract, which is 
 
 ## Overview
 
-`Bridge.sol` is a smart contract deployed on the Citrea. Its two primary functions are handling deposits and withdrawals. For deposits, it verifies that BTC has been locked on the Bitcoin network before minting the corresponding cBTC on Citrea. For withdrawals, it locks cBTC and stores the information required for the user to withdraw BTC on the Bitcoin network.
+`Bridge.sol` is a smart contract deployed on Citrea. Its two primary functions are handling deposits and withdrawals. For deposits, it verifies that BTC has been locked on the Bitcoin network before minting the corresponding cBTC on Citrea. For withdrawals, it locks cBTC and stores the information required for the user to withdraw BTC on the Bitcoin network.
 
 
 The bridge is designed to be trust-minimized and secure, check [Clementine whitepaper](https://citrea.xyz/clementine_whitepaper.pdf) for further information about the Bridge in general.
@@ -30,7 +30,7 @@ The process of moving BTC from Bitcoin to Citrea involves actions on both chains
     -   A script that contains the recipient's Citrea address (a 20-byte address).
     -   A predefined `depositPrefix` and `depositSuffix` within the script.
     -   A Schnorr signature from the N-of-N.
-3.  **Relaying to Citrea**: Once the move transaction is confirmed, the deposit relayed to the sequencer which has a seperate pool for the deposit transactions. Then a system transaction calling the `deposit()` function on `Bridge.sol` is created.
+3.  **Relaying to Citrea**: Once the move transaction is confirmed, the deposit relayed to the sequencer which has a seperate pool for the deposit transactions. Then a system transaction calling the `deposit()` function on `Bridge.sol` is created and put into a block by the sequencer. The system transactions are free, so deposits don't require any existing funds on Citrea for the depositor.
 4.  **On-Chain Verification**: The `deposit()` function executes a series of critical checks:
     -   **Inclusion Proof**: It uses the `BitcoinLightClient` to validate the provided Merkle proof, ensuring the transaction is final on Bitcoin.
     -   **Signature Verification**: It reconstructs the BIP-341 Taproot sighash and calls the precompile at `0x200` to verify the operators' Schnorr signature. This confirms the transaction's authenticity.
