@@ -39,3 +39,12 @@ pub const PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS: &[u8] = &[
     10, 8, 0, 0, 0, 0, 59, 154, 202, 0, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0,
 ];
+
+/// Maximum size of a decompressed blob in bytes.
+/// This is set to 1 MB for testing and 100 MB for production to allow larger blobs in real scenarios.
+/// This limit is enforced during decompression to prevent excessive memory usage
+/// and potential denial of service attacks like decompression bombs.
+#[cfg(feature = "testing")]
+pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024; // 1 MB
+#[cfg(not(feature = "testing"))]
+pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024 * 100; // 100 MB
