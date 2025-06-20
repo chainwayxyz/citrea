@@ -17,7 +17,7 @@ The bridge relies on the `BitcoinLightClient` smart contract to verify that a gi
 ### Roles
 
 -   **Owner**: The contract owner, who has administrative privileges. The owner can update critical parameters like the operator address and the deposit script format.
--   **Operator**: A privileged address, responsible for relaying valid deposit transactions from Bitcoin to the bridge contract. (The Operator in the bridge contract should not be confused with the Operators on the Clementine bridge design that are responsible for withdraws)
+-   **Operator**: A privileged address, responsible for relaying valid deposit transactions from Bitcoin to the bridge contract. (The Operator in the bridge contract should not be confused with the Operators on the Clementine bridge design that are responsible for withdrawals.)
 -   **System Caller**: A special, hardcoded address (`0xdeaD...`) used for initializing the contract and other system-level functions.
 
 ## Deposit Flow: Bitcoin to Citrea
