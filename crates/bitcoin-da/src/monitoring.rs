@@ -157,7 +157,7 @@ mod monitoring_defaults {
     }
 
     pub const fn rebroadcast_delay() -> u64 {
-        300 // Wait 5 minutes between rebroadcast attemps
+        300 // Wait 5 minutes between rebroadcast attempts
     }
 }
 
