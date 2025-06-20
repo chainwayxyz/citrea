@@ -36,7 +36,7 @@ The process of moving BTC from Bitcoin to Citrea involves actions on both chains
     -   **Signature Verification**: It reconstructs the BIP-341 Taproot sighash and calls the precompile at `0x200` to verify the operators' Schnorr signature. This confirms the transaction's authenticity.
     -   **Script Validation**: It parses the witness script to confirm it matches the required format (`depositPrefix` + `recipient_address` + `depositSuffix`).
     -   **Replay Protection**: It records the Bitcoin transaction ID (`txId`) and ensures it cannot be used for a deposit more than once.
-5.  **Minting cBTC**: If all validations pass, the contract extracts the recipient's address from the script and credits their account with the `depositAmount` of cBTC on Citrea. If the transfer fails, the funds are sent to a `failedDepositVault`.
+5.  **Minting cBTC**: The bridge contract is funded with 21M CBTC at the genesis. If all validations pass, the contract extracts the recipient's address from the script and sends `depositAmount` of cBTC on Citrea to their account. If the transfer fails, the funds are sent to a `failedDepositVault`.
 
 ## Withdrawal Flow: Citrea to Bitcoin
 
