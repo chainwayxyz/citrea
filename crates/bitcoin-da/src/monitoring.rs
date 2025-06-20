@@ -48,10 +48,12 @@ pub enum TxStatus {
         confirmations: u64,
     },
     #[serde(rename_all = "camelCase")]
-    Replaced {
-        by_txid: Txid,
+    Replaced { by_txid: Txid },
+    Evicted {
+        last_seen: u64,
+        rebroadcast_attempts: u32,
+        last_error: Option<String>,
     },
-    Evicted,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -141,6 +143,14 @@ mod monitoring_defaults {
     pub const fn max_history_size() -> usize {
         200_000_000 // Default max monitored tx total size to 200mb
     }
+
+    pub const fn max_rebroadcast_attempts() -> u32 {
+        5 // Maximum number of rebroadcast attempts for evicted txs
+    }
+
+    pub const fn rebroadcast_delay() -> u64 {
+        300 // Wait 5 minutes between rebroadcast attemps
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -151,6 +161,10 @@ pub struct MonitoringConfig {
     pub history_limit: usize,
     #[serde(default = "monitoring_defaults::max_history_size")]
     pub max_history_size: usize,
+    #[serde(default = "monitoring_defaults::max_rebroadcast_attempts")]
+    pub max_rebroadcast_attempts: u32,
+    #[serde(default = "monitoring_defaults::rebroadcast_delay")]
+    pub rebroadcast_delay: u64,
 }
 
 impl Default for MonitoringConfig {
@@ -159,6 +173,8 @@ impl Default for MonitoringConfig {
             check_interval: monitoring_defaults::check_interval(),
             history_limit: monitoring_defaults::history_limit(),
             max_history_size: monitoring_defaults::max_history_size(),
+            max_rebroadcast_attempts: monitoring_defaults::max_rebroadcast_attempts(),
+            rebroadcast_delay: monitoring_defaults::rebroadcast_delay(),
         }
     }
 }
@@ -169,9 +185,11 @@ impl FromEnv for MonitoringConfig {
             read_env("DA_MONITORING_CHECK_INTERVAL"),
             read_env("DA_MONITORING_HISTORY_LIMIT"),
             read_env("DA_MONITORING_MAX_HISTORY_SIZE"),
+            read_env("DA_MONITORING_MAX_REBROADCAST_ATTEMPTS"),
+            read_env("DA_MONITORING_REBROADCAST_DELAY"),
         ) {
-            (Err(_), Err(_), Err(_)) => Err(anyhow!("At least one of the monitoring envs must exist: DA_MONITORING_CHECK_INTERVAL, DA_MONITORING_HISTORY_LIMIT, DA_MONITORING_MAX_HISTORY_SIZE")),
-            (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
+            (Err(_), Err(_), Err(_), Err(_), Err(_)) => Err(anyhow!("At least one of the monitoring envs must exist: DA_MONITORING_CHECK_INTERVAL, DA_MONITORING_HISTORY_LIMIT, DA_MONITORING_MAX_HISTORY_SIZE")),
+            (check_interval, history_limit, max_history_size, max_rebroadcast_attempts, rebroadcast_delay) => Ok(MonitoringConfig {
                 check_interval: check_interval.map_or_else(
                     |_| Ok(monitoring_defaults::check_interval()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
@@ -182,6 +200,14 @@ impl FromEnv for MonitoringConfig {
                 )?,
                 max_history_size: max_history_size.map_or_else(
                     |_| Ok(monitoring_defaults::max_history_size()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                max_rebroadcast_attempts: max_rebroadcast_attempts.map_or_else(
+                    |_| Ok(monitoring_defaults::max_rebroadcast_attempts()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                rebroadcast_delay: rebroadcast_delay.map_or_else(
+                    |_| Ok(monitoring_defaults::rebroadcast_delay()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
                 )?,
             }),
@@ -575,7 +601,17 @@ impl MonitoringService {
                             .as_secs(),
                     }
                 }
-                Err(_) => TxStatus::Evicted,
+                Err(_) => {
+                    tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
+                    TxStatus::Evicted {
+                        last_seen: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
+                        rebroadcast_attempts: 0,
+                        last_error: None,
+                    }
+                }
             }
         };
         Ok(status)
