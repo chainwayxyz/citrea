@@ -25,7 +25,7 @@ The bridge relies on the `BitcoinLightClient` smart contract to verify that a gi
 
 The process of moving BTC from Bitcoin to Citrea involves actions on both chains.
 
-1.  **Bitcoin Transaction**: A user sends a fixed amount of BTC (`depositAmount`) to the bridge's Taproot address on the Bitcoin network. This transaction is called the deposit transaction, then the N-of-N moves this BTC to a specific address to indicate the deposit is accepted. This transaction is called the `moveTx`, this is the transaction that we prove its inclusion on the Bitcoin through the `BitcoinLightClient`.
+1.  **Bitcoin Transaction**: A user sends (`depositAmount`) of BTC with the deposit transaction. This transaction has two spending paths: first one is the N-of-N multisig, and the second one is the user gets back after 200 blocks(This exists to prevent users to not lose their BTC in the case of all required signatures for the Clementine to work could'nt collected). After the signers of the N-of-N multisig accepts this deposit, they send the moveTx. This is the transaction that we prove it's inclusion on the Bitcoin through the `BitcoinLightClient`.
 2.  **Witness Data**: The `moveTx` is constructed with a specific witness. This witness includes:
     -   A script that contains the recipient's Citrea address (a 20-byte address).
     -   A predefined `depositPrefix` and `depositSuffix` within the script.
