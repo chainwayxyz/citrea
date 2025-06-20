@@ -26,6 +26,10 @@ use crate::spec::utxo::UTXO;
 type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
 
+fn get_timestamp() -> anyhow::Result<u64> {
+    Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TxStatus {
@@ -125,10 +129,14 @@ pub enum MonitorError {
     PrevTxNotMonitored(Txid),
     #[error("Invalid tx chain, odd number of txs")]
     OddNumberOfTxs,
+    #[error("Transaction rebroadcast failed: {0}")]
+    RebroadcastFailed(String),
     #[error(transparent)]
     BitcoinRpcError(#[from] bitcoincore_rpc::Error),
     #[error(transparent)]
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 mod monitoring_defaults {
@@ -309,7 +317,8 @@ impl MonitoringService {
 
     /// Run monitoring to keep track of TX status and chain re-orgs
     pub async fn run(self: Arc<Self>, mut token: GracefulShutdown) {
-        let mut interval = interval(Duration::from_secs(self.config.check_interval));
+        let mut check_interval = interval(Duration::from_secs(self.config.check_interval));
+        let mut evicted_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
         loop {
             select! {
                 biased;
@@ -317,7 +326,7 @@ impl MonitoringService {
                     debug!("Monitoring service received shutdown signal");
                     break;
                 }
-                _ = interval.tick() => {
+                _ = check_interval.tick() => {
                     if let Err(e) = self.check_chain_state().await {
                         error!("Error checking chain state: {}", e);
                     }
@@ -325,6 +334,11 @@ impl MonitoringService {
                         error!("Error checking transactions: {}", e);
                     }
                     self.prune_old_transactions().await;
+                }
+                _ = evicted_interval.tick() => {
+                    if let Err(e) = self.handle_evicted().await {
+                        error!("Error handling evicted transactions: {}", e);
+                    }
                 }
             }
         }
@@ -399,10 +413,7 @@ impl MonitoringService {
                 .details
                 .first()
                 .and_then(|detail| detail.address.clone()),
-            initial_broadcast: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            initial_broadcast: get_timestamp()?,
             initial_height: current_height,
             last_checked: Instant::now(),
             status,
@@ -442,10 +453,7 @@ impl MonitoringService {
                 .details
                 .first()
                 .and_then(|detail| detail.address.clone()),
-            initial_broadcast: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            initial_broadcast: get_timestamp()?,
             initial_height: current_height,
             last_checked: Instant::now(),
             status,
@@ -545,6 +553,7 @@ impl MonitoringService {
             match &monitored_tx.status {
                 // Check non-finalized TXs
                 TxStatus::Pending { .. }
+                | TxStatus::Evicted { .. }
                 | TxStatus::Confirmed { .. }
                 | TxStatus::Replaced { .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
@@ -644,6 +653,50 @@ impl MonitoringService {
                 }
             }
         }
+    }
+
+    async fn handle_evicted(&self) -> Result<()> {
+        let mut txs = self.monitored_txs.write().await;
+
+        for (txid, monitored_tx) in txs.iter_mut() {
+            if let TxStatus::Evicted {
+                last_seen,
+                rebroadcast_attempts,
+                ..
+            } = &monitored_tx.status
+            {
+                if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
+                    let now = get_timestamp()?;
+
+                    if now.saturating_sub(*last_seen) >= self.config.rebroadcast_delay {
+                        match self.attempt_rebroadcast(txid, &monitored_tx.tx).await {
+                            Ok(new_status) => {
+                                info!("Successfully rebroadcast tx {txid}");
+                                monitored_tx.status = new_status;
+                            }
+                            Err(e) => {
+                                info!("Failed to rebroadcast tx {txid}: {e}");
+                                monitored_tx.status = TxStatus::Evicted {
+                                    last_seen: now,
+                                    rebroadcast_attempts: rebroadcast_attempts + 1,
+                                    last_error: Some(e.to_string()),
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    #[instrument(skip(self, tx))]
+    async fn attempt_rebroadcast(&self, txid: &Txid, tx: &Transaction) -> Result<TxStatus> {
+        let raw_tx_hex = bitcoin::consensus::encode::serialize_hex(tx);
+        self.client.send_raw_transaction(raw_tx_hex).await?;
+        let tx_result = self.client.get_transaction(txid, None).await?;
+        self.determine_tx_status(&tx_result).await
     }
 
     pub async fn get_tx_status(&self, txid: &Txid) -> Option<TxStatus> {
