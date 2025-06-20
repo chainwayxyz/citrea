@@ -45,6 +45,17 @@ fn assert_panic_message_contains(panic_payload: Box<dyn std::any::Any + Send>, e
     );
 }
 
+/// Macro to test that code panics with a specific message
+macro_rules! assert_panics_with_message {
+    ($code:block, $expected_message:expr) => {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $code));
+        assert!(result.is_err());
+        if let Err(panic_payload) = result {
+            assert_panic_message_contains(panic_payload, $expected_message);
+        }
+    };
+}
+
 fn generate_genesis_config() -> GenesisParams<GenesisConfig<DefaultContext, MockDaSpec>> {
     let accounts_config: AccountConfig =
         read_json_file("../../resources/test-data/integration-tests/accounts.json").unwrap();
@@ -419,27 +430,25 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // First, test that the first commitment index should always start at 1
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: first_commitment_calculated_root,
-                index: 10, // First commitment does NOT start at 1
-                l2_end_block_number: 5,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "First commitment must be index 1");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: first_commitment_calculated_root,
+                    index: 10, // First commitment does NOT start at 1
+                    l2_end_block_number: 5,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "First commitment must be index 1"
+    );
 
     // Apply first commitment
     let guest = MockZkGuest::new(input.clone());
@@ -462,63 +471,56 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     let guest = MockZkGuest::new(input.clone());
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
     // Should panic since the commitment is index 0 is not allowed
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            Some(SequencerCommitment {
-                merkle_root: first_commitment_calculated_root,
-                index: 0,
-                l2_end_block_number: 5,
-            }),
-            vec![SequencerCommitment {
-                merkle_root: second_commitment_calculated_root,
-                index: 3,
-                l2_end_block_number: 10,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(
-            panic_payload,
-            "Previous sequencer commitment index must be non-zero",
-        );
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                Some(SequencerCommitment {
+                    merkle_root: first_commitment_calculated_root,
+                    index: 0,
+                    l2_end_block_number: 5,
+                }),
+                vec![SequencerCommitment {
+                    merkle_root: second_commitment_calculated_root,
+                    index: 3,
+                    l2_end_block_number: 10,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "Previous sequencer commitment index must be non-zero"
+    );
 
     let guest = MockZkGuest::new(input);
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
     // Should panic since the commitment is index 3 while the next commitment index should be 2.
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            Some(SequencerCommitment {
-                merkle_root: first_commitment_calculated_root,
-                index: 1,
-                l2_end_block_number: 5,
-            }),
-            vec![SequencerCommitment {
-                merkle_root: second_commitment_calculated_root,
-                index: 3,
-                l2_end_block_number: 10,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "Sequencer commitments must be sequential");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                Some(SequencerCommitment {
+                    merkle_root: first_commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 5,
+                }),
+                vec![SequencerCommitment {
+                    merkle_root: second_commitment_calculated_root,
+                    index: 3,
+                    l2_end_block_number: 10,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "Sequencer commitments must be sequential"
+    );
 
     let mut input: Vec<u8> = vec![];
     // Groups count
@@ -597,23 +599,21 @@ fn test_panic_empty_sequencer_commitments() {
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // Should panic when sequencer_commitments is empty
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![], // Empty commitments vector
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "called `Option::unwrap()` on a `None` value");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![], // Empty commitments vector
+                &[],
+                get_forks(),
+            )
+        },
+        "called `Option::unwrap()` on a `None` value"
+    );
 }
 
 #[test]
@@ -627,27 +627,25 @@ fn test_panic_invalid_sequencer_public_key() {
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // Should panic when sequencer public key is invalid (wrong length)
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &[0u8; 10], // Invalid key length
-            &state_root,
-            prover_storage,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 1,
-                l2_end_block_number: 1,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "Sequencer public key must be valid");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &[0u8; 10], // Invalid key length
+                &state_root,
+                prover_storage,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: [0; 32],
+                    index: 1,
+                    l2_end_block_number: 1,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "Sequencer public key must be valid"
+    );
 }
 
 #[test]
@@ -723,27 +721,25 @@ fn test_panic_l2_block_processing_failure() {
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // Should panic due to L2 block processing failure (timestamp validation)
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: commitment_calculated_root,
-                index: 1,
-                l2_end_block_number: 2,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "L2 block must succeed");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 2,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "L2 block must succeed"
+    );
 }
 
 #[test]
@@ -819,27 +815,25 @@ fn test_panic_l2_block_timestamp_validation_failure() {
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // Should panic due to L2 block processing failure (timestamp validation)
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: commitment_calculated_root,
-                index: 1,
-                l2_end_block_number: 2,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "L2 block must succeed");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 2,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "L2 block must succeed"
+    );
 }
 
 #[test]
@@ -914,27 +908,25 @@ fn test_panic_state_root_assertion_failure() {
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // Should panic due to state root assertion failure
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: commitment_calculated_root,
-                index: 1,
-                l2_end_block_number: 1,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "assertion `left == right` failed");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 1,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "assertion `left == right` failed"
+    );
 }
 
 #[test]
@@ -975,27 +967,25 @@ fn test_panic_merkle_root_assertion_failure() {
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // Should panic due to merkle root assertion failure
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: [255; 32], // Wrong merkle root
-                index: 1,
-                l2_end_block_number: 1,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "assertion `left == right` failed");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: [255; 32], // Wrong merkle root
+                    index: 1,
+                    l2_end_block_number: 1,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "assertion `left == right` failed"
+    );
 }
 
 #[test]
@@ -1097,34 +1087,32 @@ fn test_panic_l2_block_execution_failure() {
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
     // Should panic due to L2 block execution failure (timestamp validation)
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![
-                SequencerCommitment {
-                    merkle_root: first_commitment_calculated_root,
-                    index: 1,
-                    l2_end_block_number: 5,
-                },
-                SequencerCommitment {
-                    merkle_root: second_commitment_calculated_root,
-                    index: 2,
-                    l2_end_block_number: 10, // Should be 8 if sequential
-                },
-            ],
-            &[],
-            get_forks(),
-        )
-    }));
-
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "L2 block must succeed");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![
+                    SequencerCommitment {
+                        merkle_root: first_commitment_calculated_root,
+                        index: 1,
+                        l2_end_block_number: 5,
+                    },
+                    SequencerCommitment {
+                        merkle_root: second_commitment_calculated_root,
+                        index: 2,
+                        l2_end_block_number: 10, // Should be 8 if sequential
+                    },
+                ],
+                &[],
+                get_forks(),
+            )
+        },
+        "L2 block must succeed"
+    );
 }
 
 #[test]
@@ -1198,27 +1186,24 @@ fn test_panic_state_root_mismatch_assertion() {
     let guest = MockZkGuest::new(input);
     let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
-    // This should panic with the error message "L2 block must succeed" when the L2 block processing fails
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: commitment_calculated_root,
-                index: 1,
-                l2_end_block_number: 1,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
-
     // This should panic due to state root assertion failure
-    assert!(result.is_err());
-    if let Err(panic_payload) = result {
-        assert_panic_message_contains(panic_payload, "assertion `left == right` failed");
-    }
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 1,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "assertion `left == right` failed"
+    );
 }
