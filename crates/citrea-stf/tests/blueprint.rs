@@ -410,8 +410,6 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     // to validate state that has been executed previously.
     let guest = MockZkGuest::new(input.clone());
     let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
-    let mut storage_manager = init_storage_manager();
-    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
 
     let first_commitment_block_hashes = block_cache[0..5]
         .iter()
@@ -432,7 +430,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             .root()
             .unwrap();
 
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // First, test that the first commitment index should always start at 1
     assert_panics_with_message!(
@@ -458,7 +456,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
 
     // Apply first commitment
     let guest = MockZkGuest::new(input.clone());
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
@@ -476,7 +474,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     );
 
     let guest = MockZkGuest::new(input.clone());
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
     // Should panic since the commitment is index 0 is not allowed
     assert_panics_with_message!(
         {
@@ -508,7 +506,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     );
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(7);
     // Should panic since the commitment is index 3 while the next commitment index should be 2.
     assert_panics_with_message!(
         {
@@ -551,7 +549,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     }
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
@@ -568,8 +566,6 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
         get_forks(),
     );
 
-    storage_manager.finalize_storage(prover_storage);
-
     let mut input: Vec<u8> = vec![];
     // Groups count
     input.extend(&borsh::to_vec(&1u32).unwrap());
@@ -582,7 +578,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     }
     // This call has a proper input so expect it to go well.
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(7);
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
