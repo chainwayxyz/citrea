@@ -1,6 +1,6 @@
-///! In these tests, you'll see
-///!     let prover_storage = storage_manager.create_storage_for_l2_height(7);
-///! being used for storage of block 6, which is deu to how to tests were set up.
+//! In these tests, you'll see
+//!     let prover_storage = storage_manager.create_storage_for_l2_height(7);
+//! being used for storage of block 6, which is deu to how to tests were set up.
 use citrea_evm::EvmConfig;
 use citrea_primitives::forks::{get_forks, use_network_forks};
 use citrea_primitives::EMPTY_TX_ROOT;
