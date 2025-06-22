@@ -443,6 +443,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
                 &state_root,
                 prover_storage,
                 None,
+                None,
                 vec![SequencerCommitment {
                     merkle_root: first_commitment_calculated_root,
                     index: 10, // First commitment does NOT start at 1
@@ -482,12 +483,17 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                &state_root,
+                &block_cache[4].1.header.inner.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
                     merkle_root: first_commitment_calculated_root,
                     index: 0,
                     l2_end_block_number: 5,
+                }),
+                Some(PrevHashProof {
+                    merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
+                    last_header: block_cache[4].1.header.inner.clone(),
+                    prev_sequencer_commitment_start: 1,
                 }),
                 vec![SequencerCommitment {
                     merkle_root: second_commitment_calculated_root,
@@ -509,12 +515,17 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                &state_root,
+                &block_cache[4].1.header.inner.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
                     merkle_root: first_commitment_calculated_root,
                     index: 1,
                     l2_end_block_number: 5,
+                }),
+                Some(PrevHashProof {
+                    merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
+                    last_header: block_cache[4].1.header.inner.clone(),
+                    prev_sequencer_commitment_start: 1,
                 }),
                 vec![SequencerCommitment {
                     merkle_root: second_commitment_calculated_root,
@@ -583,7 +594,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             l2_end_block_number: 5,
         }),
         Some(PrevHashProof {
-            merkle_proof_bytes: first_commitment_last_block_merkle_proof,
+            merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
             last_header: block_cache[4].1.header.inner.clone(),
             prev_sequencer_commitment_start: 1,
         }),
@@ -744,6 +755,7 @@ fn test_panic_empty_sequencer_commitments() {
                 &state_root,
                 prover_storage,
                 None,
+                None,
                 vec![], // Empty commitments vector
                 &[],
                 get_forks(),
@@ -771,6 +783,7 @@ fn test_panic_invalid_sequencer_public_key() {
                 &[0u8; 10], // Invalid key length
                 &state_root,
                 prover_storage,
+                None,
                 None,
                 vec![SequencerCommitment {
                     merkle_root: [0; 32],
@@ -866,6 +879,7 @@ fn test_panic_l2_block_processing_failure() {
                 &state_root,
                 prover_storage,
                 None,
+                None,
                 vec![SequencerCommitment {
                     merkle_root: commitment_calculated_root,
                     index: 1,
@@ -960,6 +974,7 @@ fn test_panic_l2_block_timestamp_validation_failure() {
                 &state_root,
                 prover_storage,
                 None,
+                None,
                 vec![SequencerCommitment {
                     merkle_root: commitment_calculated_root,
                     index: 1,
@@ -1053,6 +1068,7 @@ fn test_panic_state_root_assertion_failure() {
                 &state_root,
                 prover_storage,
                 None,
+                None,
                 vec![SequencerCommitment {
                     merkle_root: commitment_calculated_root,
                     index: 1,
@@ -1111,6 +1127,7 @@ fn test_panic_merkle_root_assertion_failure() {
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
                 &state_root,
                 prover_storage,
+                None,
                 None,
                 vec![SequencerCommitment {
                     merkle_root: [255; 32], // Wrong merkle root
@@ -1183,6 +1200,7 @@ fn test_panic_l2_block_execution_failure() {
             &state_root,
             prover_storage,
             None,
+            None,
             vec![SequencerCommitment {
                 merkle_root: first_commitment_calculated_root,
                 index: 1,
@@ -1231,6 +1249,7 @@ fn test_panic_l2_block_execution_failure() {
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
                 &state_root,
                 prover_storage,
+                None,
                 None,
                 vec![
                     SequencerCommitment {
@@ -1331,6 +1350,7 @@ fn test_panic_state_root_mismatch_assertion() {
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
                 &state_root,
                 prover_storage,
+                None,
                 None,
                 vec![SequencerCommitment {
                     merkle_root: commitment_calculated_root,
