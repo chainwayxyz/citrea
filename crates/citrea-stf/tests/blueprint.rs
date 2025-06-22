@@ -1,3 +1,6 @@
+///! In these tests, you'll see
+///!     let prover_storage = storage_manager.create_storage_for_l2_height(7);
+///! being used for storage of block 6, which is deu to how to tests were set up.
 use citrea_evm::EvmConfig;
 use citrea_primitives::forks::{get_forks, use_network_forks};
 use citrea_primitives::EMPTY_TX_ROOT;
@@ -636,15 +639,12 @@ fn test_wrong_prev_hash_proof() {
     let mut input: Vec<u8> = vec![];
     // Groups count
     input.extend(&borsh::to_vec(&1u32).unwrap());
-    for i in 0..2 {
-        // State change count
-        input.extend(&borsh::to_vec(&5u32).unwrap());
-        // Blocks
-        for (height, l2_block, witness, offchain_witness) in &block_cache[i * 5..(i + 1) * 5] {
-            input.extend(&borsh::to_vec(&height).unwrap());
-            input
-                .extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
-        }
+    // State change count
+    input.extend(&borsh::to_vec(&5u32).unwrap());
+    // Blocks
+    for (height, l2_block, witness, offchain_witness) in &block_cache[0..5] {
+        input.extend(&borsh::to_vec(&height).unwrap());
+        input.extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
     }
 
     let first_commitment_block_hashes = block_cache[0..5]
@@ -670,11 +670,9 @@ fn test_wrong_prev_hash_proof() {
     // From here on, we establish a new base on which the mockZk guest will run
     // to validate state that has been executed previously.
     let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
-    let mut storage_manager = init_storage_manager();
-    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
 
     let guest = MockZkGuest::new(input.clone());
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
@@ -701,9 +699,9 @@ fn test_wrong_prev_hash_proof() {
         input.extend(&borsh::to_vec(&height).unwrap());
         input.extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
     }
-    // This call has a proper input so expect it to go well.
-    let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    // Correct prev_hash usage
+    let guest = MockZkGuest::new(input.clone());
+    let prover_storage = storage_manager.create_storage_for_l2_height(7);
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
@@ -715,7 +713,7 @@ fn test_wrong_prev_hash_proof() {
             l2_end_block_number: 5,
         }),
         Some(PrevHashProof {
-            merkle_proof_bytes: first_commitment_last_block_merkle_proof,
+            merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
             last_header: block_cache[4].1.header.inner.clone(),
             prev_sequencer_commitment_start: 1,
         }),
@@ -726,6 +724,69 @@ fn test_wrong_prev_hash_proof() {
         }],
         &[],
         get_forks(),
+    );
+
+    // Wrong prev_hash_proof usage, uses wrong last header
+    let guest = MockZkGuest::new(input.clone());
+    let prover_storage = storage_manager.create_storage_for_l2_height(7);
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &block_cache[4].1.state_root(),
+                prover_storage,
+                Some(SequencerCommitment {
+                    merkle_root: first_commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 5,
+                }),
+                Some(PrevHashProof {
+                    merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
+                    last_header: block_cache[3].1.header.inner.clone(),
+                    prev_sequencer_commitment_start: 1,
+                }),
+                vec![SequencerCommitment {
+                    merkle_root: second_commitment_calculated_root,
+                    index: 2,
+                    l2_end_block_number: 10,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "Initial state root must match the last header state root"
+    );
+    // Wrong prev_hash_proof usage, uses wrong prev commitment start
+    let guest = MockZkGuest::new(input.clone());
+    let prover_storage = storage_manager.create_storage_for_l2_height(7);
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &block_cache[4].1.state_root(),
+                prover_storage,
+                Some(SequencerCommitment {
+                    merkle_root: first_commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 5,
+                }),
+                Some(PrevHashProof {
+                    merkle_proof_bytes: first_commitment_last_block_merkle_proof.clone(),
+                    last_header: block_cache[4].1.header.inner.clone(),
+                    prev_sequencer_commitment_start: 2,
+                }),
+                vec![SequencerCommitment {
+                    merkle_root: second_commitment_calculated_root,
+                    index: 2,
+                    l2_end_block_number: 10,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "Prev hash proof must be valid"
     );
 }
 

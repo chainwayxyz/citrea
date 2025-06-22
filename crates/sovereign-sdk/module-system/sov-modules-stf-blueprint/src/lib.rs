@@ -504,7 +504,8 @@ where
                 // and we could start from the first l2 block
                 assert_eq!(
                     prev_hash_proof.last_header.state_root(),
-                    *initial_state_root
+                    *initial_state_root,
+                    "Initial state root must match the last header state root"
                 );
 
                 // TODO: Is this ok???
