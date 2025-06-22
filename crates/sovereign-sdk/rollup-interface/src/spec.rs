@@ -35,7 +35,6 @@ pub enum SpecId {
     /// Tangerine spec
     Tangerine = 2,
     /// Fork3 spec
-    #[cfg(feature = "testing")]
     Fork3 = 3,
     /// Fork4 spec
     #[cfg(feature = "testing")]

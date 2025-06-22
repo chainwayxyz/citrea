@@ -37,7 +37,7 @@ use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
-    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, StateDiff,
+    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId, StateDiff,
     StateValueAccessor, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -250,7 +250,7 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx = self.sign_tx(raw_message, nonce)?;
+                let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
                 nonce += 1;
 
                 let txs = vec![signed_tx];
@@ -518,7 +518,7 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(raw_message, nonce)?;
+            let signed_tx = self.sign_tx(active_fork_spec, raw_message, nonce)?;
 
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
@@ -872,11 +872,17 @@ where
     ///
     /// # Returns
     /// A signed transaction
-    pub(crate) fn sign_tx(&self, raw_message: Vec<u8>, nonce: u64) -> anyhow::Result<Transaction> {
+    pub(crate) fn sign_tx(
+        &self,
+        spec: SpecId,
+        raw_message: Vec<u8>,
+        nonce: u64,
+    ) -> anyhow::Result<Transaction> {
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let tx = Transaction::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        let tx =
+            Transaction::new_signed_tx(spec, &self.sov_tx_signer_priv_key, raw_message, 0, nonce);
         Ok(tx)
     }
 
@@ -1185,7 +1191,7 @@ where
             >>::encode_call(call_txs);
 
             // Sign and increment nonce
-            let signed_tx = self.sign_tx(raw_message, *nonce)?;
+            let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, *nonce)?;
             *nonce += 1;
 
             let txs = vec![signed_tx];
