@@ -337,6 +337,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         continue;
                     }
 
+                    let Ok(proof) = DS::decompress_chunks(&proof) else {
+                        log!("Failed to decompress and deserialize complete proof");
+                        continue;
+                    };
+
                     match self.process_complete_proof(
                         &proof,
                         last_l2_height,

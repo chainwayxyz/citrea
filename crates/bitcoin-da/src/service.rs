@@ -1219,11 +1219,10 @@ impl DaService for BitcoinService {
                 match tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let Ok(blob) = decompress_blob(&complete.body) else {
-                                continue;
-                            };
+                            // complete.body is compressed, but we'll leave the compression to
+                            // circuit logic
                             let relevant_tx = BlobWithSender::new(
-                                blob,
+                                complete.body,
                                 complete.public_key,
                                 hash,
                                 Some(wtxid.to_byte_array()),
