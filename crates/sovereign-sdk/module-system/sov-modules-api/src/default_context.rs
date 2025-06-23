@@ -28,7 +28,6 @@ impl Spec for DefaultContext {
     type Storage = ProverStorage;
     type PrivateKey = K256PrivateKey;
     type PublicKey = K256PublicKey;
-    type Hasher = sha2::Sha256;
     type Signature = K256Signature;
 }
 
@@ -76,7 +75,6 @@ impl Spec for ZkDefaultContext {
     #[cfg(feature = "native")]
     type PrivateKey = K256PrivateKey;
     type PublicKey = K256PublicKey;
-    type Hasher = sha2::Sha256;
     type Signature = K256Signature;
 }
 

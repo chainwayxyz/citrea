@@ -2,7 +2,7 @@
 //! l2 block
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use digest::{Digest, Output};
+use digest::{Digest, FixedOutput};
 use serde::{Deserialize, Serialize};
 
 use super::transaction::Transaction;
@@ -67,15 +67,15 @@ impl L2Header {
     ///
     /// # Returns
     /// The computed hash digest of the header
-    pub fn compute_digest<D: Digest>(&self) -> Output<D> {
-        let mut hasher = D::new();
+    pub fn compute_digest(&self) -> [u8; 32] {
+        let mut hasher = sha2::Sha256::new();
         hasher.update(self.height.to_be_bytes());
         hasher.update(self.prev_hash);
         hasher.update(self.state_root);
         hasher.update(self.l1_fee_rate.to_be_bytes());
         hasher.update(self.tx_merkle_root);
         hasher.update(self.timestamp.to_be_bytes());
-        hasher.finalize()
+        <[u8; 32]>::from(hasher.finalize_fixed())
     }
 }
 

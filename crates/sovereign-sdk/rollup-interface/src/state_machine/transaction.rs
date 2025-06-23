@@ -1,6 +1,8 @@
 #![allow(missing_docs)]
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use digest::FixedOutput;
+use sha2::Digest;
 #[cfg(feature = "native")]
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};

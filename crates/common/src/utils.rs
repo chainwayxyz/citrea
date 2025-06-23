@@ -8,15 +8,11 @@ use anyhow::{anyhow, Context as _};
 use borsh::BorshDeserialize;
 use citrea_evm::system_contracts::{BitcoinLightClientContract, BridgeContract};
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
-use citrea_primitives::EMPTY_TX_ROOT;
 use reth_primitives::{Recovered, TransactionSigned};
-use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SharedLedgerOps;
-use sov_modules_api::{Context, DaSpec, Spec};
+use sov_modules_api::DaSpec;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::transaction::Transaction;
 
@@ -36,22 +32,6 @@ pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64
     };
 
     head_l2_height >= l2_height
-}
-
-pub fn compute_tx_hashes<C: Context>(txs: &[Transaction], _current_spec: SpecId) -> Vec<[u8; 32]> {
-    txs.iter()
-        .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
-        .collect()
-}
-
-pub fn compute_tx_merkle_root(tx_hashes: &[[u8; 32]]) -> anyhow::Result<[u8; 32]> {
-    if tx_hashes.is_empty() {
-        return Ok(EMPTY_TX_ROOT);
-    }
-
-    MerkleTree::<Sha256>::from_leaves(tx_hashes)
-        .root()
-        .context("Couldn't compute merkle root")
 }
 
 async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOps>(
