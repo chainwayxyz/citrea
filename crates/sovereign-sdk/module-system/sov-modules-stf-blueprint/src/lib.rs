@@ -490,7 +490,7 @@ where
 
         // we are going to initialize with 000.000 or the last hash from the previous commitment
 
-        let mut prev_l2_block_hash: [u8; 32] = match &previous_sequencer_commitment {
+        let mut prev_l2_block_hash: Option<[u8; 32]> = match &previous_sequencer_commitment {
             Some(commitment) => {
                 let prev_hash_proof = prev_hash_proof
                     .expect("Previous sequencer commitment must have a prev hash proof");
@@ -528,11 +528,11 @@ where
                     "Prev hash proof must be valid"
                 );
 
-                last_header_hash
+                Some(last_header_hash)
             }
             None => {
                 assert!(prev_hash_proof.is_none());
-                [0; 32] // This is the going to start from the first l2 block
+                None
             }
         };
 
@@ -638,11 +638,15 @@ where
                     "L2 block height is not equal to the expected height"
                 );
 
-                assert_eq!(
-                    l2_block.prev_hash(),
-                    prev_l2_block_hash,
-                    "L2 block previous hash must match the hash of the block before"
-                );
+                // There is no previous l2 block hash. For mainnet this is going to be the case for the 1st block.
+                // But for testnet it will be the Tangerine fork start, hence, we will have to have trust in the first proof.
+                if let Some(prev_l2_block_hash) = prev_l2_block_hash {
+                    assert_eq!(
+                        l2_block.prev_hash(),
+                        prev_l2_block_hash,
+                        "L2 block previous hash must match the hash of the block before"
+                    );
+                }
 
                 fork_manager.register_block(l2_height).unwrap();
 
@@ -682,7 +686,7 @@ where
                 }
 
                 l2_height += 1;
-                prev_l2_block_hash = l2_block.hash();
+                prev_l2_block_hash = Some(l2_block.hash());
                 l2_block_hashes.push(l2_block.hash());
 
                 cumulative_state_log = Some(state_log);
@@ -711,7 +715,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height,
-            final_l2_block_hash: prev_l2_block_hash,
+            final_l2_block_hash: prev_l2_block_hash.unwrap(),
             sequencer_commitment_hashes,
             sequencer_commitment_index_range,
             cumulative_state_log: cumulative_state_log.unwrap(),
