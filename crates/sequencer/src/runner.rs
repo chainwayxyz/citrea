@@ -63,6 +63,7 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
+use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
 
 /// Maximum number of DA blocks that can be missed per L2 block
@@ -87,8 +88,8 @@ where
     mempool: Arc<CitreaMempool>,
     /// Private key for signing transactions
     pub(crate) sov_tx_signer_priv_key: K256PrivateKey,
-    /// Channel for receiving force block production signals
-    l2_force_block_rx: UnboundedReceiver<()>,
+    /// Channel for receiving messages from RPC.
+    rpc_message_rx: UnboundedReceiver<SequencerRpcMessage>,
     /// Database provider for blockchain data access
     db_provider: DbProvider,
     /// Database for ledger operations
@@ -136,7 +137,7 @@ where
     /// * `fork_manager` - Manager for handling chain forks
     /// * `l2_block_tx` - Channel for L2 block notifications
     /// * `backup_manager` - Manager for backup operations
-    /// * `l2_force_block_rx` - Channel for force block production signals
+    /// * `rpc_message_rx` - Channel for receiving messages from RPC
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
@@ -152,7 +153,7 @@ where
         fork_manager: ForkManager<'static>,
         l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
-        l2_force_block_rx: UnboundedReceiver<()>,
+        rpc_message_rx: UnboundedReceiver<SequencerRpcMessage>,
     ) -> anyhow::Result<Self> {
         let sov_tx_signer_priv_key =
             K256PrivateKey::try_from(hex::decode(&config.private_key)?.as_slice())?;
@@ -161,7 +162,7 @@ where
             da_service,
             mempool,
             sov_tx_signer_priv_key,
-            l2_force_block_rx,
+            rpc_message_rx,
             db_provider,
             ledger_db,
             config,
@@ -765,7 +766,7 @@ where
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that even though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
-                _ = self.l2_force_block_rx.recv(), if self.config.test_mode => {
+                _ = self.rpc_message_rx.recv(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
@@ -821,7 +822,7 @@ where
                 _ = &mut shutdown_signal => {
                     info!("Shutting down sequencer");
                     da_height_update_rx.close();
-                    self.l2_force_block_rx.close();
+                    self.rpc_message_rx.close();
                     return Ok(());
                 }
             }
