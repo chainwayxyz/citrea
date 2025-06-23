@@ -21,8 +21,8 @@ use super::evm::init_test_rollup;
 use super::{initialize_test, TestConfig};
 use crate::common::client::TestClient;
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
-    wait_for_l1_block, wait_for_l2_block, NodeMode,
+    create_default_rollup_config, extract_da_data, start_rollup, tempdir_with_children,
+    wait_for_commitment, wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -677,4 +677,121 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+}
+
+/// Test the halt and resume commitments functionality
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::INFO);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: 2, // Small number of commitments for testing
+        da_update_interval_ms: 100,
+        block_production_interval_ms: 100,
+        ..Default::default()
+    };
+
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    // Publish initial DA block
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
+
+    // Create first 2 L2 blocks to trigger initial commitment
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
+
+    // Wait for first commitment to be published
+    let initial_commitments =
+        wait_for_commitment(&da_service, 3, Some(Duration::from_secs(30))).await;
+    assert_eq!(
+        initial_commitments.len(),
+        1,
+        "Expected 1 initial commitment"
+    );
+
+    // Halt commitments via RPC
+    seq_test_client.sequencer_halt_commitments().await;
+
+    // Propagate signal in runner
+    sleep(Duration::from_millis(500)).await;
+
+    // Create more L2 blocks (should trigger commitments normally, but won't due to halt)
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 4, None).await;
+
+    // Publish DA block
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 4, None).await;
+
+    // Wait for some time and verify no new commitments were published
+    sleep(Duration::from_secs(3)).await;
+
+    // Check that no new commitments appeared at height 4
+    let da_block_4 = da_service
+        .get_block_at(4)
+        .await
+        .expect("Failed to get DA block 4");
+    let (commitments, _) = extract_da_data(&da_service, da_block_4);
+
+    // No commitments should exist
+    assert_eq!(commitments.len(), 0);
+
+    // Resume commitments via RPC
+    seq_test_client.sequencer_resume_commitments().await;
+
+    // Allow some time for the resume signal to propagate
+    sleep(Duration::from_millis(500)).await;
+
+    // Create one more L2 block to trigger commitment processing
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 5, None).await;
+
+    // Publish DA block to provide space for commitments
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 5, None).await;
+
+    // Wait for commitment to be published after resume
+    let resumed_commitments =
+        wait_for_commitment(&da_service, 5, Some(Duration::from_secs(30))).await;
+    // We should have a single commitment at block 5
+    assert_eq!(resumed_commitments.len(), 1);
+
+    // Verify the commitment is for the correct block range
+    let commitment = &resumed_commitments[0];
+    assert_eq!(commitment.l2_end_block_number, 4);
+
+    seq_task.graceful_shutdown();
+    Ok(())
 }

@@ -698,7 +698,7 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
     sleep(Duration::from_secs(2)).await;
 }
 
-fn extract_da_data(
+pub fn extract_da_data(
     da_service: &MockDaService,
     block: MockBlock,
 ) -> (Vec<SequencerCommitment>, Vec<Proof>) {
