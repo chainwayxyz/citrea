@@ -1420,7 +1420,22 @@ mod tests {
     async fn commitment_partition_with_spec_change() {
         let MockProverData { mut prover, .. } = create_mock_prover();
         // put 4 l2 blocks where l2 blocks are switching to a new fork
-        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0), (10, 0), (11, 0)]);
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+                (8, 0),
+                (9, 0),
+                (10, 0),
+                (11, 0),
+            ],
+        );
 
         let mut commitments = vec![
             SequencerCommitment {
