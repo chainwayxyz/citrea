@@ -17,7 +17,7 @@ pub fn decompress_blob(blob: &[u8]) -> Result<Vec<u8>, io::Error> {
 
     let mut buf = [0u8; 4096];
 
-    let mut decompressed_data = Vec::new();
+    let mut decompressed_data = Vec::with_capacity(200 * 1024); // Preallocate for 200 KB
 
     loop {
         match reader.read(&mut buf) {
