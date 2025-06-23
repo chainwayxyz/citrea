@@ -532,8 +532,10 @@ where
             }
             None => {
                 assert!(prev_hash_proof.is_none());
-                // If the chain starts with Tangerine fork or higher, we know that the previous hash must be [0; 32],
-                // but otherwise, we can't know, hence we skip checking prev hash
+                // If the chain starts at genesis with a Tangerine-or-later fork,
+                // the previous block hash is known to be [0; 32] by convention (e.g. Mainnet).
+                // Otherwise, if the starting fork is before Tangerine, we don't assume a value for the prev hash,
+                // so we skip checking it (e.g. Testnet).
                 if forks[0].spec_id >= SpecId::Tangerine && forks[0].activation_height == 0 {
                     Some([0; 32])
                 } else {
