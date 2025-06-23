@@ -1,4 +1,3 @@
-use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
