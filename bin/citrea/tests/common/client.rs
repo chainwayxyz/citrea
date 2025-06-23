@@ -853,6 +853,24 @@ impl TestClient {
 
         Some(commitments)
     }
+
+    /// Halt sequencer commitments
+    pub(crate) async fn sequencer_halt_commitments(&self) {
+        let _: () = self
+            .http_client
+            .request("citrea_haltCommitments", rpc_params![])
+            .await
+            .unwrap();
+    }
+
+    /// Resume sequencer commitments
+    pub(crate) async fn sequencer_resume_commitments(&self) {
+        let _: () = self
+            .http_client
+            .request("citrea_resumeCommitments", rpc_params![])
+            .await
+            .unwrap();
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]
