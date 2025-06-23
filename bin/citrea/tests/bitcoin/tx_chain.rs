@@ -385,7 +385,7 @@ impl TestSequencerTransactionChaining {
         let monitored_txs = sequencer
             .client
             .http_client()
-            .da_list_monitored_transactions()
+            .da_list_monitored_transactions(false)
             .await?;
 
         assert_eq!(monitored_txs.len(), 2);
