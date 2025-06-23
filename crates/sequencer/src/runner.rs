@@ -710,12 +710,16 @@ where
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
 
+        // Create channel for communicating halt signals to the commitment service
+        let (halt_commitment_tx, halt_commitment_rx) = mpsc::unbounded_channel();
+
         // Initialize commitment service for DA layer publication
         let commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
             self.da_service.clone(),
             self.sequencer_da_pub_key.clone(),
             self.config.max_l2_blocks_per_commitment,
+            halt_commitment_rx,
         );
 
         // Spawn commitment service task
@@ -763,29 +767,47 @@ where
                     }
                     SEQUENCER_METRICS.current_l1_block.set(last_finalized_l1_height as f64);
                 },
-                // If sequencer is in test mode, it will build a block every time it receives a message
-                // The RPC from which the sender can be called is only registered for test mode. This means
-                // that even though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
-                _ = self.rpc_message_rx.recv(), if self.config.test_mode => {
-                    if missed_da_blocks_count > 0 {
-                        if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
-                            error!("Sequencer error: {}", e);
-                            // Cancel child tasks
-                            drop(shutdown_signal);
-                            // we never want to continue if we have missed blocks
-                            return Err(e);
-                        }
-                        missed_da_blocks_count = 0;
-                    }
-                    let _l2_lock = backup_manager.start_l2_processing().await;
-                    match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
-                        Ok(l2_height) => {
-
-                            // Only errors when there are no receivers
-                            let _ = self.l2_block_tx.send(l2_height);
+                // Handle RPC messages (both test mode and halt signals)
+                rpc_message = self.rpc_message_rx.recv() => {
+                    match rpc_message {
+                        Some(SequencerRpcMessage::ProduceTestBlock) => {
+                            if !self.config.test_mode {
+                                // Test block request received but not in test mode
+                                warn!("Received test block request but sequencer is not in test mode");
+                                continue;
+                            }
+                            if missed_da_blocks_count > 0 {
+                                if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
+                                    error!("Sequencer error: {}", e);
+                                    // Cancel child tasks
+                                    drop(shutdown_signal);
+                                    // we never want to continue if we have missed blocks
+                                    return Err(e);
+                                }
+                                missed_da_blocks_count = 0;
+                            }
+                            let _l2_lock = backup_manager.start_l2_processing().await;
+                            match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
+                                Ok(l2_height) => {
+                                    // Only errors when there are no receivers
+                                    let _ = self.l2_block_tx.send(l2_height);
+                                },
+                                Err(e) => {
+                                    error!("Sequencer error: {}", e);
+                                }
+                            }
                         },
-                        Err(e) => {
-                            error!("Sequencer error: {}", e);
+                        Some(SequencerRpcMessage::HaltCommitments(should_halt)) => {
+                            // Forward halt signal to commitment service
+                            if let Err(e) = halt_commitment_tx.send(should_halt) {
+                                error!("Failed to send halt signal to commitment service: {}", e);
+                            } else {
+                                info!("Sequencer: {} commitments via RPC", if should_halt { "Halted" } else { "Resumed" });
+                            }
+                        },
+                        None => {
+                            // Channel closed
+                            warn!("RPC message channel closed");
                         }
                     }
                 },
