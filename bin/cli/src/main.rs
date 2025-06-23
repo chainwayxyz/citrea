@@ -81,12 +81,6 @@ enum Commands {
         #[arg(long)]
         backup_id: u32,
     },
-    /// Clear pending commitments and proofs
-    ClearPending {
-        /// The path of the databases to clear
-        #[arg(long)]
-        db_path: PathBuf,
-    },
 }
 
 #[tokio::main]
@@ -133,9 +127,6 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::restore_backup(node_kind.to_string(), db_path, backup_path, backup_id)
                 .await?;
-        }
-        Commands::ClearPending { db_path } => {
-            commands::clear_pending_proofs_and_commitments(db_path).await?
         }
     }
 
