@@ -2834,7 +2834,7 @@ struct UndecompressableBlobTest {
 impl UndecompressableBlobTest {
     fn verify_complete_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
         if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
-            let Ok(data) = DataOnDa::borsh_parse_complete(&complete.body) else {
+            let Ok(data) = borsh::from_slice::<DataOnDa>(&complete.body) else {
                 panic!("Failed to parse complete data");
             };
 
