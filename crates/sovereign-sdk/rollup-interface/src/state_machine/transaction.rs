@@ -62,6 +62,14 @@ impl TransactionV1 {
         signature.verify(&self.pub_key, &serialized_tx)?;
         Ok(())
     }
+
+    pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
+        let mut hasher = D::new();
+        hasher.update(&self.runtime_msg);
+        hasher.update(self.chain_id.to_be_bytes());
+        hasher.update(self.nonce.to_be_bytes());
+        hasher.finalize()
+    }
 }
 
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
@@ -79,8 +87,8 @@ impl TransactionV2 {
     fn new(priv_key: &K256PrivateKey, runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
         let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
         message.extend_from_slice(&runtime_msg);
-        message.extend_from_slice(&chain_id.to_be_bytes());
-        message.extend_from_slice(&nonce.to_be_bytes());
+        message.extend_from_slice(&chain_id.to_le_bytes());
+        message.extend_from_slice(&nonce.to_le_bytes());
 
         let pub_key = priv_key.pub_key();
         let signature = priv_key.sign(&message);
@@ -99,11 +107,19 @@ impl TransactionV2 {
         let mut serialized_tx = Vec::with_capacity(self.runtime_msg.len() + EXTEND_MESSAGE_LEN);
 
         serialized_tx.extend_from_slice(&self.runtime_msg);
-        serialized_tx.extend_from_slice(&self.chain_id.to_be_bytes());
-        serialized_tx.extend_from_slice(&self.nonce.to_be_bytes());
+        serialized_tx.extend_from_slice(&self.chain_id.to_le_bytes());
+        serialized_tx.extend_from_slice(&self.nonce.to_le_bytes());
 
         signature.verify(&self.pub_key, &serialized_tx)?;
         Ok(())
+    }
+
+    pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
+        let mut hasher = D::new();
+        hasher.update(&self.runtime_msg);
+        hasher.update(self.chain_id.to_le_bytes());
+        hasher.update(self.nonce.to_le_bytes());
+        hasher.finalize()
     }
 }
 
@@ -206,10 +222,9 @@ impl Transaction {
     }
 
     pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
-        let mut hasher = D::new();
-        hasher.update(self.runtime_msg());
-        hasher.update(self.chain_id().to_be_bytes());
-        hasher.update(self.nonce().to_be_bytes());
-        hasher.finalize()
+        match self {
+            Self::V1(tx) => tx.compute_digest::<D>(),
+            Self::V2(tx) => tx.compute_digest::<D>(),
+        }
     }
 }
