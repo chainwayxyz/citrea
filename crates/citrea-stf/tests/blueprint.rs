@@ -182,7 +182,7 @@ fn test_wrong_l2_block_signature() {
         header: SignedL2Header::new(header, hash, signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
 
     assert!(matches!(
         result,
@@ -207,7 +207,7 @@ fn test_wrong_l2_block_hash() {
         header: SignedL2Header::new(header, [0; 32], signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(
@@ -231,7 +231,7 @@ fn test_wrong_l2_tx_merkle_root() {
         header: SignedL2Header::new(header, [0; 32], signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(

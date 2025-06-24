@@ -275,10 +275,11 @@ where
         &self,
         l2_block: &L2Block,
         sequencer_public_key: &K256PublicKey,
+        current_spec: SpecId,
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        if !verify_tx_merkle_root(&l2_block.txs, l2_block.tx_merkle_root()) {
+        if !verify_tx_merkle_root(&l2_block.txs, l2_block.tx_merkle_root(), current_spec) {
             return Err(StateTransitionError::L2BlockError(
                 L2BlockError::InvalidTxMerkleRoot,
             ));
@@ -440,7 +441,7 @@ where
 
         native_debug!("Applying l2 block in STF Blueprint");
 
-        self.verify_l2_block(l2_block, sequencer_public_key)?;
+        self.verify_l2_block(l2_block, sequencer_public_key, current_spec)?;
 
         self.begin_l2_block(&mut working_set, &l2_block_info)?;
 

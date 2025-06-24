@@ -2589,6 +2589,7 @@ dependencies = [
  "alloy-eips",
  "brotli",
  "rs_merkle",
+ "sha2 0.10.8",
  "sov-rollup-interface",
 ]
 

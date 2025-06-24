@@ -536,8 +536,8 @@ where
             .finalize_l2_block(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
-        let tx_hashes = compute_tx_hashes(&txs);
-        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes);
+        let tx_hashes = compute_tx_hashes(&txs, active_fork_spec);
+        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes, active_fork_spec);
 
         // create the l2 block header
         let header = L2Header::new(
