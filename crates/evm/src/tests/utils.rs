@@ -47,7 +47,8 @@ pub(crate) fn get_evm_with_storage(
 
     evm.finalize_hook(&genesis_state_root, &mut working_set.accessory_state());
 
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
+    let ledger_db =
+        LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
     (evm, working_set, prover_storage, ledger_db)
 }
 
@@ -101,7 +102,8 @@ pub(crate) fn get_evm_with_spec(
 
     // let mut genesis_state_root = [0u8; 32];
     // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
+    let ledger_db =
+        LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
     (evm, working_set, spec_id, ledger_db)
 }
 
@@ -284,7 +286,8 @@ pub(crate) fn get_evm_config_starting_base_fee(
         ..Default::default()
     };
     let tmpdir = tempfile::tempdir().unwrap();
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
+    let ledger_db =
+        LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
     (config, dev_signer, contract_addr, ledger_db)
 }
 pub(crate) fn get_evm_test_config() -> EvmConfig {

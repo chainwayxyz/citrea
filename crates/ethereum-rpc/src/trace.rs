@@ -16,7 +16,6 @@ use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
 use reth_rpc_eth_types::error::EthApiError;
-use sov_db::ledger_db;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use tracing::error;

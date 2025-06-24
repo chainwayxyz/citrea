@@ -388,7 +388,7 @@ fn eth_call_eip1559(
         None,
         None,
         working_set,
-        &ledger_db,
+        ledger_db,
         get_fork_fn_latest(),
     )
 }

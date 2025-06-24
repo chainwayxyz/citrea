@@ -543,7 +543,7 @@ fn test_estimate_gas_with_input(
         tx_req,
         Some(BlockNumberOrTag::Latest),
         working_set,
-        &ledger_db,
+        ledger_db,
         get_fork_fn_latest(),
     )
 }
@@ -568,7 +568,7 @@ fn test_estimate_gas_with_value(
         tx_req,
         Some(BlockNumberOrTag::Latest),
         working_set,
-        &ledger_db,
+        ledger_db,
         get_fork_fn_latest(),
     )
 }

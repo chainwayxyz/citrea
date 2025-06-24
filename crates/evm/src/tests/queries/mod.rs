@@ -188,7 +188,14 @@ fn init_evm(
     l2_height += 1;
 
     let working_set = WorkingSet::new(prover_storage.clone());
-    (evm, working_set, prover_storage, dev_signer, l2_height, ledger_db)
+    (
+        evm,
+        working_set,
+        prover_storage,
+        dev_signer,
+        l2_height,
+        ledger_db,
+    )
 }
 
 pub fn init_evm_single_block(
@@ -379,6 +386,6 @@ pub fn init_evm_with_caller_contract() -> (
     commit(working_set, prover_storage.clone());
     l2_height += 1;
 
-    let working_set = WorkingSet::new(prover_storage);        
+    let working_set = WorkingSet::new(prover_storage);
     (evm, working_set, dev_signer, l2_height, ledger_db)
 }
