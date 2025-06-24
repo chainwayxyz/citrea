@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::min;
 use std::io::{self, Read, Write};
 
 use crate::MAX_DECOMPRESSED_BLOB_SIZE;
@@ -18,7 +18,7 @@ pub fn decompress_blob(blob: &[u8]) -> Result<Vec<u8>, io::Error> {
 
     let mut buf = [0u8; 4096];
 
-    let mut decompressed_data = Vec::with_capacity(max(blob.len() * 10 / 3, 1024 * 400)); // Knowing that on average brotli compresses our proofs by about 70%, we can preallocate dynamically with the compressed size in mind.
+    let mut decompressed_data = Vec::with_capacity(min(blob.len() * 10 / 3, 1024 * 400)); // Knowing that on average brotli compresses our proofs by about 70%, we can preallocate dynamically with the compressed size in mind.
 
     loop {
         match reader.read(&mut buf) {
