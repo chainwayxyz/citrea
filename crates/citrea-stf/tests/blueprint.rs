@@ -1150,7 +1150,7 @@ fn test_panic_l2_block_prev_hash_failure() {
                 get_forks(),
             )
         },
-        " L2 block previous hash must match the hash of the block before"
+        "L2 block previous hash must match the hash of the block before"
     );
 }
 
@@ -1402,7 +1402,7 @@ fn test_panic_l2_block_height_jump() {
                 get_forks(),
             )
         },
-        "L2 block height is not equal to the expected heigh"
+        "L2 block height is not equal to the expected height"
     );
 }
 
