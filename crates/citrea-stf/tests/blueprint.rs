@@ -344,6 +344,7 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
+        [0; 32],
         &state_root,
         prover_storage,
         None,
@@ -441,6 +442,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -463,6 +465,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
+        [0; 32],
         &state_root,
         prover_storage,
         None,
@@ -484,6 +487,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &block_cache[4].1.header.inner.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -516,6 +520,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &block_cache[4].1.header.inner.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -556,6 +561,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
+        [0; 32],
         &state_root,
         prover_storage.clone(),
         None,
@@ -585,6 +591,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
+        [0; 32],
         &block_cache[4].1.state_root(),
         prover_storage,
         Some(SequencerCommitment {
@@ -676,6 +683,7 @@ fn test_wrong_prev_hash_proof() {
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
+        [0; 32],
         &state_root,
         prover_storage,
         None,
@@ -705,6 +713,7 @@ fn test_wrong_prev_hash_proof() {
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
+        [0; 32],
         &block_cache[4].1.state_root(),
         prover_storage,
         Some(SequencerCommitment {
@@ -734,6 +743,7 @@ fn test_wrong_prev_hash_proof() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &block_cache[4].1.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -765,6 +775,7 @@ fn test_wrong_prev_hash_proof() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &block_cache[4].1.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -809,6 +820,7 @@ fn test_panic_empty_sequencer_commitments() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -838,6 +850,7 @@ fn test_panic_invalid_sequencer_public_key() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &[0u8; 10], // Invalid key length
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -933,6 +946,7 @@ fn test_panic_l2_block_processing_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1028,6 +1042,7 @@ fn test_panic_l2_block_timestamp_validation_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1122,6 +1137,7 @@ fn test_panic_state_root_assertion_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1182,6 +1198,7 @@ fn test_panic_merkle_root_assertion_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1254,6 +1271,7 @@ fn test_panic_l2_block_execution_failure() {
         stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
             &guest,
             &sequencer_public_key.pub_key.to_sec1_bytes(),
+            [0; 32],
             &state_root,
             prover_storage,
             None,
@@ -1304,6 +1322,7 @@ fn test_panic_l2_block_execution_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1405,6 +1424,7 @@ fn test_panic_state_root_mismatch_assertion() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,

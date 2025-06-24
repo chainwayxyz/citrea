@@ -42,6 +42,25 @@ const SEQUENCER_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
+const INITIAL_PREV_L2_BLOCK_HASH: [u8; 32] = {
+    let hex_block_hash = match NETWORK {
+        Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "deca8bf8314fc46e772898f7a4df864eb4b635ae9d1bbccab25a87e52f68902c", // block #9056999
+        Network::Devnet => "0000000000000000000000000000000000000000000000000000000000000000",
+        Network::Nightly | Network::TestNetworkWithForks => {
+            match option_env!("INITIAL_PREV_L2_BLOCK_HASH") {
+                Some(hex_pub_key) => hex_pub_key,
+                None => "0000000000000000000000000000000000000000000000000000000000000000",
+            }
+        }
+    };
+
+    match const_hex::const_decode_to_array(hex_block_hash.as_bytes()) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("INITIAL_PREV_L2_BLOCK_HASH must be valid 32-byte hex string"),
+    }
+};
+
 const FORKS: &[Fork] = match NETWORK {
     Network::Mainnet => &MAINNET_FORKS,
     Network::Testnet => &TESTNET_FORKS,
@@ -76,6 +95,7 @@ pub fn main() {
         &guest,
         storage,
         &SEQUENCER_PUBLIC_KEY,
+        INITIAL_PREV_L2_BLOCK_HASH,
         get_forks(),
     );
 

@@ -44,6 +44,7 @@ where
         guest: &impl ZkvmGuest,
         pre_state: C::Storage,
         sequencer_public_key: &[u8],
+        initial_prev_l2_block_hash: [u8; 32],
         forks: &[Fork],
     ) -> BatchProofCircuitOutput {
         println!("Running sequencer commitments in DA slot");
@@ -74,6 +75,7 @@ where
         } = self.app.apply_l2_blocks_from_sequencer_commitments(
             guest,
             sequencer_public_key,
+            initial_prev_l2_block_hash,
             &data.initial_state_root,
             pre_state.clone(),
             data.previous_sequencer_commitment,
