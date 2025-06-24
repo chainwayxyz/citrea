@@ -171,7 +171,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let end_block = self
             .provider
-            .block_number_for_id(&newest_block, working_set)?;
+            .block_number_for_id(&newest_block, working_set, &self.ledger_db)?;
 
         // need to add 1 to the end block to get the correct (inclusive) range
         let end_block_plus = end_block + 1;
