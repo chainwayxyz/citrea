@@ -10,6 +10,7 @@ use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Client, RpcApi};
+use borsh::BorshDeserialize;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
@@ -2834,7 +2835,7 @@ struct UndecompressableBlobTest {
 impl UndecompressableBlobTest {
     fn verify_complete_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
         if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
-            let Ok(data) = borsh::from_slice::<DataOnDa>(&complete.body) else {
+            let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
                 panic!("Failed to parse complete data");
             };
 

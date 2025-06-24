@@ -965,7 +965,7 @@ impl DaService for BitcoinService {
                         if complete.public_key() == prover_da_pub_key
                             && complete.get_sig_verified_hash().is_some()
                         {
-                            let Ok(data) = borsh::from_slice::<DataOnDa>(&complete.body) else {
+                            let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
                                 warn!("{tx_id}: Failed to parse complete data");
                                 continue;
                             };
