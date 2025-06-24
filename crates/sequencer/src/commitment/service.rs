@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use citrea_evm::{get_last_l1_height_in_light_client, Evm};
-use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
+use citrea_primitives::forks::get_fork3_activation_height_non_zero;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::DefaultContext;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -294,7 +294,7 @@ where
             } else {
                 // Submit commitment
                 let l2_start_block_number = if pending_db_comm.index == 1 {
-                    get_tangerine_activation_height_non_zero()
+                    get_fork3_activation_height_non_zero()
                 } else {
                     self.ledger_db
                         .get_commitment_by_index(pending_db_comm.index - 1)?
