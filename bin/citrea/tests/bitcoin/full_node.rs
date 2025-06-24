@@ -4,6 +4,7 @@ use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
+use bitcoin_da::error::BitcoinServiceError::MempoolRejection;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
@@ -3021,6 +3022,13 @@ impl TestCase for FullNodeLcpChunkProofTest {
         Some(170)
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -3990,6 +3998,227 @@ impl TestCase for UnsyncedFirstCommitmentTest {
 #[tokio::test]
 async fn test_unsynced_first_commitment() -> Result<()> {
     TestCaseRunner::new(UnsyncedFirstCommitmentTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .set_citrea_cli_path(get_citrea_cli_path())
+    .run()
+    .await
+}
+
+struct ChunkingPackageTooBigTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for ChunkingPackageTooBigTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_light_client_prover: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec![
+                "-persistmempool=0",
+                "-walletbroadcast=0",
+                "-limitancestorcount=100", // Prevent test from hitting default ancestor count limit of 25
+                "-limitdescendantcount=100", // Prevent test from hitting default descendant count limit of 25
+                "-fallbackfee=0.00001",
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            // prevent proving
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let _batch_prover = f.batch_prover.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
+
+        let batch_prover_da_service = spawn_bitcoin_da_service(
+            task_executor,
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        let genesis_state_root = lcp_output.l2_state_root;
+
+        let sequencer_client = sequencer.client.clone();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer_client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to process sequencer commitments
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let commitment_1 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+        let commitment_1_state_root = sequencer_client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment_1.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        // Test for `MempoolRejection("package-mempool-limits, possibly exceeds descendant size limit for tx 6a0c9e3c2fed9cbac73c88031e7333d0ce2242a664e3141ba028b765b0b1e562 [limit: 101000]` error
+        // Send 4 100kb proofs. The 4th one will be tipping the total package size over the 101kvb limit and be rejected with package-too-large error
+        for i in 1..=4 {
+            let state_diff_100kb = create_random_state_diff(100);
+            let l1_hash = da.get_block_hash(finalized_height).await?;
+
+            // Create a 100kb batch proof
+            let verifiable_100kb_batch_proof =
+                create_serialized_fake_receipt_batch_proof_with_state_roots(
+                    genesis_state_root,
+                    20,
+                    batch_proof_method_ids[0].method_id.into(),
+                    Some(state_diff_100kb.clone()),
+                    false,
+                    l1_hash.as_raw_hash().to_byte_array(),
+                    vec![commitment_1.clone()],
+                    vec![commitment_1_state_root],
+                    None,
+                );
+
+            let res = batch_prover_da_service
+                .send_transaction_with_fee_rate(
+                    DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
+                    1,
+                )
+                .await;
+
+            if i == 4 {
+                assert!(
+                    matches!(res, Err(MempoolRejection(msg)) if msg.contains("package-mempool-limits, possibly exceeds descendant size limit"))
+                );
+
+                // Make sure mining the ancestors and re-trying goes through
+                da.generate(1).await?;
+
+                let res = batch_prover_da_service
+                    .send_transaction_with_fee_rate(
+                        DaTxRequest::ZKProof(verifiable_100kb_batch_proof),
+                        1,
+                    )
+                    .await;
+
+                assert!(res.is_ok());
+                da.wait_mempool_len(8, None).await?;
+            } else {
+                da.wait_mempool_len(8 * i, None).await?;
+            }
+        }
+
+        da.generate(1).await?;
+
+        // Test for `MempoolRejection("package-too-large")` error
+        // Single 400kb state diff
+        let state_diff_400kb = create_random_state_diff(400);
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        // Create a 400kb batch proof
+        let verifiable_400kb_batch_proof =
+            create_serialized_fake_receipt_batch_proof_with_state_roots(
+                genesis_state_root,
+                20,
+                batch_proof_method_ids[0].method_id.into(),
+                Some(state_diff_400kb.clone()),
+                false,
+                l1_hash.as_raw_hash().to_byte_array(),
+                vec![commitment_1.clone()],
+                vec![commitment_1_state_root],
+                None,
+            );
+
+        let res = batch_prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
+            .await;
+
+        assert!(matches!(res, Err(MempoolRejection(msg)) if msg.contains("package-too-large")));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_chunking_package_too_big() -> Result<()> {
+    TestCaseRunner::new(ChunkingPackageTooBigTest {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())
