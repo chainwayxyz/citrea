@@ -8,6 +8,7 @@ use alloy_primitives::{address, Address, Bytes, TxKind, B256, U256};
 use lazy_static::lazy_static;
 use short_header_proof_provider::ShortHeaderProofProvider;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -98,8 +99,8 @@ pub(crate) fn get_evm_with_spec(
 
     // let mut genesis_state_root = [0u8; 32];
     // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
-
-    (evm, working_set, spec_id)
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
+    (evm, working_set, spec_id, ledger_db)
 }
 
 pub(crate) fn commit(
@@ -280,7 +281,9 @@ pub(crate) fn get_evm_config_starting_base_fee(
         coinbase: PRIORITY_FEE_VAULT,
         ..Default::default()
     };
-    (config, dev_signer, contract_addr)
+    let tmpdir = tempfile::tempdir().unwrap();
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
+    (config, dev_signer, contract_addr, ledger_db)
 }
 pub(crate) fn get_evm_test_config() -> EvmConfig {
     EvmConfig {
