@@ -2,10 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bitcoin_da::fee::FeeService;
+use bitcoin_da::monitoring::MonitoringService;
+use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
+use bitcoin_da::service::{
+    network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, TxidWrapper,
+};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use bitcoincore_rpc::{Auth, Client, RpcApi};
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
@@ -117,31 +123,60 @@ impl RollupBlueprint for BitcoinRollup {
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
 
-        let bitcoin_service = if require_wallet_check {
-            BitcoinService::new_with_wallet_check(
-                rollup_config.da.clone(),
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                    network,
-                },
-                tx,
-            )
-            .await?
-        } else {
-            BitcoinService::new_without_wallet_check(
-                rollup_config.da.clone(),
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                    network,
-                },
-                tx,
-            )
-            .await?
+        let chain_params = RollupParams {
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+            network,
         };
-        let service = Arc::new(bitcoin_service);
+        let da_config = &rollup_config.da;
+        let client = Arc::new(
+            Client::new(
+                &da_config.node_url,
+                Auth::UserPass(
+                    da_config.node_username.clone(),
+                    da_config.node_password.clone(),
+                ),
+            )
+            .await?,
+        );
+
+        let network = network_to_bitcoin_network(&chain_params.network);
+        let network_constants = get_network_constants(&network);
+        let monitoring_service = MonitoringService::new(
+            client.clone(),
+            da_config.monitoring.clone(),
+            network_constants.finality_depth,
+        );
+        let monitoring_service = Arc::new(monitoring_service);
+
+        let fee_service = FeeService::new(
+            client.clone(),
+            network.clone(),
+            da_config.mempool_space_url.clone(),
+        );
+
+        let service = Arc::new(BitcoinService::from_config(
+            da_config,
+            chain_params,
+            client.clone(),
+            network,
+            network_constants,
+            monitoring_service,
+            fee_service,
+            tx,
+        )?);
+
         // until forced transactions are implemented,
         // require_wallet_check is set false for full nodes.
         if require_wallet_check {
+            if client
+                .list_wallets()
+                .await
+                .expect("Failed to list loaded wallets")
+                .is_empty()
+            {
+                tracing::warn!("No loaded wallet found!");
+            }
+
             // run only for sequencer and prover
             service.monitoring.restore().await?;
 
