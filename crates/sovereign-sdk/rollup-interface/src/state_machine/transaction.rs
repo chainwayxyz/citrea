@@ -11,7 +11,7 @@ use sov_keys::Signature;
 #[cfg(feature = "native")]
 use crate::spec::SpecId;
 
-const EXTEND_MESSAGE_LEN: usize = 2 * core::mem::size_of::<u64>();
+const EXTEND_MESSAGE_LEN: usize = 1 + 2 * core::mem::size_of::<u64>();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
@@ -86,6 +86,7 @@ impl TransactionV2 {
     #[cfg(feature = "native")]
     fn new(priv_key: &K256PrivateKey, runtime_msg: Vec<u8>, chain_id: u64, nonce: u64) -> Self {
         let mut message = Vec::with_capacity(runtime_msg.len() + EXTEND_MESSAGE_LEN);
+        message.extend([TxVersion::V2 as u8]);
         message.extend_from_slice(&runtime_msg);
         message.extend_from_slice(&chain_id.to_be_bytes());
         message.extend_from_slice(&nonce.to_be_bytes());
@@ -106,6 +107,7 @@ impl TransactionV2 {
         let signature = K256Signature::try_from_slice(&self.signature)?;
         let mut serialized_tx = Vec::with_capacity(self.runtime_msg.len() + EXTEND_MESSAGE_LEN);
 
+        serialized_tx.extend([TxVersion::V2 as u8]);
         serialized_tx.extend_from_slice(&self.runtime_msg);
         serialized_tx.extend_from_slice(&self.chain_id.to_be_bytes());
         serialized_tx.extend_from_slice(&self.nonce.to_be_bytes());
@@ -116,6 +118,7 @@ impl TransactionV2 {
 
     pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
         let mut hasher = D::new();
+        hasher.update([TxVersion::V2 as u8]);
         hasher.update(&self.runtime_msg);
         hasher.update(self.chain_id.to_be_bytes());
         hasher.update(self.nonce.to_be_bytes());
