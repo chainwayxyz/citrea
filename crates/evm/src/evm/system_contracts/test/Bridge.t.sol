@@ -620,8 +620,6 @@ contract BridgeTest is Test {
         vm.startPrank(SYSTEM_CALLER);
         bitcoinLightClient.setBlockInfo(keccak256("CITREA_ATTACK"), witnessRoot, 2);
         vm.stopPrank();
-        vm.startPrank(owner);
-        vm.stopPrank();
         vm.startPrank(SYSTEM_CALLER);
         Bridge.Transaction memory attackDepositTransaction = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
         Bridge.MerkleProof memory attackDepositProof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 1, index);
