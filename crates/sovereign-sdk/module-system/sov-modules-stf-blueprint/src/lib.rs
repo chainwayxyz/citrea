@@ -508,7 +508,6 @@ where
                     "Initial state root must match the last header state root"
                 );
 
-                // TODO: Is this ok???
                 let index = (commitment.l2_end_block_number
                     - prev_hash_proof.prev_sequencer_commitment_start)
                     as usize;
