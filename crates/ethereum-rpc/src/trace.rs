@@ -16,6 +16,7 @@ use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
 use reth_rpc_eth_types::error::EthApiError;
+use sov_db::ledger_db;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use tracing::error;
@@ -142,6 +143,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             opts,
             trace_idx,
             working_set,
+            &ethereum.ledger_db,
             fork_from_block_number,
         )?;
         return match trace_idx {
@@ -179,6 +181,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         Some(cache_options),
         None,
         working_set,
+        &ethereum.ledger_db,
         fork_from_block_number,
     )?;
     ethereum
