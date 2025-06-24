@@ -26,6 +26,10 @@ use crate::spec::utxo::UTXO;
 type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
 
+fn get_timestamp() -> anyhow::Result<u64> {
+    Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TxStatus {
@@ -48,10 +52,12 @@ pub enum TxStatus {
         confirmations: u64,
     },
     #[serde(rename_all = "camelCase")]
-    Replaced {
-        by_txid: Txid,
+    Replaced { by_txid: Txid },
+    Evicted {
+        last_seen: u64,
+        rebroadcast_attempts: u32,
+        last_error: Option<String>,
     },
-    Evicted,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -123,10 +129,14 @@ pub enum MonitorError {
     PrevTxNotMonitored(Txid),
     #[error("Invalid tx chain, odd number of txs")]
     OddNumberOfTxs,
+    #[error("Transaction rebroadcast failed: {0}")]
+    RebroadcastFailed(String),
     #[error(transparent)]
     BitcoinRpcError(#[from] bitcoincore_rpc::Error),
     #[error(transparent)]
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 mod monitoring_defaults {
@@ -141,6 +151,14 @@ mod monitoring_defaults {
     pub const fn max_history_size() -> usize {
         200_000_000 // Default max monitored tx total size to 200mb
     }
+
+    pub const fn max_rebroadcast_attempts() -> u32 {
+        5 // Maximum number of rebroadcast attempts for evicted txs
+    }
+
+    pub const fn rebroadcast_delay() -> u64 {
+        300 // Wait 5 minutes between rebroadcast attempts
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -151,6 +169,10 @@ pub struct MonitoringConfig {
     pub history_limit: usize,
     #[serde(default = "monitoring_defaults::max_history_size")]
     pub max_history_size: usize,
+    #[serde(default = "monitoring_defaults::max_rebroadcast_attempts")]
+    pub max_rebroadcast_attempts: u32,
+    #[serde(default = "monitoring_defaults::rebroadcast_delay")]
+    pub rebroadcast_delay: u64,
 }
 
 impl Default for MonitoringConfig {
@@ -159,6 +181,8 @@ impl Default for MonitoringConfig {
             check_interval: monitoring_defaults::check_interval(),
             history_limit: monitoring_defaults::history_limit(),
             max_history_size: monitoring_defaults::max_history_size(),
+            max_rebroadcast_attempts: monitoring_defaults::max_rebroadcast_attempts(),
+            rebroadcast_delay: monitoring_defaults::rebroadcast_delay(),
         }
     }
 }
@@ -169,9 +193,11 @@ impl FromEnv for MonitoringConfig {
             read_env("DA_MONITORING_CHECK_INTERVAL"),
             read_env("DA_MONITORING_HISTORY_LIMIT"),
             read_env("DA_MONITORING_MAX_HISTORY_SIZE"),
+            read_env("DA_MONITORING_MAX_REBROADCAST_ATTEMPTS"),
+            read_env("DA_MONITORING_REBROADCAST_DELAY"),
         ) {
-            (Err(_), Err(_), Err(_)) => Err(anyhow!("At least one of the monitoring envs must exist: DA_MONITORING_CHECK_INTERVAL, DA_MONITORING_HISTORY_LIMIT, DA_MONITORING_MAX_HISTORY_SIZE")),
-            (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
+            (Err(_), Err(_), Err(_), Err(_), Err(_)) => Err(anyhow!("At least one of the monitoring envs must exist: DA_MONITORING_CHECK_INTERVAL, DA_MONITORING_HISTORY_LIMIT, DA_MONITORING_MAX_HISTORY_SIZE, DA_MONITORING_MAX_REBROADCAST_ATTEMPTS, DA_MONITORING_REBROADCAST_DELAY")),
+            (check_interval, history_limit, max_history_size, max_rebroadcast_attempts, rebroadcast_delay) => Ok(MonitoringConfig {
                 check_interval: check_interval.map_or_else(
                     |_| Ok(monitoring_defaults::check_interval()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
@@ -182,6 +208,14 @@ impl FromEnv for MonitoringConfig {
                 )?,
                 max_history_size: max_history_size.map_or_else(
                     |_| Ok(monitoring_defaults::max_history_size()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                max_rebroadcast_attempts: max_rebroadcast_attempts.map_or_else(
+                    |_| Ok(monitoring_defaults::max_rebroadcast_attempts()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                rebroadcast_delay: rebroadcast_delay.map_or_else(
+                    |_| Ok(monitoring_defaults::rebroadcast_delay()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
                 )?,
             }),
@@ -283,7 +317,8 @@ impl MonitoringService {
 
     /// Run monitoring to keep track of TX status and chain re-orgs
     pub async fn run(self: Arc<Self>, mut token: GracefulShutdown) {
-        let mut interval = interval(Duration::from_secs(self.config.check_interval));
+        let mut check_interval = interval(Duration::from_secs(self.config.check_interval));
+        let mut evicted_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
         loop {
             select! {
                 biased;
@@ -291,7 +326,7 @@ impl MonitoringService {
                     debug!("Monitoring service received shutdown signal");
                     break;
                 }
-                _ = interval.tick() => {
+                _ = check_interval.tick() => {
                     if let Err(e) = self.check_chain_state().await {
                         error!("Error checking chain state: {}", e);
                     }
@@ -299,6 +334,11 @@ impl MonitoringService {
                         error!("Error checking transactions: {}", e);
                     }
                     self.prune_old_transactions().await;
+                }
+                _ = evicted_interval.tick() => {
+                    if let Err(e) = self.handle_evicted().await {
+                        error!("Error handling evicted transactions: {}", e);
+                    }
                 }
             }
         }
@@ -373,10 +413,7 @@ impl MonitoringService {
                 .details
                 .first()
                 .and_then(|detail| detail.address.clone()),
-            initial_broadcast: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            initial_broadcast: get_timestamp()?,
             initial_height: current_height,
             last_checked: Instant::now(),
             status,
@@ -416,10 +453,7 @@ impl MonitoringService {
                 .details
                 .first()
                 .and_then(|detail| detail.address.clone()),
-            initial_broadcast: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            initial_broadcast: get_timestamp()?,
             initial_height: current_height,
             last_checked: Instant::now(),
             status,
@@ -519,6 +553,7 @@ impl MonitoringService {
             match &monitored_tx.status {
                 // Check non-finalized TXs
                 TxStatus::Pending { .. }
+                | TxStatus::Evicted { .. }
                 | TxStatus::Confirmed { .. }
                 | TxStatus::Replaced { .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
@@ -575,7 +610,17 @@ impl MonitoringService {
                             .as_secs(),
                     }
                 }
-                Err(_) => TxStatus::Evicted,
+                Err(_) => {
+                    tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
+                    TxStatus::Evicted {
+                        last_seen: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
+                        rebroadcast_attempts: 0,
+                        last_error: None,
+                    }
+                }
             }
         };
         Ok(status)
@@ -608,6 +653,50 @@ impl MonitoringService {
                 }
             }
         }
+    }
+
+    async fn handle_evicted(&self) -> Result<()> {
+        let mut txs = self.monitored_txs.write().await;
+
+        for (txid, monitored_tx) in txs.iter_mut() {
+            if let TxStatus::Evicted {
+                last_seen,
+                rebroadcast_attempts,
+                ..
+            } = &monitored_tx.status
+            {
+                if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
+                    let now = get_timestamp()?;
+
+                    if now.saturating_sub(*last_seen) >= self.config.rebroadcast_delay {
+                        match self.attempt_rebroadcast(txid, &monitored_tx.tx).await {
+                            Ok(new_status) => {
+                                info!("Successfully rebroadcast tx {txid}");
+                                monitored_tx.status = new_status;
+                            }
+                            Err(e) => {
+                                info!("Failed to rebroadcast tx {txid}: {e}");
+                                monitored_tx.status = TxStatus::Evicted {
+                                    last_seen: now,
+                                    rebroadcast_attempts: rebroadcast_attempts + 1,
+                                    last_error: Some(e.to_string()),
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    #[instrument(skip(self, tx))]
+    async fn attempt_rebroadcast(&self, txid: &Txid, tx: &Transaction) -> Result<TxStatus> {
+        let raw_tx_hex = bitcoin::consensus::encode::serialize_hex(tx);
+        self.client.send_raw_transaction(raw_tx_hex).await?;
+        let tx_result = self.client.get_transaction(txid, None).await?;
+        self.determine_tx_status(&tx_result).await
     }
 
     pub async fn get_tx_status(&self, txid: &Txid) -> Option<TxStatus> {

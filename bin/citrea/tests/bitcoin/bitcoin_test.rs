@@ -186,14 +186,14 @@ impl TestCase for DaMonitoringTest {
         let monitored_tx = sequencer
             .client
             .http_client()
-            .da_get_monitored_transaction(pending_txs[0].txid)
+            .da_get_monitored_transaction(pending_txs[0].txid, false)
             .await?;
         assert_eq!(pending_txs[0], monitored_tx.unwrap());
 
         let non_monitored_tx = sequencer
             .client
             .http_client()
-            .da_get_monitored_transaction(Txid::all_zeros())
+            .da_get_monitored_transaction(Txid::all_zeros(), false)
             .await?;
         assert!(non_monitored_tx.is_none());
 

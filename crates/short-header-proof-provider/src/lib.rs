@@ -14,6 +14,8 @@ pub use zk::*;
 pub enum ShortHeaderProofProviderError {
     #[error("Short header proof not found")]
     ShortHeaderProofNotFound,
+    #[error("Short header proof Vector Allocation Failed")]
+    VectorAllocationFailed(String),
 }
 
 /// Short Header Proof Provider
@@ -35,7 +37,10 @@ pub trait ShortHeaderProofProvider: Send + Sync {
     fn clear_queried_hashes(&self);
 
     /// Takes the queried short header proofs
-    fn take_queried_hashes(&self, l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]>;
+    fn take_queried_hashes(
+        &self,
+        l2_range: RangeInclusive<u64>,
+    ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError>;
 
     /// Takes the last queried header hash
     /// Consequent calls will return None

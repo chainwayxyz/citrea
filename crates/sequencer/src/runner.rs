@@ -35,7 +35,6 @@ use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
-use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
     EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, StateDiff,
@@ -180,7 +179,6 @@ where
     ///
     /// # Arguments
     /// * `transactions` - Transactions to validate
-    /// * `pub_key` - Public key for signing
     /// * `prestate` - Initial state for the dry run
     /// * `l2_block_info` - Block information for hooks
     /// * `deposit_data` - Deposit transaction data
@@ -194,7 +192,6 @@ where
         mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
-        pub_key: &K256PublicKey,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Vec<u8>],
@@ -211,9 +208,9 @@ where
             let mut nonce = self.get_nonce(&mut working_set_to_discard)?;
 
             // Apply L2 block hook before processing transactions
-            if let Err(err) =
-                self.stf
-                    .begin_l2_block(pub_key, &mut working_set_to_discard, &l2_block_info)
+            if let Err(err) = self
+                .stf
+                .begin_l2_block(&mut working_set_to_discard, &l2_block_info)
             {
                 warn!(
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
@@ -344,6 +341,9 @@ where
                             }
                             L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
                                 panic!("System tx failed")
+                            }
+                            L2BlockModuleCallError::ShortHeaderProofAllocationError(e) => {
+                                panic!("Short header proof error: {:?}", e);
                             }
                         },
                     }
@@ -478,7 +478,6 @@ where
         let (txs_to_run, l1_fee_failed_txs) = self
             .dry_run_transactions(
                 evm_txs,
-                &pub_key,
                 prestate.clone(),
                 l2_block_info.clone(),
                 &deposit_data,
@@ -495,10 +494,7 @@ where
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        if let Err(err) = self
-            .stf
-            .begin_l2_block(&pub_key, &mut working_set, &l2_block_info)
-        {
+        if let Err(err) = self.stf.begin_l2_block(&mut working_set, &l2_block_info) {
             warn!(
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err
@@ -1094,7 +1090,7 @@ where
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
 
-                info!("Initializign Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
+                info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 
                 let initialize_events = create_initial_system_events(
                     l1_block.header().hash().into(),
@@ -1167,9 +1163,14 @@ where
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
+        // Store deposit txs by index
+        let is_deposit_tx = system_events
+            .iter()
+            .map(|ev| matches!(ev, SystemEvent::BridgeDeposit(_)))
+            .collect::<Vec<_>>();
         // Create and process each system transaction
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for sys_tx in sys_txs {
+        for (sys_tx, is_deposit) in sys_txs.iter().zip(is_deposit_tx) {
             // Encode transaction in EIP-2718 format
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
@@ -1194,6 +1195,19 @@ where
                 .stf
                 .apply_l2_block_txs(l2_block_info, &txs, &mut working_set)
             {
+                // If a deposit failed, revert back the working set and continue,
+                // as deposits to non-EOA addresses can revert
+                if matches!(
+                    e,
+                    StateTransitionError::ModuleCallError(
+                        L2BlockModuleCallError::EvmSystemTransactionNotSuccessful
+                    )
+                ) && is_deposit
+                {
+                    warn!("Deposit transaction failed: {:?}", e);
+                    working_set_to_discard = working_set.revert().to_revertable();
+                    continue;
+                }
                 return Err(anyhow!("Failed to apply system transaction: {:?}", e));
             }
             working_set_to_discard = working_set.checkpoint().to_revertable();

@@ -8,7 +8,9 @@ use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_primitives::Log;
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
-use short_header_proof_provider::{ShortHeaderProofProvider, SHORT_HEADER_PROOF_PROVIDER};
+use short_header_proof_provider::{
+    ShortHeaderProofProvider, ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER,
+};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
@@ -1345,7 +1347,10 @@ fn test_set_block_info_shp_not_found() {
             todo!()
         }
 
-        fn take_queried_hashes(&self, _l2_range: std::ops::RangeInclusive<u64>) -> Vec<[u8; 32]> {
+        fn take_queried_hashes(
+            &self,
+            _l2_range: std::ops::RangeInclusive<u64>,
+        ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
             todo!()
         }
 
@@ -1454,7 +1459,10 @@ fn test_set_block_info_shp_verification_failed() {
             todo!()
         }
 
-        fn take_queried_hashes(&self, _l2_range: std::ops::RangeInclusive<u64>) -> Vec<[u8; 32]> {
+        fn take_queried_hashes(
+            &self,
+            _l2_range: std::ops::RangeInclusive<u64>,
+        ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
             todo!()
         }
 

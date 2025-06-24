@@ -365,7 +365,10 @@ impl ShortHeaderProofProvider for TestingShortHeaderProofProviderService {
         todo!()
     }
 
-    fn take_queried_hashes(&self, _l2_range: std::ops::RangeInclusive<u64>) -> Vec<[u8; 32]> {
+    fn take_queried_hashes(
+        &self,
+        _l2_range: std::ops::RangeInclusive<u64>,
+    ) -> Result<Vec<[u8; 32]>, short_header_proof_provider::ShortHeaderProofProviderError> {
         todo!()
     }
 

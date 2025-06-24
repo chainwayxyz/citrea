@@ -1038,7 +1038,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
                         .last()
                         .expect("must have at least one")
                         .height(),
-            );
+            )?;
 
         for hash in new_hashes {
             let serialized_shp = ledger_db
