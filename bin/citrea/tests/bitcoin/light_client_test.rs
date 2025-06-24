@@ -7,9 +7,10 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
-use bitcoin_da::spec::{BitcoinSpec, RollupParams};
+use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Client, RpcApi};
+use borsh::BorshDeserialize;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
@@ -22,12 +23,12 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_primitives::compression::decompress_blob;
+use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
-use sov_modules_api::{BlobReaderTrait, DaSpec};
+use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
     BatchProofMethodId, DaTxRequest, DaVerifier, DataOnDa, SequencerCommitment,
 };
@@ -2834,7 +2835,14 @@ struct UndecompressableBlobTest {
 impl UndecompressableBlobTest {
     fn verify_complete_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
         if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
-            decompress_blob(&complete.body).is_err()
+            let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
+                panic!("Failed to parse complete data");
+            };
+
+            let DataOnDa::Complete(compressed_zk_proof) = data else {
+                panic!("Expected complete data type");
+            };
+            decompress_blob(&compressed_zk_proof).is_err()
         } else {
             false
         }
@@ -2849,7 +2857,7 @@ impl UndecompressableBlobTest {
             }
         }
 
-        BitcoinSpec::decompress_chunks(&complete_proof).is_err()
+        decompress_blob(&complete_proof).is_err()
     }
 
     async fn send_complete_tx(client: &Client) -> anyhow::Result<(Txid, Txid)> {
@@ -2867,7 +2875,11 @@ impl UndecompressableBlobTest {
             .map(Into::into)
             .collect();
 
-        let body = vec![1u8; 64];
+        let compressed_data = compress_blob(&[1u8; 64]).unwrap();
+        let mut malformed_undecompressable_data = vec![0u8];
+        malformed_undecompressable_data.extend_from_slice(&compressed_data);
+
+        let body = borsh::to_vec(&DataOnDa::Complete(malformed_undecompressable_data)).unwrap();
         let DaTxs::Complete { commit, reveal } = create_inscription_type_0(
             body,
             &da_private_key,

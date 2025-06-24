@@ -965,21 +965,22 @@ impl DaService for BitcoinService {
                         if complete.public_key() == prover_da_pub_key
                             && complete.get_sig_verified_hash().is_some()
                         {
-                            // push only when signature is correct
-                            let Ok(body) = decompress_blob(&complete.body) else {
-                                warn!("{tx_id}: Failed to decompress blob");
-                                continue;
-                            };
-
-                            let Ok(data) = DataOnDa::borsh_parse_complete(&body) else {
+                            let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
                                 warn!("{tx_id}: Failed to parse complete data");
                                 continue;
                             };
 
-                            let DataOnDa::Complete(zk_proof) = data else {
+                            let DataOnDa::Complete(compressed_zk_proof) = data else {
                                 warn!("{}: Complete: unexpected kind", tx_id);
                                 continue;
                             };
+
+                            // push only when signature is correct
+                            let Ok(zk_proof) = self.decompress_chunks(&compressed_zk_proof) else {
+                                warn!("{tx_id}: Failed to decompress blob");
+                                continue;
+                            };
+
                             completes.push((i, zk_proof));
                         }
                     }
@@ -1099,14 +1100,11 @@ impl DaService for BitcoinService {
                     }
                 }
             }
-            let Ok(blob) = decompress_blob(&body) else {
+            let Ok(zk_proof) = decompress_blob(&body) else {
                 warn!("{tx_id}: Failed to decompress blob from Aggregate");
                 continue 'aggregate;
             };
-            let Ok(zk_proof) = borsh::from_slice(blob.as_slice()) else {
-                warn!("{}: Failed to parse Proof from Aggregate", tx_id);
-                continue 'aggregate;
-            };
+
             aggregates.push((i, zk_proof));
         }
 
@@ -1219,11 +1217,10 @@ impl DaService for BitcoinService {
                 match tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let Ok(blob) = decompress_blob(&complete.body) else {
-                                continue;
-                            };
+                            // complete.body is compressed, but we'll leave the compression to
+                            // circuit logic
                             let relevant_tx = BlobWithSender::new(
-                                blob,
+                                complete.body,
                                 complete.public_key,
                                 hash,
                                 Some(wtxid.to_byte_array()),
@@ -1467,19 +1464,17 @@ impl From<TxidWrapper> for [u8; 32] {
 }
 
 /// This function splits Proof based on its size. It is either:
-/// 1: compress(borsh(DataOnDa::Complete(Proof)))
+/// 1: borsh(DataOnDa::Complete(compress(Proof)))
 /// 2:
-///   let compressed = compress(borsh(Proof))
+///   let compressed = compress(Proof)
 ///   let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
 pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
-    let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
-    let original_compressed = compress_blob(&original_blob)?;
+    let original_compressed = compress_blob(&zk_proof)?;
 
     if original_compressed.len() < MAX_TX_BODY_SIZE {
-        let data = DataOnDa::Complete(zk_proof);
+        let data = DataOnDa::Complete(original_compressed);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
-        let blob = compress_blob(&blob)?;
         Ok(RawTxData::Complete(blob))
     } else {
         let mut chunks = vec![];
