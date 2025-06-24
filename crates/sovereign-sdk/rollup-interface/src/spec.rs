@@ -59,6 +59,6 @@ impl SpecId {
 
     /// Get the latest active (official) SpecId.
     pub const fn latest() -> Self {
-        Self::Tangerine
+        Self::Fork3
     }
 }
