@@ -35,7 +35,7 @@ lazy_static! {
 
 pub(crate) fn get_evm_with_storage(
     config: &EvmConfig,
-) -> (Evm<C>, WorkingSet<ProverStorage>, ProverStorage) {
+) -> (Evm<C>, WorkingSet<ProverStorage>, ProverStorage, LedgerDB) {
     let tmpdir = tempfile::tempdir().unwrap();
     let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(prover_storage.clone());
@@ -46,7 +46,9 @@ pub(crate) fn get_evm_with_storage(
     genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
     evm.finalize_hook(&genesis_state_root, &mut working_set.accessory_state());
-    (evm, working_set, prover_storage)
+
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
+    (evm, working_set, prover_storage, ledger_db)
 }
 
 pub(crate) fn get_evm(

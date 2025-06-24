@@ -8,7 +8,6 @@ use std::str::FromStr;
 use alloy_primitives::{address, Address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_db::ledger_db::LedgerDB;
-use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -59,7 +58,7 @@ fn init_evm(
         ..Default::default()
     };
 
-    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 1;
@@ -189,9 +188,6 @@ fn init_evm(
     l2_height += 1;
 
     let working_set = WorkingSet::new(prover_storage.clone());
-
-    let tmpdir = tempfile::tempdir().unwrap();
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
     (evm, working_set, prover_storage, dev_signer, l2_height, ledger_db)
 }
 
@@ -227,7 +223,7 @@ pub fn init_evm_single_block(
         ..Default::default()
     };
 
-    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
     // let contract_addr: Address = Address::from_slice(
     //     hex::decode("819c5497b157177315e1204f52e588b393771719")
@@ -270,9 +266,6 @@ pub fn init_evm_single_block(
     commit(working_set, prover_storage.clone());
 
     let working_set = WorkingSet::new(prover_storage);
-
-    let tmpdir = tempfile::tempdir().unwrap();
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
     (evm, working_set, dev_signer, ledger_db)
 }
 
@@ -297,7 +290,7 @@ pub fn init_evm_with_caller_contract() -> (
         ..Default::default()
     };
 
-    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
     let contract_addr: Address = Address::from_slice(
         hex::decode("819c5497b157177315e1204f52e588b393771719")
@@ -386,9 +379,6 @@ pub fn init_evm_with_caller_contract() -> (
     commit(working_set, prover_storage.clone());
     l2_height += 1;
 
-    let working_set = WorkingSet::new(prover_storage);
-    let tmpdir = tempfile::tempdir().unwrap();
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
-        
+    let working_set = WorkingSet::new(prover_storage);        
     (evm, working_set, dev_signer, l2_height, ledger_db)
 }
