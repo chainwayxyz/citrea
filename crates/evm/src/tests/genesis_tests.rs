@@ -37,7 +37,13 @@ fn genesis_data() {
         .unwrap();
 
     let contract_storage1 = evm
-        .get_storage_at(contract.address, U256::from(0), None, &mut working_set, &ledger_db)
+        .get_storage_at(
+            contract.address,
+            U256::from(0),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap();
 
     let contract_storage2 = evm
@@ -49,7 +55,7 @@ fn genesis_data() {
             ),
             None,
             &mut working_set,
-            &ledger_db
+            &ledger_db,
         )
         .unwrap();
 

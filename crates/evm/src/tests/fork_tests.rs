@@ -813,7 +813,9 @@ fn test_offchain_contract_storage_evm() {
         .unwrap();
 
     // Try to get the code from Tangerine fork and expect it to exist
-    let code = evm.get_code(contract_addr, None, &mut working_set, &ledger_db).unwrap();
+    let code = evm
+        .get_code(contract_addr, None, &mut working_set, &ledger_db)
+        .unwrap();
 
     assert_eq!(*cont_code.original_byte_slice(), code);
 
@@ -829,7 +831,7 @@ fn test_offchain_contract_storage_evm() {
                 alloy_eips::BlockNumberOrTag::Latest,
             )),
             &mut working_set,
-            &ledger_db
+            &ledger_db,
         )
         .unwrap();
 

@@ -27,7 +27,9 @@ use tokio::time::sleep;
 // use sov_demo_rollup::initialize_logging;
 use crate::common::client::TestClient;
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment, wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job, wait_for_prover_l1_height, NodeMode
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job,
+    wait_for_prover_l1_height, NodeMode,
 };
 use crate::common::{
     make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
@@ -1266,8 +1268,6 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-
-
 #[tokio::test(flavor = "multi_thread")]
 async fn test_safe_finalized_tags() {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -1277,36 +1277,77 @@ async fn test_safe_finalized_tags() {
         expected_finalized_block_height: u64,
         test_address: alloy_primitives::Address,
     ) {
-        println!("Comparing safe and finalized blocks with expected heights: safe={}, finalized={}", expected_safe_block_height, expected_finalized_block_height);
+        println!(
+            "Comparing safe and finalized blocks with expected heights: safe={}, finalized={}",
+            expected_safe_block_height, expected_finalized_block_height
+        );
 
-        let safe_block = test_client.eth_get_block_by_number(Some(BlockNumberOrTag::Safe)).await;
+        let safe_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Safe))
+            .await;
         let finalized_block = test_client
             .eth_get_block_by_number(Some(BlockNumberOrTag::Finalized))
             .await;
 
         // Check if the safe and finalized blocks match the committed and proven heights
         let committed_height = test_client.get_last_committed_l2_height().await;
-        assert_eq!(committed_height.unwrap_or_default().height, safe_block.header.number); // use unwrap_or_default to handle the no commitment case
+        assert_eq!(
+            committed_height.unwrap_or_default().height,
+            safe_block.header.number
+        ); // use unwrap_or_default to handle the no commitment case
         let proven_height = test_client.get_last_proven_l2_height().await;
-        assert_eq!(proven_height.unwrap_or_default().height, finalized_block.header.number);// use unwrap_or_default to handle the no proof case
+        assert_eq!(
+            proven_height.unwrap_or_default().height,
+            finalized_block.header.number
+        ); // use unwrap_or_default to handle the no proof case
 
         // Check if the safe and finalized blocks match the blocks at expected heights
         let expected_safe_block = test_client
             .eth_get_block_by_number(Some(BlockNumberOrTag::Number(expected_safe_block_height)))
             .await;
         let expected_finalized_block = test_client
-            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(expected_finalized_block_height)))
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(
+                expected_finalized_block_height,
+            )))
             .await;
         assert_eq!(safe_block, expected_safe_block);
         assert_eq!(finalized_block, expected_finalized_block);
 
         // To test set_state_to_end_of_evm_block_by_block_id
-        let expected_safe_block_nonce = test_client.eth_get_transaction_count(test_address, Some(BlockId::Number(BlockNumberOrTag::Number(expected_safe_block_height)))).await.unwrap();
-        let expected_finalized_block_nonce = test_client.eth_get_transaction_count(test_address, Some(BlockId::Number(BlockNumberOrTag::Number(expected_finalized_block_height)))).await.unwrap();
-        println!("Expected safe block nonce: {}, expected finalized block nonce: {}", expected_safe_block_nonce, expected_finalized_block_nonce);
+        let expected_safe_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Number(
+                    expected_safe_block_height,
+                ))),
+            )
+            .await
+            .unwrap();
+        let expected_finalized_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Number(
+                    expected_finalized_block_height,
+                ))),
+            )
+            .await
+            .unwrap();
+        println!(
+            "Expected safe block nonce: {}, expected finalized block nonce: {}",
+            expected_safe_block_nonce, expected_finalized_block_nonce
+        );
 
-        let safe_block_nonce = test_client.eth_get_transaction_count(test_address, Some(BlockId::Number(BlockNumberOrTag::Safe))).await.unwrap();
-        let finalized_block_nonce =  test_client.eth_get_transaction_count(test_address, Some(BlockId::Number(BlockNumberOrTag::Finalized))).await.unwrap();
+        let safe_block_nonce = test_client
+            .eth_get_transaction_count(test_address, Some(BlockId::Number(BlockNumberOrTag::Safe)))
+            .await
+            .unwrap();
+        let finalized_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Finalized)),
+            )
+            .await
+            .unwrap();
 
         assert_eq!(finalized_block_nonce, expected_finalized_block_nonce);
         assert_eq!(safe_block_nonce, expected_safe_block_nonce);
@@ -1411,9 +1452,9 @@ async fn test_safe_finalized_tags() {
 
     // send the first transaction to increase the nonce
     let _ = test_client
-            .send_eth(Address::random(), None, None, None, 1_000_000)
-            .await
-            .unwrap();
+        .send_eth(Address::random(), None, None, None, 1_000_000)
+        .await
+        .unwrap();
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
@@ -1445,10 +1486,12 @@ async fn test_safe_finalized_tags() {
     wait_for_prover_job(&prover_client, job_id, None)
         .await
         .unwrap();
-    wait_for_proof(&full_node_client, 4, None)
-        .await;
-    
-    let proofs = full_node_client.ledger_get_verified_batch_proofs_by_slot_height(4).await.unwrap();
+    wait_for_proof(&full_node_client, 4, None).await;
+
+    let proofs = full_node_client
+        .ledger_get_verified_batch_proofs_by_slot_height(4)
+        .await
+        .unwrap();
     assert_eq!(proofs.len(), 1);
     let proof = &proofs[0];
     assert_eq!(proof.proof_output.last_l2_height.to::<u64>(), 4);
@@ -1457,9 +1500,9 @@ async fn test_safe_finalized_tags() {
 
     // send a second transaction to increase the nonce
     let _ = test_client
-            .send_eth(Address::random(), None, None, None, 1_000_000)
-            .await
-            .unwrap();
+        .send_eth(Address::random(), None, None, None, 1_000_000)
+        .await
+        .unwrap();
     for _ in 0..4 {
         // publish a batch, this will create a new commitment
         test_client.send_publish_batch_request().await;
@@ -1468,7 +1511,9 @@ async fn test_safe_finalized_tags() {
     assert_eq!(commitments.len(), 1);
     assert_eq!(commitments[0].l2_end_block_number, 8);
 
-    wait_for_prover_l1_height(&full_node_client, 5, None).await.unwrap();
+    wait_for_prover_l1_height(&full_node_client, 5, None)
+        .await
+        .unwrap();
     compare_with_numbered_params(&full_node_client, 8, 4, tx_sender).await;
 
     seq_task.graceful_shutdown();

@@ -274,7 +274,7 @@ fn test_sys_bitcoin_light_client() {
             BlockNumberOrTag::Number(1),
             U64::from(0),
             &mut working_set,
-            &ledger_db
+            &ledger_db,
         )
         .unwrap()
         .unwrap();

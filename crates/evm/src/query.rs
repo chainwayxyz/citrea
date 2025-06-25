@@ -436,11 +436,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<Transaction>> {
-        let block = match self.get_sealed_block_by_number(Some(block_number), working_set, ledger_db){
-            Ok(Some(block)) => block,
-            Ok(None) => return Ok(None),
-            Err(err) => return Err(err.into()),
-        };
+        let block =
+            match self.get_sealed_block_by_number(Some(block_number), working_set, ledger_db) {
+                Ok(Some(block)) => block,
+                Ok(None) => return Ok(None),
+                Err(err) => return Err(err.into()),
+            };
 
         match check_tx_range(&block.transactions, index) {
             Some(_) => (),
@@ -1767,10 +1768,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
                 let block_number = block_number.map(|b| b.height).unwrap_or_default();
 
-                Ok(self.blocks.get(
-                    block_number as usize,
-                    &mut working_set.accessory_state(),
-                ))
+                Ok(self
+                    .blocks
+                    .get(block_number as usize, &mut working_set.accessory_state()))
             }
             Some(BlockNumberOrTag::Finalized) => {
                 let block_number = ledger_db
@@ -1778,11 +1778,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
                 let block_number = block_number.map(|b| b.height).unwrap_or_default();
 
-                Ok(self.blocks.get(
-                    block_number as usize,
-                    &mut working_set.accessory_state(),
-                ))
-            },
+                Ok(self
+                    .blocks
+                    .get(block_number as usize, &mut working_set.accessory_state()))
+            }
             Some(BlockNumberOrTag::Pending) => Err(EthApiError::InvalidParams(
                 "pending block not supported".to_string(),
             )),
@@ -1790,7 +1789,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
-            ))
+            )),
         }
     }
 
@@ -1824,10 +1823,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // Working state here is already at the latest state, so no need to anything
                     BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => {
                         return Ok(());
-                    }  
+                    }
                     _ => {
-                        let num = self
-                            .block_number_for_id(&block_num, working_set, ledger_db)?;
+                        let num = self.block_number_for_id(&block_num, working_set, ledger_db)?;
                         self.check_if_l2_block_pruned(num, working_set)?;
                         let curr_block_number = self
                             .blocks
@@ -1842,11 +1840,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     }
                 }
             }
-            Some(BlockId::Hash(block_hash)) => {
-                self
-                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
-                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?
-            }
+            Some(BlockId::Hash(block_hash)) => self
+                .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?,
         };
         set_state_to_end_of_evm_block::<C>(num, working_set);
         Ok(())
@@ -1865,8 +1861,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             if block_number == 0 {
                 // Genesis block is never pruned
                 return Ok(());
-            }
-            else if block_number <= last_pruned_l2_height {
+            } else if block_number <= last_pruned_l2_height {
                 return Err(ProviderError::StateAtBlockPruned(block_number));
             }
         }
