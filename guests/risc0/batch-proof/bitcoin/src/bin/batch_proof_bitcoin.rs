@@ -101,12 +101,21 @@ pub fn main() {
         CitreaRuntime<_, _>,
     > = StateTransitionVerifier::new(stf);
 
+    let forks = get_forks();
+
+    // if all forks enabled, we can't know the previous l2 block hash
+    let initial_prev_l2_block_hash = if forks == &ALL_FORKS {
+        None
+    } else {
+        INITIAL_PREV_L2_BLOCK_HASH
+    };
+
     let out = stf_verifier.run_sequencer_commitments_in_da_slot(
         &guest,
         storage,
         &SEQUENCER_PUBLIC_KEY,
-        INITIAL_PREV_L2_BLOCK_HASH,
-        get_forks(),
+        initial_prev_l2_block_hash,
+        forks,
     );
 
     guest.commit(&out);
