@@ -11,7 +11,7 @@ The guest code reads the input from the host. It contains data about the DA bloc
 
 The input also includes:
 
-* **Previous light client proof**: Proof of the previous L1 block. This is None for the first proof but must be present for all subsequent proofs.
+* **Previous light client proof**: Proof of the previous L1 block. This is None for the first proof, but must be present for all subsequent proofs.  
 * **Light client proof method ID**: Used to verify the previous light client proof  
 * **Witness**: Used for accessing the light client’s JellyFish Merkle Tree (JMT) state
 
@@ -38,7 +38,7 @@ This function processes the relevant transactions, moves the light client state 
 
 * The block hash of the header is inserted into the JMT.  
 * The last sequencer commitment index, last L2 height, and L2 state root are retrieved from the previous light client proof.  
-* If no previous proof exists, (0, 0, genesis root) is used as the starting point, and the initial method IDs are set
+* If no previous proof exists, (0, 0, genesis root) is used as the starting point, and the initial method IDs are set.
 
 ## Processing the Relevant Transactions
 
@@ -57,7 +57,7 @@ This function processes the relevant transactions, moves the light client state 
 It is checked:
 
 * Whether the last L1 hash on the Bitcoin light client contract was seen by the LCP.  
-* Whether the proof can be decompressed. Decompression can fail if decompressed blob size limit is exceeded, or there is invalid data.
+* Whether the proof can be decompressed. Decompression can fail if the decompressed blob size limit is exceeded or if there is invalid data.  
 * If the proof is valid. It is verified using the method IDs on the LCP’s JMT state.  
 * If the sequencer commitment relation holds.
 
@@ -66,13 +66,12 @@ If any of these fail, an error is returned. Next, for every sequencer commitment
 #### Verifying the Sequencer Commitment Relation
 
 1. First, it is checked if the previous commitment on the batch proof matches the commitment on the JMT state. This way, LCP can verify that the proof was built over a valid sequencer commitment and cannot be tricked into an invalid L2 state.  
-   
-
-2. Next, the sequencer commitments within the batch proof range are iterated over. For any commitment:
-
+     
+2. Next, the sequencer commitments within the batch proof range are iterated over. For any commitment:  
+     
    * The commitment index must exist in the JMT state.  
    * The commitment hash must match the corresponding hash stored in the JMT state.  
-   * For the final commitment in the range, it is verified that the batch proof’s last L2 height matches the L2 height of the corresponding commitment stored in the JMT state
+   * For the final commitment in the range, it is verified that the batch proof’s last L2 height matches the L2 height of the corresponding commitment stored in the JMT state.
 
 ## Moving the Verified Commitment Index
 
