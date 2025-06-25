@@ -162,14 +162,12 @@ impl BitcoinService {
         fee_service: FeeService,
         inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
-        // Validate and create tx backup directory (BitcoinService-specific)
         let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
         if !tx_backup_dir.exists() {
             std::fs::create_dir_all(tx_backup_dir)
                 .context("Failed to create tx backup directory")?;
         }
 
-        // Parse private key (BitcoinService-specific validation)
         let da_private_key = config
             .da_private_key
             .as_ref()
