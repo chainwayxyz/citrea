@@ -75,7 +75,7 @@ impl TransactionV1 {
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 #[derive(Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct TransactionV2 {
-    signature: Vec<u8>,
+    signature: K256Signature,
     pub_key: K256PublicKey,
     runtime_msg: Vec<u8>,
     chain_id: u64,
@@ -95,7 +95,7 @@ impl TransactionV2 {
         let signature = priv_key.sign(&message);
 
         Self {
-            signature: borsh::to_vec(&signature).unwrap(),
+            signature,
             pub_key,
             runtime_msg,
             chain_id,
@@ -104,7 +104,6 @@ impl TransactionV2 {
     }
 
     fn verify(&self) -> anyhow::Result<()> {
-        let signature = K256Signature::try_from_slice(&self.signature)?;
         let mut serialized_tx = Vec::with_capacity(self.runtime_msg.len() + EXTEND_MESSAGE_LEN);
 
         serialized_tx.extend([TxVersion::V2 as u8]);
@@ -112,7 +111,7 @@ impl TransactionV2 {
         serialized_tx.extend_from_slice(&self.chain_id.to_be_bytes());
         serialized_tx.extend_from_slice(&self.nonce.to_be_bytes());
 
-        signature.verify(&self.pub_key, &serialized_tx)?;
+        self.signature.verify(&self.pub_key, &serialized_tx)?;
         Ok(())
     }
 
@@ -160,13 +159,6 @@ impl Transaction {
         match self {
             Self::V1 { .. } => TxVersion::V1,
             Self::V2 { .. } => TxVersion::V2,
-        }
-    }
-
-    pub fn signature(&self) -> &[u8] {
-        match self {
-            Self::V1(tx) => tx.signature.as_slice(),
-            Self::V2(tx) => tx.signature.as_slice(),
         }
     }
 
