@@ -39,7 +39,7 @@ use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, Cum
 use sov_rollup_interface::Network;
 
 use super::get_citrea_path;
-use super::utils::PROVER_DA_PUBLIC_KEY;
+use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
     spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service,
     wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
@@ -2854,7 +2854,7 @@ impl UndecompressableBlobTest {
         use bitcoin::secp256k1::SecretKey;
         use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_0, DaTxs};
 
-        let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
+        let da_private_key = SecretKey::from_str(PROVER_DA_PRIVATE_KEY).unwrap();
         let change_address = client.get_new_address(None, None).await?.assume_checked();
         let utxos = client
             .list_unspent(None, None, None, None, None)
@@ -2905,7 +2905,7 @@ impl UndecompressableBlobTest {
         use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_1, DaTxs};
         use bitcoincore_rpc::json::SignRawTransactionInput;
 
-        let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
+        let da_private_key = SecretKey::from_str(PROVER_DA_PRIVATE_KEY).unwrap();
         let change_address = client.get_new_address(None, None).await?.assume_checked();
         let utxos = client
             .list_unspent(None, None, None, None, None)

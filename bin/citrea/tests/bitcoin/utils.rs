@@ -34,9 +34,9 @@ pub enum DaServiceKeyKind {
     Other(String),
 }
 
-pub const SEQUENCER_DA_PUBLIC_KEY: &str =
+pub const SEQUENCER_DA_PRIVATE_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
-pub const PROVER_DA_PUBLIC_KEY: &str =
+pub const PROVER_DA_PRIVATE_KEY: &str =
     "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707";
 
 fn get_workspace_root() -> PathBuf {
@@ -108,8 +108,8 @@ pub async fn spawn_bitcoin_da_service(
     reveal_tx_prefix: Vec<u8>,
 ) -> Arc<BitcoinService> {
     let da_private_key = match kind {
-        DaServiceKeyKind::Sequencer => SEQUENCER_DA_PUBLIC_KEY.to_string(),
-        DaServiceKeyKind::BatchProver => PROVER_DA_PUBLIC_KEY.to_string(),
+        DaServiceKeyKind::Sequencer => SEQUENCER_DA_PRIVATE_KEY.to_string(),
+        DaServiceKeyKind::BatchProver => PROVER_DA_PRIVATE_KEY.to_string(),
         DaServiceKeyKind::Other(key) => key,
     };
 
