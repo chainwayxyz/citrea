@@ -1813,7 +1813,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> Result<(), EthApiError> {
-        let num = match block_id {
+        let block_num = match block_id {
             // latest state
             None => {
                 return Ok(());
@@ -1827,15 +1827,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     _ => {
                         let num = self.block_number_for_id(&block_num, working_set, ledger_db)?;
                         self.check_if_l2_block_pruned(num, working_set)?;
-                        let curr_block_number = self
-                            .blocks
-                            .last(&mut working_set.accessory_state())
-                            .expect("Head block must be set")
-                            .header
-                            .number;
-                        if num > curr_block_number {
-                            return Err(EthApiError::HeaderNotFound(block_id.unwrap()));
-                        }
                         num
                     }
                 }
@@ -1844,7 +1835,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get_block_number_by_block_hash(block_hash.block_hash, working_set)
                 .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?,
         };
-        set_state_to_end_of_evm_block::<C>(num, working_set);
+        set_state_to_end_of_evm_block::<C>(block_num, working_set);
         Ok(())
     }
 
