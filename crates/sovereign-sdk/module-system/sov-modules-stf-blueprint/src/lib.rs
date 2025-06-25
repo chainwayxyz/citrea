@@ -148,7 +148,7 @@
 use borsh::BorshDeserialize;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
+use rs_merkle::{MerkleProof, MerkleTree};
 #[cfg(feature = "native")]
 use sov_db::ledger_db::LedgerDB;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};
@@ -164,6 +164,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{L2BlockError, L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
+use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::{ReadWriteLog, Storage, Witness};
@@ -464,6 +465,7 @@ where
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
+        prev_hash_proof: Option<PrevHashProof>,
         sequencer_commitments: Vec<SequencerCommitment>,
         cache_prune_l2_heights: &[u64],
         forks: &[Fork],
@@ -485,7 +487,61 @@ where
 
         // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
-        let mut prev_l2_block_hash: Option<[u8; 32]> = None;
+
+        // we are going to initialize with 000.000 or the last hash from the previous commitment
+
+        let mut prev_l2_block_hash: Option<[u8; 32]> = match &previous_sequencer_commitment {
+            Some(commitment) => {
+                let prev_hash_proof = prev_hash_proof
+                    .expect("Previous sequencer commitment must have a prev hash proof");
+
+                let merkle_proof = MerkleProof::<Sha256>::from_bytes(
+                    prev_hash_proof.merkle_proof_bytes.as_slice(),
+                )
+                .expect("Merkle proof must be valid");
+
+                // This means we could actually bake in the genesis root into the batch proof
+                // and we could start from the first l2 block
+                assert_eq!(
+                    prev_hash_proof.last_header.state_root(),
+                    *initial_state_root,
+                    "Initial state root must match the last header state root"
+                );
+
+                let index = (commitment.l2_end_block_number
+                    - prev_hash_proof.prev_sequencer_commitment_start)
+                    as usize;
+                let count = index + 1;
+                let last_header_hash = prev_hash_proof
+                    .last_header
+                    .compute_digest::<<C as Spec>::Hasher>()
+                    .into();
+
+                assert!(
+                    merkle_proof.verify(
+                        commitment.merkle_root,
+                        &[index],
+                        &[last_header_hash],
+                        count
+                    ),
+                    "Prev hash proof must be valid"
+                );
+
+                Some(last_header_hash)
+            }
+            None => {
+                assert!(prev_hash_proof.is_none());
+                // If the chain starts at genesis with a Tangerine-or-later fork,
+                // the previous block hash is known to be [0; 32] by convention (e.g. Mainnet).
+                // Otherwise, if the starting fork is before Tangerine, we don't assume a value for the prev hash,
+                // so we skip checking it (e.g. Testnet).
+                if forks[0].spec_id >= SpecId::Tangerine && forks[0].activation_height == 0 {
+                    Some([0; 32])
+                } else {
+                    None
+                }
+            }
+        };
 
         let group_count: u32 = guest.read_from_host();
 
@@ -589,10 +645,12 @@ where
                     "L2 block height is not equal to the expected height"
                 );
 
-                if let Some(hash) = prev_l2_block_hash {
+                // There is no previous l2 block hash. For mainnet this is going to be the case for the 1st block.
+                // But for testnet it will be the Tangerine fork start, hence, we will have to have trust in the first proof.
+                if let Some(prev_l2_block_hash) = prev_l2_block_hash {
                     assert_eq!(
                         l2_block.prev_hash(),
-                        hash,
+                        prev_l2_block_hash,
                         "L2 block previous hash must match the hash of the block before"
                     );
                 }

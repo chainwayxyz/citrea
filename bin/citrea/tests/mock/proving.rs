@@ -342,11 +342,13 @@ async fn test_batch_prover_prove_rpcs() {
 
     // ensure that prover also syncs up to l2 block 6
     wait_for_l2_block(&prover_client, 6, None).await;
+    wait_for_prover_l1_height(&prover_client, 4, None)
+        .await
+        .unwrap();
     // override prev commitment
     prover_client
         .batch_prover_set_commitments(vec![new_commitment])
         .await;
-
     // invoke proving from RPC
     let job_ids = prover_client.batch_prover_prove(None).await;
     assert_eq!(job_ids.len(), 1);

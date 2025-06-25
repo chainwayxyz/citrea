@@ -469,6 +469,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             } else {
                 // This should be infallible
                 // this can only happen if commitment started committing to a different chain
+                // We make sure in the batch proof circuit that a proof cannot build on a previous commitment
+                // but start with a different state root
                 unreachable!("Commitment with the next index having an unexpected state root");
             }
         }
