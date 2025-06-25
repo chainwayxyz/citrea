@@ -24,7 +24,6 @@ impl BitcoinMerkleTree {
         // Construct the tree
         let mut curr_level_offset: usize = 1;
         let mut prev_level_size = tree.nodes[0].len();
-        let mut prev_level_index_offset = 0;
         let mut preimage: [u8; 64] = [0; 64];
 
         // Continue building the tree until we reach a level with only one node (the root)
@@ -33,8 +32,8 @@ impl BitcoinMerkleTree {
 
             // Process each pair of nodes from the previous level
             for i in 0..(prev_level_size / 2) {
-                let l = &tree.nodes[curr_level_offset - 1][prev_level_index_offset + i * 2];
-                let r = &tree.nodes[curr_level_offset - 1][prev_level_index_offset + i * 2 + 1];
+                let l = &tree.nodes[curr_level_offset - 1][i * 2];
+                let r = &tree.nodes[curr_level_offset - 1][i * 2 + 1];
                 // Check if the pair has the same digest, if so, panic
                 assert_ne!(
                     l, r,
@@ -52,10 +51,8 @@ impl BitcoinMerkleTree {
                 // In Bitcoin's Merkle tree, if a level has an odd number of nodes,
                 // the last node is duplicated when calculating its parent
                 // Copy the last node's hash into both halves of the preimage
-                preimage[..32].copy_from_slice(
-                    &tree.nodes[curr_level_offset - 1]
-                        [prev_level_index_offset + prev_level_size - 1],
-                );
+                preimage[..32]
+                    .copy_from_slice(&tree.nodes[curr_level_offset - 1][prev_level_size - 1]);
                 preimage.copy_within(..32, 32);
                 // Calculate the parent node's hash
                 let combined_hash = calculate_double_sha256(&preimage);
@@ -65,7 +62,6 @@ impl BitcoinMerkleTree {
             curr_level_offset += 1;
             // Calculate the size of the level we just created
             prev_level_size = (prev_level_size + 1) / 2; // Ceiling division to handle odd numbers
-            prev_level_index_offset = 0;
         }
         tree
     }
