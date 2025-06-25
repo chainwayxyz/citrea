@@ -60,7 +60,7 @@ It is checked:
 * If the proof is valid. It is verified using the method IDs on the LCP’s JMT state.  
 * If the sequencer commitment relation holds.
 
-If any of these fail, proof is skipped. Next, for every sequencer commitment in the batch proof’s range, the L2 state update is marked as `VerifiedStateTransition` for that commitment. This is to be used later when we move the L2 state of the LCP.
+If any of these fail, an error is returned. Next, for every sequencer commitment in the batch proof’s range, the L2 state update is marked as `VerifiedStateTransition` for that commitment. This is to be used later when we move the L2 state of the LCP.
 
 #### Verifying the Sequencer Commitment Relation
 
