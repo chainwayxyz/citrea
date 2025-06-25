@@ -438,7 +438,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<Transaction>> {
         let block = match self.get_sealed_block_by_number(Some(block_number), working_set, ledger_db){
             Ok(Some(block)) => block,
-            Ok(None) | Err(EthApiError::HeaderNotFound(_)) => return Ok(None),
+            Ok(None) => return Ok(None),
             Err(err) => return Err(err.into()),
         };
 
@@ -1790,15 +1790,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     block_number.height as usize,
                     &mut working_set.accessory_state(),
                 ))
-            }
+            },
+            Some(BlockNumberOrTag::Pending) => Err(EthApiError::InvalidParams(
+                "pending block not supported".to_string(),
+            )),
             None => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
-            )),
-            _ => Err(EthApiError::InvalidParams(
-                "pending/safe/finalized block not supported".to_string(),
-            )),
+            ))
         }
     }
 
