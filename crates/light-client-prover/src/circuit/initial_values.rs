@@ -147,6 +147,7 @@ pub mod bitcoinda {
                         "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
                     ),
                 ),
+                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
                 (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
             ],
         };

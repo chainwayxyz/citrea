@@ -146,6 +146,7 @@
 //! ```
 
 use borsh::BorshDeserialize;
+use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::{MerkleProof, MerkleTree};
@@ -547,22 +548,16 @@ where
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
 
-        // Get tangerine
-        let tangerine = forks
-            .iter()
-            .find(|f| f.spec_id == SpecId::Tangerine)
-            .expect("Tangerine must exist");
-
-        let tangerine_activation_height = tangerine.activation_height;
-
-        let mut previous_batch_proof_l2_end_height = tangerine_activation_height;
-
         // If tangerine start height is not 0 meaning there are other forks before tangerine,
         // then the previous batch proof l2 end height should be the tangerine start height - 1
         // Because the first l2 height of the first tangerine batch proof must be non-zero tangerine activation height
-        if tangerine_activation_height != 0 {
-            previous_batch_proof_l2_end_height = tangerine_activation_height - 1;
-        }
+        let tangerine_activation_height = get_tangerine_activation_height_non_zero();
+        println!(
+            "tangerine activation height: {}",
+            tangerine_activation_height
+        );
+
+        let mut previous_batch_proof_l2_end_height = tangerine_activation_height - 1;
 
         // If there is no previous commitment, then this is the first batch proof
         // and this should start from proving the first l2 block
