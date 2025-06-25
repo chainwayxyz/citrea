@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
-use citrea_primitives::forks::{fork_from_block_number, get_fork3_activation_height_non_zero};
+use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -380,7 +380,7 @@ where
         // For first commitment (index 1), start at Tangerine fork height
         // Otherwise, start at previous commitment's end height + 1
         let start_l2_height = if sequencer_commitment.index == 1 {
-            get_fork3_activation_height_non_zero()
+            get_tangerine_activation_height_non_zero()
         } else {
             match self
                 .ledger_db
@@ -626,8 +626,8 @@ where
                     &mut proof_is_pending,
                 )?
             }
-            // If there is no previous seq comm hash then this must be the first post Fork3 commitment
-            None => get_fork3_activation_height_non_zero() - 1,
+            // If there is no previous seq comm hash then this must be the first post tangerine commitment
+            None => get_tangerine_activation_height_non_zero() - 1,
         };
 
         let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();

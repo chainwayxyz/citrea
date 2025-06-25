@@ -2,7 +2,7 @@
 //! It allows for efficient processing of commitments by creating partitions that can be handled independently.
 //! The partitioning is based on several factors such as index gaps, spec changes, state diffs, and more.
 
-use citrea_primitives::forks::get_fork3_activation_height_non_zero;
+use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_rollup_interface::da::SequencerCommitment;
@@ -66,7 +66,7 @@ impl<'a> PartitionState<'a> {
     ) -> anyhow::Result<Self> {
         let start_l2_height = if commitments[0].index == 1 {
             // If this is the first commitment ever, start from 1
-            get_fork3_activation_height_non_zero()
+            get_tangerine_activation_height_non_zero()
         } else {
             // If this is not the first commitment, start l2 height will be end block number + 1 of the previous commitment
             ledger_db
