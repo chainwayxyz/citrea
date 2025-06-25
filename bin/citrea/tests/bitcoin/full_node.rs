@@ -30,8 +30,8 @@ use tokio::time::sleep;
 use super::light_client_test::{create_random_state_diff, TEN_MINS};
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::utils::{
-    spawn_bitcoin_da_service, wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs,
-    DaServiceKeyKind,
+    spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, wait_for_prover_job,
+    wait_for_prover_job_count, wait_for_zkproofs,
 };
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
@@ -92,13 +92,9 @@ impl TestCase for PreStateRootMismatchTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
@@ -339,20 +335,12 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
         let full_node = f.full_node.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
@@ -537,13 +525,9 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let bitcoin_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         // This should cause a halting error as merkle root doesn't match the expected root from known L2 blocks
         // Send it first then generate block so that it's pending then causes a mismatch
@@ -964,13 +948,9 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let bitcoin_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
@@ -1161,13 +1141,9 @@ impl TestCase for ConflictingCommitmentsTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let bitcoin_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -1403,21 +1379,13 @@ impl TestCase for OutOfRangeProofTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -2028,21 +1996,13 @@ impl TestCase for OverlappingProofRangesTest {
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -2624,13 +2584,9 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         let sequencer_client = sequencer.client.clone();
 
@@ -3070,13 +3026,9 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let batch_prover_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let batch_prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -3781,13 +3733,9 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
             merkle_root,
         };
         let task_executor = self.task_manager.executor();
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         sequencer_da_service
             .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(correct_commitment), 1)
@@ -4069,13 +4017,9 @@ impl TestCase for ChunkingPackageTooBigTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let batch_prover_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let batch_prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;

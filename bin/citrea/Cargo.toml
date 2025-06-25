@@ -119,6 +119,7 @@ testing = [
   "citrea-risc0-light-client/testing",
   "sov-rollup-interface/testing",
 ]
+native = []
 
 [[bin]]
 name = "citrea"

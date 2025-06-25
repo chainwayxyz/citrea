@@ -148,11 +148,8 @@ impl RollupBlueprint for BitcoinRollup {
         );
         let monitoring_service = Arc::new(monitoring_service);
 
-        let fee_service = FeeService::new(
-            client.clone(),
-            network.clone(),
-            da_config.mempool_space_url.clone(),
-        );
+        let fee_service =
+            FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
 
         let service = Arc::new(BitcoinService::from_config(
             da_config,

@@ -122,6 +122,7 @@ pub struct BitcoinService {
 }
 
 impl BitcoinService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Arc<Client>,
         network: bitcoin::Network,
@@ -150,6 +151,7 @@ impl BitcoinService {
     }
 
     // Create a new instance of the DA service from the given configuration.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_config(
         config: &BitcoinServiceConfig,
         chain_params: RollupParams,
