@@ -275,6 +275,9 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
     /// Batch proof method ids storage prefix
     const PREFIX: u8 = b'm';
 
+    /// Creates a storage key containing just the prefix
+    /// # Returns
+    /// A storage key for accessing batch proof method ids
     fn key() -> StorageKey {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 1]; // 1 prefix
@@ -285,6 +288,13 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         StorageKey::singleton_owned(p)
     }
 
+    /// Retrieves the batch proof method ids if they exist
+    ///
+    /// # Arguments
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Returns
+    /// The batch proof method IDs if they exist, `None` otherwise
     pub fn get(working_set: &mut WorkingSet<S>) -> Option<BatchProofMethodIds> {
         let key = Self::key();
 
@@ -295,6 +305,12 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         })
     }
 
+    /// Inserts a new batch proof method id into the LCP state
+    ///
+    /// # Arguments
+    /// * `activation_l2_height` - The L2 block height at which the method id is activated
+    /// * `method_id` - The method id to store
+    /// * `working_set` - Mutable reference to the working set for storage access
     pub fn insert(activation_l2_height: u64, method_id: [u32; 8], working_set: &mut WorkingSet<S>) {
         let key = Self::key();
         let mut method_ids = Self::get(working_set).unwrap_or_default();
@@ -305,6 +321,13 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         working_set.set(&key, value);
     }
 
+    /// Initializes the batch proof method ids with an initial set of method ids. Must be called at most once and before any insertions.
+    /// # Arguments
+    /// * `initial_batch_proof_method_ids` - The initial set of method ids to store
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Panics
+    /// Panics if the batch proof method ids are not empty when initializing
     pub fn initialize(
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         working_set: &mut WorkingSet<S>,
