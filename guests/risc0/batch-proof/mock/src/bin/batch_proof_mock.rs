@@ -19,10 +19,7 @@ const SEQUENCER_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
     Err(_) => panic!("Can't happen"),
 };
 
-const INITIAL_PREV_L2_BLOCK_HASH: [u8; 32] = match const_hex::const_decode_to_array(b"0000000000000000000000000000000000000000000000000000000000000000") {
-    Ok(pub_key) => pub_key,
-    Err(_) => panic!("Can't happen"),
-};
+const INITIAL_PREV_L2_BLOCK_HASH: [u8; 32] = [0; 32];
 
 const FORKS: &[Fork] = &NIGHTLY_FORKS;
 
@@ -52,7 +49,7 @@ pub fn main() {
         &guest,
         storage,
         &SEQUENCER_PUBLIC_KEY,
-        INITIAL_PREV_L2_BLOCK_HASH,
+        Some(INITIAL_PREV_L2_BLOCK_HASH),
         get_forks(),
     );
 

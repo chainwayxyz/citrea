@@ -462,7 +462,7 @@ where
         &mut self,
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
-        initial_prev_l2_block_hash: [u8; 32],
+        initial_prev_l2_block_hash: Option<[u8; 32]>,
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
@@ -489,9 +489,8 @@ where
         // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
 
-        // we are going to initialize with 000.000 or the last hash from the previous commitment
-
-        let mut prev_l2_block_hash: [u8; 32] = match &previous_sequencer_commitment {
+        // This is None only for TestnetWithForks, and has network specific values
+        let mut prev_l2_block_hash: Option<[u8; 32]> = match &previous_sequencer_commitment {
             Some(commitment) => {
                 let prev_hash_proof = prev_hash_proof
                     .expect("Previous sequencer commitment must have a prev hash proof");
@@ -528,7 +527,7 @@ where
                     "Prev hash proof must be valid"
                 );
 
-                last_header_hash
+                Some(last_header_hash)
             }
             None => {
                 assert!(prev_hash_proof.is_none());
@@ -638,11 +637,13 @@ where
                     "L2 block height is not equal to the expected height"
                 );
 
-                assert_eq!(
-                    l2_block.prev_hash(),
-                    prev_l2_block_hash,
-                    "L2 block previous hash must match the hash of the block before"
-                );
+                if let Some(prev_hash) = prev_l2_block_hash {
+                    assert_eq!(
+                        l2_block.prev_hash(),
+                        prev_hash,
+                        "L2 block previous hash must match the hash of the block before"
+                    );
+                }
 
                 fork_manager.register_block(l2_height).unwrap();
 
@@ -682,7 +683,7 @@ where
                 }
 
                 l2_height += 1;
-                prev_l2_block_hash = l2_block.hash();
+                prev_l2_block_hash = Some(l2_block.hash());
                 l2_block_hashes.push(l2_block.hash());
 
                 cumulative_state_log = Some(state_log);
@@ -711,7 +712,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height,
-            final_l2_block_hash: prev_l2_block_hash,
+            final_l2_block_hash: prev_l2_block_hash.unwrap(),
             sequencer_commitment_hashes,
             sequencer_commitment_index_range,
             cumulative_state_log: cumulative_state_log.unwrap(),
