@@ -1765,14 +1765,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let block_number = ledger_db
                     .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
                     .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
-                let Some(block_number) = block_number else {
-                    return Err(EthApiError::InvalidParams(
-                        "safe block is not found".to_string(),
-                    ));
-                };
+                let block_number = block_number.map(|b| b.height).unwrap_or_default();
 
                 Ok(self.blocks.get(
-                    block_number.height as usize,
+                    block_number as usize,
                     &mut working_set.accessory_state(),
                 ))
             }
@@ -1780,14 +1776,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let block_number = ledger_db
                     .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
                     .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
-                let Some(block_number) = block_number else {
-                    return Err(EthApiError::InvalidParams(
-                        "finalized block is not found".to_string(),
-                    ));
-                };
+                let block_number = block_number.map(|b| b.height).unwrap_or_default();
 
                 Ok(self.blocks.get(
-                    block_number.height as usize,
+                    block_number as usize,
                     &mut working_set.accessory_state(),
                 ))
             },
