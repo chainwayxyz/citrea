@@ -11,7 +11,7 @@ The guest code reads the input from the host. It contains data about the DA bloc
 
 The input also includes:
 
-* **Previous light client proof**: Proof of the previous L1 block (if it exists)  
+* **Previous light client proof**: Proof of the previous L1 block. This is None for the first proof but must be present for all subsequent proofs.
 * **Light client proof method ID**: Used to verify the previous light client proof  
 * **Witness**: Used for accessing the light client’s JellyFish Merkle Tree (JMT) state
 
@@ -46,7 +46,7 @@ This function processes the relevant transactions, moves the light client state 
     
 * **Chunk proof**: Stored in JMT to construct the complete proof body later.  
     
-* **Aggregate proof**: After verifying that the sender is the batch prover, the chunk bodies are retrieved from the aggregate data using their `wtxids`. These chunks are then assembled into a complete proof, which is processed using the same method as before.  
+* **Aggregate proof**: Contains `wtxids` to construct the complete proof. After verifying that the sender is the batch prover, the chunk bodies are retrieved from the JMT by their `wtxid`s and assembled into a complete proof, which is processed using the same method as before.  
     
 * **Batch proof method ID**: Contains the method ID and the activation (L2) height. If the sender is the method ID upgrade authority and the activation height is higher than the latest one, the new method ID is stored in the JMT for use in future proof verification.  
     
@@ -57,6 +57,7 @@ This function processes the relevant transactions, moves the light client state 
 It is checked:
 
 * Whether the last L1 hash on the Bitcoin light client contract was seen by the LCP.  
+* Whether the proof can be decompressed. Decompression can fail if decompressed blob size limit is exceeded, or there is invalid data.
 * If the proof is valid. It is verified using the method IDs on the LCP’s JMT state.  
 * If the sequencer commitment relation holds.
 
