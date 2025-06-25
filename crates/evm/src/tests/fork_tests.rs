@@ -764,7 +764,7 @@ fn test_offchain_contract_storage_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+    let (mut evm, mut working_set, _spec_id, ledger_db) =
         get_evm_with_spec(&config, SovSpecId::Tangerine);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
@@ -813,7 +813,7 @@ fn test_offchain_contract_storage_evm() {
         .unwrap();
 
     // Try to get the code from Tangerine fork and expect it to exist
-    let code = evm.get_code(contract_addr, None, &mut working_set).unwrap();
+    let code = evm.get_code(contract_addr, None, &mut working_set, &ledger_db).unwrap();
 
     assert_eq!(*cont_code.original_byte_slice(), code);
 
@@ -829,6 +829,7 @@ fn test_offchain_contract_storage_evm() {
                 alloy_eips::BlockNumberOrTag::Latest,
             )),
             &mut working_set,
+            &ledger_db
         )
         .unwrap();
 
@@ -896,7 +897,7 @@ fn test_offchain_contract_storage_evm() {
 
     // Try to get the code from Tangerine fork and expect it to not exist because it is stored in offchain storage
     let code = evm
-        .get_code(new_contract_address, None, &mut working_set)
+        .get_code(new_contract_address, None, &mut working_set, &ledger_db)
         .unwrap();
     assert_eq!(code, *offchain_code.unwrap().original_byte_slice());
 

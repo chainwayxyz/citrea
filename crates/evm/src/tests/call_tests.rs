@@ -56,7 +56,7 @@ fn call_multiple_test() {
         }],
         ..Default::default()
     };
-    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
@@ -180,6 +180,7 @@ fn call_multiple_test() {
             BlockNumberOrTag::Number(l2_height),
             U64::from(0),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();

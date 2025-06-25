@@ -81,7 +81,7 @@ fn call_contract_without_value() {
 fn test_state_change() {
     let (mut evm, mut working_set, _, signer, l2_height, ledger_db) = init_evm(SpecId::Tangerine);
 
-    let balance_1 = evm.get_balance(signer.address(), None, &mut working_set);
+    let balance_1 = evm.get_balance(signer.address(), None, &mut working_set, &ledger_db);
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
@@ -117,7 +117,7 @@ fn test_state_change() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
+    let balance_2 = evm.get_balance(signer.address(), None, &mut working_set, &ledger_db);
     assert_eq!(balance_1, balance_2);
 }
 

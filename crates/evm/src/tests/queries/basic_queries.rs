@@ -152,12 +152,13 @@ fn get_transaction_by_block_hash_and_index_test() {
 
 #[test]
 fn get_transaction_by_block_number_and_index_test() {
-    let (evm, mut working_set, _, _, _, _ledger_db) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_transaction_by_block_number_and_index(
         BlockNumberOrTag::Number(100),
         U64::from(0),
         &mut working_set,
+        &ledger_db
     );
 
     assert_eq!(result, Ok(None));
@@ -167,6 +168,7 @@ fn get_transaction_by_block_number_and_index_test() {
         BlockNumberOrTag::Number(1),
         U64::from(6),
         &mut working_set,
+        &ledger_db
     );
 
     assert_eq!(result, Ok(None));
@@ -177,6 +179,7 @@ fn get_transaction_by_block_number_and_index_test() {
             BlockNumberOrTag::Number(1),
             U64::from(i),
             &mut working_set,
+            &ledger_db
         );
 
         assert!(result.unwrap().is_some());
@@ -193,6 +196,7 @@ fn get_transaction_by_block_number_and_index_test() {
             BlockNumberOrTag::Number(2),
             U64::from(i),
             &mut working_set,
+            &ledger_db
         );
 
         assert_eq!(result.unwrap().unwrap().tx_hash(), *tx_hash);

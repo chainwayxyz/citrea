@@ -22,7 +22,7 @@ lazy_static! {
 #[test]
 fn genesis_data() {
     let config = get_evm_test_config();
-    let (evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
+    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
     let account = &config.data[0];
 
@@ -37,7 +37,7 @@ fn genesis_data() {
         .unwrap();
 
     let contract_storage1 = evm
-        .get_storage_at(contract.address, U256::from(0), None, &mut working_set)
+        .get_storage_at(contract.address, U256::from(0), None, &mut working_set, &ledger_db)
         .unwrap();
 
     let contract_storage2 = evm
@@ -49,6 +49,7 @@ fn genesis_data() {
             ),
             None,
             &mut working_set,
+            &ledger_db
         )
         .unwrap();
 
