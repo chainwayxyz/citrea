@@ -489,7 +489,10 @@ where
         // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
 
-        // This is None only for TestnetWithForks, and has network specific values
+        // prev_l2_block_hash is extracted from the previous_sequencer_commitment, but previous_sequencer_commitment
+        // is always None for the first proof of each network. Hence, we hardcode the initial_prev_l2_block_hash as
+        // constant into the guest binary. But for the TestNetworkWithForks we can't know the initial_prev_l2_block_hash 
+        // because it changes on every test run, hence, in that case, prev_l2_block_hash becomes None. 
         let mut prev_l2_block_hash: Option<[u8; 32]> = match &previous_sequencer_commitment {
             Some(commitment) => {
                 let prev_hash_proof = prev_hash_proof
