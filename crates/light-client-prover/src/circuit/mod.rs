@@ -27,9 +27,10 @@ pub mod initial_values;
 #[macro_use]
 mod log;
 
-// L2 activation height of the fork, and the batch proof method ID
+/// L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
+/// Error type for the circuit
 type CircuitError = &'static str;
 
 #[derive(Debug)]
@@ -40,15 +41,22 @@ pub enum LightClientVerificationError<DaV: DaVerifier> {
 }
 
 pub struct RunL1BlockResult<S: Storage> {
+    /// The verified L2 state root after processing the L1 block
     l2_state_root: [u8; 32],
+    /// The JMT state root after processing the L1 block
     pub lcp_state_root: [u8; 32],
+    /// The last verified L2 height after processing the L1 block
     last_l2_height: u64,
+    /// Witness accumulates hints during the native execution. Hints are consumed by the circuit and allow access to the JMT state.
     pub witness: Witness,
+    /// The change set that contains the JMT state updates and is used to finalize the JMT state after processing the L1 block.
     pub change_set: S,
+    /// The verified last sequencer commitment index after processing the L1 block
     last_sequencer_commitment_index: u32,
 }
 
 pub struct LightClientProofCircuit<S: Storage, DS: DaSpec, Z: Zkvm> {
+    /// Phantom data to hold the types of the storage, DA spec, and zkVM
     phantom: core::marker::PhantomData<(S, DS, Z)>,
 }
 
@@ -59,6 +67,22 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
     }
 
+    /// Verifies that all the sequencer commitments in the batch proof output, including the previous commitment,
+    /// match the sequencer commitments stored in the JMT state.
+    /// 
+    /// # Arguments
+    /// * `batch_proof_output` - The output of the batch proof circuit.
+    /// * `working_set` - The working set to use accessors that read the JMT state.
+    /// 
+    /// 
+    /// # Logic
+    /// - If the batch proof output contains a previous commitment index and hash, compares it with the sequencer commitment stored in the JMT state. 
+    ///     If the previous commitment index is not set,ensures that the first commitment index in the batch proof output is 1.
+    /// - For each sequencer commitment in the batch proof output, checks that the index and hash match the sequencer commitments stored in the JMT state.
+    /// - Checks that if the last L2 height of last commitment matches the last L2 height in the batch proof output.
+    /// 
+    /// # Returns
+    /// * `true` if all checks are successful, `false` otherwise.
     fn verify_batch_proof_seq_comm_relation(
         &self,
         batch_proof_output: &BatchProofCircuitOutput,
@@ -172,6 +196,30 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         true
     }
 
+    /// Processes a complete proof, verifying it and validating it according to the current state of the JMT.
+    /// If the proof is valid, all of the sequencer commitments in the proof's range are added to the JMT state as verified state transitions.
+    /// 
+    /// # Arguments
+    /// * `proof` - The serialized complete proof to process.
+    /// * `last_l2_height` - The last L2 height known before processing this proof.
+    /// * `last_sequencer_commitment_index` - The last sequencer commitment index known before processing this proof.
+    /// * `working_set` - The working set to use accessor that reads the JMT state.
+    /// 
+    /// # Logic
+    /// 
+    /// - The proof is deserialized and the output is extracted.
+    /// - The output is checked to ensure it contains a valid L1 hash that is known
+    /// - The last L2 height of the output is checked to ensure it is greater than the last known height.
+    /// - The batch proof method ID is read from the JMT based on the last L2 height.
+    /// - The proof is verified using the batch proof method ID.
+    /// - The sequencer commitment relation is verified to ensure the proof's sequencer commitments are known.
+    /// - The last sequencer commitment index is checked to ensure it is greater than the last known index.
+    /// 
+    /// At this point, the proof is considered valid and the sequencer commitments in the proof's range are added to the JMT state as verified state transitions.
+    /// 
+    /// # Returns
+    /// * `Ok(())` if the proof was processed successfully.
+    /// * `Err(CircuitError)` if there was an error processing the proof, such as verification failure, deserialization error, or state root mismatch.
     fn process_complete_proof(
         &self,
         proof: &[u8],

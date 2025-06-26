@@ -7,6 +7,7 @@ use sov_modules_api::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::Network;
 
+/// Genesis root for the Light Client Prover's Jellyfish Merkle Tree.
 pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
     b"5350415253455f4d45524b4c455f504c414345484f4c4445525f484153485f5f",
 ) {
@@ -14,6 +15,8 @@ pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_
     Err(_) => panic!("LCP_JMT_GENESIS_ROOT must deserialize"),
 };
 
+/// Constant function to decode a hex string into a fixed-size array of u32.
+/// This function is used to decode method IDs from hex strings at compile time.
 const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
     let bytes = const_hex::const_decode_to_array::<32>(hex.as_bytes());
     match bytes {

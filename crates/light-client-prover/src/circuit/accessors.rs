@@ -12,15 +12,16 @@ use super::InitialBatchProofMethodIds;
 /// Vector of activation height to method id
 pub type BatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
-pub struct BlockHashAccessor<S: Storage> {
-    phantom: core::marker::PhantomData<S>,
-}
-
 /// Accessor for managing block hash storage in the light client proof circuit
 ///
 /// It handles storage and retrieval of L1 block hashes that have been processed by the light client prover.
 /// Used to prove the existence of a previous hash.
 /// It is a wrapper around working set where key is prefix + block hash and the value is an empty vector
+pub struct BlockHashAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
 impl<S: Storage> BlockHashAccessor<S> {
     /// Block hash storage prefix
     const PREFIX: u8 = b'b';
@@ -74,6 +75,7 @@ impl<S: Storage> BlockHashAccessor<S> {
 /// aggregated proofs. Chunks are identified by their wtxid.
 /// It is a wrapper around working set where key is prefix + wtxid and the value is the chunk's body
 pub struct ChunkAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
@@ -133,6 +135,7 @@ impl<S: Storage> ChunkAccessor<S> {
 /// It is a wrapper around working set where key is prefix + sequencer commitment index
 /// and the value is `SequencerCommitment` itself
 pub struct SequencerCommitmentAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
@@ -197,6 +200,7 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
 /// It is a wrapper around working set where key is prefix + sequencer commitment index
 /// and the value is a `VerifiedStateTransitionForSequencerCommitmentIndex`
 pub struct VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
@@ -268,6 +272,7 @@ impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
 /// It is a wrapper around working set where key is the prefix
 /// and the value is a borsh serialized vector of activation height to method id
 pub struct BatchProofMethodIdAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 

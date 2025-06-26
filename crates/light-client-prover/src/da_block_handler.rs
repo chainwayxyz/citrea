@@ -41,17 +41,29 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
+    /// The Citrea network this handler is running on
     network: Network,
+    /// Prover configuration
     _prover_config: LightClientProverConfig,
+    /// Prover service to submit proof data and handle proving sessions
     prover_service: Arc<ParallelProverService<Da, Vm>>,
+    /// Manager for light client prover storage
     storage_manager: ProverStorageManager,
+    /// Database for ledger operations
     ledger_db: DB,
+    /// Data availability service instance
     da_service: Arc<Da>,
+    /// Code commitments for light client proof circuit
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    /// ELF binaries for light client proof circuit
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
+    // Cache for L1 block data
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    /// Queue of L1 blocks waiting to be processed
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// Light client proof circuit logic 
     circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
 
