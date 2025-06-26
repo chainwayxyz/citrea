@@ -57,7 +57,7 @@ where
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     /// ELF binaries for light client proof circuit
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
-    // Cache for L1 block data
+    /// Cache for L1 block data
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     /// Queue of L1 blocks waiting to be processed
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
@@ -152,6 +152,7 @@ where
         }
     }
 
+    /// Processes L1 blocks waiting in the queue
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         loop {
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
@@ -164,6 +165,15 @@ where
         Ok(())
     }
 
+    /// Processes a single L1 block
+    ///
+    /// # Arguments
+    /// * `l1_block` - The L1 block to process
+    ///
+    /// This method:
+    /// 1. Runs the L1 block of the light client proof circuit to generate a witness, and gets the updates to the LCP's JMT state.
+    /// 2. Prepares the light client circuit input and calls `Self::prove` to generate a proof for the L1 block.
+    /// 3. Asserts that the state update's state root matches the one in the circuit output, and finalizes the storage.
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
         let l1_hash = l1_block.header().hash().into();
         let l1_height = l1_block.header().height();
@@ -265,6 +275,15 @@ where
         Ok(())
     }
 
+    /// This method submits the circuit input and ELF binary to the prover service
+    /// to generates a proof for the light client circuit.
+    /// # Arguments
+    /// * `light_client_elf` - The ELF binary for the light client proof circuit
+    /// * `circuit_input` - The input for the light client circuit
+    /// * `assumptions` - Assumptions used in the proving process
+    /// 
+    /// # Returns
+    /// A proof, in bytes, for the light client circuit.
     async fn prove(
         &self,
         light_client_elf: Vec<u8>,
