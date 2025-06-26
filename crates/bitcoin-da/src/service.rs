@@ -19,7 +19,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
-use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcError};
+use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -48,7 +48,7 @@ use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
-use crate::network_constants::{get_network_constants, NetworkConstants};
+use crate::network_constants::NetworkConstants;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
@@ -122,116 +122,81 @@ pub struct BitcoinService {
 }
 
 impl BitcoinService {
-    // Create a new instance of the DA service from the given configuration.
-    pub async fn new_with_wallet_check(
-        config: BitcoinServiceConfig,
-        chain_params: RollupParams,
-        tx: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
-    ) -> Result<Self> {
-        let client = Arc::new(
-            Client::new(
-                &config.node_url,
-                Auth::UserPass(config.node_username, config.node_password),
-            )
-            .await?,
-        );
-
-        let private_key = config
-            .da_private_key
-            .map(|pk| SecretKey::from_str(&pk))
-            .transpose()
-            .context("Invalid private key")?;
-
-        let wallets = client
-            .list_wallets()
-            .await
-            .expect("Failed to list loaded wallets");
-
-        if wallets.is_empty() {
-            tracing::warn!("No loaded wallet found!");
-        }
-
-        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
-
-        if !tx_backup_dir.exists() {
-            std::fs::create_dir_all(tx_backup_dir)
-                .context("Failed to create tx backup directory")?;
-        }
-
-        let network = network_to_bitcoin_network(&chain_params.network);
-        let network_constants = get_network_constants(&network);
-        let monitoring = Arc::new(MonitoringService::new(
-            client.clone(),
-            config.monitoring,
-            network_constants.finality_depth,
-        ));
-        let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
-        let l1_block_hash_to_height =
-            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
-        Ok(Self {
-            client,
-            network_constants,
-            network,
-            da_private_key: private_key,
-            reveal_tx_prefix: chain_params.reveal_tx_prefix,
-            inscribes_queue: tx,
-            tx_backup_dir: tx_backup_dir.to_path_buf(),
-            monitoring,
-            fee,
-            l1_block_hash_to_height,
-        })
-    }
-
-    pub async fn new_without_wallet_check(
-        config: BitcoinServiceConfig,
-        chain_params: RollupParams,
-        tx: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
-    ) -> Result<Self> {
-        let client = Arc::new(
-            Client::new(
-                &config.node_url,
-                Auth::UserPass(config.node_username, config.node_password),
-            )
-            .await?,
-        );
-
-        let da_private_key = config
-            .da_private_key
-            .map(|pk| SecretKey::from_str(&pk))
-            .transpose()
-            .context("Invalid private key")?;
-
-        // check if config.tx_backup_dir exists
-        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
-
-        if !tx_backup_dir.exists() {
-            std::fs::create_dir_all(tx_backup_dir)
-                .context("Failed to create tx backup directory")?;
-        }
-
-        let network = network_to_bitcoin_network(&chain_params.network);
-        let network_constants = get_network_constants(&network);
-        let monitoring = Arc::new(MonitoringService::new(
-            client.clone(),
-            config.monitoring,
-            network_constants.finality_depth,
-        ));
-        let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
-        let l1_block_hash_to_height =
-            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
-
-        Ok(Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        client: Arc<Client>,
+        network: bitcoin::Network,
+        network_constants: NetworkConstants,
+        monitoring: Arc<MonitoringService>,
+        fee: FeeService,
+        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+        da_private_key: Option<SecretKey>,
+        reveal_tx_prefix: Vec<u8>,
+        tx_backup_dir: PathBuf,
+    ) -> Self {
+        Self {
             client,
             network_constants,
             network,
             da_private_key,
-            reveal_tx_prefix: chain_params.reveal_tx_prefix,
-            inscribes_queue: tx,
-            tx_backup_dir: tx_backup_dir.to_path_buf(),
+            reveal_tx_prefix,
+            inscribes_queue,
+            tx_backup_dir,
             monitoring,
             fee,
-            l1_block_hash_to_height,
-        })
+            l1_block_hash_to_height: Arc::new(Mutex::new(LruCache::new(
+                NonZeroUsize::new(100).unwrap(),
+            ))),
+        }
+    }
+
+    // Create a new instance of the DA service from the given configuration.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn from_config(
+        config: &BitcoinServiceConfig,
+        chain_params: RollupParams,
+        client: Arc<Client>,
+        network: bitcoin::Network,
+        network_constants: NetworkConstants,
+        monitoring: Arc<MonitoringService>,
+        fee_service: FeeService,
+        require_wallet_check: bool,
+        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+    ) -> Result<Self> {
+        if require_wallet_check
+            && client
+                .list_wallets()
+                .await
+                .expect("Failed to list loaded wallets")
+                .is_empty()
+        {
+            tracing::warn!("No loaded wallet found!");
+        }
+
+        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
+        if !tx_backup_dir.exists() {
+            std::fs::create_dir_all(tx_backup_dir)
+                .context("Failed to create tx backup directory")?;
+        }
+
+        let da_private_key = config
+            .da_private_key
+            .as_ref()
+            .map(|pk| SecretKey::from_str(pk))
+            .transpose()
+            .context("Invalid private key")?;
+
+        Ok(Self::new(
+            client,
+            network,
+            network_constants,
+            monitoring,
+            fee_service,
+            inscribes_queue,
+            da_private_key,
+            chain_params.reveal_tx_prefix,
+            tx_backup_dir.to_path_buf(),
+        ))
     }
 
     #[instrument(name = "BitcoinDA", skip(self))]
