@@ -547,17 +547,19 @@ where
         let group_count: u32 = guest.read_from_host();
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
+        // Proofs start when Tangerine fork is activated.
+        // As proofs are only generated post tangerine, >= is safe to do
+        // As with the introudction of Fork3, nightly tests run on Fork3 fork only
+        let proving_activation_height = forks
+            .iter()
+            .find(|f| f.spec_id >= SpecId::Tangerine)
+            .expect("A fork GTE to Tangerine must exist")
+            .activation_height;
 
         // If tangerine start height is not 0 meaning there are other forks before tangerine,
         // then the previous batch proof l2 end height should be the tangerine start height - 1
         // Because the first l2 height of the first tangerine batch proof must be non-zero tangerine activation height
-        let tangerine_activation_height = get_tangerine_activation_height_non_zero();
-        println!(
-            "tangerine activation height: {}",
-            tangerine_activation_height
-        );
-
-        let mut previous_batch_proof_l2_end_height = tangerine_activation_height - 1;
+        let mut previous_batch_proof_l2_end_height = proving_activation_height.saturating_sub(1);
 
         // If there is no previous commitment, then this is the first batch proof
         // and this should start from proving the first l2 block
