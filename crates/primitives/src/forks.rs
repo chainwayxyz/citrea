@@ -94,7 +94,6 @@ const _CHECK_FORKS: () = {
 pub fn get_tangerine_activation_height_non_zero() -> u64 {
     let forks = get_forks();
 
-    println!("FORKS: {:?}", forks);
     if forks[0].spec_id > SpecId::Tangerine {
         return 1;
     }

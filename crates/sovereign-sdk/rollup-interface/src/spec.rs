@@ -34,7 +34,10 @@ pub enum SpecId {
     Kumquat = 1,
     /// Tangerine spec
     Tangerine = 2,
-    /// Fork3 spec
+    /// Third fork activates:
+    /// 1. Fixes for vulnerabilities that need forking on existing networks
+    /// 2. Sov-tx signature serialization
+    /// 3. Sov-tx serialization to generate signature
     Fork3 = 3,
     /// Fork4 spec
     #[cfg(feature = "testing")]

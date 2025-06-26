@@ -11,7 +11,7 @@ use sov_keys::Signature;
 #[cfg(feature = "native")]
 use crate::spec::SpecId;
 
-const EXTEND_MESSAGE_LEN: usize = 1 + 2 * core::mem::size_of::<u64>();
+const EXTEND_MESSAGE_LEN: usize = 1 + 2 * core::mem::size_of::<u64>(); // version (u8) + chain_id (u64) + nonce (u64)
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]

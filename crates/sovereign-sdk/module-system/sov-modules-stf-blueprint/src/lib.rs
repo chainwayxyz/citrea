@@ -146,7 +146,6 @@
 //! ```
 
 use borsh::BorshDeserialize;
-use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
 use citrea_primitives::EMPTY_TX_ROOT;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::{MerkleProof, MerkleTree};
