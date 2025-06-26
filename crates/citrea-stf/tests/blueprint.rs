@@ -337,7 +337,7 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
             .root()
             .unwrap();
 
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // Should panic if there is anything wrong. We assume that as long as no panic takes place,
     // everything should be done as it should be.
@@ -925,7 +925,7 @@ fn test_panic_l2_block_processing_failure() {
         .unwrap();
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // Should panic due to L2 block processing failure (timestamp validation)
     assert_panics_with_message!(
@@ -946,7 +946,7 @@ fn test_panic_l2_block_processing_failure() {
                 get_forks(),
             )
         },
-        "L2 block must succeed"
+        "L2 block height is not equal to the expected height"
     );
 }
 
@@ -979,14 +979,13 @@ fn test_panic_l2_block_timestamp_validation_failure() {
         prev_state_root = block_cache.last().unwrap().1.state_root();
     }
 
-    // Create a corrupted second block with wrong previous hash
     let header = L2Header::new(
-        2,
-        [255; 32], // Wrong previous hash
-        block_cache[1].1.state_root(),
-        128u128,
-        EMPTY_TX_ROOT,
-        20, // Use a later timestamp to avoid TimestampShouldBeGreater error
+        3,
+        block_cache[2].1.prev_hash(),
+        block_cache[2].1.state_root(),
+        block_cache[2].1.l1_fee_rate(),
+        block_cache[2].1.tx_merkle_root(),
+        0, // wrong timestamp (should be greater than previous block's timestamp)
     );
     let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
     let hash = Into::<[u8; 32]>::into(digest);
@@ -1000,27 +999,35 @@ fn test_panic_l2_block_timestamp_validation_failure() {
     // Create input with corrupted block
     let mut input: Vec<u8> = vec![];
     input.extend(&borsh::to_vec(&1u32).unwrap()); // Groups count
-    input.extend(&borsh::to_vec(&2u32).unwrap()); // State change count
+    input.extend(&borsh::to_vec(&3u32).unwrap()); // State change count
 
-    // Add first block correctly
+    // Add first two blocks correctly
     input.extend(&borsh::to_vec(&1u64).unwrap());
     input.extend_from_slice(
         &borsh::to_vec(&(&block_cache[0].1, &block_cache[0].2, &block_cache[0].3)).unwrap(),
     );
-
-    // Add corrupted second block
     input.extend(&borsh::to_vec(&2u64).unwrap());
     input.extend_from_slice(
-        &borsh::to_vec(&(&corrupted_l2_block, &block_cache[1].2, &block_cache[1].3)).unwrap(),
+        &borsh::to_vec(&(&block_cache[1].1, &block_cache[1].2, &block_cache[1].3)).unwrap(),
     );
 
-    let commitment_block_hashes = vec![block_cache[0].1.hash(), corrupted_l2_block.hash()];
+    // Add corrupted second block
+    input.extend(&borsh::to_vec(&3u64).unwrap());
+    input.extend_from_slice(
+        &borsh::to_vec(&(&corrupted_l2_block, &block_cache[2].2, &block_cache[2].3)).unwrap(),
+    );
+
+    let commitment_block_hashes = vec![
+        block_cache[0].1.hash(),
+        block_cache[1].1.hash(),
+        corrupted_l2_block.hash(),
+    ];
     let commitment_calculated_root = MerkleTree::<Sha256>::from_leaves(&commitment_block_hashes)
         .root()
         .unwrap();
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // Should panic due to L2 block processing failure (timestamp validation)
     assert_panics_with_message!(
@@ -1042,6 +1049,108 @@ fn test_panic_l2_block_timestamp_validation_failure() {
             )
         },
         "L2 block must succeed"
+    );
+}
+
+#[test]
+fn test_panic_l2_block_prev_hash_failure() {
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+
+    let mut storage_manager = init_storage_manager();
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+
+    let sequencer_private_key = K256PrivateKey::generate();
+    let sequencer_public_key = sequencer_private_key.pub_key();
+
+    // Create blocks normally
+    let mut block_cache = vec![];
+    let mut prev_state_root = state_root;
+    for i in 1..=3 {
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        create_l2_block(
+            &mut stf_blueprint,
+            &sequencer_private_key,
+            &sequencer_public_key,
+            &mut storage_manager,
+            prover_storage,
+            i,
+            prev_state_root,
+            &mut block_cache,
+        )
+        .unwrap();
+        prev_state_root = block_cache.last().unwrap().1.state_root();
+    }
+
+    let header = L2Header::new(
+        3,
+        [1; 32], // Wrong previous hash
+        block_cache[2].1.state_root(),
+        block_cache[2].1.l1_fee_rate(),
+        block_cache[2].1.tx_merkle_root(),
+        block_cache[2].1.timestamp(), // Use a later timestamp to avoid TimestampShouldBeGreater error
+    );
+    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
+    let hash = Into::<[u8; 32]>::into(digest);
+    let signature = sequencer_private_key.sign(&hash);
+    let signature = borsh::to_vec(&signature).unwrap();
+    let corrupted_l2_block = L2Block {
+        header: SignedL2Header::new(header, hash, signature),
+        txs: vec![],
+    };
+
+    // Create input with corrupted block
+    let mut input: Vec<u8> = vec![];
+    input.extend(&borsh::to_vec(&1u32).unwrap()); // Groups count
+    input.extend(&borsh::to_vec(&3u32).unwrap()); // State change count
+
+    // Add first two blocks correctly
+    input.extend(&borsh::to_vec(&1u64).unwrap());
+    input.extend_from_slice(
+        &borsh::to_vec(&(&block_cache[0].1, &block_cache[0].2, &block_cache[0].3)).unwrap(),
+    );
+    input.extend(&borsh::to_vec(&2u64).unwrap());
+    input.extend_from_slice(
+        &borsh::to_vec(&(&block_cache[1].1, &block_cache[1].2, &block_cache[1].3)).unwrap(),
+    );
+
+    // Add corrupted second block
+    input.extend(&borsh::to_vec(&3u64).unwrap());
+    input.extend_from_slice(
+        &borsh::to_vec(&(&corrupted_l2_block, &block_cache[2].2, &block_cache[2].3)).unwrap(),
+    );
+
+    let commitment_block_hashes = vec![
+        block_cache[0].1.hash(),
+        block_cache[1].1.hash(),
+        corrupted_l2_block.hash(),
+    ];
+    let commitment_calculated_root = MerkleTree::<Sha256>::from_leaves(&commitment_block_hashes)
+        .root()
+        .unwrap();
+
+    let guest = MockZkGuest::new(input);
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
+
+    // Should panic due to L2 block processing failure (timestamp validation)
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                &state_root,
+                prover_storage,
+                None,
+                None,
+                vec![SequencerCommitment {
+                    merkle_root: commitment_calculated_root,
+                    index: 1,
+                    l2_end_block_number: 2,
+                }],
+                &[],
+                get_forks(),
+            )
+        },
+        "L2 block previous hash must match the hash of the block before"
     );
 }
 
@@ -1114,7 +1223,7 @@ fn test_panic_state_root_assertion_failure() {
         .unwrap();
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // Should panic due to state root assertion failure
     assert_panics_with_message!(
@@ -1174,7 +1283,7 @@ fn test_panic_merkle_root_assertion_failure() {
     );
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // Should panic due to merkle root assertion failure
     assert_panics_with_message!(
@@ -1200,7 +1309,7 @@ fn test_panic_merkle_root_assertion_failure() {
 }
 
 #[test]
-fn test_panic_l2_block_execution_failure() {
+fn test_panic_l2_block_height_jump() {
     let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
 
     let mut storage_manager = init_storage_manager();
@@ -1228,15 +1337,6 @@ fn test_panic_l2_block_execution_failure() {
         prev_state_root = block_cache.last().unwrap().1.state_root();
     }
 
-    // Create input with blocks 1-5
-    let mut input: Vec<u8> = vec![];
-    input.extend(&borsh::to_vec(&1u32).unwrap()); // Groups count
-    input.extend(&borsh::to_vec(&5u32).unwrap()); // State change count
-    for (height, l2_block, witness, offchain_witness) in &block_cache[0..5] {
-        input.extend(&borsh::to_vec(&height).unwrap());
-        input.extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
-    }
-
     let first_commitment_block_hashes = block_cache[0..5]
         .iter()
         .map(|(_, block, _, _)| block.hash())
@@ -1245,28 +1345,6 @@ fn test_panic_l2_block_execution_failure() {
         MerkleTree::<Sha256>::from_leaves(&first_commitment_block_hashes)
             .root()
             .unwrap();
-
-    let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
-
-    // Create non-sequential commitments (blocks 1-5, then 8-10 instead of 6-10)
-    let _result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
-            &guest,
-            &sequencer_public_key.pub_key.to_sec1_bytes(),
-            &state_root,
-            prover_storage,
-            None,
-            None,
-            vec![SequencerCommitment {
-                merkle_root: first_commitment_calculated_root,
-                index: 1,
-                l2_end_block_number: 5,
-            }],
-            &[],
-            get_forks(),
-        )
-    }));
 
     // Now test with actual non-sequential commitments
     let mut input: Vec<u8> = vec![];
@@ -1296,7 +1374,7 @@ fn test_panic_l2_block_execution_failure() {
             .unwrap();
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // Should panic due to L2 block execution failure (timestamp validation)
     assert_panics_with_message!(
@@ -1324,7 +1402,7 @@ fn test_panic_l2_block_execution_failure() {
                 get_forks(),
             )
         },
-        "L2 block must succeed"
+        "L2 block height is not equal to the expected height"
     );
 }
 
@@ -1397,7 +1475,7 @@ fn test_panic_state_root_mismatch_assertion() {
         .unwrap();
 
     let guest = MockZkGuest::new(input);
-    let prover_storage = storage_manager.create_storage_for_next_l2_height();
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // This should panic due to state root assertion failure
     assert_panics_with_message!(
