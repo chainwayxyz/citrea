@@ -45,21 +45,6 @@ pub enum SpecId {
 }
 
 impl SpecId {
-    /// Const fn to convert u8 to corresponding SpecId. Valid values are
-    /// 0, 1, 2 and 3.
-    pub const fn from_u8(n: u8) -> Option<SpecId> {
-        match n {
-            0 => Some(SpecId::Genesis),
-            1 => Some(SpecId::Kumquat),
-            2 => Some(SpecId::Tangerine),
-            #[cfg(feature = "testing")]
-            3 => Some(SpecId::Fork3),
-            #[cfg(feature = "testing")]
-            4 => Some(SpecId::Fork4),
-            _ => None,
-        }
-    }
-
     /// Get the latest active (official) SpecId.
     pub const fn latest() -> Self {
         Self::Fork3
