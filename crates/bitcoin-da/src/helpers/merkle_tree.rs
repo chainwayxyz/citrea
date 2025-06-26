@@ -157,13 +157,11 @@ mod tests {
         let tree = BitcoinMerkleTree::new(transactions.clone());
         let root = tree.root();
         let idx_path = tree.get_idx_path(2);
-        // let calculated_root =
-        //     BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 2, &idx_path);
-        // assert_eq!(root, calculated_root);
-
         let calculated_root =
-            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 3, &idx_path);
+            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 2, &idx_path);
         assert_eq!(root, calculated_root);
+
+        BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 3, &idx_path);
     }
     #[test]
     /// a b c d e f
@@ -178,13 +176,11 @@ mod tests {
         let tree = BitcoinMerkleTree::new(transactions.clone());
         let root = tree.root();
         let idx_path = tree.get_idx_path(4);
-        // let calculated_root =
-        //     BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 4, &idx_path);
-        // assert_eq!(root, calculated_root);
-
         let calculated_root =
-            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 6, &idx_path);
+            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 4, &idx_path);
         assert_eq!(root, calculated_root);
+
+        BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 6, &idx_path);
     }
 
     #[test]
