@@ -1270,18 +1270,18 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_safe_finalized_tags() {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    //citrea::initialize_logging(tracing::Level::INFO);
+
+    // Helper function to compare safe and finalized blocks with expected heights
+    // Asserts that the height of the blocks we get by safe and finalized tags match the last committed and proven heights.
+    // Asserts that the blocks we get by safe and finalized tags matches the block at expected heights.
+    // Also checks that for the test address, the nonce at the safe and finalized blocks matches the expected nonce at those heights.
     async fn compare_with_numbered_params(
         test_client: &TestClient,
         expected_safe_block_height: u64,
         expected_finalized_block_height: u64,
         test_address: alloy_primitives::Address,
     ) {
-        println!(
-            "Comparing safe and finalized blocks with expected heights: safe={}, finalized={}",
-            expected_safe_block_height, expected_finalized_block_height
-        );
-
         let safe_block = test_client
             .eth_get_block_by_number(Some(BlockNumberOrTag::Safe))
             .await;
@@ -1450,6 +1450,10 @@ async fn test_safe_finalized_tags() {
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
+    wait_for_l2_block(&full_node_client, 2, None).await;
+    // No commitment yet, so safe and finalized blocks should be the same, and equal to 0
+    compare_with_numbered_params(&full_node_client, 0, 0, tx_sender).await;
+
     // send the first transaction to increase the nonce
     let _ = test_client
         .send_eth(Address::random(), None, None, None, 1_000_000)
@@ -1459,8 +1463,6 @@ async fn test_safe_finalized_tags() {
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_client, 4, None).await;
-
-    compare_with_numbered_params(&full_node_client, 0, 0, tx_sender).await;
 
     // wait for commitment at block 3, mockda produces block when it receives a transaction, hence 3
     let commitments = wait_for_commitment(&da_service, 3, None).await;
@@ -1475,6 +1477,9 @@ async fn test_safe_finalized_tags() {
         .await
         .unwrap();
 
+    // Full node sees the commitment with l2 end height 4
+    // So the safe block should be 4, and finalized block should be 0
+    // since no proof was produced yet
     compare_with_numbered_params(&full_node_client, 4, 0, tx_sender).await;
 
     // Trigger proving via the RPC endpoint
@@ -1496,6 +1501,8 @@ async fn test_safe_finalized_tags() {
     let proof = &proofs[0];
     assert_eq!(proof.proof_output.last_l2_height.to::<u64>(), 4);
 
+    // Now that the full node has the proof, finalized block should be 4
+    // and safe block should be 4 as well since there is no new commitment
     compare_with_numbered_params(&full_node_client, 4, 4, tx_sender).await;
 
     // send a second transaction to increase the nonce
@@ -1514,6 +1521,8 @@ async fn test_safe_finalized_tags() {
     wait_for_prover_l1_height(&full_node_client, 5, None)
         .await
         .unwrap();
+    // As we have a new commitment with l2 end block 8, the safe block should be 8,
+    // and finalized block should be 4, since we haven't proven the new commitment yet
     compare_with_numbered_params(&full_node_client, 8, 4, tx_sender).await;
 
     seq_task.graceful_shutdown();

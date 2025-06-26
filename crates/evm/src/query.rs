@@ -1691,15 +1691,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockNumberOrTag::Safe => {
                 let block_number = ledger_db
                     .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
-                    .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
-                let block_number = block_number.map(|b| b.height).unwrap_or_default();
+                    .expect("Failed to get highest L2 height for status Committed");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default(); // use 0 if no block is committed
                 Ok(block_number)
             }
             BlockNumberOrTag::Finalized => {
                 let block_number = ledger_db
                     .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
-                    .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
-                let block_number = block_number.map(|b| b.height).unwrap_or_default();
+                    .expect("Failed to get highest L2 height for status Proven");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default(); // use 0 if no block is proven
                 Ok(block_number)
             }
         }
@@ -1765,8 +1765,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Safe) => {
                 let block_number = ledger_db
                     .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
-                    .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
-                let block_number = block_number.map(|b| b.height).unwrap_or_default();
+                    .expect("Failed to get highest L2 height for status Committed");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default(); // use 0 if no block is committed
 
                 Ok(self
                     .blocks
@@ -1775,8 +1775,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Finalized) => {
                 let block_number = ledger_db
                     .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
-                    .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
-                let block_number = block_number.map(|b| b.height).unwrap_or_default();
+                    .expect("Failed to get highest L2 height for status Proven");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default();// use 0 if no block is proven
 
                 Ok(self
                     .blocks
