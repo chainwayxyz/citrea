@@ -167,8 +167,10 @@ pub async fn spawn_bitcoin_da_service(
             network_constants,
             monitoring_service,
             fee_service,
+            true,
             tx,
         )
+        .await
         .unwrap(),
     );
 

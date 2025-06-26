@@ -152,7 +152,7 @@ impl BitcoinService {
 
     // Create a new instance of the DA service from the given configuration.
     #[allow(clippy::too_many_arguments)]
-    pub fn from_config(
+    pub async fn from_config(
         config: &BitcoinServiceConfig,
         chain_params: RollupParams,
         client: Arc<Client>,
@@ -160,8 +160,19 @@ impl BitcoinService {
         network_constants: NetworkConstants,
         monitoring: Arc<MonitoringService>,
         fee_service: FeeService,
+        require_wallet_check: bool,
         inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
+        if require_wallet_check
+            && client
+                .list_wallets()
+                .await
+                .expect("Failed to list loaded wallets")
+                .is_empty()
+        {
+            tracing::warn!("No loaded wallet found!");
+        }
+
         let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
         if !tx_backup_dir.exists() {
             std::fs::create_dir_all(tx_backup_dir)

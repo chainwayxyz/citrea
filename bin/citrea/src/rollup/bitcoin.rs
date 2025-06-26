@@ -11,7 +11,7 @@ use bitcoin_da::service::{
 };
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoincore_rpc::{Auth, Client};
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::rpc::register_healthcheck_rpc;
@@ -151,29 +151,24 @@ impl RollupBlueprint for BitcoinRollup {
         let fee_service =
             FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
 
-        let service = Arc::new(BitcoinService::from_config(
-            da_config,
-            chain_params,
-            client.clone(),
-            network,
-            network_constants,
-            monitoring_service,
-            fee_service,
-            tx,
-        )?);
+        let service = Arc::new(
+            BitcoinService::from_config(
+                da_config,
+                chain_params,
+                client.clone(),
+                network,
+                network_constants,
+                monitoring_service,
+                fee_service,
+                require_wallet_check,
+                tx,
+            )
+            .await?,
+        );
 
         // until forced transactions are implemented,
         // require_wallet_check is set false for full nodes.
         if require_wallet_check {
-            if client
-                .list_wallets()
-                .await
-                .expect("Failed to list loaded wallets")
-                .is_empty()
-            {
-                tracing::warn!("No loaded wallet found!");
-            }
-
             // run only for sequencer and prover
             service.monitoring.restore().await?;
 
