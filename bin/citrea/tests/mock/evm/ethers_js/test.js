@@ -1,7 +1,7 @@
 import { ethers, JsonRpcProvider } from "ethers";
 import { expect } from 'chai';
 
-import genesis  from '../../../../../../resources/genesis/mock/evm.json';
+import genesis  from '../../../../../../resources/genesis/mock/evm.json' assert { type: "json" };
 
 const bitcoinLightClientCode = genesis.data.find((e) => e.address === '0x3200000000000000000000000000000000000001').code;
 
