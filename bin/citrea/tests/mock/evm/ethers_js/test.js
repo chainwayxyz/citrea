@@ -1,8 +1,9 @@
 import { ethers, JsonRpcProvider } from "ethers";
 import { expect } from 'chai';
 
-const genesis = require('../../../../../../resources/genesis/mock/evm.json').data;
-const bitcoinLightClientCode = genesis.find((e) => e.address === '0x3200000000000000000000000000000000000001').code;
+import genesis  from '../../../../../../resources/genesis/mock/evm.json';
+
+const bitcoinLightClientCode = genesis.data.find((e) => e.address === '0x3200000000000000000000000000000000000001').code;
 
 let provider = new JsonRpcProvider('http://127.0.0.1:12346');
 
