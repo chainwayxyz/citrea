@@ -1,4 +1,5 @@
 #![warn(clippy::missing_docs_in_private_items)]
+#![warn(missing_docs)]
 //! Light client prover implementation for the Citrea rollup
 //!
 //! This crate provides functionality for running a light client prover in the Citrea network.
