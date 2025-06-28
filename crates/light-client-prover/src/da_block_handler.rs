@@ -1,3 +1,7 @@
+//! Data Availability (DA) block handling for the light client prover
+//!
+//! This module handles the processing of Data Availability (DA) layer blocks for light client proof generation
+//! and maintaining the light client state.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -29,11 +33,18 @@ use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::metrics::LIGHT_CLIENT_METRICS;
 
+/// Variant to specify how to start processing L1 blocks
 pub enum StartVariant {
+    /// Resume from the last scanned L1 block height, the following L1 block will be the next one to process.
     LastScanned(u64),
+    /// Start processing from an initial L1 block height
     FromBlock(u64),
 }
 
+/// Handler for processing L1 blocks and their contained proofs and commitments
+///
+/// This component is responsible for processing finalized L1 blocks, running the light client proof circuit logic per L1 block,
+/// keeping track of the light client state, and generating proofs for the light client circuit.
 pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
@@ -74,6 +85,17 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
+    /// Creates a new instance of the L1BlockHandler
+    /// # Arguments
+    /// * `network` - The Citrea network this handler is running on
+    /// * `prover_config` - Prover configuration
+    /// * `prover_service` - Prover service to submit proof data and handle proving sessions
+    /// * `storage_manager` - Manager for light client prover storage
+    /// * `ledger_db` - Database for ledger operations
+    /// * `da_service` - Data availability service instance
+    /// * `light_client_proof_code_commitments` - Code commitments for light client proof circuit
+    /// * `light_client_proof_elfs` - ELF binaries for light client proof circuit
+    /// * `backup_manager` - Manager for backup operations
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         network: Network,
@@ -102,6 +124,16 @@ where
         }
     }
 
+    /// Starts the L1 block handler to process L1 blocks and generate proofs
+    /// Runs the L1BlockHandler service
+    ///
+    /// This method continuously:
+    /// 1. Syncs new L1 blocks from the DA layer
+    /// 2. Processes queued blocks to generate light client proofs and move the light client state forward
+
+    /// # Arguments
+    /// * `last_l1_height_scanned` - `StartVariant` to start syncing from
+    /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(
         mut self,
