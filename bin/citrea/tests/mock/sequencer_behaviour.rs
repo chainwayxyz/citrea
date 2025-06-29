@@ -21,8 +21,8 @@ use super::evm::init_test_rollup;
 use super::{initialize_test, TestConfig};
 use crate::common::client::TestClient;
 use crate::common::helpers::{
-    create_default_rollup_config, extract_da_data, start_rollup, tempdir_with_children,
-    wait_for_commitment, wait_for_l1_block, wait_for_l2_block, NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
