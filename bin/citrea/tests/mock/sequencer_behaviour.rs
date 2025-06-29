@@ -682,7 +682,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 /// Test the halt and resume commitments functionality
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -741,38 +741,36 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
     );
 
     // Halt commitments via RPC
-    seq_test_client.sequencer_halt_commitments().await;
+    seq_test_client.sequencer_halt_commitments().await.unwrap();
 
-    // Propagate signal in runner
-    sleep(Duration::from_millis(500)).await;
+    // Wait a bit for the halt signal to be processed
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Create more L2 blocks (should trigger commitments normally, but won't due to halt)
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 4, None).await;
+    // Create more blocks - should not result in commitments while halted
+    for _ in 0..3 {
+        seq_test_client.send_publish_batch_request().await;
+    }
 
-    // Publish DA block
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 4, None).await;
+    // Wait for potential commitments (should not happen)
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
-    // Wait for some time and verify no new commitments were published
-    sleep(Duration::from_secs(3)).await;
-
-    // Check that no new commitments appeared at height 4
-    let da_block_4 = da_service
-        .get_block_at(4)
-        .await
-        .expect("Failed to get DA block 4");
-    let (commitments, _) = extract_da_data(&da_service, da_block_4);
-
-    // No commitments should exist
-    assert_eq!(commitments.len(), 0);
+    // Verify no new commitments were published while halted
+    // Since the sequencer is halted, no new DA blocks should be published
+    // We should still be at DA block 3
+    let current_da_height = da_service.get_height().await;
+    assert_eq!(
+        current_da_height, 3,
+        "No L1 block should have been produced while halted"
+    );
 
     // Resume commitments via RPC
-    seq_test_client.sequencer_resume_commitments().await;
+    seq_test_client
+        .sequencer_resume_commitments()
+        .await
+        .unwrap();
 
-    // Allow some time for the resume signal to propagate
-    sleep(Duration::from_millis(500)).await;
+    // Wait a bit for the resume signal to be processed
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Create one more L2 block to trigger commitment processing
     seq_test_client.send_publish_batch_request().await;

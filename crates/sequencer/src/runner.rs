@@ -797,12 +797,20 @@ where
                                 }
                             }
                         },
-                        Some(SequencerRpcMessage::HaltCommitments(should_halt)) => {
+                        Some(SequencerRpcMessage::HaltCommitments) => {
                             // Forward halt signal to commitment service
-                            if let Err(e) = halt_commitment_tx.send(should_halt) {
+                            if let Err(e) = halt_commitment_tx.send(true) {
                                 error!("Failed to send halt signal to commitment service: {}", e);
                             } else {
-                                info!("Sequencer: {} commitments via RPC", if should_halt { "Halted" } else { "Resumed" });
+                                info!("Sequencer: Halted commitments via RPC");
+                            }
+                        },
+                        Some(SequencerRpcMessage::ResumeCommitments) => {
+                            // Forward resume signal to commitment service
+                            if let Err(e) = halt_commitment_tx.send(false) {
+                                error!("Failed to send resume signal to commitment service: {}", e);
+                            } else {
+                                info!("Sequencer: Resumed commitments via RPC");
                             }
                         },
                         None => {

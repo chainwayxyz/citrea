@@ -3,6 +3,8 @@
 pub enum SequencerRpcMessage {
     /// Produce a test block in the sequencer
     ProduceTestBlock,
-    /// Halt or resume sequencer commitments.
-    HaltCommitments(bool),
+    /// Halt sequencer commitments
+    HaltCommitments,
+    /// Resume sequencer commitments
+    ResumeCommitments,
 }

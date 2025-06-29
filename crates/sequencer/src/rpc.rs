@@ -317,7 +317,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         debug!("Sequencer: citrea_haltCommitments");
         self.context
             .rpc_message_tx
-            .send(SequencerRpcMessage::HaltCommitments(true))
+            .send(SequencerRpcMessage::HaltCommitments)
             .map_err(|e| internal_rpc_error(format!("Could not send halt commitments signal: {e}")))
     }
 
@@ -326,7 +326,7 @@ impl<DB: SequencerLedgerOps + Send + Sync + 'static> SequencerRpcServer
         debug!("Sequencer: citrea_resumeCommitments");
         self.context
             .rpc_message_tx
-            .send(SequencerRpcMessage::HaltCommitments(false))
+            .send(SequencerRpcMessage::ResumeCommitments)
             .map_err(|e| {
                 internal_rpc_error(format!("Could not send resume commitments signal: {e}"))
             })

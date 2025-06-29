@@ -43,8 +43,8 @@ where
     max_l2_blocks: u64,
     /// Channel for receiving halt signals from the runner
     halt_rx: mpsc::UnboundedReceiver<bool>,
-    /// Current running state
-    is_running: bool,
+    /// Current commitment production state
+    is_producing_commitments: bool,
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -76,7 +76,7 @@ where
             sequencer_da_pub_key,
             max_l2_blocks,
             halt_rx,
-            is_running: true,
+            is_producing_commitments: true,
         }
     }
 
@@ -119,8 +119,8 @@ where
                     match halt_signal {
                         Some(should_halt) => {
                             let should_run = !should_halt;
-                            if self.is_running != should_run {
-                                self.is_running = should_run;
+                            if self.is_producing_commitments != should_run {
+                                self.is_producing_commitments = should_run;
                                 if should_halt {
                                     warn!("CommitmentService: Commitments halted via RPC");
                                 } else {
@@ -137,7 +137,7 @@ where
                 },
                 _ = check_new_block_tick.tick() => {
                     // Skip commitment processing if not running
-                    if !self.is_running {
+                    if !self.is_producing_commitments {
                         debug!("CommitmentService: Skipping commitment processing (halted)");
                         continue;
                     }
