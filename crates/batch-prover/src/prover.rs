@@ -9,7 +9,7 @@ use anyhow::Context;
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
 use citrea_primitives::{MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use futures::stream::FuturesUnordered;
@@ -28,7 +28,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
+use sov_rollup_interface::zk::batch_proof::input::v3::{BatchProofCircuitInputV3, PrevHashProof};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use sov_state::Witness;
@@ -347,9 +347,9 @@ where
         }
         info!("Got {} synced commitment(s)", filtered_commitments.len());
 
-        let filtered_commitments = self.filter_prev_missing_commitments(filtered_commitments)?;
+        let filtered_commitments = self.filter_commitments_with_index_gap(filtered_commitments)?;
         if filtered_commitments.is_empty() {
-            warn!("None of the pending commitments have a known previous commitment");
+            warn!("Previous commitment of pending commitment list is not known yet");
             return Ok(Vec::new());
         }
         info!("Got {} provable commitment(s)", filtered_commitments.len());
@@ -411,29 +411,35 @@ where
         Ok(commitments)
     }
 
-    /// Filters out the commitments that doesn't have a known previous commitment, hence, can't be proven.
-    /// E.g. commitments = [3, 4, 5], but commitment 2 is not known yet, outputs [4, 5]
-    fn filter_prev_missing_commitments(
+    /// Filters out the commitments that has index gaps, hence, can't be proven. Expects commitments to be in ascending order by index.
+    /// E.g. commitments = [3, 4, 5], and commitment 2 is not known yet, outputs []
+    /// E.g. commitments = [3, 4, 6], and commitment 2 is known, outputs [3, 4]
+    fn filter_commitments_with_index_gap(
         &self,
         commitments: Vec<SequencerCommitment>,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        commitments
-            .into_iter()
-            .filter_map(|comm| {
-                if comm.index == 1 {
-                    return Some(Ok(comm));
-                }
+        let first_index = commitments[0].index;
+        let mut prev_index = if first_index == 1 {
+            0
+        } else {
+            match self.ledger_db.get_commitment_by_index(first_index - 1)? {
+                Some(_) => first_index - 1,
+                // prev commitment not found
+                None => return Ok(Vec::new()),
+            }
+        };
 
-                match self.ledger_db.get_commitment_by_index(comm.index - 1) {
-                    // prev commitment exists
-                    Ok(Some(_)) => Some(Ok(comm)),
-                    // prev commitment doesn't exist
-                    Ok(None) => None,
-                    // db error
-                    Err(e) => Some(Err(e)),
-                }
-            })
-            .collect()
+        let mut filtered_commitments = Vec::with_capacity(commitments.len());
+        for comm in commitments {
+            if comm.index != prev_index + 1 {
+                // break immediately when an index gap is found
+                break;
+            }
+            prev_index = comm.index;
+            filtered_commitments.push(comm);
+        }
+
+        Ok(filtered_commitments)
     }
 
     /// Partition the commitments into provable chunks.
@@ -452,8 +458,8 @@ where
     /// 4. If there is a remaining commitment after the loop, it is added as a last partition with the Finish PartitionReason.
     ///
     /// # Gotchas:
-    /// This function expects each commitment to have previous commitment, so, ensure filtering commitments
-    /// with `filter_prev_missing_commitments` before calling this function.
+    /// This function expects contiguous known commitments, so, ensure filtering commitments
+    /// with `filter_commitments_with_index_gaps` before calling this function.
     ///
     /// # Arguments
     /// * `commitments` - A slice of sequencer commitments to partition
@@ -491,14 +497,11 @@ where
                 continue;
             }
 
-            // check index gap
-            if commitment.index != commitments[i - 1].index + 1 {
-                cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, PartitionReason::IndexGap)?;
-                // override commitment start height as we lost track of the latest commitment due to index gap
-                commitment_start_height = state.next_partition_start_height();
-                continue;
-            }
+            assert_eq!(
+                commitment.index,
+                commitments[i - 1].index + 1,
+                "Commitments with index gap must be filtered before calling partition"
+            );
 
             // check spec change
             let current_spec = fork_from_block_number(commitment_end_height);
@@ -576,6 +579,10 @@ where
                 .expect("Commitment should exist")
         });
 
+        let prev_hash_proof = previous_sequencer_commitment
+            .as_ref()
+            .map(|c| get_prev_hash_proof(c, &self.ledger_db));
+
         Ok(BatchProofCircuitInputV3 {
             initial_state_root,
             final_state_root,
@@ -586,6 +593,7 @@ where
             cache_prune_l2_heights,
             last_l1_hash_witness,
             previous_sequencer_commitment,
+            prev_hash_proof,
         })
     }
 
@@ -1076,6 +1084,55 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     ))
 }
 
+/// Given a previous sequencer commitment, this function will generate a `PrevHashProof`.
+/// This proof will be used inside the circuit to verify the `prev_hash` field of the first
+/// L2 block that will be run in the batch proof circuit for the given commitments.
+fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
+    previous_commitment: &SequencerCommitment,
+    ledger_db: &DB,
+) -> PrevHashProof {
+    let prev_commitment_start_height = if previous_commitment.index == 1 {
+        get_tangerine_activation_height_non_zero()
+    } else {
+        ledger_db
+            .get_commitment_by_index(previous_commitment.index - 1)
+            .expect("Should get previous commitment")
+            .expect("Previous commitment should exist")
+            .l2_end_block_number
+            + 1
+    };
+
+    let blocks = ledger_db
+        .get_l2_block_range(
+            &(L2BlockNumber(prev_commitment_start_height)
+                ..=L2BlockNumber(previous_commitment.l2_end_block_number)),
+        )
+        .unwrap();
+
+    let tree = MerkleTree::<Sha256>::from_leaves(
+        blocks
+            .iter()
+            .map(|block| block.hash)
+            .collect::<Vec<_>>()
+            .as_slice(),
+    );
+
+    let merkle_proof = tree.proof(&[blocks.len() - 1]);
+
+    let last_block: L2Block = blocks
+        .into_iter()
+        .last()
+        .expect("Blocks must not be empty")
+        .try_into()
+        .unwrap();
+
+    PrevHashProof {
+        last_header: last_block.header.inner,
+        merkle_proof_bytes: merkle_proof.to_bytes(),
+        prev_sequencer_commitment_start: prev_commitment_start_height,
+    }
+}
+
 /// This function extracts the proof output from the given proof and verifies it using the provided code commitments.
 /// It uses the `Vm` trait to extract the output and verify the proof.
 /// It also checks the last L2 height in the output to determine the spec ID,
@@ -1312,47 +1369,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn commitment_partition_with_index_gap() {
-        let MockProverData { mut prover, .. } = create_mock_prover();
-        // put 4 l2 blocks
-        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0), (4, 0)]);
-
-        // commitments with index gap should create 2 partitions
-        let mut commitments = vec![
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 1,
-                l2_end_block_number: 1,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 3,
-                l2_end_block_number: 3,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 4,
-                l2_end_block_number: 4,
-            },
-        ];
-        put_commitments(&prover.ledger_db, &commitments);
-
-        let partitions = prover
-            .create_partitions(&mut commitments, PartitionMode::Normal)
-            .unwrap();
-        assert_eq!(partitions.len(), 2);
-        let partition_1 = &partitions[0];
-        assert_eq!(partition_1.start_height, 1);
-        assert_eq!(partition_1.end_height, 1);
-        assert_eq!(partition_1.commitments.len(), 1);
-        // index 3 should be filtered due to prev missing, and index 4 should be the 2nd partition
-        let partition_2 = &partitions[1];
-        assert_eq!(partition_2.start_height, 4);
-        assert_eq!(partition_2.end_height, 4);
-        assert_eq!(partition_2.commitments.len(), 1);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     async fn commitment_partition_with_state_diff() {
         let MockProverData { mut prover, .. } = create_mock_prover();
         // put 3 l2 blocks with total state diff of 1.33 * maxsize
@@ -1404,28 +1420,37 @@ mod tests {
     async fn commitment_partition_with_spec_change() {
         let MockProverData { mut prover, .. } = create_mock_prover();
         // put 4 l2 blocks where l2 blocks are switching to a new fork
-        put_l2_blocks(&prover.ledger_db, vec![(8, 0), (9, 0), (10, 0), (11, 0)]);
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+                (8, 0),
+                (9, 0),
+                (10, 0),
+                (11, 0),
+            ],
+        );
 
         let mut commitments = vec![
-            // index 2 is going to be filtered because index 1 is unknown
             SequencerCommitment {
                 merkle_root: [0; 32],
-                index: 2,
-                l2_end_block_number: 7,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 3,
+                index: 1,
                 l2_end_block_number: 8,
             },
             SequencerCommitment {
                 merkle_root: [0; 32],
-                index: 4,
+                index: 2,
                 l2_end_block_number: 10,
             },
             SequencerCommitment {
                 merkle_root: [0; 32],
-                index: 5,
+                index: 3,
                 l2_end_block_number: 11,
             },
         ];
@@ -1435,13 +1460,13 @@ mod tests {
             .create_partitions(&mut commitments, PartitionMode::Normal)
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        // first partition is commitment index 3
+        // first partition is commitment index 1
         let partition_1 = &partitions[0];
-        assert_eq!(partition_1.start_height, 8);
+        assert_eq!(partition_1.start_height, 1);
         assert_eq!(partition_1.end_height, 8);
         assert_eq!(partition_1.commitments.len(), 1);
 
-        // second partitions is commitment indices 4 and 5
+        // second partitions is commitment indices 2 and 3
         let partition_2 = &partitions[1];
         assert_eq!(partition_2.start_height, 9);
         assert_eq!(partition_2.end_height, 11);

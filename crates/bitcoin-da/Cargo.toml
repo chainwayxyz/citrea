@@ -42,8 +42,6 @@ tracing = { workspace = true, optional = true }
 bitcoincore-rpc = { workspace = true, optional = true }
 
 [dev-dependencies]
-bitcoin-da = { path = ".", features = ["native"] }
-citrea-e2e = { workspace = true }
 rand = { workspace = true }
 
 [features]

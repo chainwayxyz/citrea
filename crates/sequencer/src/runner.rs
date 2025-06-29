@@ -32,12 +32,12 @@ use reth_transaction_pool::{
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
-    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, StateDiff,
+    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId, StateDiff,
     StateValueAccessor, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -77,10 +77,9 @@ pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 /// - Processing system transactions
 /// - Handling DA layer synchronization
 /// - Managing state transitions
-pub struct CitreaSequencer<Da, DB>
+pub struct CitreaSequencer<Da>
 where
     Da: DaService,
-    DB: SequencerLedgerOps + Send + Clone + 'static,
 {
     /// Data availability service instance
     da_service: Arc<Da>,
@@ -93,7 +92,7 @@ where
     /// Database provider for blockchain data access
     db_provider: DbProvider,
     /// Database for ledger operations
-    pub(crate) ledger_db: DB,
+    pub(crate) ledger_db: LedgerDB,
     /// Sequencer configuration
     pub(crate) config: SequencerConfig,
     /// State transition function blueprint
@@ -116,10 +115,9 @@ where
     backup_manager: Arc<BackupManager>,
 }
 
-impl<Da, DB> CitreaSequencer<Da, DB>
+impl<Da> CitreaSequencer<Da>
 where
     Da: DaService,
-    DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
     /// Creates a new CitreaSequencer instance
     ///
@@ -146,7 +144,7 @@ where
         stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         storage_manager: ProverStorageManager,
         public_keys: RollupPublicKeys,
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         db_provider: DbProvider,
         mempool: Arc<CitreaMempool>,
         deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -251,7 +249,7 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx = self.sign_tx(raw_message, nonce)?;
+                let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
                 nonce += 1;
 
                 let txs = vec![signed_tx];
@@ -519,7 +517,7 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(raw_message, nonce)?;
+            let signed_tx = self.sign_tx(active_fork_spec, raw_message, nonce)?;
 
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
@@ -903,11 +901,17 @@ where
     ///
     /// # Returns
     /// A signed transaction
-    pub(crate) fn sign_tx(&self, raw_message: Vec<u8>, nonce: u64) -> anyhow::Result<Transaction> {
+    pub(crate) fn sign_tx(
+        &self,
+        spec: SpecId,
+        raw_message: Vec<u8>,
+        nonce: u64,
+    ) -> anyhow::Result<Transaction> {
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let tx = Transaction::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        let tx =
+            Transaction::new_signed_tx(spec, &self.sov_tx_signer_priv_key, raw_message, 0, nonce);
         Ok(tx)
     }
 
@@ -1216,7 +1220,7 @@ where
             >>::encode_call(call_txs);
 
             // Sign and increment nonce
-            let signed_tx = self.sign_tx(raw_message, *nonce)?;
+            let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, *nonce)?;
             *nonce += 1;
 
             let txs = vec![signed_tx];

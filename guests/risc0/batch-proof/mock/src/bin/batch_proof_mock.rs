@@ -19,6 +19,8 @@ const SEQUENCER_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
     Err(_) => panic!("Can't happen"),
 };
 
+const INITIAL_PREV_L2_BLOCK_HASH: [u8; 32] = [0; 32];
+
 const FORKS: &[Fork] = &NIGHTLY_FORKS;
 
 fn get_forks() -> &'static [Fork] {
@@ -47,6 +49,7 @@ pub fn main() {
         &guest,
         storage,
         &SEQUENCER_PUBLIC_KEY,
+        Some(INITIAL_PREV_L2_BLOCK_HASH),
         get_forks(),
     );
 

@@ -6,7 +6,11 @@ pub mod rollback;
 mod utils;
 // pub mod mempool_accept;
 pub mod backup;
+// #[cfg(feature = "native")]
+pub mod bitcoin_service;
 pub mod bitcoin_test;
+// #[cfg(feature = "native")]
+pub mod bitcoin_verifier;
 pub mod fork;
 #[cfg(feature = "testing")]
 pub mod full_node;

@@ -40,6 +40,8 @@ use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use serde::{Deserialize, Serialize};
+use sov_db::ledger_db::NodeLedgerOps;
+use sov_db::schema::types::L2HeightStatus;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
@@ -134,6 +136,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_hash: B256,
         details: Option<bool>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         // if block hash is not known, return None
         let block_number = match self
@@ -148,6 +151,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Number(block_number)),
             details,
             working_set,
+            ledger_db,
         )
     }
 
@@ -158,11 +162,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         details: Option<bool>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
-        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set)? {
-            Some(sealed_block) => sealed_block,
-            None => return Ok(None), // if block doesn't exist return null
-        };
+        let sealed_block =
+            match self.get_sealed_block_by_number(block_number, working_set, ledger_db)? {
+                Some(sealed_block) => sealed_block,
+                None => return Ok(None), // if block doesn't exist return null
+            };
         // Collect transactions with ids from db
         let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
             .transactions
@@ -238,6 +244,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number_or_hash: BlockId,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<Vec<AnyTransactionReceipt>>> {
         let block = match block_number_or_hash {
             BlockId::Hash(block_hash) => {
@@ -255,7 +262,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                match self.get_sealed_block_by_number(Some(block_number), working_set)? {
+                match self.get_sealed_block_by_number(Some(block_number), working_set, ledger_db)? {
                     Some(block) => block,
                     None => return Ok(None), // if block doesn't exist return null
                 }
@@ -290,8 +297,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         address: Address,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<U256> {
-        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set, ledger_db)?;
 
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         let balance = self
@@ -310,10 +318,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         index: U256,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<B256> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
 
-        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set, ledger_db)?;
 
         let storage_slot = self
             .storage_get(&address, &index, working_set)
@@ -329,10 +338,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         address: Address,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<U64> {
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
 
-        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set, ledger_db)?;
 
         let nonce = self
             .account_info(&address, working_set)
@@ -349,8 +359,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         address: Address,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Bytes> {
-        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set, ledger_db)?;
 
         let account = self.account_info(&address, working_set).unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
@@ -423,20 +434,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: BlockNumberOrTag,
         index: U64,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<Transaction>> {
-        let block_number = match self.block_number_for_id(&block_number, working_set) {
-            Ok(block_number) => block_number,
-            Err(EthApiError::HeaderNotFound(_)) => return Ok(None),
-            Err(err) => return Err(err.into()),
-        };
-
-        self.check_if_l2_block_pruned(block_number, working_set)
-            .map_err(EthApiError::from)?;
-
-        let block = self
-            .blocks
-            .get(block_number as usize, &mut working_set.accessory_state())
-            .expect("Block must be set");
+        let block =
+            match self.get_sealed_block_by_number(Some(block_number), working_set, ledger_db) {
+                Ok(Some(block)) => block,
+                Ok(None) => return Ok(None),
+                Err(err) => return Err(err.into()),
+            };
 
         match check_tx_range(&block.transactions, index) {
             Some(_) => (),
@@ -513,6 +518,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         state_overrides: Option<StateOverride>,
         block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Bytes> {
         self.get_call_inner(
             request,
@@ -520,10 +526,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             state_overrides,
             block_overrides,
             working_set,
+            ledger_db,
             fork_from_block_number,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn get_call_inner(
         &self,
         request: TransactionRequest,
@@ -531,6 +539,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         state_overrides: Option<StateOverride>,
         block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<Bytes> {
         let block_number = match block_id {
@@ -548,7 +557,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
             _ => {
                 let block = self
-                    .get_sealed_block_by_number(Some(block_number), working_set)?
+                    .get_sealed_block_by_number(Some(block_number), working_set, ledger_db)?
                     .ok_or(EthApiError::HeaderNotFound(
                         block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
                     ))?;
@@ -636,8 +645,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<AccessListWithGasUsed> {
-        self.create_access_list_inner(request, block_number, working_set, fork_from_block_number)
+        self.create_access_list_inner(
+            request,
+            block_number,
+            working_set,
+            ledger_db,
+            fork_from_block_number,
+        )
     }
 
     pub(crate) fn create_access_list_inner(
@@ -645,6 +661,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<AccessListWithGasUsed> {
         let mut request = request.clone();
@@ -660,7 +677,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
             _ => {
                 let block = self
-                    .get_sealed_block_by_number(block_number, working_set)?
+                    .get_sealed_block_by_number(block_number, working_set, ledger_db)?
                     // Is this ok : block_number.unwrap_or_default()
                     .ok_or(EthApiError::HeaderNotFound(
                         block_number.unwrap_or_default().into(),
@@ -764,6 +781,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<EstimatedTxExpenses> {
         let (l1_fee_rate, block_env) = match block_number {
@@ -777,7 +795,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
             _ => {
                 let block = self
-                    .get_sealed_block_by_number(block_number, working_set)?
+                    .get_sealed_block_by_number(block_number, working_set, ledger_db)?
                     .ok_or(EthApiError::HeaderNotFound(
                         block_number.unwrap_or_default().into(),
                     ))?;
@@ -808,8 +826,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<U256> {
-        self.eth_estimate_gas_inner(request, block_number, working_set, fork_from_block_number)
+        self.eth_estimate_gas_inner(
+            request,
+            block_number,
+            working_set,
+            ledger_db,
+            fork_from_block_number,
+        )
     }
 
     pub(crate) fn eth_estimate_gas_inner(
@@ -817,9 +842,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<U256> {
-        let estimated = self.estimate_tx_expenses(request, block_number, working_set, fork_fn)?;
+        let estimated =
+            self.estimate_tx_expenses(request, block_number, working_set, ledger_db, fork_fn)?;
 
         // TODO: this assumes all blocks have the same gas limit
         // if gas limit ever changes this should be updated
@@ -840,11 +867,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<EstimatedDiffSize> {
         self.eth_estimate_diff_size_inner(
             request,
             block_number,
             working_set,
+            ledger_db,
             fork_from_block_number,
         )
     }
@@ -854,9 +883,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<EstimatedDiffSize> {
-        let estimated = self.estimate_tx_expenses(request, block_number, working_set, fork_fn)?;
+        let estimated =
+            self.estimate_tx_expenses(request, block_number, working_set, ledger_db, fork_fn)?;
 
         Ok(EstimatedDiffSize {
             gas: estimated.gas_used,
@@ -871,9 +902,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_hash: B256,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<U256>> {
         // Get the number of transactions in a block given blockhash
-        let block = self.get_block_by_hash(block_hash, None, working_set)?;
+        let block = self.get_block_by_hash(block_hash, None, working_set, ledger_db)?;
         match block {
             Some(block) => Ok(Some(U256::from(block.transactions.len()))),
             None => Ok(None),
@@ -886,9 +918,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: BlockNumberOrTag,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<U256>> {
         // Get the number of transactions in a block given block number
-        let block = self.get_block_by_number(Some(block_number), None, working_set)?;
+        let block = self.get_block_by_number(Some(block_number), None, working_set, ledger_db)?;
         match block {
             Some(block) => Ok(Some(U256::from(block.transactions.len()))),
             None => Ok(None),
@@ -1250,10 +1283,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         opts: Option<GethDebugTracingOptions>,
         stop_at: Option<usize>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<Vec<TraceResult>> {
         let sealed_block = self
-            .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)?
+            .get_sealed_block_by_number(
+                Some(BlockNumberOrTag::Number(block_number)),
+                working_set,
+                ledger_db,
+            )?
             .ok_or_else(|| EthApiError::HeaderNotFound(block_number.into()))?;
 
         let tx_range = sealed_block.transactions.clone();
@@ -1329,6 +1367,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: Option<BlockId>,
         opts: Option<GethDebugTracingCallOptions>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> RpcResult<GethTrace> {
         let block_number = match block_id {
             Some(BlockId::Number(block_num)) => block_num,
@@ -1345,7 +1384,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
             _ => {
                 let block = self
-                    .get_sealed_block_by_number(Some(block_number), working_set)?
+                    .get_sealed_block_by_number(Some(block_number), working_set, ledger_db)?
                     .ok_or(EthApiError::HeaderNotFound(
                         block_id.unwrap_or(BlockNumberOrTag::Latest.into()),
                     ))?;
@@ -1373,7 +1412,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
 
         let sealed_block = self
-            .get_sealed_block_by_number(Some(block_number), working_set)?
+            .get_sealed_block_by_number(Some(block_number), working_set, ledger_db)?
             .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
@@ -1631,6 +1670,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_id: &BlockNumberOrTag,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> Result<u64, EthApiError> {
         let latest_block_number = self
             .blocks
@@ -1642,15 +1682,26 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockNumberOrTag::Latest => Ok(latest_block_number),
             BlockNumberOrTag::Pending => Err(EthApiError::HeaderNotFound((*block_id).into())),
             BlockNumberOrTag::Number(block_number) => {
-                if *block_number < self.blocks.len(&mut working_set.accessory_state()) as u64 {
+                if *block_number <= latest_block_number {
                     Ok(*block_number)
                 } else {
                     Err(EthApiError::HeaderNotFound((*block_id).into()))
                 }
             }
-            _ => Err(EthApiError::InvalidParams(
-                "Please provide a number or earliest/latest/pending tag".to_string(),
-            )),
+            BlockNumberOrTag::Safe => {
+                let block_number = ledger_db
+                    .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
+                    .expect("Failed to get highest L2 height for status Committed");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default(); // use 0 if no block is committed
+                Ok(block_number)
+            }
+            BlockNumberOrTag::Finalized => {
+                let block_number = ledger_db
+                    .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
+                    .expect("Failed to get highest L2 height for status Proven");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default(); // use 0 if no block is proven
+                Ok(block_number)
+            }
         }
     }
 
@@ -1659,6 +1710,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> Result<u64, EthApiError> {
         let block_number = match block_id {
             Some(BlockId::Number(block_num)) => block_num,
@@ -1673,9 +1725,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let res = match block_number {
             BlockNumberOrTag::Pending => {
-                self.block_number_for_id(&BlockNumberOrTag::Latest, working_set)? + 1
+                self.block_number_for_id(&BlockNumberOrTag::Latest, working_set, ledger_db)? + 1
             }
-            _ => self.block_number_for_id(&block_number, working_set)?,
+            _ => self.block_number_for_id(&block_number, working_set, ledger_db)?,
         };
         Ok(res)
     }
@@ -1686,8 +1738,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> Result<Option<SealedBlock>, EthApiError> {
-        // safe, finalized, and pending are not supported
+        // pending is not supported
         match block_number {
             Some(BlockNumberOrTag::Number(block_number)) => {
                 self.check_if_l2_block_pruned(block_number, working_set)?;
@@ -1709,13 +1762,33 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
             )),
+            Some(BlockNumberOrTag::Safe) => {
+                let block_number = ledger_db
+                    .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
+                    .expect("Failed to get highest L2 height for status Committed");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default(); // use 0 if no block is committed
+
+                Ok(self
+                    .blocks
+                    .get(block_number as usize, &mut working_set.accessory_state()))
+            }
+            Some(BlockNumberOrTag::Finalized) => {
+                let block_number = ledger_db
+                    .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
+                    .expect("Failed to get highest L2 height for status Proven");
+                let block_number = block_number.map(|b| b.height).unwrap_or_default(); // use 0 if no block is proven
+
+                Ok(self
+                    .blocks
+                    .get(block_number as usize, &mut working_set.accessory_state()))
+            }
+            Some(BlockNumberOrTag::Pending) => Err(EthApiError::InvalidParams(
+                "pending block not supported".to_string(),
+            )),
             None => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
-            )),
-            _ => Err(EthApiError::InvalidParams(
-                "pending/safe/finalized block not supported".to_string(),
             )),
         }
     }
@@ -1738,49 +1811,31 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
     ) -> Result<(), EthApiError> {
-        match block_id {
+        let block_num = match block_id {
             // latest state
-            None => {}
+            None => {
+                return Ok(());
+            }
             Some(BlockId::Number(block_num)) => {
                 match block_num {
-                    BlockNumberOrTag::Number(num) => {
-                        if num != 0 {
-                            // state at genesis block is being preserved
-                            self.check_if_l2_block_pruned(num, working_set)?;
-                        }
-                        let curr_block_number = self
-                            .blocks
-                            .last(&mut working_set.accessory_state())
-                            .expect("Head block must be set")
-                            .header
-                            .number;
-                        if num > curr_block_number {
-                            return Err(EthApiError::HeaderNotFound(block_id.unwrap()));
-                        }
-                        set_state_to_end_of_evm_block::<C>(num, working_set);
-                    }
                     // Working state here is already at the latest state, so no need to anything
-                    BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => {}
-                    BlockNumberOrTag::Earliest => {
-                        set_state_to_end_of_evm_block::<C>(0, working_set);
+                    BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => {
+                        return Ok(());
                     }
                     _ => {
-                        return Err(EthApiError::InvalidParams(
-                            "Please provide a number or earliest/latest tag".to_string(),
-                        ))
+                        let num = self.block_number_for_id(&block_num, working_set, ledger_db)?;
+                        self.check_if_l2_block_pruned(num, working_set)?;
+                        num
                     }
                 }
             }
-            Some(BlockId::Hash(block_hash)) => {
-                let block_number = self
-                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
-                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
-
-                set_state_to_end_of_evm_block::<C>(block_number, working_set);
-            }
+            Some(BlockId::Hash(block_hash)) => self
+                .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?,
         };
-
+        set_state_to_end_of_evm_block::<C>(block_num, working_set);
         Ok(())
     }
 
@@ -1794,7 +1849,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get_last_pruned_l2_height()
             .expect("Failed to get last pruned l2 height")
         {
-            if block_number <= last_pruned_l2_height {
+            if block_number == 0 {
+                // Genesis block is never pruned
+                return Ok(());
+            } else if block_number <= last_pruned_l2_height {
                 return Err(ProviderError::StateAtBlockPruned(block_number));
             }
         }

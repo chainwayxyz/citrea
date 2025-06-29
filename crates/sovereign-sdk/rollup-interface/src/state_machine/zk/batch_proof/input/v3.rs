@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::block::L2Block;
+use crate::block::{L2Block, L2Header};
 use crate::da::SequencerCommitment;
 use crate::witness::Witness;
 use crate::zk::StorageRootHash;
@@ -26,6 +26,9 @@ pub struct BatchProofCircuitInputV3Part1 {
     /// If it is none than this is the first batch proof
     /// Else the index of the sequencer commitment should be `sequencer_commitments[0].index - 1``
     pub previous_sequencer_commitment: Option<SequencerCommitment>,
+    /// A proof for the previous sequencer commitment's last header
+    /// None if the previous sequencer commitment is None
+    pub prev_hash_proof: Option<PrevHashProof>,
     /// Sequencer commitments being proven
     /// Since `SequencerCommitment` does not have the sequencer's signature,
     /// the light client prover will be doing the signature verification
@@ -67,6 +70,9 @@ pub struct BatchProofCircuitInputV3 {
     /// If it is none than this is the first batch proof
     /// Else the index of the sequencer commitment should be `sequencer_commitments[0].index - 1``
     pub previous_sequencer_commitment: Option<SequencerCommitment>,
+    /// To verify the first `prev_hash`, we need a merkle proof for the last header in the previous
+    /// sequencer commitment.
+    pub prev_hash_proof: Option<PrevHashProof>,
 }
 
 impl BatchProofCircuitInputV3 {
@@ -101,8 +107,23 @@ impl BatchProofCircuitInputV3 {
                 cache_prune_l2_heights: self.cache_prune_l2_heights,
                 last_l1_hash_witness: self.last_l1_hash_witness,
                 previous_sequencer_commitment: self.previous_sequencer_commitment,
+                prev_hash_proof: self.prev_hash_proof,
             },
             BatchProofCircuitInputV3Part2(x),
         )
     }
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+/// A merkle proof for the last header in the previous sequencer commitment
+/// This is used to verify the first `prev_hash` in the batch proof circuit
+/// The `prev_hash` is the hash of the last header in the previous sequencer commitment
+pub struct PrevHashProof {
+    /// Rightmost header in the L2 block hash merkle tree
+    pub last_header: L2Header,
+    /// Merkle proof for the last header in the previous sequencer commitment
+    pub merkle_proof_bytes: Vec<u8>,
+    /// Give the start of the previous sequencer commitment as a hint
+    /// so index can be calculated
+    pub prev_sequencer_commitment_start: u64,
 }

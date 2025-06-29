@@ -50,7 +50,6 @@ impl DaSpec for BitcoinSpec {
     type ShortHeaderProof = BitcoinHeaderShortProof;
 
     fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError> {
-        let blob = decompress_blob(complete_chunks).map_err(|_| DecompressError)?;
-        borsh::from_slice(blob.as_slice()).map_err(|_| DecompressError)
+        decompress_blob(complete_chunks).map_err(|_| DecompressError)
     }
 }

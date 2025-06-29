@@ -12,13 +12,14 @@ use alloy_primitives::{Address, Bytes, U256, U64};
 use alloy_rpc_types::{
     Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
 };
-use citrea_common::SequencerConfig;
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::{
     CallerContract, LogsContract, SimpleStorageContract, TestContract,
 };
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
 use sha2::Digest;
+use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::CITREA_VERSION;
 use sov_state::KeyHash;
 use tokio::time::sleep;
@@ -26,7 +27,9 @@ use tokio::time::sleep;
 // use sov_demo_rollup::initialize_logging;
 use crate::common::client::TestClient;
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job,
+    wait_for_prover_l1_height, NodeMode,
 };
 use crate::common::{
     make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
@@ -1263,4 +1266,266 @@ async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
 
     rollup_task.graceful_shutdown();
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_safe_finalized_tags() {
+    //citrea::initialize_logging(tracing::Level::INFO);
+
+    // Helper function to compare safe and finalized blocks with expected heights
+    // Asserts that the height of the blocks we get by safe and finalized tags match the last committed and proven heights.
+    // Asserts that the blocks we get by safe and finalized tags matches the block at expected heights.
+    // Also checks that for the test address, the nonce at the safe and finalized blocks matches the expected nonce at those heights.
+    async fn compare_with_numbered_params(
+        test_client: &TestClient,
+        expected_safe_block_height: u64,
+        expected_finalized_block_height: u64,
+        test_address: alloy_primitives::Address,
+    ) {
+        let safe_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Safe))
+            .await;
+        let finalized_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Finalized))
+            .await;
+
+        // Check if the safe and finalized blocks match the committed and proven heights
+        let committed_height = test_client.get_last_committed_l2_height().await;
+        assert_eq!(
+            committed_height.unwrap_or_default().height,
+            safe_block.header.number
+        ); // use unwrap_or_default to handle the no commitment case
+        let proven_height = test_client.get_last_proven_l2_height().await;
+        assert_eq!(
+            proven_height.unwrap_or_default().height,
+            finalized_block.header.number
+        ); // use unwrap_or_default to handle the no proof case
+
+        // Check if the safe and finalized blocks match the blocks at expected heights
+        let expected_safe_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(expected_safe_block_height)))
+            .await;
+        let expected_finalized_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(
+                expected_finalized_block_height,
+            )))
+            .await;
+        assert_eq!(safe_block, expected_safe_block);
+        assert_eq!(finalized_block, expected_finalized_block);
+
+        // To test set_state_to_end_of_evm_block_by_block_id
+        let expected_safe_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Number(
+                    expected_safe_block_height,
+                ))),
+            )
+            .await
+            .unwrap();
+        let expected_finalized_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Number(
+                    expected_finalized_block_height,
+                ))),
+            )
+            .await
+            .unwrap();
+        println!(
+            "Expected safe block nonce: {}, expected finalized block nonce: {}",
+            expected_safe_block_nonce, expected_finalized_block_nonce
+        );
+
+        let safe_block_nonce = test_client
+            .eth_get_transaction_count(test_address, Some(BlockId::Number(BlockNumberOrTag::Safe)))
+            .await
+            .unwrap();
+        let finalized_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Finalized)),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(finalized_block_nonce, expected_finalized_block_nonce);
+        assert_eq!(safe_block_nonce, expected_safe_block_nonce);
+    }
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig::default();
+
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await.unwrap();
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
+
+    let prover_node_task = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            // Make it impossible for proving to happen
+            proof_sampling_number: 1_000_000,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+
+    let prover_client = make_test_client(prover_node_port).await.unwrap();
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &fullnode_db_dir,
+        &da_db_dir,
+        NodeMode::FullNode(seq_port),
+        None,
+    );
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_client = make_test_client(full_node_port).await.unwrap();
+
+    let tx_sender = test_client.from_addr;
+
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
+
+    wait_for_l2_block(&full_node_client, 2, None).await;
+    // No commitment yet, so safe and finalized blocks should be the same, and equal to 0
+    compare_with_numbered_params(&full_node_client, 0, 0, tx_sender).await;
+
+    // send the first transaction to increase the nonce
+    let _ = test_client
+        .send_eth(Address::random(), None, None, None, 1_000_000)
+        .await
+        .unwrap();
+
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&full_node_client, 4, None).await;
+
+    // wait for commitment at block 3, mockda produces block when it receives a transaction, hence 3
+    let commitments = wait_for_commitment(&da_service, 3, None).await;
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
+
+    // wait for prover to see commitment, since sampling is too high, proving won't be triggered here
+    wait_for_prover_l1_height(&prover_client, 3, None)
+        .await
+        .unwrap();
+    wait_for_prover_l1_height(&full_node_client, 3, None)
+        .await
+        .unwrap();
+
+    // Full node sees the commitment with l2 end height 4
+    // So the safe block should be 4, and finalized block should be 0
+    // since no proof was produced yet
+    compare_with_numbered_params(&full_node_client, 4, 0, tx_sender).await;
+
+    // Trigger proving via the RPC endpoint
+    let job_ids = prover_client.batch_prover_prove(None).await;
+    assert_eq!(job_ids.len(), 1);
+    let job_id = job_ids[0];
+
+    // wait here until we see from prover's rpc that it finished proving
+    wait_for_prover_job(&prover_client, job_id, None)
+        .await
+        .unwrap();
+    wait_for_proof(&full_node_client, 4, None).await;
+
+    let proofs = full_node_client
+        .ledger_get_verified_batch_proofs_by_slot_height(4)
+        .await
+        .unwrap();
+    assert_eq!(proofs.len(), 1);
+    let proof = &proofs[0];
+    assert_eq!(proof.proof_output.last_l2_height.to::<u64>(), 4);
+
+    // Now that the full node has the proof, finalized block should be 4
+    // and safe block should be 4 as well since there is no new commitment
+    compare_with_numbered_params(&full_node_client, 4, 4, tx_sender).await;
+
+    // send a second transaction to increase the nonce
+    let _ = test_client
+        .send_eth(Address::random(), None, None, None, 1_000_000)
+        .await
+        .unwrap();
+    for _ in 0..4 {
+        // publish a batch, this will create a new commitment
+        test_client.send_publish_batch_request().await;
+    }
+    let commitments = wait_for_commitment(&da_service, 5, None).await;
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_end_block_number, 8);
+
+    wait_for_prover_l1_height(&full_node_client, 5, None)
+        .await
+        .unwrap();
+    // As we have a new commitment with l2 end block 8, the safe block should be 8,
+    // and finalized block should be 4, since we haven't proven the new commitment yet
+    compare_with_numbered_params(&full_node_client, 8, 4, tx_sender).await;
+
+    seq_task.graceful_shutdown();
+    prover_node_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 }

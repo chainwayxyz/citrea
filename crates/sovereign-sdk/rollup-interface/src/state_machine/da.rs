@@ -81,14 +81,6 @@ pub enum DataOnDa {
     SequencerCommitment(SequencerCommitment),
 }
 
-impl DataOnDa {
-    /// Implement parsing of ::Complete variant according to possible changes
-    ///  of format on DA.
-    pub fn borsh_parse_complete(body: &[u8]) -> borsh::io::Result<Self> {
-        Self::try_from_slice(body)
-    }
-}
-
 /// A specification for the types used by a DA layer.
 pub trait DaSpec:
     'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone + Send + Sync

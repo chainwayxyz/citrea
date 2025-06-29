@@ -55,6 +55,11 @@ impl L2Header {
         }
     }
 
+    /// Returns the merkle root of the state tree after applying this block's transactions.
+    pub fn state_root(&self) -> [u8; 32] {
+        self.state_root
+    }
+
     /// Computes the cryptographic digest of the block header using the specified hash function.
     ///
     /// # Type Parameters

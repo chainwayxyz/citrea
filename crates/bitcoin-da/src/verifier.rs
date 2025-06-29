@@ -1,4 +1,3 @@
-use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
@@ -97,12 +96,11 @@ impl DaVerifier for BitcoinVerifier {
                 match parsed_tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let Ok(blob) = decompress_blob(&complete.body) else {
-                                continue;
-                            };
+                            // complete.body is compressed, but we'll leave the compression to
+                            // circuit logic
 
                             blobs.push(BlobWithSender::new(
-                                blob,
+                                complete.body,
                                 complete.public_key,
                                 hash,
                                 Some(*wtxid),

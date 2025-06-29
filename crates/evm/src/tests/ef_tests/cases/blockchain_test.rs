@@ -172,7 +172,7 @@ impl Case for BlockchainTestCase {
                     ));
                 }
 
-                let (mut evm, _, mut storage) = get_evm_with_storage(&evm_config);
+                let (mut evm, _, mut storage, _) = get_evm_with_storage(&evm_config);
                 let mut l2_height = 2;
 
                 let mut working_set = WorkingSet::new(storage.clone());

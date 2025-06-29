@@ -24,7 +24,6 @@ impl BitcoinMerkleTree {
         // Construct the tree
         let mut curr_level_offset: usize = 1;
         let mut prev_level_size = tree.nodes[0].len();
-        let mut prev_level_index_offset = 0;
         let mut preimage: [u8; 64] = [0; 64];
 
         // Continue building the tree until we reach a level with only one node (the root)
@@ -33,8 +32,8 @@ impl BitcoinMerkleTree {
 
             // Process each pair of nodes from the previous level
             for i in 0..(prev_level_size / 2) {
-                let l = &tree.nodes[curr_level_offset - 1][prev_level_index_offset + i * 2];
-                let r = &tree.nodes[curr_level_offset - 1][prev_level_index_offset + i * 2 + 1];
+                let l = &tree.nodes[curr_level_offset - 1][i * 2];
+                let r = &tree.nodes[curr_level_offset - 1][i * 2 + 1];
                 // Check if the pair has the same digest, if so, panic
                 assert_ne!(
                     l, r,
@@ -52,10 +51,8 @@ impl BitcoinMerkleTree {
                 // In Bitcoin's Merkle tree, if a level has an odd number of nodes,
                 // the last node is duplicated when calculating its parent
                 // Copy the last node's hash into both halves of the preimage
-                preimage[..32].copy_from_slice(
-                    &tree.nodes[curr_level_offset - 1]
-                        [prev_level_index_offset + prev_level_size - 1],
-                );
+                preimage[..32]
+                    .copy_from_slice(&tree.nodes[curr_level_offset - 1][prev_level_size - 1]);
                 preimage.copy_within(..32, 32);
                 // Calculate the parent node's hash
                 let combined_hash = calculate_double_sha256(&preimage);
@@ -65,7 +62,6 @@ impl BitcoinMerkleTree {
             curr_level_offset += 1;
             // Calculate the size of the level we just created
             prev_level_size = (prev_level_size + 1) / 2; // Ceiling division to handle odd numbers
-            prev_level_index_offset = 0;
         }
         tree
     }
@@ -110,7 +106,11 @@ impl BitcoinMerkleTree {
                 preimage[32..].copy_from_slice(&merkle_proof[level as usize]);
                 combined_hash = calculate_double_sha256(&preimage);
             } else {
-                preimage[..32].copy_from_slice(&merkle_proof[level as usize]);
+                let left = &merkle_proof[level as usize];
+                if left == &combined_hash {
+                    panic!("Merkle proof is invalid: left hash matches combined hash");
+                }
+                preimage[..32].copy_from_slice(left);
                 preimage[32..].copy_from_slice(&combined_hash);
                 combined_hash = calculate_double_sha256(&preimage);
             }
@@ -142,6 +142,45 @@ mod tests {
         let calculated_root =
             BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[0], 0, &idx_path);
         assert_eq!(root, calculated_root);
+    }
+
+    #[test]
+    /// a b c
+    /// but try to cheat and say c is index 3
+    #[should_panic(expected = "Merkle proof is invalid: left hash matches combined hash")]
+    fn test_merkle_root_with_proof_wrong_idx_a() {
+        let mut transactions: Vec<[u8; 32]> = vec![];
+        for i in 0u8..3u8 {
+            let tx = [i; 32];
+            transactions.push(tx);
+        }
+        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let root = tree.root();
+        let idx_path = tree.get_idx_path(2);
+        let calculated_root =
+            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 2, &idx_path);
+        assert_eq!(root, calculated_root);
+
+        BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 3, &idx_path);
+    }
+    #[test]
+    /// a b c d e f
+    /// but try to cheat and say e is index 6
+    #[should_panic(expected = "Merkle proof is invalid: left hash matches combined hash")]
+    fn test_merkle_root_with_proof_wrong_idx_b() {
+        let mut transactions: Vec<[u8; 32]> = vec![];
+        for i in 0u8..6u8 {
+            let tx = [i; 32];
+            transactions.push(tx);
+        }
+        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let root = tree.root();
+        let idx_path = tree.get_idx_path(4);
+        let calculated_root =
+            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 4, &idx_path);
+        assert_eq!(root, calculated_root);
+
+        BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 6, &idx_path);
     }
 
     #[test]

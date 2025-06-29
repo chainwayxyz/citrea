@@ -27,7 +27,7 @@ lazy_static! {
 #[test]
 fn begin_l2_block_hook_creates_pending_block() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set, _) = get_evm(&config);
+    let (mut evm, mut working_set, _, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
     let l2_block_info = HookL2BlockInfo {
@@ -59,7 +59,7 @@ fn begin_l2_block_hook_creates_pending_block() {
 #[test]
 fn end_l2_block_hook_sets_head() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&get_evm_test_config());
 
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -132,7 +132,7 @@ fn end_l2_block_hook_sets_head() {
 
 #[test]
 fn end_l2_block_hook_moves_transactions_and_receipts() {
-    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&get_evm_test_config());
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -239,7 +239,7 @@ fn create_pending_transaction(index: u64, nonce: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() {
     let config = get_evm_test_config();
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
     // hack to get the root hash
     let binding = evm
@@ -348,7 +348,7 @@ fn finalize_hook_creates_final_block() {
 // because pre tangerine we were deleting block hashes and
 // we'd still like to test that
 fn begin_l2_block_hook_appends_last_block_hashes() {
-    let (mut evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&get_evm_test_config());
 
     // hack to get the root hash
     let binding = evm
