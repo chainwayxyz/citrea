@@ -4102,7 +4102,7 @@ impl TestCase for ChunkingPackageTooBigTest {
                     DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
                     1,
                 )
-                .await;
+                .await?;
 
             // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
             if i == 4 {
