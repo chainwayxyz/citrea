@@ -415,7 +415,7 @@ impl BitcoinService {
     }
 
     /// Send transaction out of the queue to DA until the first error.
-    /// Returns the succesfully sent txs.
+    /// Returns the successfully sent txs.
     pub(crate) async fn process_transaction_queue(&self) -> Result<Vec<Txid>> {
         let mut queue = self.tx_queue.lock().await;
 
@@ -432,13 +432,13 @@ impl BitcoinService {
                 }
                 Err(e) => {
                     error!(?e, "Error sending signed transaction");
-                    // Break on first error and return succesfully sent txids
+                    // Break on first error and return successfully sent txids
                     break;
                 }
             }
         }
 
-        // Monitor succesfully sent txs
+        // Monitor successfully sent txs
         if let Err(e) = self
             .monitoring
             .monitor_transaction_chain(txids.clone())
