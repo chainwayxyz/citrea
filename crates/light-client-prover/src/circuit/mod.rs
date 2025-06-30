@@ -77,7 +77,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// 
     /// # Logic
     /// - If the batch proof output contains a previous commitment index and hash, compares it with the sequencer commitment stored in the JMT state. 
-    ///     If the previous commitment index is not set,ensures that the first commitment index in the batch proof output is 1.
+    ///     If the previous commitment index is not set, ensures that the first commitment index in the batch proof output is 1.
     /// - For each sequencer commitment in the batch proof output, checks that the index and hash match the sequencer commitments stored in the JMT state.
     /// - Checks that if the last L2 height of last commitment matches the last L2 height in the batch proof output.
     /// 
